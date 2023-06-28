@@ -1,0 +1,17 @@
+digraph G {
+    A [label = "A";];
+    A -> A [label = "spin,50";];
+    A -> B [label = "AtoB";];
+    B [label = "B";];
+    B -> WaitBE [label = "BtoC";];
+    C [label = "C";];
+    WaitBE [label = "WaitBE";];
+    WaitBE -> C;
+    D [label = "D";];
+    D -> D [label = "spin,80";];
+    D -> E [label = "DtoE";];
+    D -> F [label = "DtoF";];
+    E [label = "E";];
+    E -> WaitBE [label = "EtoC";];
+    F [label = "F";];
+}
