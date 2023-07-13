@@ -15,21 +15,22 @@
     "name": "C",
     "priority": 99,
     "processor": 0,
-    "time": "2 3,2 4",
-    "lock": ["mutex1"]
+    "time": "3 5,2 3,2 4",
+    "lock": ["spin1","mutex1"]
   },
   {
     "name": "D",
     "priority": 97,
     "processor": 0,
     "time": "10 12,2 4",
-    "lock": ["mutex1"]
+    "lock": ["spin1"]
   },
   {
     "name": "E",
     "priority": 98,
     "processor": 0,
-    "time": "4 6"
+    "time": "4 6,2 3",
+    "lock": ["mutex1"]
   },
   {
     "name": "F",

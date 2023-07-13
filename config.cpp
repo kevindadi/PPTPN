@@ -101,7 +101,7 @@ void Config::parse_json() {
 std::map<int, std::vector<TaskConfig>> Config::classify_priority() {
   std::map<int, std::vector<TaskConfig>> tp;
   for (const auto &t : tc) {
-    std::cout << "------------core index error ------------" << std::endl;
+    // std::cout << "------------core index error ------------" << std::endl;
     int core_index = t.core;
     tp[core_index].push_back(t);
   }

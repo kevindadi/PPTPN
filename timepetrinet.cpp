@@ -17,16 +17,26 @@ void TimePetriNet::init_graph() {
 void TimePetriNet::construct_petri_net(const Config& config) {
   collect_task(config);
 //  PetriNet::construct_petri_net();
+  std::map<std::string, vertex_tpn> wait_v;
   for (const auto &id : task_name) {
     if (id.second.find("Wait") != std::string::npos) {
-      std::string wait = "wait" + std::to_string(element_id);
+      std::string wait0 = "wait" + std::to_string(element_id);
+      element_id += 1;
+      std::string wait1 = "wait" + std::to_string(element_id);
+      element_id += 1;
+      std::string wait2 = "wait" + std::to_string(element_id);
       element_id += 1;
       TPetriNetTransition pt = {0, INT_MAX, std::make_pair(0, 0)};
-      vertex_tpn wait_vertex = add_transition(time_petri_net, wait, false, pt);
+      vertex_tpn wait_v_s = add_transition(time_petri_net, wait0, false, pt);
+      vertex_tpn wait_v_m = add_place(time_petri_net, wait1, 0);
+      vertex_tpn wait_v_l = add_transition(time_petri_net, wait2, false, pt);
+      add_edge(wait_v_s, wait_v_m, time_petri_net);
+      add_edge(wait_v_m, wait_v_l, time_petri_net);
       id_start_end.insert(std::pair<std::size_t, boost::tuple<vertex_tpn, vertex_tpn>>(id.first,
-                                                                                       boost::tie(wait_vertex,
-                                                                                                  wait_vertex)));
-      id_str_start_end.insert(std::make_pair(id.second, std::make_pair(wait_vertex, wait_vertex)));
+                                                                                       boost::tie(wait_v_s,
+                                                                                                  wait_v_l)));
+
+      id_str_start_end.insert(std::make_pair(id.second, std::make_pair(wait_v_s, wait_v_l)));
       BOOST_LOG_TRIVIAL(debug) << "find wait vertex!";
       continue;
     }
@@ -66,17 +76,16 @@ void TimePetriNet::construct_petri_net(const Config& config) {
       add_edge(ready, exec, time_petri_net);
     } else {
       size_t lock_n = tc_t.lock.size();
+
       for (int i = 0; i < lock_n; i++) {
         auto lock_name = tc_t.lock[i];
         vertex_tpn get_lock = add_transition(time_petri_net, task_lock + lock_name, false,
                                             TPetriNetTransition{0, 0, {0, 0}});
         vertex_tpn deal = add_place(time_petri_net, task_deal + lock_name, 0);
+        add_edge(node.back(), get_lock, time_petri_net);
         node.push_back(get_lock);
         node.push_back(deal);
         add_edge(get_lock, deal, time_petri_net);
-        if (i == 0) {
-          add_edge(ready, get_lock, time_petri_net);
-        }
       }
       auto link = node.back();
 
@@ -86,16 +95,13 @@ void TimePetriNet::construct_petri_net(const Config& config) {
         vertex_tpn drop_lock = add_transition(time_petri_net, task_drop + lock_name, false,
                                              TPetriNetTransition{0, 0, t});
         vertex_tpn unlocked = add_place(time_petri_net, task_unlock + lock_name, 0);
+        add_edge(node.back(), drop_lock, time_petri_net);
         add_edge(drop_lock, unlocked, time_petri_net);
         if (lock_n == 1) {
-          add_edge(link, drop_lock, time_petri_net);
+          //add_edge(link, drop_lock, time_petri_net);
           add_edge(unlocked, exec, time_petri_net);
-        } else {
-          if (j == (lock_n - 1)) {
-            add_edge(link, drop_lock, time_petri_net);
-          } else if (j == 0) {
-            add_edge(unlocked, exec, time_petri_net);
-          }
+        } else if (j == 0) {
+          add_edge(unlocked, exec, time_petri_net);
         }
         node.push_back(drop_lock);
         node.push_back(unlocked);
@@ -114,9 +120,12 @@ void TimePetriNet::construct_petri_net(const Config& config) {
   typename boost::property_map<DAG, boost::vertex_index_t>::type index
       = get(boost::vertex_index, config.dag);
   BOOST_LOG_TRIVIAL(info) << "DEAL DAG EDGE";
+  // 除自环外，任务链接关系
+  std::map<std::size_t, std::vector<std::size_t>> s_t_map;
   for (boost::tie(ei, ei_end) = edges(config.dag); ei != ei_end; ++ei) {
     auto source_vertex = index[source(*ei, config.dag)];
     auto target_vertex = index[target(*ei, config.dag)];
+    // 自环
     if (source_vertex == target_vertex) {
       std::string n = (*(id_name_map_me.find(index[source(*ei, config.dag)]))).second;
 
@@ -132,26 +141,35 @@ void TimePetriNet::construct_petri_net(const Config& config) {
       // TODO: 初始化marking需要Refactor
       // initial_state.insert(v1);
       add_edge(v1, v2, time_petri_net);
+      add_edge(v2, v1, time_petri_net);
       auto v_start = id_start_end[source_vertex];
       vertex_tpn v_s = v_start.head;
       add_edge(v2, v_s, time_petri_net);
     } else {
+      if (s_t_map.count(source_vertex) != 0) {
+        s_t_map.at(source_vertex).push_back(target_vertex);
+      }else {
+        s_t_map.insert(std::make_pair(source_vertex, target_vertex));
+      }
+      //s_t_map.insert();
       std::string source_vertex_name = (*(id_name_map_me.find(source_vertex))).second;
       std::string target_vertex_name = (*(id_name_map_me.find(target_vertex))).second;
       if (source_vertex_name.find("Wait") == 0) {
-        vertex_tpn wait_vertex = id_start_end[source_vertex].get<0>();
+        vertex_tpn wait_vertex = id_start_end[source_vertex].get<1>();
         vertex_tpn next_task = id_start_end[target_vertex].get<0>();
         add_edge(wait_vertex, next_task, time_petri_net);
       } else if (target_vertex_name.find("Wait") == 0) {
         vertex_tpn wait_vertex = id_start_end[target_vertex].get<0>();
         vertex_tpn last_task = id_start_end[source_vertex].get<1>();
         add_edge(last_task, wait_vertex, time_petri_net);
+        task_succ.insert(std::make_pair(target_vertex, wait_vertex));
         // std::cout << "target:" << target_vertex_name << std::endl;
       } else {
         std::string link_name = "link" + std::to_string(element_id);
         element_id += 1;
         vertex_tpn link = add_transition(time_petri_net, link_name, false,
                                         TPetriNetTransition{0, INT_MAX, std::make_pair(0, 0)});
+
         auto v_s = id_start_end[source_vertex];
         vertex_tpn v_s_end = v_s.get<1>();
         add_edge(v_s_end, link, time_petri_net);
@@ -159,6 +177,14 @@ void TimePetriNet::construct_petri_net(const Config& config) {
         vertex_tpn v_t_start = v_t.get<0>();
         add_edge(link, v_t_start, time_petri_net);
       }
+    }
+  }
+  for (auto & iter : s_t_map) {
+    auto s_v = iter.first;
+    std::string source_vertex_name = (*(id_name_map_me.find(s_v))).second;
+    // 判断后续节点是否包含 Wait
+    for (auto node : iter.second) {
+
     }
   }
   BOOST_LOG_TRIVIAL(info) << "Base Petri Net Construction Completed!";
@@ -280,7 +306,7 @@ void TimePetriNet::bind_task_priority(Config& config) {
           TaskConfig tc_it2 = config.task.find(it2->name)->second;
           if (tc_it1.lock.empty()) {
             // mark the preempt task transition could be handled
-            auto handle_vertex = (it1_vertex->second)[0][2];
+            auto handle_vertex = it[2];
             time_petri_net[it[3]].pnt.is_handle = true;
             auto preempt_task_start = (it2_vertex->second)[0].front();
             auto preempt_task_end = (it2_vertex->second)[0].back();
@@ -326,10 +352,11 @@ void TimePetriNet::bind_task_priority(Config& config) {
                 vertex_tpn deal = add_place(time_petri_net, task_deal + lock_name + std::to_string(element_id), 0);
                 node.push_back(get_lock);
                 node.push_back(deal);
+                add_edge(node.back(), get_lock, time_petri_net);
                 add_edge(get_lock, deal, time_petri_net);
-                if (j==0) {
-                  add_edge(ready, get_lock, time_petri_net);
-                }
+//                if (j==0) {
+//                  add_edge(ready, get_lock, time_petri_net);
+//                }
               }
               auto link = node.back();
               for (int k = (tc_it2.lock.size() - 1); k >= 0; k--) {
@@ -338,16 +365,12 @@ void TimePetriNet::bind_task_priority(Config& config) {
                 vertex_tpn drop_lock = add_transition(time_petri_net, task_drop + lock_name + std::to_string(element_id), false,
                                                      TPetriNetTransition{ 0, 0, l_t});
                 vertex_tpn unlocked = add_place(time_petri_net, task_unlock + lock_name + std::to_string(element_id), 0);
+                add_edge(node.back(), drop_lock, time_petri_net);
                 add_edge(drop_lock, unlocked, time_petri_net);
                 if (tc_it2.lock.size() == 1) {
-                  add_edge(link, drop_lock, time_petri_net);
                   add_edge(unlocked, exec, time_petri_net);
-                }else {
-                  if (k == (tc_it2.lock.size() - 1)) {
-                    add_edge(link, drop_lock, time_petri_net);
-                  } else if (k == 0) {
+                }else if (k == 0) {
                     add_edge(unlocked, exec, time_petri_net);
-                  }
                 }
                 node.push_back(drop_lock);
                 node.push_back(unlocked);
@@ -359,92 +382,60 @@ void TimePetriNet::bind_task_priority(Config& config) {
             multi_task_node.find(it2->name)->second.push_back(node);
           } else {
             // 如果抢占的任务有锁，判断锁的类型是否可被抢占，无锁，按照正常排列
+            BOOST_LOG_TRIVIAL(info) << "preempt task has locks";
             int task_v_num = it.size();
             int lock_n = config.task.find(it1->name)->second.lock.size();
-            // 不需要看锁的数量，直接遍历任务结构，第二个place 到倒数第二个 place 都可以抢占
-            for (int p = 2; p <= task_v_num; p = p+2) {
-              auto preempt_vertex = (it1_vertex->second)[0][p];
-              auto lock_type = time_petri_net[preempt_vertex].name;
-              if (lock_type.find("spin") != lock_type.npos) {
-                continue;
-              }else {
-                time_petri_net[(p+1)].pnt.is_handle = true;
-                auto preempt_task_start = (it2_vertex->second)[0][0];
-                auto preempt_task_end = (it2_vertex->second)[0].back();
-
-                std::string task_get = it2->name + "get_core" + std::to_string(element_id);
-                std::string task_ready = it2->name + "ready" + std::to_string(element_id);
-                std::string task_lock = it2->name + "get_lock" + std::to_string(element_id);
-                std::string task_deal = it2->name + "deal" + std::to_string(element_id);
-                std::string task_drop = it2->name + "drop_lock" + std::to_string(element_id);
-                std::string task_unlock = it2->name + "unlocked" + std::to_string(element_id);
-                std::string task_exec = it2->name + "exec" + std::to_string(element_id);
-
-                // get task prority and execute time
-                std::vector<std::vector<vertex_tpn>> task_node_tmp;
-                std::vector<vertex_tpn> node;
-                TaskConfig tc_t = config.task.find(it2->name)->second;
-                int task_pror = tc_t.priority;
-                auto task_exec_t = tc_t.time[(tc_t.time.size() - 1)];
-                vertex_tpn get_core = add_transition(time_petri_net, task_get, false,
-                                                    TPetriNetTransition{0, 0, std::make_pair(0, 0)});
-                vertex_tpn ready = add_place(time_petri_net, task_ready, 0);
-
-                vertex_tpn exec = add_transition(time_petri_net, task_exec, false,
-                                                TPetriNetTransition{0, 0, task_exec_t});
-
-                add_edge(preempt_task_start, get_core, time_petri_net);
-                add_edge(preempt_vertex, get_core, time_petri_net);
-                add_edge(get_core, ready, time_petri_net);
-                add_edge(exec, preempt_task_end, time_petri_net);
-                add_edge(exec, preempt_vertex, time_petri_net);
-                node.push_back(preempt_task_start);
-                node.push_back(get_core);
-                node.push_back(ready);
-
-                if (tc_t.lock.empty()) {
-                  add_edge(ready, exec, time_petri_net);
-                  element_id += 1;
-                } else {
-                  for(int j = 0; j < tc_t.lock.size(); j++) {
-                    auto lock_name = tc_t.lock[j];
-                    vertex_tpn get_lock = add_transition(time_petri_net, task_lock + lock_name + std::to_string(element_id), false,
-                                                        TPetriNetTransition{0, 0, {0, 0}});
-                    vertex_tpn deal = add_place(time_petri_net, task_deal + lock_name + std::to_string(element_id), 0);
-                    node.push_back(get_lock);
-                    node.push_back(deal);
-                    add_edge(get_lock, deal, time_petri_net);
-                    if (j==0) {
-                      add_edge(ready, get_lock, time_petri_net);
-                    }
-                  }
-                  auto link = node.back();
-                  for (int k = (tc_t.lock.size() - 1); k >= 0; k--) {
-                    auto lock_name = tc_t.lock[k];
-                    auto t = tc_t.time[k];
-                    vertex_tpn drop_lock = add_transition(time_petri_net, task_drop + lock_name + std::to_string(element_id), false,
-                                                         TPetriNetTransition{ 0, 0, t});
-                    vertex_tpn unlocked = add_place(time_petri_net, task_unlock + lock_name + std::to_string(element_id), 0);
-                    add_edge(drop_lock, unlocked, time_petri_net);
-                    if (tc_t.lock.size() == 1) {
-                      add_edge(link, drop_lock, time_petri_net);
-                      add_edge(unlocked, exec, time_petri_net);
-                    }else {
-                      if (k == (tc_t.lock.size() - 1)) {
-                        add_edge(link, drop_lock, time_petri_net);
-                      } else if (k == 0) {
-                        add_edge(unlocked, exec, time_petri_net);
-                      }
-                    }
-                    node.push_back(drop_lock);
-                    node.push_back(unlocked);
-                  }
-                  element_id += 1;
-                }
-                node.push_back(exec);
-                node.push_back(preempt_task_end);
-
-                multi_task_node.find(it2->name)->second.push_back(node);
+            // 记录自旋锁在锁集中出现的位置
+            int record = 0;
+            for (int l = 0; l < lock_n; l++) {
+              if (config.task.find(it1->name)->second.lock[l].find("spin") !=std::string::npos ){
+                record = l + 1;
+                BOOST_LOG_TRIVIAL(info) << it1->name << "->" << "spin locks index: " << record;
+              }
+            }
+            // 如果没有自旋锁，不需要看锁的数量，直接遍历任务结构，第二个place 到倒数第二个 place 都可以抢占
+            //
+            if (record <= 0 ) {
+              for (int p = 2, q = (task_v_num - 3), l = 0; l <= lock_n; p = p+2, q = q - 2, l++) {
+                auto preempt_vertex_front = it[p];
+                auto preempt_vertex_back = it[q];
+//              auto lock_type = time_petri_net[preempt_vertex].name;
+                create_priority_task(config,
+                                     it2->name,
+                                     preempt_vertex_front,
+                                     p,
+                                     (it2_vertex->second)[0][0],
+                                     (it2_vertex->second)[0].back()
+                );
+                create_priority_task(config,
+                                     it2->name,
+                                     preempt_vertex_back,
+                                     q,
+                                     (it2_vertex->second)[0][0],
+                                     (it2_vertex->second)[0].back()
+                );
+              }
+            }
+            else {
+            // 如果有自旋锁，记录位置
+              for (int p = 2, q = (task_v_num - 3), l = 0; l < record; p = p+2, q = q - 2, l++) {
+                auto preempt_vertex_front = it[p];
+                auto preempt_vertex_back = it[q];
+  //              auto lock_type = time_petri_net[preempt_vertex].name;
+                create_priority_task(config,
+                                     it2->name,
+                                     preempt_vertex_front,
+                                     p,
+                                     (it2_vertex->second)[0][0],
+                                     (it2_vertex->second)[0].back()
+                );
+                create_priority_task(config,
+                                     it2->name,
+                                     preempt_vertex_back,
+                                     q,
+                                     (it2_vertex->second)[0][0],
+                                     (it2_vertex->second)[0].back()
+                );
               }
             }
 
@@ -456,4 +447,81 @@ void TimePetriNet::bind_task_priority(Config& config) {
   }
 
   BOOST_LOG_TRIVIAL(info) << "bind task preempt";
+}
+
+void TimePetriNet::create_priority_task(const Config& config,
+                                        const std::string& name,
+                                        vertex_tpn preempt_vertex,
+                                        int handle_t,
+                                        vertex_tpn start,
+                                        vertex_tpn end) {
+  time_petri_net[(handle_t+1)].pnt.is_handle = true;
+
+  std::string task_get = name + "get_core" + std::to_string(element_id);
+  std::string task_ready = name + "ready" + std::to_string(element_id);
+  std::string task_lock = name + "get_lock" + std::to_string(element_id);
+  std::string task_deal = name + "deal" + std::to_string(element_id);
+  std::string task_drop = name + "drop_lock" + std::to_string(element_id);
+  std::string task_unlock = name + "unlocked" + std::to_string(element_id);
+  std::string task_exec = name + "exec" + std::to_string(element_id);
+
+  // get task prority and execute time
+  std::vector<std::vector<vertex_tpn>> task_node_tmp;
+  std::vector<vertex_tpn> node;
+  TaskConfig tc_t = config.task.find(name)->second;
+  int task_pror = tc_t.priority;
+  auto task_exec_t = tc_t.time[(tc_t.time.size() - 1)];
+  vertex_tpn get_core = add_transition(time_petri_net, task_get, false,
+                                       TPetriNetTransition{0, 0, std::make_pair(0, 0)});
+  vertex_tpn ready = add_place(time_petri_net, task_ready, 0);
+
+  vertex_tpn exec = add_transition(time_petri_net, task_exec, false,
+                                   TPetriNetTransition{0, 0, task_exec_t});
+
+  add_edge(start, get_core, time_petri_net);
+  add_edge(preempt_vertex, get_core, time_petri_net);
+  add_edge(get_core, ready, time_petri_net);
+  add_edge(exec, end, time_petri_net);
+  add_edge(exec, preempt_vertex, time_petri_net);
+  node.push_back(start);
+  node.push_back(get_core);
+  node.push_back(ready);
+
+  if (tc_t.lock.empty()) {
+    add_edge(ready, exec, time_petri_net);
+    element_id += 1;
+  } else {
+    for(int j = 0; j < tc_t.lock.size(); j++) {
+      auto lock_name = tc_t.lock[j];
+      vertex_tpn get_lock = add_transition(time_petri_net, task_lock + lock_name, false,
+                                           TPetriNetTransition{0, 0, {0, 0}});
+      vertex_tpn deal = add_place(time_petri_net, task_deal + lock_name, 0);
+      add_edge(node.back(), get_lock, time_petri_net);
+      node.push_back(get_lock);
+      node.push_back(deal);
+      add_edge(get_lock, deal, time_petri_net);
+    }
+    //auto link = node.back();
+    for (int k = (tc_t.lock.size() - 1); k >= 0; k--) {
+      auto lock_name = tc_t.lock[k];
+      auto t = tc_t.time[k];
+      vertex_tpn drop_lock = add_transition(time_petri_net, task_drop + lock_name, false,
+                                            TPetriNetTransition{ 0, 0, t});
+      vertex_tpn unlocked = add_place(time_petri_net, task_unlock + lock_name, 0);
+      add_edge(node.back(), drop_lock, time_petri_net);
+      add_edge(drop_lock, unlocked, time_petri_net);
+      if (tc_t.lock.size() == 1) {
+        add_edge(unlocked, exec, time_petri_net);
+      }else if (k == 0) {
+        add_edge(unlocked, exec, time_petri_net);
+      }
+      node.push_back(drop_lock);
+      node.push_back(unlocked);
+    }
+    element_id += 1;
+  }
+  node.push_back(exec);
+  node.push_back(end);
+
+  multi_task_node.find(name)->second.push_back(node);
 }

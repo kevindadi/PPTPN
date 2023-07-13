@@ -8,9 +8,11 @@ digraph G {
     WaitBE [label = "WaitBE";];
     WaitBE -> C;
     D [label = "D";];
+    Distribute [label = "DistributeD", shape = "diamond"];
     D -> D [label = "spin,80";];
-    D -> E [label = "DtoE";];
-    D -> F [label = "DtoF";];
+    D -> Distribute;
+    Distribute -> E [label = "DtoE";];
+    Distribute -> F [label = "DtoF";];
     E [label = "E";];
     E -> WaitBE [label = "EtoC";];
     F [label = "F";];

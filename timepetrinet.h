@@ -81,7 +81,8 @@ class TimePetriNet : public PetriNet{
   std::unordered_map<std::size_t, std::string> id_name_map_me;
   std::unordered_map<std::string, std::vector<vertex_tpn>> single_task_node;
   std::unordered_map<std::string, std::vector<std::vector<vertex_tpn>>> multi_task_node;
-
+  // DAG 图中任务的后继
+  std::unordered_map<std::size_t, vertex_tpn> task_succ;
  private:
   vertex_tpn add_place(TPN& time_petri_net, std::string name, int token);
   vertex_tpn add_transition(TPN& time_petri_net, std::string name, bool enable, TPetriNetTransition tpnt);
@@ -98,6 +99,13 @@ class TimePetriNet : public PetriNet{
   void task_bind_lock(const Config& config);
   // 创建优先级
   void bind_task_priority(Config& config);
+  // 为高优先级创建抢占序列
+  void create_priority_task(const Config& config,
+                            const std::string& name,
+                            vertex_tpn preempt_node,
+                            int handle_t,
+                            vertex_tpn start,
+                            vertex_tpn end);
 };
 
 #endif //PPTPN__TIMEPETRINET_H_
