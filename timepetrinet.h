@@ -6,57 +6,10 @@
 #ifndef PPTPN__TIMEPETRINET_H_
 #define PPTPN__TIMEPETRINET_H_
 #include "petrinet.h"
-
+#include "StateClass.h"
+#include <boost/chrono.hpp>
+#include <boost/chrono/include.hpp>
 #include <utility>
-
-struct TPetriNetTransition
-{
-  bool is_handle = false;
-  int runtime = 0;
-  int priority = 0;
-  std::pair<int, int> const_time = {0, 0};
-  TPetriNetTransition() = default;
-  TPetriNetTransition(int runtime, int priority, std::pair<int, int> const_time) :
-      runtime(runtime), priority(priority), const_time(std::move(const_time)) {
-    is_handle = false;
-  };
-  TPetriNetTransition(bool is_handle, int runtime, int priority, std::pair<int, int> const_time) :
-      is_handle(is_handle), runtime(runtime), priority(priority), const_time(std::move(const_time)) {
-  };
-};
-
-struct TPetriNetElement
-{
-  std::string name, label, shape;
-  int token = 0;
-  bool enabled = false;
-  TPetriNetTransition pnt;
-
-  TPetriNetElement() = default;
-
-  TPetriNetElement(const std::string& name, int token) : name(name), token(token)
-  {
-    label = name;
-    shape = "circle";
-    enabled = false;
-    pnt = {};
-  }
-
-  TPetriNetElement(const std::string& name, bool enable, TPetriNetTransition pnt)
-      : name(name), enabled(enable), pnt(pnt)
-  {
-    label = name;
-    shape = "box";
-    token = 0;
-  }
-};
-
-struct TPetriNetEdge
-{
-  std::string label;
-  std::pair<int, int> weight; // min_weight and max_weight represent the firing time interval
-  int priority;                // low-level propity remove;
-};
 
 class TimePetriNet : public PetriNet{
  public:
@@ -106,6 +59,18 @@ class TimePetriNet : public PetriNet{
                             int handle_t,
                             vertex_tpn start,
                             vertex_tpn end);
+
+  public:
+    typename boost::property_map<TPN, boost::vertex_index_t>::type index
+        = get(boost::vertex_index, time_petri_net);
+    StateClass initial_state_class;
+    StateClass get_initial_state_class();
+    std::set<StateClass> scg;
+    // 重新初始化Petri网
+    void set_state_class(StateClass state_class);
+    void generate_state_class(double timeout);
+    std::vector<SchedT> get_sched_t(StateClass& state);
+    StateClass fire_transition(StateClass sc, SchedT transition);
 };
 
 #endif //PPTPN__TIMEPETRINET_H_

@@ -16,4 +16,22 @@ digraph G {
     E [label = "E";];
     E -> WaitBE [label = "EtoC";];
     F [label = "F";];
+
+    G [label = "G";];
+    G -> G [label = "spin,50";];
+    G -> H [label = "GtoH";];
+    H [label = "H";];
+    H -> WaitHK [label = "HtoK";];
+    I [label = "I";];
+    WaitHK [label = "WaitHK";];
+    WaitHK -> I;
+    J [label = "J";];
+    DistributeJ [label = "DistributeJ", shape = "diamond"];
+    J -> J [label = "spin,80";];
+    J -> DistributeJ;
+    DistributeJ -> K [label = "JtoK";];
+    DistributeJ -> L [label = "JtoL";];
+    K [label = "K";];
+    K -> WaitHK [label = "KtoI";];
+    L [label = "L";];
 }

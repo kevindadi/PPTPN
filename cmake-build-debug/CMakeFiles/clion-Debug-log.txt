@@ -1,4 +1,92 @@
-/Applications/CLion.app/Contents/bin/cmake/mac/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=/Applications/CLion.app/Contents/bin/ninja/mac/ninja -G Ninja -S /Users/zhangkaiwen/CLionProjects/PPTPN -B /Users/zhangkaiwen/CLionProjects/PPTPN/cmake-build-debug
+C:\Users\Kevin\AppData\Local\JetBrains\Toolbox\apps\CLion\ch-0\231.9225.21\bin\cmake\win\x64\bin\cmake.exe -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/ninja/win/x64/ninja.exe -DCMAKE_TOOLCHAIN_FILE=C:\Users\Kevin\.clion-vcpkg\vcpkg\scripts\buildsystems\vcpkg.cmake -G Ninja -S C:\Users\Kevin\CLionProjects\PPTPN -B C:\Users\Kevin\CLionProjects\PPTPN\cmake-build-debug
+CMake Warning at C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:1384 (message):
+  New Boost version may have incorrect or missing dependencies and imported
+  targets
+Call Stack (most recent call first):
+  C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:1508 (_Boost_COMPONENT_DEPENDENCIES)
+  C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:2119 (_Boost_MISSING_DEPENDENCIES)
+  C:/Users/Kevin/.clion-vcpkg/vcpkg/installed/x86-windows/share/boost/vcpkg-cmake-wrapper.cmake:11 (_find_package)
+  C:/Users/Kevin/.clion-vcpkg/vcpkg/scripts/buildsystems/vcpkg.cmake:809 (include)
+  CMakeLists.txt:6 (find_package)
+
+
+CMake Warning at C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:1384 (message):
+  New Boost version may have incorrect or missing dependencies and imported
+  targets
+Call Stack (most recent call first):
+  C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:1508 (_Boost_COMPONENT_DEPENDENCIES)
+  C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:2119 (_Boost_MISSING_DEPENDENCIES)
+  C:/Users/Kevin/.clion-vcpkg/vcpkg/installed/x86-windows/share/boost/vcpkg-cmake-wrapper.cmake:11 (_find_package)
+  C:/Users/Kevin/.clion-vcpkg/vcpkg/scripts/buildsystems/vcpkg.cmake:809 (include)
+  CMakeLists.txt:6 (find_package)
+
+
+CMake Warning at C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:1384 (message):
+  New Boost version may have incorrect or missing dependencies and imported
+  targets
+Call Stack (most recent call first):
+  C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:1508 (_Boost_COMPONENT_DEPENDENCIES)
+  C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:2119 (_Boost_MISSING_DEPENDENCIES)
+  C:/Users/Kevin/.clion-vcpkg/vcpkg/installed/x86-windows/share/boost/vcpkg-cmake-wrapper.cmake:11 (_find_package)
+  C:/Users/Kevin/.clion-vcpkg/vcpkg/scripts/buildsystems/vcpkg.cmake:809 (include)
+  CMakeLists.txt:6 (find_package)
+
+
+CMake Warning at C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:1384 (message):
+  New Boost version may have incorrect or missing dependencies and imported
+  targets
+Call Stack (most recent call first):
+  C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:1508 (_Boost_COMPONENT_DEPENDENCIES)
+  C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:2119 (_Boost_MISSING_DEPENDENCIES)
+  C:/Users/Kevin/.clion-vcpkg/vcpkg/installed/x86-windows/share/boost/vcpkg-cmake-wrapper.cmake:11 (_find_package)
+  C:/Users/Kevin/.clion-vcpkg/vcpkg/scripts/buildsystems/vcpkg.cmake:809 (include)
+  CMakeLists.txt:6 (find_package)
+
+
+CMake Warning at C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:1384 (message):
+  New Boost version may have incorrect or missing dependencies and imported
+  targets
+Call Stack (most recent call first):
+  C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:1508 (_Boost_COMPONENT_DEPENDENCIES)
+  C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:2119 (_Boost_MISSING_DEPENDENCIES)
+  C:/Users/Kevin/.clion-vcpkg/vcpkg/installed/x86-windows/share/boost/vcpkg-cmake-wrapper.cmake:11 (_find_package)
+  C:/Users/Kevin/.clion-vcpkg/vcpkg/scripts/buildsystems/vcpkg.cmake:809 (include)
+  CMakeLists.txt:6 (find_package)
+
+
+CMake Warning at C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:1384 (message):
+  New Boost version may have incorrect or missing dependencies and imported
+  targets
+Call Stack (most recent call first):
+  C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:1508 (_Boost_COMPONENT_DEPENDENCIES)
+  C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:2119 (_Boost_MISSING_DEPENDENCIES)
+  C:/Users/Kevin/.clion-vcpkg/vcpkg/installed/x86-windows/share/boost/vcpkg-cmake-wrapper.cmake:11 (_find_package)
+  C:/Users/Kevin/.clion-vcpkg/vcpkg/scripts/buildsystems/vcpkg.cmake:809 (include)
+  CMakeLists.txt:6 (find_package)
+
+
+CMake Warning at C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:1384 (message):
+  New Boost version may have incorrect or missing dependencies and imported
+  targets
+Call Stack (most recent call first):
+  C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:1508 (_Boost_COMPONENT_DEPENDENCIES)
+  C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:2119 (_Boost_MISSING_DEPENDENCIES)
+  C:/Users/Kevin/.clion-vcpkg/vcpkg/installed/x86-windows/share/boost/vcpkg-cmake-wrapper.cmake:11 (_find_package)
+  C:/Users/Kevin/.clion-vcpkg/vcpkg/scripts/buildsystems/vcpkg.cmake:809 (include)
+  CMakeLists.txt:6 (find_package)
+
+
+CMake Warning at C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:1384 (message):
+  New Boost version may have incorrect or missing dependencies and imported
+  targets
+Call Stack (most recent call first):
+  C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:1508 (_Boost_COMPONENT_DEPENDENCIES)
+  C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake:2119 (_Boost_MISSING_DEPENDENCIES)
+  C:/Users/Kevin/.clion-vcpkg/vcpkg/installed/x86-windows/share/boost/vcpkg-cmake-wrapper.cmake:11 (_find_package)
+  C:/Users/Kevin/.clion-vcpkg/vcpkg/scripts/buildsystems/vcpkg.cmake:809 (include)
+  CMakeLists.txt:6 (find_package)
+
+
 -- Configuring done
 -- Generating done
--- Build files have been written to: /Users/zhangkaiwen/CLionProjects/PPTPN/cmake-build-debug
+-- Build files have been written to: C:/Users/Kevin/CLionProjects/PPTPN/cmake-build-debug

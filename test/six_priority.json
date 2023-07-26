@@ -1,0 +1,41 @@
+[
+  {
+    "name": "A",
+    "priority": 97,
+    "processor": 1,
+    "time": "3 5"
+  },
+  {
+    "name": "B",
+    "priority": 98,
+    "processor": 1,
+    "time": "1 5"
+  },
+  {
+    "name": "C",
+    "priority": 99,
+    "processor": 0,
+    "time": "3 5,2 3,2 4",
+    "lock": ["spin1","mutex1"]
+  },
+  {
+    "name": "D",
+    "priority": 95,
+    "processor": 0,
+    "time": "10 12,2 4",
+    "lock": ["spin1"]
+  },
+  {
+    "name": "E",
+    "priority": 94,
+    "processor": 0,
+    "time": "2 3,4 6",
+    "lock": ["mutex1"]
+  },
+  {
+    "name": "F",
+    "priority": 93,
+    "processor": 1,
+    "time": "1 2"
+  }
+]
