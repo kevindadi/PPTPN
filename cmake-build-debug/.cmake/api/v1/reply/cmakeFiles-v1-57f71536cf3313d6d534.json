@@ -1,0 +1,235 @@
+{
+	"inputs" : 
+	[
+		{
+			"path" : "CMakeLists.txt"
+		},
+		{
+			"isGenerated" : true,
+			"path" : "cmake-build-debug/CMakeFiles/3.25.2/CMakeSystem.cmake"
+		},
+		{
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/.clion-vcpkg/vcpkg/scripts/buildsystems/vcpkg.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/CMakeDependentOption.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/CMakeSystemSpecificInitialize.cmake"
+		},
+		{
+			"isGenerated" : true,
+			"path" : "cmake-build-debug/CMakeFiles/3.25.2/CMakeCCompiler.cmake"
+		},
+		{
+			"isGenerated" : true,
+			"path" : "cmake-build-debug/CMakeFiles/3.25.2/CMakeCXXCompiler.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/CMakeSystemSpecificInformation.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/CMakeGenericSystem.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/CMakeInitializeConfigs.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/Platform/Windows.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/Platform/WindowsPaths.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/CMakeCInformation.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/CMakeLanguageInformation.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/Compiler/MSVC-C.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/Compiler/MSVC.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/Compiler/CMakeCommonCompilerMacros.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/Platform/Windows-MSVC-C.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/Platform/Windows-MSVC.cmake"
+		},
+		{
+			"isGenerated" : true,
+			"path" : "cmake-build-debug/CMakeFiles/3.25.2/CMakeRCCompiler.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/CMakeRCInformation.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/CMakeCommonLanguageInclude.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/CMakeCXXInformation.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/CMakeLanguageInformation.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/Compiler/MSVC-CXX.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/Compiler/MSVC.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/Compiler/CMakeCommonCompilerMacros.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/Platform/Windows-MSVC-CXX.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/Platform/Windows-MSVC.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/CMakeCommonLanguageInclude.cmake"
+		},
+		{
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/.clion-vcpkg/vcpkg/installed/x86-windows/share/boost/vcpkg-cmake-wrapper.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindBoost.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindPackageHandleStandardArgs.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindPackageMessage.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindThreads.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/CheckLibraryExists.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/CheckIncludeFile.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/CheckCSourceCompiles.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/Internal/CheckSourceCompiles.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindPackageHandleStandardArgs.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindPackageMessage.cmake"
+		},
+		{
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/.clion-vcpkg/vcpkg/installed/x86-windows/share/nlohmann_json/nlohmann_jsonConfigVersion.cmake"
+		},
+		{
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/.clion-vcpkg/vcpkg/installed/x86-windows/share/nlohmann_json/nlohmann_jsonConfig.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindPackageHandleStandardArgs.cmake"
+		},
+		{
+			"isCMake" : true,
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/AppData/Local/JetBrains/Toolbox/apps/CLion/ch-0/231.9225.21/bin/cmake/win/x64/share/cmake-3.25/Modules/FindPackageMessage.cmake"
+		},
+		{
+			"isExternal" : true,
+			"path" : "C:/Users/Kevin/.clion-vcpkg/vcpkg/installed/x86-windows/share/nlohmann_json/nlohmann_jsonTargets.cmake"
+		}
+	],
+	"kind" : "cmakeFiles",
+	"paths" : 
+	{
+		"build" : "C:/Users/Kevin/CLionProjects/PPTPN/cmake-build-debug",
+		"source" : "C:/Users/Kevin/CLionProjects/PPTPN"
+	},
+	"version" : 
+	{
+		"major" : 1,
+		"minor" : 0
+	}
+}
