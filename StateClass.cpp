@@ -31,14 +31,4 @@ bool StateClass::operator==(const StateClass &other) {
   }
 }
 
-bool StateClass::operator<(const StateClass& other) const {
-  // 比较 mark 和 t_sched 的大小关系
-  if (mark.indexes < other.mark.indexes) {
-    return true;
-  } else if (other.mark.indexes < mark.indexes) {
-    return false;
-  } else {
-    return t_sched < other.t_sched;
-  }
-}
 

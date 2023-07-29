@@ -1,3 +1,3 @@
-C:/Users/Kevin/CLionProjects/PPTPN/cmake-build-debug/CMakeFiles/PPTPN.dir
-C:/Users/Kevin/CLionProjects/PPTPN/cmake-build-debug/CMakeFiles/edit_cache.dir
-C:/Users/Kevin/CLionProjects/PPTPN/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/Users/zhangkaiwen/CLionProjects/PPTPN/cmake-build-debug/CMakeFiles/PPTPN.dir
+/Users/zhangkaiwen/CLionProjects/PPTPN/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/zhangkaiwen/CLionProjects/PPTPN/cmake-build-debug/CMakeFiles/rebuild_cache.dir

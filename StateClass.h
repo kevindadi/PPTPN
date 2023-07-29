@@ -9,6 +9,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 struct TPetriNetTransition
 {
@@ -76,11 +77,45 @@ struct Marking {
       return false;
     }
   }
+
+  // Define the less-than operator for Marking
+  bool operator<(const Marking& other) const {
+    return indexes < other.indexes;
+  }
 };
 
 struct SchedT {
   std::size_t t;
   std::pair<int, int> time;
+
+  // Define the less-than operator for SchedT
+  bool operator<(const SchedT& other) const {
+    // Compare the 't' member first
+    if (t < other.t)
+      return true;
+    if (other.t < t)
+      return false;
+
+    // If 't' is equal, compare based on 'time'
+    return time < other.time;
+  }
+};
+
+struct T_wait {
+  std::size_t t;
+  int time;
+
+  // Define the less-than operator for SchedT
+  bool operator<(const T_wait& other) const {
+    // Compare the 't' member first
+    if (t < other.t)
+      return true;
+    if (other.t < t)
+      return false;
+
+    // If 't' is equal, compare based on 'time'
+    return time < other.time;
+  }
 };
 
 class StateClass {
@@ -93,10 +128,10 @@ public:
   std::set<std::size_t> handle_t_sched;
   // 变迁的已等待时间
   std::unordered_map<std::size_t, int> t_time;
+  //
+  std::set<T_wait> all_t;
 
 public:
-  bool operator<(const StateClass& other) const;
-
   StateClass() = default;
   StateClass(Marking mark, const std::set<std::size_t>& h_t,
              const std::set<std::size_t>& H_t,
@@ -104,8 +139,21 @@ public:
                                                                    t_sched(h_t),
                                                                    handle_t_sched(H_t),
                                                                    t_time(t_time ) {}
+  StateClass(Marking mark, std::set<T_wait> all_t) : mark(std::move(mark)), all_t(std::move(all_t)) {}
   void print_current_mark();
+
   bool operator==(const StateClass& other);
+
+  bool operator<(const StateClass& other) const {
+    // Compare the mark member first
+    if (mark < other.mark)
+      return true;
+    if (other.mark < mark)
+      return false;
+
+    // If the mark members are equal, compare the all_t member
+    return all_t < other.all_t;
+  };
 };
 
 

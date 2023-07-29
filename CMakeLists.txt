@@ -12,3 +12,5 @@ find_package(nlohmann_json CONFIG REQUIRED)
 
 add_executable(PPTPN main.cpp petrinet.cpp petrinet.h config.cpp config.h timepetrinet.cpp timepetrinet.h probpetrinet.cpp probpetrinet.h StateClass.h StateClass.h StateClass.cpp)
 target_link_libraries(PPTPN Boost::graph Boost::log)
+
+#add_test(test/test_get_sched_t.cpp Boost::graph)

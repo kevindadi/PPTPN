@@ -67,10 +67,31 @@ class TimePetriNet : public PetriNet{
     StateClass get_initial_state_class();
     std::set<StateClass> scg;
     // 重新初始化Petri网
-    void set_state_class(StateClass state_class);
-    void generate_state_class(double timeout);
+    void set_state_class(const StateClass& state_class);
+    void generate_state_class();
     std::vector<SchedT> get_sched_t(StateClass& state);
     StateClass fire_transition(StateClass sc, SchedT transition);
+
+  // 成员函数用于保存数据到文件
+  void saveDataToFile(const std::string& filename) {
+    std::ofstream outputFile(filename);
+    if (outputFile.is_open()) {
+      for (const auto& value : scg) {
+        outputFile << "scg mark: ";
+        for (const auto& m : value.mark.labels) {
+          outputFile << m << " ";
+        }
+        std::cout << std::endl;
+        for (const auto t : value.all_t) {
+          outputFile << t.t << " " << t.time <<" ";
+        }
+        std::cout << std::endl;
+      }
+      outputFile.close();
+    } else {
+      std::cout << "Error: Unable to open file." << std::endl;
+    }
+  }
 };
 
 #endif //PPTPN__TIMEPETRINET_H_

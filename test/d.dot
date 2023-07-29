@@ -1,0 +1,10 @@
+digraph G {
+    A [label = "A";];
+    A -> A [label = "spin,50";];
+    A -> B [label = "AtoB";];
+    B [label = "B";];
+    D [label = "D";];
+    D -> D [label = "spin,80";];
+    F [label = "F";];
+    D -> F;
+}

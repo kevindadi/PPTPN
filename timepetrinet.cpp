@@ -5,6 +5,7 @@
 #include "timepetrinet.h"
 #include <queue>
 #include <utility>
+#include <csignal>
 
 #define BOOST_CHRONO_EXITENSIONS
 
@@ -553,8 +554,9 @@ void TimePetriNet::create_priority_task(const Config& config,
 StateClass TimePetriNet::get_initial_state_class() {
   BOOST_LOG_TRIVIAL(info) << "get_initial_state_class";
   Marking initial_markings;
-  std::set<std::size_t> h_t,H_t;
-  std::unordered_map<size_t, int> enabled_t_time;
+//  std::set<std::size_t> h_t,H_t;
+//  std::unordered_map<size_t, int> enabled_t_time;
+  std::set<T_wait> all_t;
   boost::graph_traits<TPN>::vertex_iterator vi, vi_end;
   boost::graph_traits<TPN>::in_edge_iterator in_i, in_end;
   for (boost::tie(vi, vi_end) = boost::vertices(time_petri_net); vi != vi_end; ++vi) {
@@ -574,20 +576,22 @@ StateClass TimePetriNet::get_initial_state_class() {
         }
       }
       if (flag) {
-        if (time_petri_net[*vi].pnt.is_handle) {
-          H_t.insert(index(*vi));
-          enabled_t_time.insert(std::make_pair(index(*vi), 0));
-        } else {
-          h_t.insert(index(*vi));
-          enabled_t_time.insert(std::make_pair(index(*vi), 0));
-        }
+//        if (time_petri_net[*vi].pnt.is_handle) {
+//          H_t.insert(index(*vi));
+//          enabled_t_time.insert(std::make_pair(index(*vi), 0));
+//        } else {
+//          h_t.insert(index(*vi));
+//          enabled_t_time.insert(std::make_pair(index(*vi), 0));
+//        }
+
+        all_t.insert({*vi, 0});
       }
     }
   }
-  return StateClass{initial_markings, h_t, H_t, enabled_t_time};
+  return StateClass{initial_markings, all_t};
 }
 
-void TimePetriNet::generate_state_class(double timeout) {
+void TimePetriNet::generate_state_class() {
   BOOST_LOG_TRIVIAL(info) << "Generating state class";
   auto pt_a = boost::chrono::steady_clock::now();
   std::queue<StateClass> q;
@@ -602,20 +606,21 @@ void TimePetriNet::generate_state_class(double timeout) {
 
     for (auto& t : sched_t) {
       StateClass new_state = fire_transition(s, t);
-      BOOST_LOG_TRIVIAL(info) << "new state: ";
-      new_state.print_current_mark();
+      //BOOST_LOG_TRIVIAL(info) << "new state: ";
+      //new_state.print_current_mark();
       auto result = scg.insert(new_state);
       if (result.second) {
         q.push(new_state);
       }
 
     }
-    boost::chrono::duration<double> sec = boost::chrono::steady_clock::now() - pt_a;
-    if (sec.count() >= timeout) {
-        break;
-    }
-  }
+//    if (sec.count() >= timeout) {
+//        break;
+//    }
 
+  }
+  boost::chrono::duration<double> sec = boost::chrono::steady_clock::now() - pt_a;
+  BOOST_LOG_TRIVIAL(info) << "generate state clas time(s): " << sec.count();
   BOOST_LOG_TRIVIAL(info) << "scg num: " << scg.size();
 }
 
@@ -649,28 +654,40 @@ std::vector<SchedT> TimePetriNet::get_sched_t(StateClass &state) {
   }
 
   // 遍历这些变迁,找到符合发生区间的变迁集合
-  std::pair<int, int> fire_time;
+  std::pair<int, int> fire_time = {INT_MAX, INT_MAX};
   for(auto t : enabled_t_s) {
     fire_time.first = ((time_petri_net[t].pnt.const_time.first - time_petri_net[t].pnt.runtime) < fire_time.first)?
       (time_petri_net[t].pnt.const_time.first - time_petri_net[t].pnt.runtime):fire_time.first;
     fire_time.second = ((time_petri_net[t].pnt.const_time.second - time_petri_net[t].pnt.runtime) < fire_time.second)?
       (time_petri_net[t].pnt.const_time.second - time_petri_net[t].pnt.runtime):fire_time.second;
   }
+  if ((fire_time.first < 0) && (fire_time.second < 0)) {
+    BOOST_LOG_TRIVIAL(error) << "fire time not leq zero";
+  }
   // find transition which satifies the time domain
   std::pair<int, int> sched_time = {0, 0};
+  int s_h, s_l;
   for (auto t : enabled_t_s) {
     int t_min = time_petri_net[t].pnt.const_time.first - time_petri_net[t].pnt.runtime;
     int t_max = time_petri_net[t].pnt.const_time.second - time_petri_net[t].pnt.runtime;
-    if(t_min < fire_time.first) {
-      BOOST_LOG_TRIVIAL(error) << "the time_d min value is error";
-    }else {
+    if(t_min > fire_time.second ) {
+
+      sched_time = fire_time;
+    } else if (t_max > fire_time.second){
       // transition's max go beyond time_d
-      if (t_max > fire_time.second) {
+      if (t_min >= fire_time.first) {
         sched_time = {t_min, fire_time.second};
       } else {
+        BOOST_LOG_TRIVIAL(error) << "the time_d min value is error";
+      }
+    } else {
+      if (t_min >= fire_time.first) {
         sched_time = {t_min, t_max};
+      } else {
+        BOOST_LOG_TRIVIAL(error) << "the time_d min value is error";
       }
     }
+
     sched_T.push_back(SchedT{t, sched_time});
   }
 
@@ -694,9 +711,9 @@ std::vector<SchedT> TimePetriNet::get_sched_t(StateClass &state) {
     sched_T.erase(pos);  // 移除该元素
   }
   for(auto d : sched_T) {
-    std::cout << time_petri_net[d.t].label << " ";
+    BOOST_LOG_TRIVIAL(debug) << time_petri_net[d.t].label;
   }
-  std::cout << std::endl;
+
   return sched_T;
 }
 
@@ -706,7 +723,7 @@ StateClass TimePetriNet::fire_transition(StateClass sc, SchedT transition) {
   set_state_class(sc);
   // fire transition
   // 1. 首先获取所有可调度变迁
-  std::vector<std::size_t> enabled_t, sched_t;
+  std::vector<std::size_t> enabled_t, old_enabled_t;
   boost::graph_traits<TPN>::vertex_iterator vi, vi_end;
   boost::graph_traits<TPN>::in_edge_iterator in_i, in_end;
   for (boost::tie(vi, vi_end) = vertices(time_petri_net); vi != vi_end; ++vi) {
@@ -723,7 +740,7 @@ StateClass TimePetriNet::fire_transition(StateClass sc, SchedT transition) {
         }
         if (enable_t)
         enabled_t.push_back(vertex(*vi, time_petri_net));
-        sched_t.push_back(vertex(*vi, time_petri_net));
+        old_enabled_t.push_back(vertex(*vi, time_petri_net));
     }
   }
 
@@ -748,14 +765,20 @@ StateClass TimePetriNet::fire_transition(StateClass sc, SchedT transition) {
   }
   // 2. 将除发生变迁外的使能时间+状态转移时间
   for (auto t : enabled_t) {
-    time_petri_net[t].pnt.runtime += transition.time.second;
+    if (transition.time.second == transition.time.first){
+      time_petri_net[t].pnt.runtime += transition.time.first;
+    }else {
+      time_petri_net[t].pnt.runtime += (transition.time.second - transition.time.first);
+    }
   }
   time_petri_net[transition.t].pnt.runtime = 0;
   // 3. 发生该变迁
   Marking new_mark;
   std::set<std::size_t> h_t, H_t;
   std::unordered_map<std::size_t, int> time;
-   for (boost::tie(in_i, in_end) = in_edges(transition.t, time_petri_net); in_i != in_end; ++in_i) {
+  std::set<T_wait> all_t;
+  // 发生变迁的前置集为 0
+  for (boost::tie(in_i, in_end) = in_edges(transition.t, time_petri_net); in_i != in_end; ++in_i) {
     vertex_tpn place = source(*in_i, time_petri_net);
     if (time_petri_net[place].token < 0) {
       BOOST_LOG_TRIVIAL(error) << "place token <= 0, the transition not enabled";
@@ -763,6 +786,7 @@ StateClass TimePetriNet::fire_transition(StateClass sc, SchedT transition) {
       time_petri_net[place].token = 0;
     }
   }
+  // 发生变迁的后继集为 1
   typename boost::graph_traits<TPN>::out_edge_iterator out_i, out_end;
   for (boost::tie(out_i, out_end) = out_edges(transition.t, time_petri_net); out_i != out_end; ++out_i) {
     vertex_tpn place = target(*out_i, time_petri_net);
@@ -793,49 +817,73 @@ StateClass TimePetriNet::fire_transition(StateClass sc, SchedT transition) {
         new_enabled_t.push_back(vertex(*vi, time_petri_net));
     }
   }
+
   // 5. 比较前后使能部分,前一种状态使能,而新状态不使能,则为可挂起变迁
   // 将所有变迁等待时间置为0
 
   // 5.1 公共部分
   std::set<std::size_t> common;
-  std::set_intersection(sched_t.begin(), sched_t.end(), new_enabled_t.begin(), new_enabled_t.end(),
+  std::set_intersection(old_enabled_t.begin(), old_enabled_t.end(), new_enabled_t.begin(), new_enabled_t.end(),
                         std::inserter(common, common.begin()));
-  for (auto it = common.begin(); it != common.end(); ++it) {
-    h_t.insert(*it);
-    time.insert(std::make_pair(*it, time_petri_net[*it].pnt.runtime));
+  for (unsigned long it : common) {
+    all_t.insert({it, time_petri_net[it].pnt.runtime});
+//    h_t.insert(it);
+//    time.insert(std::make_pair(it, time_petri_net[it].pnt.runtime));
   }
   // 5.2 前状态使能而现状态不使能
   std::set<std::size_t> old_minus_new;
-  std::set_difference(sched_t.begin(), sched_t.end(), new_enabled_t.begin(), new_enabled_t.end(),
+  std::set_difference(old_enabled_t.begin(), old_enabled_t.end(), new_enabled_t.begin(), new_enabled_t.end(),
                       std::inserter(old_minus_new, old_minus_new.begin()));
-  for (auto it = old_minus_new.begin(); it != old_minus_new.end(); ++it) {
-    if (time_petri_net[*it].pnt.is_handle) {
-      H_t.insert(*it);
-      time.insert(std::make_pair(*it, time_petri_net[*it].pnt.runtime));
+  for (unsigned long it : old_minus_new) {
+    // 若为可挂起变迁,则保存已运行时间
+    if (time_petri_net[it].pnt.is_handle) {
+      all_t.insert({it, time_petri_net[it].pnt.runtime});
+//      H_t.insert(it);
+//      time.insert(std::make_pair(it, time_petri_net[it].pnt.runtime));
+    }  else {
+      time_petri_net[it].pnt.runtime = 0;
     }
   }
   // 5.3 现状态使能而前状态不使能
   std::set<std::size_t> new_minus_old;
-  std::set_difference(new_enabled_t.begin(), new_enabled_t.end(), sched_t.begin(), sched_t.end(),
+  std::set_difference(new_enabled_t.begin(), new_enabled_t.end(),
+                      old_enabled_t.begin(), old_enabled_t.end(),
                       std::inserter(new_minus_old, new_minus_old.begin()));
-  for (auto it = new_minus_old.begin(); it != new_minus_old.end(); ++it) {
-    if (time_petri_net[*it].pnt.is_handle) {
-      h_t.insert(*it);
-      time.insert(std::make_pair(*it, time_petri_net[*it].pnt.runtime));
+  for (unsigned long it : new_minus_old) {
+    if (time_petri_net[it].pnt.is_handle) {
+      all_t.insert({it, time_petri_net[it].pnt.runtime});
+//      h_t.insert(it);
+//      time.insert(std::make_pair(it, time_petri_net[it].pnt.runtime));
     }else {
-      h_t.insert(*it);
-      time.insert(std::make_pair(*it, 0));
+//      h_t.insert(it);
+//      time.insert(std::make_pair(it, 0));
+      all_t.insert({it, 0});
     }
   }
-  StateClass new_sc;
-  new_sc.mark = new_mark;
-  new_sc.t_sched = h_t;
-  new_sc.handle_t_sched = H_t;
-  new_sc.t_time = time;
-  return new_sc;
+  for (auto it = all_t.begin(); it != all_t.end(); ++it) {
+    for (auto it2 = std::next(it); it2 != all_t.end(); ) {
+      if ((time_petri_net[(*it).t].pnt.priority < time_petri_net[(*it2).t].pnt.priority) &&
+          (time_petri_net[(*it).t].pnt.c == time_petri_net[(*it2).t].pnt.c)) {
+        if (time_petri_net[(*it2).t].pnt.is_handle) {
+          ++it2;
+        } else {
+          it2 = all_t.erase(it);
+        }
+      } else {
+        // 继续迭代
+        ++it2;
+      }
+    }
+  }
+//  StateClass new_sc;
+//  new_sc.mark = new_mark;
+//  new_sc.t_sched = h_t;
+//  new_sc.handle_t_sched = H_t;
+//  new_sc.t_time = time;
+  return {new_mark, all_t};
 }
 
-void TimePetriNet::set_state_class(StateClass state_class) {
+void TimePetriNet::set_state_class(const StateClass& state_class) {
   // 首先重置原有状态
   boost::graph_traits<TPN>::vertex_iterator vi, vi_end;
   for (boost::tie(vi, vi_end) = vertices(time_petri_net); vi != vi_end; ++vi) {
@@ -851,11 +899,15 @@ void TimePetriNet::set_state_class(StateClass state_class) {
     time_petri_net[m].token = 1;
   }
   // 3. 设置各个变迁的已等待时间
-  for (auto t : state_class.t_sched) {
-    time_petri_net[t].pnt.runtime = state_class.t_time.find(t)->second;
-  }
+//  for (auto t : state_class.t_sched) {
+//    time_petri_net[t].pnt.runtime = state_class.t_time.find(t)->second;
+//  }
   // 4. 可挂起变迁的已等待时间
-  for (auto t : state_class.handle_t_sched) {
-    time_petri_net[t].pnt.runtime = state_class.t_time.find(t)->second;
+//  for (auto t : state_class.handle_t_sched) {
+//    time_petri_net[t].pnt.runtime = state_class.t_time.find(t)->second;
+//  }
+  // 5.设置所有变迁的已等待时间
+  for (auto t : state_class.all_t) {
+    time_petri_net[t.t].pnt.runtime = t.time;
   }
 }
