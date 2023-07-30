@@ -5,9 +5,6 @@
 #include "timepetrinet.h"
 #include <queue>
 #include <utility>
-#include <csignal>
-
-#define BOOST_CHRONO_EXITENSIONS
 
 void TimePetriNet::init_graph() {
   tpn_dp.property("node_id", get(&TPetriNetElement::name, time_petri_net));
@@ -593,7 +590,7 @@ StateClass TimePetriNet::get_initial_state_class() {
 }
 
 void TimePetriNet::generate_state_class() {
-  BOOST_LOG_TRIVIAL(info) << "Generating state class";
+  BOOST_LOG_TRIVIAL(info) << "Generating SCGs";
   auto pt_a = boost::chrono::steady_clock::now();
   std::queue<StateClass> q;
   q.push(initial_state_class);
@@ -662,19 +659,20 @@ std::vector<SchedT> TimePetriNet::get_sched_t(StateClass &state) {
       (time_petri_net[t].pnt.const_time.first - time_petri_net[t].pnt.runtime):fire_time.first;
     fire_time.second = ((time_petri_net[t].pnt.const_time.second - time_petri_net[t].pnt.runtime) < fire_time.second)?
       (time_petri_net[t].pnt.const_time.second - time_petri_net[t].pnt.runtime):fire_time.second;
+    if ((fire_time.first < 0) || (fire_time.second < 0)) {
+      BOOST_LOG_TRIVIAL(error) << "fire time not leq zero: " << time_petri_net[t].name;
+    }
   }
-  if ((fire_time.first < 0) && (fire_time.second < 0)) {
-    //BOOST_LOG_TRIVIAL(error) << "fire time not leq zero";
-  }
+
   // find transition which satifies the time domain
   std::pair<int, int> sched_time = {0, 0};
-  int s_h, s_l;
+
   for (auto t : enabled_t_s) {
     int t_min = time_petri_net[t].pnt.const_time.first - time_petri_net[t].pnt.runtime;
     int t_max = time_petri_net[t].pnt.const_time.second - time_petri_net[t].pnt.runtime;
     if(t_min > fire_time.second ) {
-
-      sched_time = fire_time;
+      continue;
+      //sched_time = fire_time;
     } else if (t_max > fire_time.second){
       // transition's max go beyond time_d
       if (t_min >= fire_time.first) {
@@ -695,25 +693,27 @@ std::vector<SchedT> TimePetriNet::get_sched_t(StateClass &state) {
 
   // 删除优先级
   std::vector<int> erase_index;
-  for (int i = 0; i < sched_T.size() - 1; i++) {
-    for (int j = 1; j < sched_T.size(); j++) {
-      if ((time_petri_net[sched_T[i].t].pnt.priority < time_petri_net[sched_T[j].t].pnt.priority) &&
+  if (sched_T.size() > 1) {
+    for (int i = 0; i < sched_T.size() - 1; i++) {
+      for (int j = 1; j < sched_T.size(); j++) {
+        if ((time_petri_net[sched_T[i].t].pnt.priority < time_petri_net[sched_T[j].t].pnt.priority) &&
             (time_petri_net[sched_T[i].t].pnt.c == time_petri_net[sched_T[j].t].pnt.c)) {
-        erase_index.push_back(i);
+          erase_index.push_back(i);
         }
+      }
     }
-  }
-  // 遍历要删除的下标集合
-  for (auto it = erase_index.rbegin(); it != erase_index.rend(); ++it) {
-    auto index_i = *it;
-    auto pos = sched_T.begin() + index_i;  // 获取对应元素的迭代器
-    // 如果该变迁为可挂起变迁,记录已等待时间
+    // 遍历要删除的下标集合
+    for (auto it = erase_index.rbegin(); it != erase_index.rend(); ++it) {
+      auto index_i = *it;
+      auto pos = sched_T.begin() + index_i;  // 获取对应元素的迭代器
+      // 如果该变迁为可挂起变迁,记录已等待时间
 //    if (time_petri_net[sched_T[*pos].t].pnt.is_handle) {
 //    }
-    sched_T.erase(pos);  // 移除该元素
-  }
-  for(auto d : sched_T) {
-    BOOST_LOG_TRIVIAL(debug) << time_petri_net[d.t].label;
+      sched_T.erase(pos);  // 移除该元素
+    }
+    for (auto d : sched_T) {
+      BOOST_LOG_TRIVIAL(debug) << time_petri_net[d.t].label;
+    }
   }
 
   return sched_T;
@@ -770,14 +770,14 @@ StateClass TimePetriNet::fire_transition(const StateClass& sc, SchedT transition
     if (transition.time.second == transition.time.first){
       time_petri_net[t].pnt.runtime += transition.time.first;
     }else {
-      time_petri_net[t].pnt.runtime += (transition.time.second - transition.time.first);
+      time_petri_net[t].pnt.runtime += transition.time.second;
     }
   }
   time_petri_net[transition.t].pnt.runtime = 0;
   // 3. 发生该变迁
   Marking new_mark;
-  std::set<std::size_t> h_t, H_t;
-  std::unordered_map<std::size_t, int> time;
+//  std::set<std::size_t> h_t, H_t;
+//  std::unordered_map<std::size_t, int> time;
   std::set<T_wait> all_t;
   // 发生变迁的前置集为 0
   for (boost::tie(in_i, in_end) = in_edges(transition.t, time_petri_net); in_i != in_end; ++in_i) {
@@ -819,7 +819,9 @@ StateClass TimePetriNet::fire_transition(const StateClass& sc, SchedT transition
         new_enabled_t.push_back(vertex(*vi, time_petri_net));
     }
   }
-
+  if (enabled_t.empty()) {
+    return {};
+  }
   // 5. 比较前后使能部分,前一种状态使能,而新状态不使能,则为可挂起变迁
   // 将所有变迁等待时间置为0
 

@@ -8,8 +8,10 @@
 #include <iterator>
 #include <set>
 #include <string>
-#include <unordered_map>
 #include <utility>
+#include <boost/graph/graphviz.hpp>
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/graph_traits.hpp>
 
 struct TPetriNetTransition
 {
@@ -21,7 +23,7 @@ struct TPetriNetTransition
   int c = 0;
   TPetriNetTransition() = default;
   TPetriNetTransition(int runtime, int priority, std::pair<int, int> const_time, int core) :
-    runtime(runtime), priority(priority), const_time(const_time), c(core) {
+    runtime(runtime), priority(priority), const_time(std::move(const_time)), c(core) {
     is_handle = false;
   };
   TPetriNetTransition(bool is_handle, int runtime, int priority, std::pair<int, int> const_time) :
@@ -47,7 +49,7 @@ struct TPetriNetElement
   }
 
   TPetriNetElement(const std::string& name, bool enable, TPetriNetTransition pnt)
-      : name(name), enabled(enable), pnt(pnt)
+      : name(name), enabled(enable), pnt(std::move(pnt))
   {
     label = name;
     shape = "box";
@@ -118,8 +120,21 @@ struct T_wait {
   }
 };
 
+struct StateVertex {
+
+};
+
+struct StateEdge {
+
+};
+
 class StateClass {
-public:
+ public:
+  typedef boost::property<boost::graph_name_t, std::string> graph_p;
+  typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS,
+                                StateVertex, StateEdge, graph_p> SCG;
+  typedef boost::graph_traits<SCG>::vertex_descriptor vertex_tpn;
+ public:
   // 当前标识
   Marking mark;
   // 可调度变迁集
@@ -143,7 +158,6 @@ public:
   void print_current_mark();
 
   bool operator==(const StateClass& other);
-
   bool operator<(const StateClass& other) const {
     // Compare the mark member first
     if (mark < other.mark)
@@ -155,6 +169,8 @@ public:
     return all_t < other.all_t;
   };
 };
+
+
 
 
 #endif // PPTPN_STATECLASS_H

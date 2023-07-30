@@ -1,7 +1,7 @@
 [
   {
     "name": "A",
-    "priority": 97,
+    "priority": 98,
     "processor": 1,
     "time": "3 5"
   },
@@ -13,7 +13,7 @@
   },
   {
     "name": "C",
-    "priority": 99,
+    "priority": 97,
     "processor": 0,
     "time": "3 5,2 3,2 4",
     "lock": ["spin1","mutex1"]
@@ -27,14 +27,14 @@
   },
   {
     "name": "E",
-    "priority": 98,
+    "priority": 97,
     "processor": 0,
     "time": "4 6,2 3",
     "lock": ["mutex1"]
   },
   {
     "name": "F",
-    "priority": 96,
+    "priority": 98,
     "processor": 1,
     "time": "1 2"
   }
