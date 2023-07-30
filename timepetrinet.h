@@ -70,7 +70,7 @@ class TimePetriNet : public PetriNet{
     void set_state_class(const StateClass& state_class);
     void generate_state_class();
     std::vector<SchedT> get_sched_t(StateClass& state);
-    StateClass fire_transition(StateClass sc, SchedT transition);
+    StateClass fire_transition(const StateClass& sc, SchedT transition);
 
   // 成员函数用于保存数据到文件
   void saveDataToFile(const std::string& filename) {

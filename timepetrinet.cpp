@@ -215,7 +215,8 @@ void TimePetriNet::construct_petri_net(const Config& config) {
   task_bind_lock(config);
   boost::chrono::duration<double> sec = boost::chrono::steady_clock::now() - pt_a;
   BOOST_LOG_TRIVIAL(info) << "transform petri net: " << sec.count();
-  BOOST_LOG_TRIVIAL(info) << "petri net num: " << boost::num_vertices(time_petri_net);
+  BOOST_LOG_TRIVIAL(info) << "petri net P+T num: " << boost::num_vertices(time_petri_net);
+  BOOST_LOG_TRIVIAL(info) << "petri net F num: " << boost::num_edges(time_petri_net);
   std::ofstream os;
   os.open("t.dot");
   boost::write_graphviz_dp(os, time_petri_net, tpn_dp);
@@ -620,8 +621,9 @@ void TimePetriNet::generate_state_class() {
 
   }
   boost::chrono::duration<double> sec = boost::chrono::steady_clock::now() - pt_a;
-  BOOST_LOG_TRIVIAL(info) << "generate state clas time(s): " << sec.count();
-  BOOST_LOG_TRIVIAL(info) << "scg num: " << scg.size();
+  BOOST_LOG_TRIVIAL(info) << "Generate SCG Time(s): " << sec.count();
+  BOOST_LOG_TRIVIAL(info) << "SCG NUM: " << scg.size();
+  BOOST_LOG_TRIVIAL(info) << "SYSTEM NO DEADLOCK!";
 }
 
 std::vector<SchedT> TimePetriNet::get_sched_t(StateClass &state) {
@@ -662,7 +664,7 @@ std::vector<SchedT> TimePetriNet::get_sched_t(StateClass &state) {
       (time_petri_net[t].pnt.const_time.second - time_petri_net[t].pnt.runtime):fire_time.second;
   }
   if ((fire_time.first < 0) && (fire_time.second < 0)) {
-    BOOST_LOG_TRIVIAL(error) << "fire time not leq zero";
+    //BOOST_LOG_TRIVIAL(error) << "fire time not leq zero";
   }
   // find transition which satifies the time domain
   std::pair<int, int> sched_time = {0, 0};
@@ -717,7 +719,7 @@ std::vector<SchedT> TimePetriNet::get_sched_t(StateClass &state) {
   return sched_T;
 }
 
-StateClass TimePetriNet::fire_transition(StateClass sc, SchedT transition) {
+StateClass TimePetriNet::fire_transition(const StateClass& sc, SchedT transition) {
   BOOST_LOG_TRIVIAL(debug) << "fire_transition: " << transition.t;
   // reset!
   set_state_class(sc);
@@ -860,21 +862,21 @@ StateClass TimePetriNet::fire_transition(StateClass sc, SchedT transition) {
       all_t.insert({it, 0});
     }
   }
-  for (auto it = all_t.begin(); it != all_t.end(); ++it) {
-    for (auto it2 = std::next(it); it2 != all_t.end(); ) {
-      if ((time_petri_net[(*it).t].pnt.priority < time_petri_net[(*it2).t].pnt.priority) &&
-          (time_petri_net[(*it).t].pnt.c == time_petri_net[(*it2).t].pnt.c)) {
-        if (time_petri_net[(*it2).t].pnt.is_handle) {
-          ++it2;
-        } else {
-          it2 = all_t.erase(it);
-        }
-      } else {
-        // 继续迭代
-        ++it2;
-      }
-    }
-  }
+//  for (auto it = all_t.begin(); it != all_t.end(); ++it) {
+//    for (auto it2 = std::next(it); it2 != all_t.end(); ) {
+//      if ((time_petri_net[(*it).t].pnt.priority < time_petri_net[(*it2).t].pnt.priority) &&
+//          (time_petri_net[(*it).t].pnt.c == time_petri_net[(*it2).t].pnt.c)) {
+//        if (time_petri_net[(*it2).t].pnt.is_handle) {
+//          ++it2;
+//        } else {
+//          it2 = all_t.erase(it);
+//        }
+//      } else {
+//        // 继续迭代
+//        ++it2;
+//      }
+//    }
+//  }
 //  StateClass new_sc;
 //  new_sc.mark = new_mark;
 //  new_sc.t_sched = h_t;

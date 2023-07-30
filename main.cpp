@@ -15,7 +15,7 @@ void signalHandler(int signal) {
 int main() {
   // 注册信号处理函数
   signal(SIGINT, signalHandler);
-  Config config = {"../test/d.dot", "../test/d.json"};
+  Config config = {"../test1.dot", "../test/six_priority.json"};
   config.parse_json();
   config.parse_dag();
 
@@ -26,5 +26,6 @@ int main() {
   //double timeout = 10;
 //  tpn.initial_state_class.print_current_mark();
   tpn.generate_state_class();
+
   return 0;
 }

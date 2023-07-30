@@ -3,8 +3,17 @@ digraph G {
     A -> A [label = "spin,50";];
     A -> B [label = "AtoB";];
     B [label = "B";];
+    B -> WaitBE [label = "BtoC";];
+    C [label = "C";];
+    WaitBE [label = "WaitBE";];
+    WaitBE -> C;
     D [label = "D";];
+    Distribute [label = "DistributeD", shape = "diamond"];
     D -> D [label = "spin,80";];
+    D -> Distribute;
+    Distribute -> E [label = "DtoE";];
+    Distribute -> F [label = "DtoF";];
+    E [label = "E";];
+    E -> WaitBE [label = "EtoC";];
     F [label = "F";];
-    D -> F;
 }

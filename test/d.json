@@ -2,7 +2,7 @@
   {
     "name": "A",
     "priority": 97,
-    "processor": 1,
+    "processor": 0,
     "time": "3 5"
   },
   {
@@ -11,18 +11,31 @@
     "processor": 1,
     "time": "1 5"
   },
-
+  {
+    "name": "C",
+    "priority": 97,
+    "processor": 2,
+    "time": "3 5,2 3,2 4",
+    "lock": ["spin1","mutex1"]
+  },
   {
     "name": "D",
     "priority": 97,
-    "processor": 0,
-    "time": "10 12"
+    "processor": 3,
+    "time": "10 12,2 4",
+    "lock": ["spin1"]
   },
-
+  {
+    "name": "E",
+    "priority": 97,
+    "processor": 4,
+    "time": "4 6,2 3",
+    "lock": ["mutex1"]
+  },
   {
     "name": "F",
     "priority": 97,
-    "processor": 1,
+    "processor": 5,
     "time": "1 2"
   }
 ]
