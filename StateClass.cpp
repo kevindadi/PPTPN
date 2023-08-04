@@ -30,5 +30,54 @@ bool StateClass::operator==(const StateClass &other) {
     return false;
   }
 }
+void StateClass::print_current_state() {
+  std::cout << "current mark: ";
+  for (const auto& l : mark.labels) {
+    std::cout << l << " ";
+  }
+  std::cout << std::endl;
+  std::cout << "current time domain: ";
+  for (const auto& t : all_t) {
+    std::cout << t.t << ": " << t.time << ";";
+  }
+  std::cout << std::endl;
+  std::cout << "-------------------------" << std::endl;
+}
 
+std::string StateClass::to_scg_vertex() {
+  std::string labels;
+  std::string times;
+  for (const auto& l : mark.labels) {
+    labels.append(l);
+  }
+  for (const auto& t : all_t) {
+    times.append(std::to_string(t.t))
+         .append(":")
+         .append(std::to_string(t.time)
+         .append(";"));
+  }
+  return labels + times;
+}
 
+void StateClassGraph::write_to_dot(const std::string& scg_path) {
+  boost::dynamic_properties dp_scg;
+  boost::ref_property_map<SCG *, std::string> gname_scg(get_property(scg, boost::graph_name));
+  dp_scg.property("name", gname_scg);
+  dp_scg.property("node_id", get(&SCGVertex::id, scg));
+  dp_scg.property("label", get(&SCGVertex::label, scg));
+  dp_scg.property("label", get(&SCGEdge::label, scg));
+
+  std::ofstream scg_f(scg_path);
+  write_graphviz_dp(scg_f, scg, dp_scg);
+}
+
+ScgVertexD StateClassGraph::add_scg_vertex(StateClass sc) {
+  ScgVertexD svd;
+  if (scg_vertex_map.find(sc) != scg_vertex_map.end()) {
+    svd = scg_vertex_map.find(sc)->second;
+  } else {
+    svd = boost::add_vertex(SCGVertex{sc.to_scg_vertex()}, scg);
+    scg_vertex_map.insert(std::make_pair(sc, svd));
+  }
+  return svd;
+}

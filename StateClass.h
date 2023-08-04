@@ -10,6 +10,10 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <boost/graph/graphviz.hpp>
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/graph_utility.hpp>
+#include <boost/graph/graph_traits.hpp>
 
 struct TPetriNetTransition
 {
@@ -25,7 +29,7 @@ struct TPetriNetTransition
     is_handle = false;
   };
   TPetriNetTransition(bool is_handle, int runtime, int priority, std::pair<int, int> const_time) :
-     is_handle(is_handle), runtime(runtime), priority(priority), const_time(std::move(const_time)) {
+     is_handle(is_handle), runtime(runtime), priority(priority), const_time(const_time) {
                                                                                                                                                                };
 };
 
@@ -47,7 +51,7 @@ struct TPetriNetElement
   }
 
   TPetriNetElement(const std::string& name, bool enable, TPetriNetTransition pnt)
-      : name(name), enabled(enable), pnt(pnt)
+      : name(name), enabled(enable), pnt(std::move(pnt))
   {
     label = name;
     shape = "box";
@@ -103,6 +107,7 @@ struct SchedT {
 
 struct T_wait {
   std::size_t t;
+  std::string name;
   int time;
 
   // Define the less-than operator for SchedT
@@ -116,20 +121,32 @@ struct T_wait {
     // If 't' is equal, compare based on 'time'
     return time < other.time;
   }
+
+  T_wait() = default;
+  T_wait(std::size_t t, int time) : t(t), time(time) {}
+};
+
+struct SCGVertex {
+  std::string id;
+  std::string label;
+};
+
+struct SCGEdge {
+  std::string label;
 };
 
 class StateClass {
 public:
   // 当前标识
   Marking mark;
+  // 使能变迁和可挂起变迁的等待时间
+  std::set<T_wait> all_t;
   // 可调度变迁集
   std::set<std::size_t> t_sched;
   // 可挂起变迁
   std::set<std::size_t> handle_t_sched;
   // 变迁的已等待时间
   std::unordered_map<std::size_t, int> t_time;
-  //
-  std::set<T_wait> all_t;
 
 public:
   StateClass() = default;
@@ -141,7 +158,8 @@ public:
                                                                    t_time(t_time ) {}
   StateClass(Marking mark, std::set<T_wait> all_t) : mark(std::move(mark)), all_t(std::move(all_t)) {}
   void print_current_mark();
-
+  void print_current_state();
+  std::string to_scg_vertex();
   bool operator==(const StateClass& other);
 
   bool operator<(const StateClass& other) const {
@@ -155,6 +173,17 @@ public:
     return all_t < other.all_t;
   };
 };
+typedef boost::property<boost::graph_name_t, std::string> graph_scg;
+typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, SCGVertex, SCGEdge, graph_scg> SCG;
+typedef boost::graph_traits<SCG>::vertex_descriptor ScgVertexD;
+typedef std::map<StateClass, ScgVertexD> ScgVertexMap;
 
+class StateClassGraph {
+public:
+  SCG scg;
+  ScgVertexMap scg_vertex_map;
+  ScgVertexD add_scg_vertex(StateClass sc);
+  void write_to_dot(const std::string& scg_path);
+};
 
 #endif // PPTPN_STATECLASS_H

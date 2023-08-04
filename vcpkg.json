@@ -5,5 +5,11 @@
   "dependencies" : [ {
     "name" : "boost-graph",
     "version>=" : "1.82.0#2"
+  }, {
+    "name" : "boost-log",
+    "version>=" : "1.82.0#2"
+  }, {
+    "name" : "nlohmann-json",
+    "version>=" : "3.11.2"
   } ]
 }

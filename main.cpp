@@ -1,24 +1,22 @@
 #include <iostream>
 #include "timepetrinet.h"
 
-
-TimePetriNet tpn;
-void signalHandler(int signal) {
-  if (signal == SIGINT) {
-    // 保存数据到文件
-    tpn.saveDataToFile("data.txt");
-
-    // 终止程序
-    exit(0);
-  }
-}
+//void signalHandler(int signal) {
+//  if (signal == SIGINT) {
+//    // 保存数据到文件
+//    tpn.saveDataToFile("data.txt");
+//
+//    // 终止程序
+//    exit(0);
+//  }
+//}
 int main() {
   // 注册信号处理函数
-  signal(SIGINT, signalHandler);
+  //signal(SIGINT, signalHandler);
   Config config = {"../test1.dot", "../test/six_priority.json"};
   config.parse_json();
   config.parse_dag();
-
+  TimePetriNet tpn;
   tpn.init_graph();
   tpn.construct_petri_net(config);
 

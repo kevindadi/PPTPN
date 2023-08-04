@@ -18,10 +18,11 @@ class TimePetriNet : public PetriNet{
   typedef boost::graph_traits<TPN>::vertex_descriptor vertex_tpn;
 
   void init_graph();
-  virtual void construct_petri_net(const Config& config) override;
+  void construct_petri_net(const Config& config) override;
  private:
   boost::dynamic_properties tpn_dp;
   TPN time_petri_net;
+  StateClassGraph state_class_graph;
 
   // element计数,保持唯一性
   int element_id = 0;
