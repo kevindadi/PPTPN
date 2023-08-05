@@ -598,6 +598,7 @@ void TimePetriNet::generate_state_class() {
   std::queue<StateClass> q;
   q.push(initial_state_class);
   scg.insert(initial_state_class);
+
   std::string vertex_label = initial_state_class.to_scg_vertex();
   ScgVertexD v_id = boost::add_vertex(SCGVertex{vertex_label}, state_class_graph.scg);
   state_class_graph.scg_vertex_map.insert(std::make_pair(initial_state_class, v_id));
@@ -615,8 +616,10 @@ void TimePetriNet::generate_state_class() {
       ++i;
       //BOOST_LOG_TRIVIAL(info) << "new state: ";
       //new_state.print_current_mark();
-      auto result = scg.insert(new_state);
-      if (result.second) {
+      if (scg.find(new_state) != scg.end()) {
+
+      } else {
+        scg.insert(new_state);
         q.push(new_state);
         new_state.print_current_state();
       }

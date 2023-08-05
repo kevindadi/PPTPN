@@ -13,7 +13,7 @@
 int main() {
   // 注册信号处理函数
   //signal(SIGINT, signalHandler);
-  Config config = {"../test1.dot", "../test/six_priority.json"};
+  Config config = {"../test/d.dot", "../test/six_priority.json"};
   config.parse_json();
   config.parse_dag();
   TimePetriNet tpn;
