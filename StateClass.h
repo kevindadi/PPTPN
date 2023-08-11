@@ -66,6 +66,68 @@ struct TPetriNetEdge {
   int priority; // low-level propity remove;
 };
 
+struct PTPNTransition {
+  bool is_handle = false;
+  bool is_random = false;
+  int runtime = 0;
+  int priority = 0;
+  std::pair<int, int> const_time = {0, 0};
+  // 该变迁分配的处理器资源
+  int c = 0;
+  PTPNTransition() = default;
+  PTPNTransition(int priority, std::pair<int, int> time, int c)
+      : priority(priority), const_time(time), c(c) {
+    is_handle = false;
+    is_random = false;
+    runtime = 0;
+  };
+  PTPNTransition(bool is_handle, int priority, std::pair<int, int> time, int c)
+      : is_handle(is_handle), priority(priority), const_time(time), c(c) {
+    is_random = false;
+    runtime = 0;
+  };
+  PTPNTransition(int priority, std::pair<int, int> time, int c, bool is_random)
+      : priority(priority), const_time(time), c(c), is_random(is_random) {
+    is_handle = false;
+    runtime = 0;
+  };
+  PTPNTransition(bool is_handle, int priority, std::pair<int, int> time, int c,
+                 bool is_random)
+      : is_handle(is_handle), priority(priority), const_time(time), c(c),
+        is_random(is_random) {
+    runtime = 0;
+  };
+};
+
+struct PTPNVertex {
+  std::string name, label, shape;
+  int token = 0;
+  bool enabled = false;
+  PTPNTransition pnt;
+
+  PTPNVertex() = default;
+
+  PTPNVertex(const std::string &name, int token) : name(name), token(token) {
+    label = name;
+    shape = "circle";
+    enabled = false;
+    pnt = {};
+  }
+
+  PTPNVertex(const std::string &name, PTPNTransition pnt)
+      : name(name), pnt(std::move(pnt)) {
+    enabled = false;
+    label = name;
+    shape = "box";
+    token = 0;
+  }
+};
+
+struct PTPNEdge {
+  std::string label;
+  std::pair<int, int> weight;
+};
+
 struct Marking {
   std::set<std::size_t> indexes;
   std::set<std::string> labels;

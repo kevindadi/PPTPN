@@ -5,17 +5,17 @@
 #ifndef PPTPN__CONFIG_H_
 #define PPTPN__CONFIG_H_
 
-#include <vector>
-#include <set>
-#include <boost/graph/graphviz.hpp>
 #include <boost/graph/adjacency_list.hpp>
-#include <boost/graph/graph_utility.hpp>
 #include <boost/graph/graph_traits.hpp>
+#include <boost/graph/graph_utility.hpp>
+#include <boost/graph/graphviz.hpp>
 #include <boost/log/core.hpp>
-#include <boost/log/trivial.hpp>
 #include <boost/log/expressions.hpp>
+#include <boost/log/trivial.hpp>
+#include <set>
+#include <vector>
 
-struct TaskConfig{
+struct TaskConfig {
   std::string name;
   int core, priority;
   std::vector<std::pair<int, int>> time;
@@ -32,18 +32,35 @@ struct DAGEdge {
   int weight;
 };
 
+struct SubDAGVertex {
+  std::string name, label, shape;
+  int subgraph_id;
+};
+
+struct SubDAGEdge {
+  std::string label;
+  std::string style;
+};
+
 typedef boost::property<boost::graph_name_t, std::string> graph_p;
-typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, DAGVertex, DAGEdge, graph_p> DAG;
+typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS,
+                              DAGVertex, DAGEdge, graph_p>
+    DAG;
+typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS,
+                              SubDAGVertex, SubDAGEdge, graph_p>
+    SubDAG;
 
 class Config {
- public:
+public:
   Config() = default;
+  explicit Config(std::string dag_file);
   Config(std::string dag_file, std::string task_file);
 
   void parse_json();
   void parse_dag();
+  void parse_sub_dag();
 
- public:
+public:
   // 所有的task属性
   std::vector<TaskConfig> tc;
   // Task Name
@@ -59,16 +76,21 @@ class Config {
   // 统计 Locks
   std::set<std::string> locks;
 
- public:
+public:
   boost::dynamic_properties dag_dp;
+  boost::dynamic_properties sub_dag_dp;
   DAG dag;
- protected:
-  static std::vector<std::string> splitString(const std::string& str, char delimiter);
- private:
+  SubDAG sub_dag;
+
+protected:
+  static std::vector<std::string> splitString(const std::string &str,
+                                              char delimiter);
+
+private:
   // DAG 图的描述文件
   std::string dag_file;
   // 任务分配的文件
   std::string task_file;
 };
 
-#endif //PPTPN__CONFIG_H_
+#endif // PPTPN__CONFIG_H_

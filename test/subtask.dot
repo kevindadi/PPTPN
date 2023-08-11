@@ -1,0 +1,56 @@
+digraph G {
+  subgraph cluster_0 {
+    A [label = "{A;98;[2,3]}";];
+    A -> B [label = "AtoB";];
+    A -> E [label = "AtoE";];
+    B [label = "{B;98;[2,3]}";];
+    B -> C [label = "BtoC";];
+    C [label = "{C;98;[2,3]}";];
+    C-> D [label = "CtoD";];
+    D [label = "{D;98;[2,3]}";];
+    E [label = "{E;98;[2,3]}";];
+    E -> Distribute;
+    Distribute -> F [label = "EtoF";];
+    Distribute -> G [label = "EtoG";];
+    F -> WaitFG [label = "WaitFG";];
+    G -> WaitFG [label = "WaitFG";];
+    WaitFG [label = "WaitBE";];
+    WaitFG -> H;
+    Distribute [label = "DistributeD", shape = "diamond"];
+    F [label = "{F;98;[2,3]}";];
+    G [label = "{G;98;[2,3]}";];
+    H [label = "{H;98;[2,3]}";];
+    H -> D [label = "HtoD";];
+    D -> A [label ="spin,50", style = "dashed"];
+    label = "T2;0;true;50";
+  }
+
+  subgraph cluster_1 {
+    I [label = "{I;97;[2,3]}";];
+    I -> DistributeI;
+    DistributeI [label = "DistributeI", shape = "diamond"];
+    J [label = "{J;97;[2,3]}";];
+    K [label = "{K;97;[2,3]}";];
+    L [label = "{L;97;[2,3]}";];
+    DistributeI -> J [label = "ItoJ";];
+    DistributeI -> K [label = "ItoJ";];
+    DistributeI -> L [label = "ItoJ";];
+    WaitIKL [label = "WaitIKL";];
+    J -> WaitIKL;
+    K -> WaitIKL;
+    L -> WaitIKL;
+    WaitIKL -> M;
+    M [label = "{M;97;[2,3]}";];
+    N [label = "{N;97;[2,3]}";];
+    M -> N [label = "MtoN";];
+    N -> I [label ="spin,80", style = "dashed"];
+    label = "T1;1;true;80";
+  }
+  start -> A;
+  start -> I;
+  D -> end;
+  N -> end;
+
+  start [label ="{start;1;97;[2,3]}", shape=Mdiamond];
+  end [label ="{end;0;97;[2,3]}", shape=Msquare];
+}
