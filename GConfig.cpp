@@ -170,6 +170,11 @@ void GConfig::prase_dag() {
       }
       if (!inSubgraph) {
         SubTaskConfig stc = prase_glb_task_label(agget(node, (char *)"label"));
+        std::string node_name = agnameof(node);
+        if (node_name.find("Wait") != std::string::npos ||
+            node_name.find("Distribute") != std::string::npos) {
+          continue;
+        }
         glb_task_collection.push_back(agnameof(node));
         all_stc.push_back(stc);
         tasks_label.insert(std::make_pair(agnameof(node), stc));

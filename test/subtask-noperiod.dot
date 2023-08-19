@@ -1,0 +1,45 @@
+digraph G {
+  A [label = "{A;1;97;[3,5]}";];
+  A -> B [label = "AtoB";];
+  A -> E [label = "AtoE";];
+  B [label = "{B;1;98;[1,5]}";];
+  B -> C [label = "BtoC";];
+  C [label = "{C;1;99;[3,5],[2,3];lock1}";];
+  C-> D [label = "CtoD";];
+  D [label = "{D;1;98;[10,12],[2,3];lock1}";];
+  E [label = "{E;1;98;[2,3]}";];
+  E -> Distribute;
+  Distribute -> F [label = "EtoF";];
+  Distribute -> G [label = "EtoG";];
+  F -> WaitFG [label = "WaitFG";];
+  G -> WaitFG [label = "WaitFG";];
+  WaitFG [label = "WaitBE";];
+  WaitFG -> D;
+  Distribute [label = "DistributeD", shape = "diamond"];
+  F [label = "{F;1;96;[1,2],[3,4];lock2}";];
+  G [label = "{G;1;96;[3,5],[1,2];lock2}";];
+  I [label = "{I;0;96;[6,9]}";];
+  I -> DistributeI;
+  DistributeI [label = "DistributeI", shape = "diamond"];
+  J [label = "{J;0;99;[3,5]}";];
+  K [label = "{K;0;99;[2,4]}";];
+  L [label = "{L;0;98;[2,5]}";];
+  DistributeI -> J [label = "ItoJ";];
+  DistributeI -> K [label = "ItoJ";];
+  DistributeI -> L [label = "ItoJ";];
+  WaitIKL [label = "WaitIKL";];
+  J -> WaitIKL;
+  K -> WaitIKL;
+  L -> WaitIKL;
+  WaitIKL -> M;
+  M [label = "{M;0;98;[2,3]}";];
+  N [label = "{N;0;96;[1,2]}";];
+  M -> N [label = "MtoN";];
+  start -> A;
+  start -> I;
+  D -> end;
+  N -> end;
+
+  start [label ="{start;1;97;[2,3]}", shape=Mdiamond];
+  end [label ="{end;0;97;[2,3]}", shape=Msquare];
+}

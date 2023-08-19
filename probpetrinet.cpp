@@ -520,7 +520,7 @@ void ProbPetriNet::bind_task_priority(GConfig &config) {
     BOOST_LOG_TRIVIAL(debug) << "core index: " << t.first;
     for (it1 = t.second.begin(); it1 != t.second.end() - 1; ++it1) {
       std::string task_name_t = it1->name;
-      for (it2 = t.second.begin() + 1; it2 != t.second.end(); ++it2) {
+      for (it2 = it1 + 1; it2 != t.second.end(); ++it2) {
         if (it1->priority == it2->priority) {
           continue;
         }
