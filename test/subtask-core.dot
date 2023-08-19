@@ -5,9 +5,9 @@ digraph G {
     A -> E [label = "AtoE";];
     B [label = "{B;98;[1,5]}";];
     B -> C [label = "BtoC";];
-    C [label = "{C;99;[3,5],[2,3];lock1}";];
+    C [label = "{C;99;[3,5];}";];
     C-> D [label = "CtoD";];
-    D [label = "{D;98;[10,12],[2,3];lock1}";];
+    D [label = "{D;98;[10,12]}";];
     E [label = "{E;98;[2,3]}";];
     E -> Distribute;
     Distribute -> F [label = "EtoF";];
@@ -17,8 +17,8 @@ digraph G {
     WaitFG [label = "WaitBE";];
     WaitFG -> D;
     Distribute [label = "DistributeD", shape = "diamond"];
-    F [label = "{F;96;[1,2],[3,4];lock2}";];
-    G [label = "{G;96;[3,5],[1,2];lock2}";];
+    F [label = "{F;96;[1,2];}";];
+    G [label = "{G;96;[3,5];}";];
     D -> A [label ="spin,50", style = "dashed"];
     label = "T2;0;true;50";
   }

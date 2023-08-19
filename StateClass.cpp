@@ -152,7 +152,6 @@ StateClassGraph::calculate_wcet(ScgVertexD &start, ScgVertexD &end,
     }
   }
 
-  //    std::cout << max_weight << std::endl;
   return std::make_pair(max_weight, wcet_path);
 }
 
@@ -164,4 +163,23 @@ std::set<ScgVertexD> StateClassGraph::find_task_vertex(std::string task_name) {
     }
   }
   return result;
+}
+bool StateClassGraph::check_deadlock() {
+  std::vector<ScgVertexD> no_successors;
+  typedef boost::graph_traits<SCG>::vertex_iterator vertex_iter;
+  vertex_iter vi, vi_end;
+  for (boost::tie(vi, vi_end) = boost::vertices(scg); vi != vi_end; ++vi) {
+    ScgVertexD v = *vi;
+    if (boost::out_degree(v, scg) == 0) {
+      no_successors.push_back(v);
+    }
+  }
+  if (no_successors.empty()) {
+    return false;
+  } else {
+    for (const auto &v : no_successors) {
+      std::cout << scg[v].label << std::endl;
+    }
+  }
+  return true;
 }

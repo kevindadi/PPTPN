@@ -269,9 +269,13 @@ public:
   void dfs_all_path(ScgVertexD start, ScgVertexD end,
                     std::vector<Path> &all_path, Path &current_path,
                     std::vector<bool> &visited, std::string &exit_flag);
+  // calculate wcet
   std::pair<int, std::vector<Path>>
   calculate_wcet(ScgVertexD &start, ScgVertexD &end, std::string &exit_flag);
   std::set<ScgVertexD> find_task_vertex(std::string task_name);
+
+  // Check deadlock
+  bool check_deadlock();
 };
 
 #endif // PPTPN_STATECLASS_H

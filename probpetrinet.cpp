@@ -553,10 +553,9 @@ void ProbPetriNet::bind_task_priority(GConfig &config) {
               create_priority_task(config, it2->name, it[0], it[1],
                                    (it2_vertex->second)[0][0],
                                    (it2_vertex->second)[0].back());
-              create_priority_task(config, it2->name, it[it[it.size() - 3]],
-                                   it[it[it.size() - 2]],
-                                   (it2_vertex->second)[0][0],
-                                   (it2_vertex->second)[0].back());
+              create_priority_task(
+                  config, it2->name, it[it.size() - 3], it[it.size() - 2],
+                  (it2_vertex->second)[0][0], (it2_vertex->second)[0].back());
             }
 
           } else {
@@ -573,10 +572,9 @@ void ProbPetriNet::bind_task_priority(GConfig &config) {
               create_priority_task(config, it2->name, it[2], it[3],
                                    (it2_vertex->second)[0][0],
                                    (it2_vertex->second)[0].back());
-              create_priority_task(config, it2->name, it[it[it.size() - 3]],
-                                   it[it[it.size() - 2]],
-                                   (it2_vertex->second)[0][0],
-                                   (it2_vertex->second)[0].back());
+              create_priority_task(
+                  config, it2->name, it[it.size() - 3], it[it.size() - 2],
+                  (it2_vertex->second)[0][0], (it2_vertex->second)[0].back());
             }
           }
         }
@@ -726,6 +724,7 @@ void ProbPetriNet::create_priority_task(const GConfig &config,
   int taks_core = tc_t.core;
   if (tc_t.is_sub) {
     // 高优先级任务是子任务
+    node.push_back(start);
     vertex_ptpn exec = add_transition(
         ptpn, task_exec, PTPNTransition{task_pror, task_exec_t, taks_core});
     add_edge(exec, end, ptpn);
@@ -773,6 +772,7 @@ void ProbPetriNet::create_priority_task(const GConfig &config,
     node.push_back(exec);
     node.push_back(end);
   } else {
+    node.push_back(start);
     vertex_ptpn get_core = add_transition(
         ptpn, task_get,
         PTPNTransition{task_pror, std::make_pair(0, 0), taks_core});
@@ -828,6 +828,7 @@ void ProbPetriNet::create_priority_task(const GConfig &config,
 
   preempt_task_vertexes.find(name)->second.push_back(node);
 }
+
 StateClass ProbPetriNet::get_initial_state_class() {
   BOOST_LOG_TRIVIAL(info) << "get_initial_state_class";
   ptpn[task_vertexes.find("start")->second.front()].token = 1;
@@ -908,7 +909,7 @@ void ProbPetriNet::generate_state_class() {
 
     for (auto &t : sched_t) {
       StateClass new_state = fire_transition(s, t);
-      std::cout << i << std::endl;
+      //      std::cout << i << std::endl;
       ++i;
       // BOOST_LOG_TRIVIAL(info) << "new state: ";
       // new_state.print_current_mark();
@@ -917,7 +918,7 @@ void ProbPetriNet::generate_state_class() {
       } else {
         scg.insert(new_state);
         q.push(new_state);
-        new_state.print_current_state();
+        // new_state.print_current_state();
       }
 
       auto succ_vertex = state_class_graph.add_scg_vertex(new_state);
@@ -934,7 +935,12 @@ void ProbPetriNet::generate_state_class() {
       boost::chrono::steady_clock::now() - pt_scg;
   BOOST_LOG_TRIVIAL(info) << "Generate SCG Time(s): " << sec.count();
   BOOST_LOG_TRIVIAL(info) << "SCG NUM: " << scg.size();
-  BOOST_LOG_TRIVIAL(info) << "SYSTEM NO DEADLOCK!";
+  if (state_class_graph.check_deadlock()) {
+    BOOST_LOG_TRIVIAL(info) << "SYSTEM NO DEADLOCK!";
+  } else {
+    BOOST_LOG_TRIVIAL(info) << "SYSTEM HAS DEADLOCK!";
+  }
+
   state_class_graph.write_to_dot("out.dot");
 }
 std::vector<SchedT> ProbPetriNet::get_sched_t(StateClass &state) {
