@@ -1062,9 +1062,10 @@ StateClass ProbPetriNet::fire_transition(const StateClass &sc,
           break;
         }
       }
-      if (enable_t)
+      if (enable_t) {
         enabled_t.push_back(vertex(*vi, ptpn));
-      old_enabled_t.push_back(vertex(*vi, ptpn));
+        old_enabled_t.push_back(vertex(*vi, ptpn));
+      }
     }
   }
 
