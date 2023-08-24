@@ -61,6 +61,6 @@ int main(int argc, char *argv[]) {
   probtpn.initial_state_class = probtpn.get_initial_state_class();
   probtpn.initial_state_class.print_current_mark();
   probtpn.generate_state_class();
-
+  probtpn.state_class_graph.task_wcet();
   return 0;
 }

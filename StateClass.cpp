@@ -183,3 +183,26 @@ bool StateClassGraph::check_deadlock() {
   }
   return true;
 }
+int StateClassGraph::task_wcet() {
+  auto res = find_task_vertex("B");
+  std::vector<std::pair<ScgVertexD, ScgVertexD>> task_s_e;
+  for (auto t1 = res.begin(); t1 != res.end(); ++t1) {
+    for (auto t2 = std::next(t1); t2 != res.end(); ++t2) {
+      task_s_e.push_back(std::make_pair(*t1, *t2));
+    }
+  }
+  std::vector<std::pair<int, std::vector<Path>>> all_wcet_paths;
+  std::string exit = "end";
+  for (auto &task : task_s_e) {
+    auto a = calculate_wcet(task.first, task.second, exit);
+    all_wcet_paths.push_back(a);
+  }
+
+  auto wcet = std::max_element(all_wcet_paths.begin(), all_wcet_paths.end(),
+                               [](const std::pair<int, std::vector<Path>> &a,
+                                  const std::pair<int, std::vector<Path>> &b) {
+                                 return a.first < b.first;
+                               });
+  std::cout << wcet->first << std::endl;
+  return wcet->first;
+}
