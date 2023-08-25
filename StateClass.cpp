@@ -155,14 +155,26 @@ StateClassGraph::calculate_wcet(ScgVertexD &start, ScgVertexD &end,
   return std::make_pair(max_weight, wcet_path);
 }
 
-std::set<ScgVertexD> StateClassGraph::find_task_vertex(std::string task_name) {
-  std::set<ScgVertexD> result;
-  for (const auto &v : scg_vertex_map) {
-    if (v.first.mark.labels.find(task_name) != v.first.mark.labels.end()) {
-      result.insert(v.second);
+std::pair<std::set<ScgVertexD>,std::set<ScgVertexD>> StateClassGraph::find_task_vertex(std::string task_name) {
+//  std::pair<std::set<ScgVertexD>,std::set<ScgVertexD>> result;
+  std::set<ScgVertexD> start, end;
+  std::string task_s = task_name + "entry";
+  std::string task_e = task_name + "exit";
+  BOOST_FOREACH (ScgVertexD v, boost::vertices(scg)) {
+    if(scg[v].id.find(task_s) != std::string::npos) {
+      start.insert(v);
+    }else if (scg[v].id.find(task_e) != std::string::npos) {
+      end.insert(v);
+    }else {
+
     }
   }
-  return result;
+//  for (const auto &v : scg_vertex_map) {
+//    if (v.first.mark.labels.find(task_name) != v.first.mark.labels.end()) {
+//      result.insert(v.second);
+//    }
+//  }
+  return std::make_pair(start, end);
 }
 bool StateClassGraph::check_deadlock() {
   std::vector<ScgVertexD> no_successors;
@@ -186,9 +198,9 @@ bool StateClassGraph::check_deadlock() {
 int StateClassGraph::task_wcet() {
   auto res = find_task_vertex("B");
   std::vector<std::pair<ScgVertexD, ScgVertexD>> task_s_e;
-  for (auto t1 = res.begin(); t1 != res.end(); ++t1) {
-    for (auto t2 = std::next(t1); t2 != res.end(); ++t2) {
-      task_s_e.push_back(std::make_pair(*t1, *t2));
+  for (auto t1 = res.first.begin(); t1 != res.first.end(); ++t1) {
+    for (auto t2 = res.second.begin(); t2 != res.second.end(); ++t2) {
+      task_s_e.emplace_back(*t1, *t2);
     }
   }
   std::vector<std::pair<int, std::vector<Path>>> all_wcet_paths;

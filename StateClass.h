@@ -272,7 +272,7 @@ public:
   // calculate wcet
   std::pair<int, std::vector<Path>>
   calculate_wcet(ScgVertexD &start, ScgVertexD &end, std::string &exit_flag);
-  std::set<ScgVertexD> find_task_vertex(std::string task_name);
+  std::pair<std::set<ScgVertexD>,std::set<ScgVertexD>> find_task_vertex(std::string task_name);
   int task_wcet();
   // Check deadlock
   bool check_deadlock();

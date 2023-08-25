@@ -9,7 +9,7 @@ if (BOOST_FOUND)
 endif ()
 
 find_package(nlohmann_json CONFIG REQUIRED)
-link_directories("C:/Users/Kevin/CLionProjects/PPTPN/libs")
+link_directories("/usr/local/opt/graphviz/lib")
 add_executable(PTPN main.cpp petrinet.cpp petrinet.h config.cpp config.h timepetrinet.cpp timepetrinet.h
         StateClass.h StateClass.cpp)
 add_executable(PPTPN main.cpp petrinet.cpp petrinet.h probpetrinet.cpp probpetrinet.h GConfig.cpp
