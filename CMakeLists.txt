@@ -8,8 +8,8 @@ if (BOOST_FOUND)
     include_directories(${BOOST_INCLUDE_DIR})
 endif ()
 
-find_package(nlohmann_json CONFIG REQUIRED)
-link_directories("/usr/local/opt/graphviz/lib")
+# find_package(nlohmann_json CONFIG REQUIRED)
+# link_directories("/usr/local/opt/graphviz/lib")
 add_executable(PTPN main.cpp petrinet.cpp petrinet.h config.cpp config.h timepetrinet.cpp timepetrinet.h
         StateClass.h StateClass.cpp)
 add_executable(PPTPN main.cpp petrinet.cpp petrinet.h probpetrinet.cpp probpetrinet.h GConfig.cpp

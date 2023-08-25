@@ -15,7 +15,8 @@
 #include <unordered_map>
 #include <utility>
 
-struct TPetriNetTransition {
+struct TPetriNetTransition
+{
   bool is_handle = false;
   int runtime = 0;
   int priority = 0;
@@ -25,7 +26,8 @@ struct TPetriNetTransition {
   TPetriNetTransition() = default;
   TPetriNetTransition(int runtime, int priority, std::pair<int, int> const_time,
                       int core)
-      : runtime(runtime), priority(priority), const_time(const_time), c(core) {
+      : runtime(runtime), priority(priority), const_time(const_time), c(core)
+  {
     is_handle = false;
   };
   TPetriNetTransition(bool is_handle, int runtime, int priority,
@@ -34,7 +36,8 @@ struct TPetriNetTransition {
         const_time(const_time){};
 };
 
-struct TPetriNetElement {
+struct TPetriNetElement
+{
   std::string name, label, shape;
   int token = 0;
   bool enabled = false;
@@ -43,7 +46,8 @@ struct TPetriNetElement {
   TPetriNetElement() = default;
 
   TPetriNetElement(const std::string &name, int token)
-      : name(name), token(token) {
+      : name(name), token(token)
+  {
     label = name;
     shape = "circle";
     enabled = false;
@@ -52,21 +56,24 @@ struct TPetriNetElement {
 
   TPetriNetElement(const std::string &name, bool enable,
                    TPetriNetTransition pnt)
-      : name(name), enabled(enable), pnt(std::move(pnt)) {
+      : name(name), enabled(enable), pnt(std::move(pnt))
+  {
     label = name;
     shape = "box";
     token = 0;
   }
 };
 
-struct TPetriNetEdge {
+struct TPetriNetEdge
+{
   std::string label;
   std::pair<int, int>
       weight;   // min_weight and max_weight represent the firing time interval
   int priority; // low-level propity remove;
 };
 
-struct PTPNTransition {
+struct PTPNTransition
+{
   bool is_handle = false;
   bool is_random = false;
   int runtime = 0;
@@ -76,30 +83,35 @@ struct PTPNTransition {
   int c = 0;
   PTPNTransition() = default;
   PTPNTransition(int priority, std::pair<int, int> time, int c)
-      : priority(priority), const_time(time), c(c) {
+      : priority(priority), const_time(time), c(c)
+  {
     is_handle = false;
     is_random = false;
     runtime = 0;
   };
   PTPNTransition(bool is_handle, int priority, std::pair<int, int> time, int c)
-      : is_handle(is_handle), priority(priority), const_time(time), c(c) {
+      : is_handle(is_handle), priority(priority), const_time(time), c(c)
+  {
     is_random = false;
     runtime = 0;
   };
   PTPNTransition(int priority, std::pair<int, int> time, int c, bool is_random)
-      : priority(priority), const_time(time), c(c), is_random(is_random) {
+      : priority(priority), const_time(time), c(c), is_random(is_random)
+  {
     is_handle = false;
     runtime = 0;
   };
   PTPNTransition(bool is_handle, int priority, std::pair<int, int> time, int c,
                  bool is_random)
       : is_handle(is_handle), priority(priority), const_time(time), c(c),
-        is_random(is_random) {
+        is_random(is_random)
+  {
     runtime = 0;
   };
 };
 
-struct PTPNVertex {
+struct PTPNVertex
+{
   std::string name, label, shape;
   int token = 0;
   bool enabled = false;
@@ -107,7 +119,8 @@ struct PTPNVertex {
 
   PTPNVertex() = default;
 
-  PTPNVertex(const std::string &name, int token) : name(name), token(token) {
+  PTPNVertex(const std::string &name, int token) : name(name), token(token)
+  {
     label = name;
     shape = "circle";
     enabled = false;
@@ -115,7 +128,8 @@ struct PTPNVertex {
   }
 
   PTPNVertex(const std::string &name, PTPNTransition pnt)
-      : name(name), pnt(std::move(pnt)) {
+      : name(name), pnt(std::move(pnt))
+  {
     enabled = false;
     label = name;
     shape = "box";
@@ -123,16 +137,19 @@ struct PTPNVertex {
   }
 };
 
-struct PTPNEdge {
+struct PTPNEdge
+{
   std::string label;
   std::pair<int, int> weight;
 };
 
-struct Marking {
+struct Marking
+{
   std::set<std::size_t> indexes;
   std::set<std::string> labels;
 
-  bool operator==(const Marking &other) {
+  bool operator==(const Marking &other)
+  {
     //    std::set<std::size_t> diff;
     //    std::set_symmetric_difference(indexes.begin(), indexes.end(),
     //                                  other.indexes.begin(),
@@ -143,10 +160,12 @@ struct Marking {
     //    }else {
     //      return false;
     //    }
-    if (indexes.size() != other.indexes.size()) {
+    if (indexes.size() != other.indexes.size())
+    {
       return false;
     }
-    if (indexes == other.indexes) {
+    if (indexes == other.indexes)
+    {
       return true;
     }
     return false;
@@ -156,12 +175,14 @@ struct Marking {
   bool operator<(const Marking &other) const { return indexes < other.indexes; }
 };
 
-struct SchedT {
+struct SchedT
+{
   std::size_t t;
   std::pair<int, int> time;
 
   // Define the less-than operator for SchedT
-  bool operator<(const SchedT &other) const {
+  bool operator<(const SchedT &other) const
+  {
     // Compare the 't' member first
     if (t < other.t)
       return true;
@@ -173,13 +194,15 @@ struct SchedT {
   }
 };
 
-struct T_wait {
+struct T_wait
+{
   std::size_t t;
   std::string name;
   int time;
 
   // Define the less-than operator for SchedT
-  bool operator<(const T_wait &other) const {
+  bool operator<(const T_wait &other) const
+  {
     // Compare the 't' member first
     if (t < other.t)
       return true;
@@ -190,7 +213,8 @@ struct T_wait {
     return time < other.time;
   }
 
-  bool operator==(const T_wait &other) const {
+  bool operator==(const T_wait &other) const
+  {
     if (t != other.t)
       return false;
     if (time != other.time)
@@ -202,17 +226,20 @@ struct T_wait {
   T_wait(std::size_t t, int time) : t(t), time(time) {}
 };
 
-struct SCGVertex {
+struct SCGVertex
+{
   std::string id;
   std::string label;
 };
 
-struct SCGEdge {
+struct SCGEdge
+{
   std::string label;
   std::pair<int, int> time;
 };
 
-class StateClass {
+class StateClass
+{
 public:
   // 当前标识
   Marking mark;
@@ -239,7 +266,8 @@ public:
   std::string to_scg_vertex();
   bool operator==(const StateClass &other);
 
-  bool operator<(const StateClass &other) const {
+  bool operator<(const StateClass &other) const
+  {
     // Compare the mark member first
     if (mark < other.mark)
       return true;
@@ -259,7 +287,8 @@ typedef boost::graph_traits<SCG>::edge_descriptor ScgEdgeD;
 typedef std::map<StateClass, ScgVertexD> ScgVertexMap;
 typedef std::vector<ScgEdgeD> Path;
 
-class StateClassGraph {
+class StateClassGraph
+{
 public:
   SCG scg;
   ScgVertexMap scg_vertex_map;
@@ -272,7 +301,8 @@ public:
   // calculate wcet
   std::pair<int, std::vector<Path>>
   calculate_wcet(ScgVertexD &start, ScgVertexD &end, std::string &exit_flag);
-  std::pair<std::set<ScgVertexD>,std::set<ScgVertexD>> find_task_vertex(std::string task_name);
+  int only_calculate_wcet(ScgVertexD start, ScgVertexD end);
+  std::pair<std::set<ScgVertexD>, std::set<ScgVertexD>> find_task_vertex(std::string task_name);
   int task_wcet();
   // Check deadlock
   bool check_deadlock();
