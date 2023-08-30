@@ -122,7 +122,48 @@ void StateClassGraph::dfs_all_path(ScgVertexD start, ScgVertexD end,
   current_path.push_back(ScgEdgeD());
   // std::cout << "dfs all path" << std::endl;
   //  Check if the current vertex is the goal
-  if (start == end || (scg[start].label.find(exit_flag) != std::string::npos))
+  if (start == end || (scg[start].id.find(exit_flag) != std::string::npos))
+  {
+    // Add the current path to the vector of all paths
+    // std::cout << "find one path" << std::endl;
+    all_path.push_back(current_path);
+  }
+  else
+  {
+    // Recursively explore the neighbors of the current vertex
+    boost::graph_traits<SCG>::out_edge_iterator ei, ei_end;
+    // std::cout << "find target vertex" << std::endl;
+    for (tie(ei, ei_end) = out_edges(start, scg); ei != ei_end; ++ei)
+    {
+      ScgVertexD next = target(*ei, scg);
+
+      if (!visited[next])
+      {
+        //                std::cout << "add next:" << g[next].name << std::endl;
+        current_path.back() = *ei;
+        dfs_all_path(next, end, all_path, current_path, visited, exit_flag);
+      }
+      // cout << current_path.back() << endl;
+    }
+  }
+
+  // Backtrack by removing the current vertex from the current path and marking
+  // it as unvisited
+  current_path.pop_back();
+  visited[start] = false;
+}
+
+void StateClassGraph::dfs_all_path(ScgVertexD start, std::string &end,
+                                   std::vector<Path> &all_path,
+                                   Path &current_path,
+                                   std::vector<bool> &visited,
+                                   std::string &exit_flag)
+{
+  visited[start] = true;
+  current_path.push_back(ScgEdgeD());
+  // std::cout << "dfs all path" << std::endl;
+  //  Check if the current vertex is the goal
+  if ((scg[start].id.find(end) != std::string::npos) || (scg[start].id.find(exit_flag) != std::string::npos))
   {
     // Add the current path to the vector of all paths
     // std::cout << "find one path" << std::endl;
@@ -195,8 +236,9 @@ int StateClassGraph::only_calculate_wcet(ScgVertexD start, ScgVertexD end)
   Path current_path;
   std::vector<bool> visited(num_vertices(scg), false);
   std::vector<Path> wcet_path;
-  std::string exit_flag = "end";
-  dfs_all_path(start, end, all_paths, current_path, visited, exit_flag);
+  std::string exit_flag = "Bend";
+  std::string end_flag = "Bexit";
+  dfs_all_path(start, end_flag, all_paths, current_path, visited, exit_flag);
   int max_weight = 0;
   // Print all paths
 
@@ -206,7 +248,7 @@ int StateClassGraph::only_calculate_wcet(ScgVertexD start, ScgVertexD end)
     for (Path::const_iterator it = path_it.begin(); it != path_it.end() - 1;
          ++it)
     {
-      path_max += scg[*it].time.second;
+      path_max += (scg[*it].time.second - scg[*it].time.first);
     }
     max_weight = std::max(max_weight, path_max);
     if (path_max == max_weight)
@@ -279,26 +321,28 @@ int StateClassGraph::task_wcet()
   auto res = find_task_vertex("B");
 
   std::vector<std::pair<ScgVertexD, ScgVertexD>> task_s_e;
+  std::vector<ScgVertexD> task_start;
   for (auto t1 = res.first.begin(); t1 != res.first.end(); ++t1)
   {
+    task_start.push_back(*t1);
     for (auto t2 = res.second.begin(); t2 != res.second.end(); ++t2)
     {
       task_s_e.emplace_back(*t1, *t2);
       std::cout << *t1 << "-----" << *t2 << std::endl;
     }
   }
-  std::cout << task_s_e.size() << std::endl;
+  std::cout << task_start.size() << std::endl;
   std::vector<std::pair<int, std::vector<Path>>> all_wcet_paths;
   std::vector<int> all_wcet;
   std::vector<std::future<int>> futures;
 
-  for (auto &task : task_s_e)
+  for (auto &task : task_start)
   {
     futures.push_back(std::async(std::launch::async,
                                  &StateClassGraph::only_calculate_wcet,
                                  this,
-                                 task.first,
-                                 task.second));
+                                 task,
+                                 task));
     // auto a = calculate_wcet(task.first, task.second, exit);
     // all_wcet_paths.push_back(a);
   }

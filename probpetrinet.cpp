@@ -5,17 +5,20 @@
 #include "probpetrinet.h"
 #include <queue>
 
-vertex_ptpn add_place(PTPN &g, const std::string &name, int token) {
+vertex_ptpn add_place(PTPN &g, const std::string &name, int token)
+{
   PTPNVertex element = {name, token};
   return boost::add_vertex(element, g);
 }
 
-vertex_ptpn add_transition(PTPN &g, std::string &name, PTPNTransition pnt) {
+vertex_ptpn add_transition(PTPN &g, std::string &name, PTPNTransition pnt)
+{
   PTPNVertex element = {name, pnt};
   return boost::add_vertex(element, g);
 }
 
-void ProbPetriNet::init() {
+void ProbPetriNet::init()
+{
   ptpn_dp.property("node_id", get(&PTPNVertex::name, ptpn));
   ptpn_dp.property("label", get(&PTPNVertex::label, ptpn));
   ptpn_dp.property("shape", get(&PTPNVertex::shape, ptpn));
@@ -28,8 +31,10 @@ void ProbPetriNet::init() {
 
 void ProbPetriNet::collect_task(GConfig &config) { config.prase_dag(); }
 
-void ProbPetriNet::create_core_vertex(int num) {
-  for (int i = 0; i < num; i++) {
+void ProbPetriNet::create_core_vertex(int num)
+{
+  for (int i = 0; i < num; i++)
+  {
     std::string core_name = "core" + std::to_string(i);
     // vertex_tpn c = add_vertex(PetriNetElement{core_name, core_name, "circle",
     // 1}, time_petri_net);
@@ -39,18 +44,22 @@ void ProbPetriNet::create_core_vertex(int num) {
   BOOST_LOG_TRIVIAL(info) << "create core resource!";
 }
 
-void ProbPetriNet::create_lock_vertex(const GConfig &config) {
-  if (config.lock_set.empty()) {
+void ProbPetriNet::create_lock_vertex(const GConfig &config)
+{
+  if (config.lock_set.empty())
+  {
     return;
   }
-  for (const auto &lock : config.lock_set) {
+  for (const auto &lock : config.lock_set)
+  {
     vertex_ptpn v = add_place(ptpn, lock, 1);
     lock_vertex.insert(std::make_pair(lock, v));
   }
   BOOST_LOG_TRIVIAL(info) << "create lock resource!";
 }
 
-void ProbPetriNet::construct_sub_ptpn(GConfig &config) {
+void ProbPetriNet::construct_sub_ptpn(GConfig &config)
+{
   collect_task(config);
   BOOST_LOG_TRIVIAL(info) << "collect all task";
   pt_a = boost::chrono::steady_clock::now();
@@ -58,12 +67,15 @@ void ProbPetriNet::construct_sub_ptpn(GConfig &config) {
   // 对于每一个subgraph分别构建子网
   // 通过glb的task与subgraph的start,end任务链接
   for (subgraph = agfstsubg(config.graph); subgraph;
-       subgraph = agnxtsubg(subgraph)) {
+       subgraph = agnxtsubg(subgraph))
+  {
     std::string current_sub = agnameof(subgraph);
     auto sub_tasks = config.sub_task_set.find(current_sub)->second;
     auto sub_core = config.sub_graph_config.find(current_sub)->second.core;
-    for (auto &sub_t : sub_tasks) {
-      if (sub_t.find("Wait") != std::string::npos) {
+    for (auto &sub_t : sub_tasks)
+    {
+      if (sub_t.find("Wait") != std::string::npos)
+      {
         std::string wait0 = "wait" + std::to_string(element_id);
         element_id += 1;
         PTPNTransition pt = {256, std::make_pair(0, 0), 256};
@@ -73,7 +85,9 @@ void ProbPetriNet::construct_sub_ptpn(GConfig &config) {
         task_vertexes.insert(std::make_pair(sub_t, task_v));
         BOOST_LOG_TRIVIAL(debug) << "find wait vertex!";
         continue;
-      } else if (sub_t.find("Distribute") != std::string::npos) {
+      }
+      else if (sub_t.find("Distribute") != std::string::npos)
+      {
         std::string dist = "distribute" + std::to_string(element_id);
         element_id += 1;
         PTPNTransition pt = {256, std::make_pair(0, 0), 256};
@@ -83,7 +97,9 @@ void ProbPetriNet::construct_sub_ptpn(GConfig &config) {
         task_vertexes.insert(std::make_pair(sub_t, task_v));
         BOOST_LOG_TRIVIAL(debug) << "find distribute vertex!";
         continue;
-      } else {
+      }
+      else
+      {
         std::vector<vertex_ptpn> t_node;
         std::vector<std::vector<vertex_ptpn>> t_nodes;
         std::string task_entry = sub_t + "entry";
@@ -103,11 +119,15 @@ void ProbPetriNet::construct_sub_ptpn(GConfig &config) {
         vertex_ptpn exit = add_place(ptpn, task_exit, 0);
         add_edge(exec, exit, ptpn);
         t_node.push_back(entry);
-        if (stc.lock.empty()) {
+        if (stc.lock.empty())
+        {
           add_edge(entry, exec, ptpn);
-        } else {
+        }
+        else
+        {
           size_t lock_size = stc.lock.size();
-          for (int i = 0; i < lock_size; i++) {
+          for (int i = 0; i < lock_size; i++)
+          {
             auto lock_name = stc.lock[i];
             auto lock_get = task_lock + lock_name;
             vertex_ptpn get_lock =
@@ -121,7 +141,8 @@ void ProbPetriNet::construct_sub_ptpn(GConfig &config) {
           }
           auto link = t_node.back();
 
-          for (int j = int(lock_size - 1); j >= 0; j--) {
+          for (int j = int(lock_size - 1); j >= 0; j--)
+          {
             auto lock_name = stc.lock[j];
             auto t = stc.time[j];
             std::string lock_drop = task_drop + lock_name;
@@ -130,10 +151,13 @@ void ProbPetriNet::construct_sub_ptpn(GConfig &config) {
             vertex_ptpn unlocked = add_place(ptpn, task_unlock + lock_name, 0);
             add_edge(t_node.back(), drop_lock, ptpn);
             add_edge(drop_lock, unlocked, ptpn);
-            if (lock_size == 1) {
+            if (lock_size == 1)
+            {
               // add_edge(link, drop_lock, time_petri_net);
               add_edge(unlocked, exec, ptpn);
-            } else if (j == 0) {
+            }
+            else if (j == 0)
+            {
               add_edge(unlocked, exec, ptpn);
             }
             t_node.push_back(drop_lock);
@@ -151,9 +175,11 @@ void ProbPetriNet::construct_sub_ptpn(GConfig &config) {
     // Traverse the edges in the subgraph
     Agnode_t *node;
     Agedge_t *edge;
-    for (node = agfstnode(subgraph); node; node = agnxtnode(subgraph, node)) {
+    for (node = agfstnode(subgraph); node; node = agnxtnode(subgraph, node))
+    {
       for (edge = agfstout(subgraph, node); edge;
-           edge = agnxtout(subgraph, edge)) {
+           edge = agnxtout(subgraph, edge))
+      {
         Agnode_t *targetNode = aghead(edge);
         std::string source_name = agnameof(node);
         std::string target_name = agnameof(targetNode);
@@ -161,12 +187,17 @@ void ProbPetriNet::construct_sub_ptpn(GConfig &config) {
         vertex_ptpn target = task_vertexes.find(target_name)->second.front();
 
         if ((source_name.find("Wait") != std::string::npos) ||
-            (source_name.find("Distribute") != std::string::npos)) {
+            (source_name.find("Distribute") != std::string::npos))
+        {
           add_edge(source, target, ptpn);
-        } else if ((target_name.find("Wait") != std::string::npos) ||
-                   (target_name.find("Distribute") != std::string::npos)) {
+        }
+        else if ((target_name.find("Wait") != std::string::npos) ||
+                 (target_name.find("Distribute") != std::string::npos))
+        {
           add_edge(source, target, ptpn);
-        } else {
+        }
+        else
+        {
           std::string link_name = "link" + std::to_string(element_id);
           element_id += 1;
           vertex_ptpn link = add_transition(
@@ -211,7 +242,8 @@ void ProbPetriNet::construct_sub_ptpn(GConfig &config) {
     add_edge(sub_get, task_start_v, ptpn);
     add_edge(task_end_v, sub_drop, ptpn);
 
-    if (config.sub_graph_config[current_sub].is_period) {
+    if (config.sub_graph_config[current_sub].is_period)
+    {
       auto sub_t = config.sub_graph_config[current_sub].period;
       vertex_ptpn sub_time = add_place(ptpn, subgraph_time, 0);
       vertex_ptpn sub_no_end = add_transition(
@@ -244,30 +276,36 @@ void ProbPetriNet::construct_sub_ptpn(GConfig &config) {
   os.open("t.dot");
   write_graphviz_dp(os, ptpn, ptpn_dp);
 }
-void ProbPetriNet::construct_glb_ptpn(GConfig &config) {
+void ProbPetriNet::construct_glb_ptpn(GConfig &config)
+{
   int inSubgraph = 0;
   Agraph_t *subgraph;
   // Traverse the nodes in the main graph
   Agnode_t *node;
   std::vector<Agnode_t *> glb_task;
   for (node = agfstnode(config.graph); node;
-       node = agnxtnode(config.graph, node)) {
+       node = agnxtnode(config.graph, node))
+  {
     inSubgraph = 0;
     for (subgraph = agfstsubg(config.graph); subgraph;
-         subgraph = agnxtsubg(subgraph)) {
-      if (agsubnode(subgraph, node, 0)) {
+         subgraph = agnxtsubg(subgraph))
+    {
+      if (agsubnode(subgraph, node, 0))
+      {
         inSubgraph = 1;
         break;
       }
     }
-    if (!inSubgraph) {
+    if (!inSubgraph)
+    {
       // 为该node任务创建petri net
       glb_task.push_back(node);
       std::string current_t = agnameof(node);
       auto current_config = config.tasks_label[current_t];
       int task_core = current_config.core;
       int task_priority = current_config.priority;
-      if (current_t.find("Wait") != std::string::npos) {
+      if (current_t.find("Wait") != std::string::npos)
+      {
         std::string wait0 = "wait" + std::to_string(element_id);
         element_id += 1;
         PTPNTransition pt = {256, std::make_pair(0, 0), 256};
@@ -277,7 +315,9 @@ void ProbPetriNet::construct_glb_ptpn(GConfig &config) {
         task_vertexes.insert(std::make_pair(current_t, task_v));
         BOOST_LOG_TRIVIAL(debug) << "find wait vertex!";
         continue;
-      } else if (current_t.find("Distribute") != std::string::npos) {
+      }
+      else if (current_t.find("Distribute") != std::string::npos)
+      {
         std::string dist = "distribute" + std::to_string(element_id);
         element_id += 1;
         PTPNTransition pt = {256, std::make_pair(0, 0), 256};
@@ -287,7 +327,9 @@ void ProbPetriNet::construct_glb_ptpn(GConfig &config) {
         task_vertexes.insert(std::make_pair(current_t, task_v));
         BOOST_LOG_TRIVIAL(debug) << "find distribute vertex!";
         continue;
-      } else {
+      }
+      else
+      {
         std::vector<vertex_ptpn> t_node;
         std::vector<std::vector<vertex_ptpn>> t_nodes;
         std::string task_entry = current_t + "entry";
@@ -316,11 +358,15 @@ void ProbPetriNet::construct_glb_ptpn(GConfig &config) {
         t_node.push_back(entry);
         t_node.push_back(get);
         t_node.push_back(ready);
-        if (stc.lock.empty()) {
+        if (stc.lock.empty())
+        {
           add_edge(ready, exec, ptpn);
-        } else {
+        }
+        else
+        {
           size_t lock_size = stc.lock.size();
-          for (int i = 0; i < lock_size; i++) {
+          for (int i = 0; i < lock_size; i++)
+          {
             auto lock_name = stc.lock[i];
             auto lock_get = task_lock + lock_name;
             vertex_ptpn get_lock = add_transition(
@@ -332,7 +378,8 @@ void ProbPetriNet::construct_glb_ptpn(GConfig &config) {
             t_node.push_back(deal);
             add_edge(get_lock, deal, ptpn);
           }
-          for (int j = int(lock_size - 1); j >= 0; j--) {
+          for (int j = int(lock_size - 1); j >= 0; j--)
+          {
             auto lock_name = stc.lock[j];
             auto t = stc.time[j];
             std::string lock_drop = task_drop + lock_name;
@@ -341,10 +388,13 @@ void ProbPetriNet::construct_glb_ptpn(GConfig &config) {
             vertex_ptpn unlocked = add_place(ptpn, task_unlock + lock_name, 0);
             add_edge(t_node.back(), drop_lock, ptpn);
             add_edge(drop_lock, unlocked, ptpn);
-            if (lock_size == 1) {
+            if (lock_size == 1)
+            {
               // add_edge(link, drop_lock, time_petri_net);
               add_edge(unlocked, exec, ptpn);
-            } else if (j == 0) {
+            }
+            else if (j == 0)
+            {
               add_edge(unlocked, exec, ptpn);
             }
             t_node.push_back(drop_lock);
@@ -361,10 +411,12 @@ void ProbPetriNet::construct_glb_ptpn(GConfig &config) {
   }
   // 链接边
   Agedge_t *succ_edge, *prev_edge;
-  for (auto n : glb_task) {
+  for (auto n : glb_task)
+  {
     // 链接后继边
     for (succ_edge = agfstout(config.graph, n); succ_edge;
-         succ_edge = agnxtout(config.graph, succ_edge)) {
+         succ_edge = agnxtout(config.graph, succ_edge))
+    {
       Agnode_t *targetNode = aghead(succ_edge);
       std::string source_name = agnameof(n);
       std::string target_name = agnameof(targetNode);
@@ -372,22 +424,30 @@ void ProbPetriNet::construct_glb_ptpn(GConfig &config) {
       vertex_ptpn target;
       // 后继的任务可能属于subgraph
       if (config.task_where_sub.find(target_name) !=
-          config.task_where_sub.end()) {
+          config.task_where_sub.end())
+      {
         // 如果属于subgraph
         std::string sub_g_name =
             config.task_where_sub.find(target_name)->second;
         target = task_vertexes.find(sub_g_name)->second.front();
-      } else {
+      }
+      else
+      {
         target = task_vertexes.find(target_name)->second.front();
       }
       if ((source_name.find("Wait") == 0) ||
-          (source_name.find("Distribute") == 0)) {
+          (source_name.find("Distribute") == 0))
+      {
         add_edge(source, target, ptpn);
-      } else if (target_name.find("Wait") == 0 ||
-                 (target_name.find("Distribute") == 0)) {
+      }
+      else if (target_name.find("Wait") == 0 ||
+               (target_name.find("Distribute") == 0))
+      {
         vertex_ptpn wait_vertex = task_vertexes[target_name].front();
         add_edge(source, wait_vertex, ptpn);
-      } else {
+      }
+      else
+      {
         std::string link_name = "link" + std::to_string(element_id);
         element_id += 1;
         vertex_ptpn link = add_transition(
@@ -399,7 +459,8 @@ void ProbPetriNet::construct_glb_ptpn(GConfig &config) {
 
     // 链接前驱边
     for (prev_edge = agfstin(config.graph, n); prev_edge;
-         prev_edge = agnxtin(config.graph, prev_edge)) {
+         prev_edge = agnxtin(config.graph, prev_edge))
+    {
       Agnode_t *sourceNode = agtail(prev_edge);
       std::string source_name = agnameof(sourceNode);
       std::string target_name = agnameof(n);
@@ -408,21 +469,29 @@ void ProbPetriNet::construct_glb_ptpn(GConfig &config) {
       // 前驱的任务可能属于subgraph
       Agnode_t *source_node = agsubnode(config.graph, sourceNode, 0);
       if (config.task_where_sub.find(source_name) !=
-          config.task_where_sub.end()) {
+          config.task_where_sub.end())
+      {
         // 如果属于subgraph
         std::string sub_g_name =
             config.task_where_sub.find(source_name)->second;
         source = task_vertexes.find(sub_g_name)->second.back();
-      } else {
+      }
+      else
+      {
         source = task_vertexes.find(source_name)->second.back();
       }
       if ((source_name.find("Wait") == 0) ||
-          (source_name.find("Distribute") == 0)) {
+          (source_name.find("Distribute") == 0))
+      {
         add_edge(source, target, ptpn);
-      } else if ((target_name.find("Wait") == 0) ||
-                 (target_name.find("Distribute") == 0)) {
+      }
+      else if ((target_name.find("Wait") == 0) ||
+               (target_name.find("Distribute") == 0))
+      {
         add_edge(source, target, ptpn);
-      } else {
+      }
+      else
+      {
         std::string link_name = "link" + std::to_string(element_id);
         element_id += 1;
         vertex_ptpn link = add_transition(
@@ -444,8 +513,10 @@ void ProbPetriNet::construct_glb_ptpn(GConfig &config) {
   BOOST_LOG_TRIVIAL(info) << "petri net P+T num: " << boost::num_vertices(ptpn);
   BOOST_LOG_TRIVIAL(info) << "petri net F num: " << boost::num_edges(ptpn);
 }
-void ProbPetriNet::bind_task_core(const GConfig &config) {
-  for (auto &t : config.sub_task_collection) {
+void ProbPetriNet::bind_task_core(const GConfig &config)
+{
+  for (auto &t : config.sub_task_collection)
+  {
     auto task_vertex = task_vertexes[t];
     vertex_ptpn get = task_vertex[1];
     vertex_ptpn drop = task_vertex[(task_vertex.size() - 2)];
@@ -454,7 +525,8 @@ void ProbPetriNet::bind_task_core(const GConfig &config) {
     add_edge(core, get, ptpn);
     add_edge(drop, core, ptpn);
   }
-  for (auto &t : config.glb_task_collection) {
+  for (auto &t : config.glb_task_collection)
+  {
     auto task_vertex = task_vertexes[t];
     vertex_ptpn get = task_vertex[1];
     vertex_ptpn drop = task_vertex[(task_vertex.size() - 2)];
@@ -464,16 +536,23 @@ void ProbPetriNet::bind_task_core(const GConfig &config) {
   }
   BOOST_LOG_TRIVIAL(info) << "Task Bind Core Completed!";
 }
-void ProbPetriNet::task_bind_lock(const GConfig &config) {
+void ProbPetriNet::task_bind_lock(const GConfig &config)
+{
   // 绑定所有边界点
-  for (auto &t : config.glb_task_collection) {
+  for (auto &t : config.glb_task_collection)
+  {
     auto task_V = preempt_task_vertexes.find(t)->second;
-    for (auto v : task_V) {
-      if (v.size() <= 5) {
+    for (auto v : task_V)
+    {
+      if (v.size() <= 5)
+      {
         break;
-      } else {
+      }
+      else
+      {
         int lock_N = (int)config.tasks_label.find(t)->second.lock.size();
-        for (int i = 0; i < lock_N; i++) {
+        for (int i = 0; i < lock_N; i++)
+        {
           // 按照锁的次序获得锁的类型
           std::string lock_type = config.tasks_label.find(t)->second.lock[i];
           vertex_ptpn glock = v[(3 + 2 * i)];
@@ -485,20 +564,30 @@ void ProbPetriNet::task_bind_lock(const GConfig &config) {
       }
     }
   }
-  for (auto &sub : config.sub_task_set) {
-    for (auto &task : sub.second) {
+  for (auto &sub : config.sub_task_set)
+  {
+    for (auto &task : sub.second)
+    {
       std::vector<std::vector<vertex_ptpn>> task_V;
-      if (preempt_task_vertexes.find(task) != preempt_task_vertexes.end()) {
+      if (preempt_task_vertexes.find(task) != preempt_task_vertexes.end())
+      {
         task_V = preempt_task_vertexes.find(task)->second;
-      } else {
+      }
+      else
+      {
         continue;
       }
-      for (const auto &v : task_V) {
-        if (v.size() <= 3) {
+      for (const auto &v : task_V)
+      {
+        if (v.size() <= 3)
+        {
           break;
-        } else {
+        }
+        else
+        {
           int lock_N = (int)config.tasks_label.find(task)->second.lock.size();
-          for (int i = 0; i < lock_N; i++) {
+          for (int i = 0; i < lock_N; i++)
+          {
             // 按照锁的次序获得锁的类型
             std::string lock_type =
                 config.tasks_label.find(task)->second.lock[i];
@@ -513,15 +602,20 @@ void ProbPetriNet::task_bind_lock(const GConfig &config) {
     }
   }
 }
-void ProbPetriNet::bind_task_priority(GConfig &config) {
+void ProbPetriNet::bind_task_priority(GConfig &config)
+{
   std::map<int, std::vector<SubTaskConfig>> stp = config.classify_priority();
   std::vector<SubTaskConfig>::iterator it1, it2;
-  for (auto &t : stp) {
+  for (auto &t : stp)
+  {
     BOOST_LOG_TRIVIAL(debug) << "core index: " << t.first;
-    for (it1 = t.second.begin(); it1 != t.second.end() - 1; ++it1) {
+    for (it1 = t.second.begin(); it1 != t.second.end() - 1; ++it1)
+    {
       std::string task_name_t = it1->name;
-      for (it2 = it1 + 1; it2 != t.second.end(); ++it2) {
-        if (it1->priority == it2->priority) {
+      for (it2 = it1 + 1; it2 != t.second.end(); ++it2)
+      {
+        if (it1->priority == it2->priority)
+        {
           continue;
         }
         BOOST_LOG_TRIVIAL(info)
@@ -530,23 +624,28 @@ void ProbPetriNet::bind_task_priority(GConfig &config) {
         auto it1_vertex = preempt_task_vertexes.find(it1->name);
         auto it2_vertex = preempt_task_vertexes.find(it2->name);
 
-        for (auto it : it1_vertex->second) {
+        for (auto it : it1_vertex->second)
+        {
           // auto preempt_task_node = it[2];
           // 判断it中是否有锁
           // 以任务的配置文件判断，正好检查构建 Petri 网模型的正确性
           SubTaskConfig tc_it1 = config.tasks_label.find(it1->name)->second;
           SubTaskConfig tc_it2 = config.tasks_label.find(it2->name)->second;
 
-          if (it1->is_sub) {
+          if (it1->is_sub)
+          {
             // 被抢占的任务是子任务
             // 抢占的任务是子任务
             // 抢占的任务无锁
-            if (tc_it1.lock.empty()) {
+            if (tc_it1.lock.empty())
+            {
               ptpn[it[1]].pnt.is_handle = true;
               create_priority_task(config, it2->name, it[0], it[1],
                                    (it2_vertex->second)[0][0],
                                    (it2_vertex->second)[0].back());
-            } else {
+            }
+            else
+            {
               // 抢占的任务有锁
               ptpn[it[1]].pnt.is_handle = true;
               ptpn[it[it.size() - 2]].pnt.is_handle = true;
@@ -557,16 +656,20 @@ void ProbPetriNet::bind_task_priority(GConfig &config) {
                   config, it2->name, it[it.size() - 3], it[it.size() - 2],
                   (it2_vertex->second)[0][0], (it2_vertex->second)[0].back());
             }
-
-          } else {
+          }
+          else
+          {
             // 被抢占的任务不是子任务
-            if (tc_it1.lock.empty()) {
+            if (tc_it1.lock.empty())
+            {
               ptpn[it[3]].pnt.is_handle = true;
               ptpn[it[it.size() - 2]].pnt.is_handle = true;
               create_priority_task(config, it2->name, it[2], it[3],
                                    (it2_vertex->second)[0][0],
                                    (it2_vertex->second)[0].back());
-            } else {
+            }
+            else
+            {
               ptpn[it[3]].pnt.is_handle = true;
               ptpn[it[it.size() - 2]].pnt.is_handle = true;
               create_priority_task(config, it2->name, it[2], it[3],
@@ -706,7 +809,8 @@ void ProbPetriNet::create_priority_task(const GConfig &config,
                                         const std::string &name,
                                         vertex_ptpn preempt_vertex,
                                         size_t handle_t, vertex_ptpn start,
-                                        vertex_ptpn end) {
+                                        vertex_ptpn end)
+{
   ptpn[handle_t].pnt.is_handle = true;
   std::string task_get = name + "get_core" + std::to_string(element_id);
   std::string task_ready = name + "ready" + std::to_string(element_id);
@@ -722,19 +826,24 @@ void ProbPetriNet::create_priority_task(const GConfig &config,
   auto task_exec_t = tc_t.time[(tc_t.time.size() - 1)];
   int task_pror = tc_t.priority;
   int taks_core = tc_t.core;
-  if (tc_t.is_sub) {
+  if (tc_t.is_sub)
+  {
     // 高优先级任务是子任务
     node.push_back(start);
     vertex_ptpn exec = add_transition(
         ptpn, task_exec, PTPNTransition{task_pror, task_exec_t, taks_core});
     add_edge(exec, end, ptpn);
     add_edge(exec, preempt_vertex, ptpn);
-    if (tc_t.lock.empty()) {
+    if (tc_t.lock.empty())
+    {
       add_edge(start, exec, ptpn);
       add_edge(preempt_vertex, exec, ptpn);
       element_id += 1;
-    } else {
-      for (int j = 0; j < tc_t.lock.size(); j++) {
+    }
+    else
+    {
+      for (int j = 0; j < tc_t.lock.size(); j++)
+      {
         auto lock_name = tc_t.lock[j];
         std::string gl = task_lock + lock_name;
         vertex_ptpn get_lock =
@@ -744,13 +853,15 @@ void ProbPetriNet::create_priority_task(const GConfig &config,
         node.push_back(get_lock);
         node.push_back(deal);
         add_edge(get_lock, deal, ptpn);
-        if (j == 0) {
+        if (j == 0)
+        {
           add_edge(start, get_lock, ptpn);
           add_edge(preempt_vertex, get_lock, ptpn);
         }
       }
       // auto link = node.back();
-      for (int k = (tc_t.lock.size() - 1); k >= 0; k--) {
+      for (int k = (tc_t.lock.size() - 1); k >= 0; k--)
+      {
         auto lock_name = tc_t.lock[k];
         auto t = tc_t.time[k];
         std::string dl = task_drop + lock_name;
@@ -759,9 +870,12 @@ void ProbPetriNet::create_priority_task(const GConfig &config,
         vertex_ptpn unlocked = add_place(ptpn, task_unlock + lock_name, 0);
         add_edge(node.back(), drop_lock, ptpn);
         add_edge(drop_lock, unlocked, ptpn);
-        if (tc_t.lock.size() == 1) {
+        if (tc_t.lock.size() == 1)
+        {
           add_edge(unlocked, exec, ptpn);
-        } else if (k == 0) {
+        }
+        else if (k == 0)
+        {
           add_edge(unlocked, exec, ptpn);
         }
         node.push_back(drop_lock);
@@ -771,7 +885,9 @@ void ProbPetriNet::create_priority_task(const GConfig &config,
     }
     node.push_back(exec);
     node.push_back(end);
-  } else {
+  }
+  else
+  {
     node.push_back(start);
     vertex_ptpn get_core = add_transition(
         ptpn, task_get,
@@ -787,11 +903,15 @@ void ProbPetriNet::create_priority_task(const GConfig &config,
     node.push_back(start);
     node.push_back(get_core);
     node.push_back(ready);
-    if (tc_t.lock.empty()) {
+    if (tc_t.lock.empty())
+    {
       add_edge(ready, exec, ptpn);
       element_id += 1;
-    } else {
-      for (int j = 0; j < tc_t.lock.size(); j++) {
+    }
+    else
+    {
+      for (int j = 0; j < tc_t.lock.size(); j++)
+      {
         auto lock_name = tc_t.lock[j];
         std::string gl = task_lock + lock_name;
         vertex_ptpn get_lock =
@@ -803,7 +923,8 @@ void ProbPetriNet::create_priority_task(const GConfig &config,
         add_edge(get_lock, deal, ptpn);
       }
       // auto link = node.back();
-      for (int k = (tc_t.lock.size() - 1); k >= 0; k--) {
+      for (int k = (tc_t.lock.size() - 1); k >= 0; k--)
+      {
         auto lock_name = tc_t.lock[k];
         auto t = tc_t.time[k];
         std::string dl = task_drop + lock_name;
@@ -812,9 +933,12 @@ void ProbPetriNet::create_priority_task(const GConfig &config,
         vertex_ptpn unlocked = add_place(ptpn, task_unlock + lock_name, 0);
         add_edge(node.back(), drop_lock, ptpn);
         add_edge(drop_lock, unlocked, ptpn);
-        if (tc_t.lock.size() == 1) {
+        if (tc_t.lock.size() == 1)
+        {
           add_edge(unlocked, exec, ptpn);
-        } else if (k == 0) {
+        }
+        else if (k == 0)
+        {
           add_edge(unlocked, exec, ptpn);
         }
         node.push_back(drop_lock);
@@ -829,7 +953,8 @@ void ProbPetriNet::create_priority_task(const GConfig &config,
   preempt_task_vertexes.find(name)->second.push_back(node);
 }
 
-StateClass ProbPetriNet::get_initial_state_class() {
+StateClass ProbPetriNet::get_initial_state_class()
+{
   BOOST_LOG_TRIVIAL(info) << "get_initial_state_class";
   ptpn[task_vertexes.find("start")->second.front()].token = 1;
   Marking initial_markings;
@@ -838,23 +963,31 @@ StateClass ProbPetriNet::get_initial_state_class() {
   std::set<T_wait> all_t;
   boost::graph_traits<PTPN>::vertex_iterator vi, vi_end;
   boost::graph_traits<PTPN>::in_edge_iterator in_i, in_end;
-  for (boost::tie(vi, vi_end) = boost::vertices(ptpn); vi != vi_end; ++vi) {
-    if (ptpn[*vi].shape == "circle") {
-      if (ptpn[*vi].token == 1) {
+  for (boost::tie(vi, vi_end) = boost::vertices(ptpn); vi != vi_end; ++vi)
+  {
+    if (ptpn[*vi].shape == "circle")
+    {
+      if (ptpn[*vi].token == 1)
+      {
         initial_markings.indexes.insert(index(*vi));
         initial_markings.labels.insert(ptpn[*vi].label);
       }
-    } else {
+    }
+    else
+    {
       bool flag = true;
       for (boost::tie(in_i, in_end) = boost::in_edges(*vi, ptpn);
-           in_i != in_end; ++in_i) {
+           in_i != in_end; ++in_i)
+      {
         auto source_vertex = source(*in_i, ptpn);
-        if (ptpn[source_vertex].token == 0) {
+        if (ptpn[source_vertex].token == 0)
+        {
           flag = false;
           break;
         }
       }
-      if (flag) {
+      if (flag)
+      {
         all_t.insert({*vi, 0});
       }
     }
@@ -862,16 +995,19 @@ StateClass ProbPetriNet::get_initial_state_class() {
 
   return StateClass{initial_markings, all_t};
 }
-void ProbPetriNet::set_state_class(const StateClass &state_class) {
+void ProbPetriNet::set_state_class(const StateClass &state_class)
+{
   // 首先重置原有状态
   boost::graph_traits<PTPN>::vertex_iterator vi, vi_end;
-  for (boost::tie(vi, vi_end) = vertices(ptpn); vi != vi_end; ++vi) {
+  for (boost::tie(vi, vi_end) = vertices(ptpn); vi != vi_end; ++vi)
+  {
     ptpn[*vi].token = 0;
     ptpn[*vi].enabled = false;
     ptpn[*vi].pnt.runtime = 0;
   }
   // 2. 设置标识
-  for (auto m : state_class.mark.indexes) {
+  for (auto m : state_class.mark.indexes)
+  {
     ptpn[m].token = 1;
   }
   // 3. 设置各个变迁的已等待时间
@@ -883,11 +1019,13 @@ void ProbPetriNet::set_state_class(const StateClass &state_class) {
   //    time_petri_net[t].pnt.runtime = state_class.t_time.find(t)->second;
   //  }
   // 5.设置所有变迁的已等待时间
-  for (const auto &t : state_class.all_t) {
+  for (const auto &t : state_class.all_t)
+  {
     ptpn[t.t].pnt.runtime = t.time;
   }
 }
-void ProbPetriNet::generate_state_class() {
+void ProbPetriNet::generate_state_class()
+{
   BOOST_LOG_TRIVIAL(info) << "Generating state class";
   auto pt_scg = boost::chrono::steady_clock::now();
   std::queue<StateClass> q;
@@ -900,22 +1038,26 @@ void ProbPetriNet::generate_state_class() {
   state_class_graph.scg_vertex_map.insert(
       std::make_pair(initial_state_class, v_id));
   int i = 0;
-  while (!q.empty()) {
+  while (!q.empty())
+  {
     StateClass s = q.front();
     q.pop();
     ScgVertexD prev_vertex = state_class_graph.add_scg_vertex(s);
 
     std::vector<SchedT> sched_t = get_sched_t(s);
 
-    for (auto &t : sched_t) {
+    for (auto &t : sched_t)
+    {
       StateClass new_state = fire_transition(s, t);
       //      std::cout << i << std::endl;
       ++i;
       // BOOST_LOG_TRIVIAL(info) << "new state: ";
       // new_state.print_current_mark();
-      if (scg.find(new_state) != scg.end()) {
-
-      } else {
+      if (scg.find(new_state) != scg.end())
+      {
+      }
+      else
+      {
         scg.insert(new_state);
         q.push(new_state);
         // new_state.print_current_state();
@@ -924,7 +1066,8 @@ void ProbPetriNet::generate_state_class() {
       auto succ_vertex = state_class_graph.add_scg_vertex(new_state);
       SCGEdge scg_e = {std::to_string(t.time.first)
                            .append(":")
-                           .append(std::to_string(t.time.second))};
+                           .append(std::to_string(t.time.second)),
+                       t.time};
       boost::add_edge(prev_vertex, succ_vertex, scg_e, state_class_graph.scg);
     }
     //    if (sec.count() >= timeout) {
@@ -935,15 +1078,19 @@ void ProbPetriNet::generate_state_class() {
       boost::chrono::steady_clock::now() - pt_scg;
   BOOST_LOG_TRIVIAL(info) << "Generate SCG Time(s): " << sec.count();
   BOOST_LOG_TRIVIAL(info) << "SCG NUM: " << scg.size();
-  if (state_class_graph.check_deadlock()) {
+  if (state_class_graph.check_deadlock())
+  {
     BOOST_LOG_TRIVIAL(info) << "SYSTEM NO DEADLOCK!";
-  } else {
+  }
+  else
+  {
     BOOST_LOG_TRIVIAL(info) << "SYSTEM HAS DEADLOCK!";
   }
 
   state_class_graph.write_to_dot("out.dot");
 }
-std::vector<SchedT> ProbPetriNet::get_sched_t(StateClass &state) {
+std::vector<SchedT> ProbPetriNet::get_sched_t(StateClass &state)
+{
   BOOST_LOG_TRIVIAL(debug) << "get sched t";
   set_state_class(state);
   // 获得使能的变迁
@@ -951,15 +1098,21 @@ std::vector<SchedT> ProbPetriNet::get_sched_t(StateClass &state) {
   std::vector<SchedT> sched_T;
   boost::graph_traits<PTPN>::vertex_iterator vi, vi_end;
   boost::graph_traits<PTPN>::in_edge_iterator in_i, in_end;
-  for (boost::tie(vi, vi_end) = vertices(ptpn); vi != vi_end; ++vi) {
+  for (boost::tie(vi, vi_end) = vertices(ptpn); vi != vi_end; ++vi)
+  {
     bool enable_t = true;
-    if (ptpn[*vi].shape == "circle") {
+    if (ptpn[*vi].shape == "circle")
+    {
       continue;
-    } else {
+    }
+    else
+    {
       for (boost::tie(in_i, in_end) = in_edges(*vi, ptpn); in_i != in_end;
-           ++in_i) {
+           ++in_i)
+      {
         auto source_vertex = source(*in_i, ptpn);
-        if (ptpn[source_vertex].token == 0) {
+        if (ptpn[source_vertex].token == 0)
+        {
           enable_t = false;
           break;
         }
@@ -969,48 +1122,65 @@ std::vector<SchedT> ProbPetriNet::get_sched_t(StateClass &state) {
     }
   }
 
-  if (enabled_t_s.empty()) {
+  if (enabled_t_s.empty())
+  {
     return {};
   }
 
   // 遍历这些变迁,找到符合发生区间的变迁集合
   std::pair<int, int> fire_time = {INT_MAX, INT_MAX};
-  for (auto t : enabled_t_s) {
+  for (auto t : enabled_t_s)
+  {
     // 如果等待时间已超过最短发生时间
     int f_min = ptpn[t].pnt.const_time.first - ptpn[t].pnt.runtime;
-    if (f_min < 0) {
+    if (f_min < 0)
+    {
       f_min = 0;
     }
     int f_max = ptpn[t].pnt.const_time.second - ptpn[t].pnt.runtime;
     fire_time.first = (f_min < fire_time.first) ? f_min : fire_time.first;
     fire_time.second = (f_max < fire_time.second) ? f_max : fire_time.second;
   }
-  if ((fire_time.first < 0) && (fire_time.second < 0)) {
+  if ((fire_time.first < 0) && (fire_time.second < 0))
+  {
     // BOOST_LOG_TRIVIAL(error) << "fire time not leq zero";
   }
   // find transition which satifies the time domain
   std::pair<int, int> sched_time = {0, 0};
   int s_h, s_l;
-  for (auto t : enabled_t_s) {
+  for (auto t : enabled_t_s)
+  {
     int t_min = ptpn[t].pnt.const_time.first - ptpn[t].pnt.runtime;
-    if (t_min < 0) {
+    if (t_min < 0)
+    {
       t_min = 0;
     }
     int t_max = ptpn[t].pnt.const_time.second - ptpn[t].pnt.runtime;
-    if (t_min > fire_time.second) {
+    if (t_min > fire_time.second)
+    {
 
       sched_time = fire_time;
-    } else if (t_max > fire_time.second) {
+    }
+    else if (t_max > fire_time.second)
+    {
       // transition's max go beyond time_d
-      if (t_min >= fire_time.first) {
+      if (t_min >= fire_time.first)
+      {
         sched_time = {t_min, fire_time.second};
-      } else {
+      }
+      else
+      {
         BOOST_LOG_TRIVIAL(error) << "the time_d min value is error";
       }
-    } else {
-      if (t_min >= fire_time.first) {
+    }
+    else
+    {
+      if (t_min >= fire_time.first)
+      {
         sched_time = {t_min, t_max};
-      } else {
+      }
+      else
+      {
         BOOST_LOG_TRIVIAL(error) << "the time_d min value is error";
       }
     }
@@ -1020,27 +1190,34 @@ std::vector<SchedT> ProbPetriNet::get_sched_t(StateClass &state) {
 
   // 删除优先级
   auto s_it = sched_T.begin();
-  while (s_it != sched_T.end()) {
+  while (s_it != sched_T.end())
+  {
     auto next = s_it + 1;
-    while (next != sched_T.end()) {
+    while (next != sched_T.end())
+    {
       if ((ptpn[(*s_it).t].pnt.priority > ptpn[(*next).t].pnt.priority) &&
-          (ptpn[(*s_it).t].pnt.c == ptpn[(*next).t].pnt.c)) {
+          (ptpn[(*s_it).t].pnt.c == ptpn[(*next).t].pnt.c))
+      {
         sched_T.erase(next);
         next = s_it + 1;
-      } else {
+      }
+      else
+      {
         ++next;
       }
     }
     ++s_it;
   }
-  for (auto d : sched_T) {
+  for (auto d : sched_T)
+  {
     BOOST_LOG_TRIVIAL(debug) << ptpn[d.t].label;
   }
 
   return sched_T;
 }
 StateClass ProbPetriNet::fire_transition(const StateClass &sc,
-                                         SchedT transition) {
+                                         SchedT transition)
+{
   BOOST_LOG_TRIVIAL(debug) << "fire_transition: " << transition.t;
   // reset!
   set_state_class(sc);
@@ -1049,20 +1226,27 @@ StateClass ProbPetriNet::fire_transition(const StateClass &sc,
   std::vector<std::size_t> enabled_t, old_enabled_t;
   boost::graph_traits<PTPN>::vertex_iterator vi, vi_end;
   boost::graph_traits<PTPN>::in_edge_iterator in_i, in_end;
-  for (boost::tie(vi, vi_end) = vertices(ptpn); vi != vi_end; ++vi) {
+  for (boost::tie(vi, vi_end) = vertices(ptpn); vi != vi_end; ++vi)
+  {
     bool enable_t = true;
-    if (ptpn[*vi].shape == "circle") {
+    if (ptpn[*vi].shape == "circle")
+    {
       continue;
-    } else {
+    }
+    else
+    {
       for (boost::tie(in_i, in_end) = in_edges(*vi, ptpn); in_i != in_end;
-           ++in_i) {
+           ++in_i)
+      {
         auto source_vertex = source(*in_i, ptpn);
-        if (ptpn[source_vertex].token == 0) {
+        if (ptpn[source_vertex].token == 0)
+        {
           enable_t = false;
           break;
         }
       }
-      if (enable_t) {
+      if (enable_t)
+      {
         enabled_t.push_back(vertex(*vi, ptpn));
         old_enabled_t.push_back(vertex(*vi, ptpn));
       }
@@ -1071,24 +1255,33 @@ StateClass ProbPetriNet::fire_transition(const StateClass &sc,
 
   // 删除优先级
   auto s_it = enabled_t.begin();
-  while (s_it != enabled_t.end()) {
+  while (s_it != enabled_t.end())
+  {
     auto next = s_it + 1;
-    while (next != enabled_t.end()) {
+    while (next != enabled_t.end())
+    {
       if ((ptpn[(*s_it)].pnt.priority > ptpn[(*next)].pnt.priority) &&
-          (ptpn[(*s_it)].pnt.c == ptpn[(*next)].pnt.c)) {
+          (ptpn[(*s_it)].pnt.c == ptpn[(*next)].pnt.c))
+      {
         enabled_t.erase(next);
         next = s_it + 1;
-      } else {
+      }
+      else
+      {
         ++next;
       }
     }
     ++s_it;
   }
   // 2. 将除发生变迁外的使能时间+状态转移时间
-  for (auto t : enabled_t) {
-    if (transition.time.second == transition.time.first) {
+  for (auto t : enabled_t)
+  {
+    if (transition.time.second == transition.time.first)
+    {
       ptpn[t].pnt.runtime += transition.time.first;
-    } else {
+    }
+    else
+    {
       ptpn[t].pnt.runtime += (transition.time.second - transition.time.first);
     }
   }
@@ -1100,41 +1293,56 @@ StateClass ProbPetriNet::fire_transition(const StateClass &sc,
   std::set<T_wait> all_t;
   // 发生变迁的前置集为 0
   for (boost::tie(in_i, in_end) = in_edges(transition.t, ptpn); in_i != in_end;
-       ++in_i) {
+       ++in_i)
+  {
     vertex_ptpn place = source(*in_i, ptpn);
-    if (ptpn[place].token < 0) {
+    if (ptpn[place].token < 0)
+    {
       BOOST_LOG_TRIVIAL(error)
           << "place token <= 0, the transition not enabled";
-    } else {
+    }
+    else
+    {
       ptpn[place].token = 0;
     }
   }
   // 发生变迁的后继集为 1
   typename boost::graph_traits<PTPN>::out_edge_iterator out_i, out_end;
   for (boost::tie(out_i, out_end) = out_edges(transition.t, ptpn);
-       out_i != out_end; ++out_i) {
+       out_i != out_end; ++out_i)
+  {
     vertex_ptpn place = target(*out_i, ptpn);
-    if (ptpn[place].token > 1) {
+    if (ptpn[place].token > 1)
+    {
       BOOST_LOG_TRIVIAL(error)
           << "safe petri net, the place not increment >= 1";
-    } else {
+    }
+    else
+    {
       ptpn[place].token = 1;
     }
   }
   // 4.获取新的标识
   std::vector<std::size_t> new_enabled_t;
-  for (boost::tie(vi, vi_end) = vertices(ptpn); vi != vi_end; ++vi) {
+  for (boost::tie(vi, vi_end) = vertices(ptpn); vi != vi_end; ++vi)
+  {
     bool enable_t = true;
-    if (ptpn[*vi].shape == "circle") {
-      if (ptpn[*vi].token == 1) {
+    if (ptpn[*vi].shape == "circle")
+    {
+      if (ptpn[*vi].token == 1)
+      {
         new_mark.indexes.insert(vertex(*vi, ptpn));
         new_mark.labels.insert(ptpn[*vi].label);
       }
-    } else {
+    }
+    else
+    {
       for (boost::tie(in_i, in_end) = in_edges(*vi, ptpn); in_i != in_end;
-           ++in_i) {
+           ++in_i)
+      {
         auto source_vertex = source(*in_i, ptpn);
-        if (ptpn[source_vertex].token == 0) {
+        if (ptpn[source_vertex].token == 0)
+        {
           enable_t = false;
           break;
         }
@@ -1152,7 +1360,8 @@ StateClass ProbPetriNet::fire_transition(const StateClass &sc,
   std::set_intersection(old_enabled_t.begin(), old_enabled_t.end(),
                         new_enabled_t.begin(), new_enabled_t.end(),
                         std::inserter(common, common.begin()));
-  for (unsigned long it : common) {
+  for (unsigned long it : common)
+  {
     all_t.insert({it, ptpn[it].pnt.runtime});
     //    h_t.insert(it);
     //    time.insert(std::make_pair(it, time_petri_net[it].pnt.runtime));
@@ -1162,13 +1371,17 @@ StateClass ProbPetriNet::fire_transition(const StateClass &sc,
   std::set_difference(old_enabled_t.begin(), old_enabled_t.end(),
                       new_enabled_t.begin(), new_enabled_t.end(),
                       std::inserter(old_minus_new, old_minus_new.begin()));
-  for (unsigned long it : old_minus_new) {
+  for (unsigned long it : old_minus_new)
+  {
     // 若为可挂起变迁,则保存已运行时间
-    if (ptpn[it].pnt.is_handle) {
+    if (ptpn[it].pnt.is_handle)
+    {
       all_t.insert({it, ptpn[it].pnt.runtime});
       //      H_t.insert(it);
       //      time.insert(std::make_pair(it, time_petri_net[it].pnt.runtime));
-    } else {
+    }
+    else
+    {
       ptpn[it].pnt.runtime = 0;
     }
   }
@@ -1177,12 +1390,16 @@ StateClass ProbPetriNet::fire_transition(const StateClass &sc,
   std::set_difference(new_enabled_t.begin(), new_enabled_t.end(),
                       old_enabled_t.begin(), old_enabled_t.end(),
                       std::inserter(new_minus_old, new_minus_old.begin()));
-  for (unsigned long it : new_minus_old) {
-    if (ptpn[it].pnt.is_handle) {
+  for (unsigned long it : new_minus_old)
+  {
+    if (ptpn[it].pnt.is_handle)
+    {
       all_t.insert({it, ptpn[it].pnt.runtime});
       //      h_t.insert(it);
       //      time.insert(std::make_pair(it, time_petri_net[it].pnt.runtime));
-    } else {
+    }
+    else
+    {
       //      h_t.insert(it);
       //      time.insert(std::make_pair(it, 0));
       all_t.insert({it, 0});

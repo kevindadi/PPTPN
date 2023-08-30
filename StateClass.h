@@ -9,6 +9,7 @@
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/graph_utility.hpp>
 #include <boost/graph/graphviz.hpp>
+#include <boost/graph/breadth_first_search.hpp>
 #include <iterator>
 #include <set>
 #include <string>
@@ -287,6 +288,15 @@ typedef boost::graph_traits<SCG>::edge_descriptor ScgEdgeD;
 typedef std::map<StateClass, ScgVertexD> ScgVertexMap;
 typedef std::vector<ScgEdgeD> Path;
 
+class WCETBFSVisitor : public boost::default_bfs_visitor
+{
+public:
+  WCETBFSVisitor(const std::string &end_name, const std::string &exit_name) : _endName(end_name), _exitName(exit_name) {}
+
+  std::string _endName;
+  std::string _exitName;
+};
+
 class StateClassGraph
 {
 public:
@@ -296,6 +306,9 @@ public:
   void write_to_dot(const std::string &scg_path);
 
   void dfs_all_path(ScgVertexD start, ScgVertexD end,
+                    std::vector<Path> &all_path, Path &current_path,
+                    std::vector<bool> &visited, std::string &exit_flag);
+  void dfs_all_path(ScgVertexD start, std::string &end,
                     std::vector<Path> &all_path, Path &current_path,
                     std::vector<bool> &visited, std::string &exit_flag);
   // calculate wcet
