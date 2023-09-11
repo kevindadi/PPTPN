@@ -213,8 +213,10 @@ void ProbPetriNet::construct_sub_ptpn(GConfig &config)
     std::string subgraph_entry = current_sub + "entry";
     std::string subgraph_get_core = current_sub + "get";
     std::string subgraph_time = current_sub + "time";
-    std::string subgraph_no_end = current_sub + "no_end";
-    std::string subgraph_t_end = current_sub + "t_end";
+    std::string subgraph_timed = current_sub + "timed";
+    std::string subgraph_deadline = current_sub + "deadline";
+    std::string subgraph_no_end = current_sub + "timeout";
+    std::string subgraph_t_end = current_sub + "restart";
 
     std::string subgraph_end = current_sub + "end";
     std::string subgraph_drop_core = current_sub + "drop";
@@ -245,25 +247,36 @@ void ProbPetriNet::construct_sub_ptpn(GConfig &config)
     if (config.sub_graph_config[current_sub].is_period)
     {
       auto sub_t = config.sub_graph_config[current_sub].period;
+      std::vector<vertex_ptpn> sub_timed_v;
       vertex_ptpn sub_time = add_place(ptpn, subgraph_time, 0);
+      sub_timed_v.push_back(sub_time);
+      vertex_ptpn sub_timed = add_transition(ptpn, subgraph_timed,
+                                             PTPNTransition{255, std::make_pair(sub_t, sub_t), sub_core});
+      vertex_ptpn sub_deadline = add_place(ptpn, subgraph_deadline, 0);
       vertex_ptpn sub_no_end = add_transition(
           ptpn, subgraph_no_end,
-          PTPNTransition{255, std::make_pair(sub_t, sub_t), sub_core});
+          PTPNTransition{255, std::make_pair(0, 0), sub_core});
       vertex_ptpn sub_t_end = add_transition(
           ptpn, subgraph_t_end,
-          PTPNTransition{256, std::make_pair(sub_t, sub_t), sub_core});
+          PTPNTransition{256, std::make_pair(0, 0), sub_core});
       vertex_ptpn sub_end = add_place(ptpn, subgraph_end, 0);
-      add_edge(sub_get, sub_time, ptpn);
-      add_edge(sub_time, sub_no_end, ptpn);
-      add_edge(sub_time, sub_t_end, ptpn);
+      // add_edge(sub_get, sub_time, ptpn);
+      add_edge(sub_time, sub_timed, ptpn);
+      add_edge(sub_timed, sub_deadline, ptpn);
+      add_edge(sub_deadline, sub_t_end, ptpn);
+      add_edge(sub_deadline, sub_no_end, ptpn);
       add_edge(sub_t_end, sub_entry, ptpn);
+      add_edge(sub_t_end, sub_time, ptpn);
       add_edge(sub_end, sub_t_end, ptpn);
       add_edge(sub_no_end, sub_entry, ptpn);
+      add_edge(sub_no_end, sub_time, ptpn);
       add_edge(sub_drop, sub_end, ptpn);
+
       sub_node.push_back(sub_time);
       sub_node.push_back(sub_no_end);
       sub_node.push_back(sub_t_end);
       sub_node.push_back(sub_end);
+      sub_task_timer.insert(std::make_pair(current_sub, sub_timed_v));
     }
     sub_node.push_back(sub_drop);
     sub_node.push_back(sub_exit);
@@ -422,6 +435,7 @@ void ProbPetriNet::construct_glb_ptpn(GConfig &config)
       std::string target_name = agnameof(targetNode);
       vertex_ptpn source = task_vertexes.find(source_name)->second.back();
       vertex_ptpn target;
+      vertex_ptpn sub_target = 0;
       // 后继的任务可能属于subgraph
       if (config.task_where_sub.find(target_name) !=
           config.task_where_sub.end())
@@ -430,6 +444,7 @@ void ProbPetriNet::construct_glb_ptpn(GConfig &config)
         std::string sub_g_name =
             config.task_where_sub.find(target_name)->second;
         target = task_vertexes.find(sub_g_name)->second.front();
+        sub_target = sub_task_timer.find(sub_g_name)->second.front();
       }
       else
       {
@@ -454,6 +469,10 @@ void ProbPetriNet::construct_glb_ptpn(GConfig &config)
             ptpn, link_name, PTPNTransition{256, std::make_pair(0, 0), 256});
         add_edge(source, link, ptpn);
         add_edge(link, target, ptpn);
+        if (sub_target > 0)
+        {
+          add_edge(link, sub_target, ptpn);
+        }
       }
     }
 
@@ -618,7 +637,7 @@ void ProbPetriNet::bind_task_priority(GConfig &config)
         {
           continue;
         }
-        BOOST_LOG_TRIVIAL(info)
+        BOOST_LOG_TRIVIAL(debug)
             << "priority " << it1->name << ": " << it1->priority << it2->name
             << ": " << it2->priority;
         auto it1_vertex = preempt_task_vertexes.find(it1->name);
@@ -1030,7 +1049,7 @@ void ProbPetriNet::generate_state_class()
   auto pt_scg = boost::chrono::steady_clock::now();
   std::queue<StateClass> q;
   q.push(initial_state_class);
-  scg.insert(initial_state_class);
+  // scg.insert(initial_state_class);
 
   std::string vertex_label = initial_state_class.to_scg_vertex();
   ScgVertexD v_id =
@@ -1053,12 +1072,12 @@ void ProbPetriNet::generate_state_class()
       ++i;
       // BOOST_LOG_TRIVIAL(info) << "new state: ";
       // new_state.print_current_mark();
-      if (scg.find(new_state) != scg.end())
+      if (state_class_graph.scg_vertex_map.find(new_state) != state_class_graph.scg_vertex_map.end())
       {
       }
       else
       {
-        scg.insert(new_state);
+        // scg.insert(new_state);
         q.push(new_state);
         // new_state.print_current_state();
       }
@@ -1077,7 +1096,7 @@ void ProbPetriNet::generate_state_class()
   boost::chrono::duration<double> sec =
       boost::chrono::steady_clock::now() - pt_scg;
   BOOST_LOG_TRIVIAL(info) << "Generate SCG Time(s): " << sec.count();
-  BOOST_LOG_TRIVIAL(info) << "SCG NUM: " << scg.size();
+  BOOST_LOG_TRIVIAL(info) << "SCG NUM: " << state_class_graph.scg_vertex_map.size();
   if (state_class_graph.check_deadlock())
   {
     BOOST_LOG_TRIVIAL(info) << "SYSTEM NO DEADLOCK!";
@@ -1158,8 +1177,8 @@ std::vector<SchedT> ProbPetriNet::get_sched_t(StateClass &state)
     int t_max = ptpn[t].pnt.const_time.second - ptpn[t].pnt.runtime;
     if (t_min > fire_time.second)
     {
-
-      sched_time = fire_time;
+      // sched_time = fire_time;
+      continue;
     }
     else if (t_max > fire_time.second)
     {
@@ -1167,6 +1186,7 @@ std::vector<SchedT> ProbPetriNet::get_sched_t(StateClass &state)
       if (t_min >= fire_time.first)
       {
         sched_time = {t_min, fire_time.second};
+        sched_T.push_back(SchedT{t, sched_time});
       }
       else
       {
@@ -1178,14 +1198,13 @@ std::vector<SchedT> ProbPetriNet::get_sched_t(StateClass &state)
       if (t_min >= fire_time.first)
       {
         sched_time = {t_min, t_max};
+        sched_T.push_back(SchedT{t, sched_time});
       }
       else
       {
         BOOST_LOG_TRIVIAL(error) << "the time_d min value is error";
       }
     }
-
-    sched_T.push_back(SchedT{t, sched_time});
   }
 
   // 删除优先级
@@ -1282,7 +1301,7 @@ StateClass ProbPetriNet::fire_transition(const StateClass &sc,
     }
     else
     {
-      ptpn[t].pnt.runtime += (transition.time.second - transition.time.first);
+      ptpn[t].pnt.runtime += transition.time.second;
     }
   }
   ptpn[transition.t].pnt.runtime = 0;

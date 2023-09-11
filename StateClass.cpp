@@ -16,40 +16,40 @@ void StateClass::print_current_mark()
   std::cout << std::endl;
 }
 
-bool StateClass::operator==(const StateClass &other)
-{
-  if (mark == other.mark)
-  {
-    //    std::set<std::size_t> h_diff, H_diff;
-    //    std::set_symmetric_difference(t_sched.begin(), t_sched.end(),
-    //                                  other.t_sched.begin(),
-    //                                  other.t_sched.end(),
-    //                                  std::inserter(h_diff, h_diff.begin()));
-    //    std::set_symmetric_difference(handle_t_sched.begin(),
-    //    handle_t_sched.end(),
-    //                                  other.handle_t_sched.begin(),
-    //                                  other.handle_t_sched.end(),
-    //                                  std::inserter(H_diff, H_diff.begin()));
-    //
-    //    if (H_diff.empty() && h_diff.empty()) {
-    //      return true;
-    //    } else {
-    //      return false;
-    //    }
-    if (all_t == other.all_t)
-    {
-      return true;
-    }
-    else
-    {
-      return false;
-    }
-  }
-  else
-  {
-    return false;
-  }
-}
+// bool StateClass::operator==(const StateClass &other)
+// {
+// if (mark == other.mark)
+// {
+//    std::set<std::size_t> h_diff, H_diff;
+//    std::set_symmetric_difference(t_sched.begin(), t_sched.end(),
+//                                  other.t_sched.begin(),
+//                                  other.t_sched.end(),
+//                                  std::inserter(h_diff, h_diff.begin()));
+//    std::set_symmetric_difference(handle_t_sched.begin(),
+//    handle_t_sched.end(),
+//                                  other.handle_t_sched.begin(),
+//                                  other.handle_t_sched.end(),
+//                                  std::inserter(H_diff, H_diff.begin()));
+//
+//    if (H_diff.empty() && h_diff.empty()) {
+//      return true;
+//    } else {
+//      return false;
+//    }
+//   if (all_t == other.all_t)
+//   {
+//     return true;
+//   }
+//   else
+//   {
+//     return false;
+//   }
+// }
+// else
+// {
+//   return false;
+// }
+// }
 void StateClass::print_current_state()
 {
   std::cout << "current mark: ";
@@ -107,7 +107,7 @@ ScgVertexD StateClassGraph::add_scg_vertex(StateClass sc)
   }
   else
   {
-    svd = boost::add_vertex(SCGVertex{sc.to_scg_vertex()}, scg);
+    svd = boost::add_vertex(SCGVertex{sc.to_scg_vertex(), sc.to_scg_vertex()}, scg);
     scg_vertex_map.insert(std::make_pair(sc, svd));
   }
   return svd;
@@ -248,7 +248,7 @@ int StateClassGraph::only_calculate_wcet(ScgVertexD start, ScgVertexD end)
     for (Path::const_iterator it = path_it.begin(); it != path_it.end() - 1;
          ++it)
     {
-      path_max += (scg[*it].time.second - scg[*it].time.first);
+      path_max += scg[*it].time.second;
     }
     max_weight = std::max(max_weight, path_max);
     if (path_max == max_weight)
@@ -328,7 +328,7 @@ int StateClassGraph::task_wcet()
     for (auto t2 = res.second.begin(); t2 != res.second.end(); ++t2)
     {
       task_s_e.emplace_back(*t1, *t2);
-      std::cout << *t1 << "-----" << *t2 << std::endl;
+      // std::cout << *t1 << "-----" << *t2 << std::endl;
     }
   }
   std::cout << task_start.size() << std::endl;

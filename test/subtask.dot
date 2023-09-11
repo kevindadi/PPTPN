@@ -20,7 +20,7 @@ digraph G {
     F [label = "{F;96;[1,2],[3,4];lock2}";];
     G [label = "{G;96;[3,5],[1,2];lock2}";];
     D -> A [label ="spin,50", style = "dashed"];
-    label = "T2;0;true;50";
+    label = "T2;0;true;100";
   }
 
   subgraph cluster_1 {
@@ -29,7 +29,7 @@ digraph G {
     DistributeI [label = "DistributeI", shape = "diamond"];
     J [label = "{J;99;[3,5]}";];
     K [label = "{K;99;[2,4]}";];
-    L [label = "{L;98;[2,5]}";];
+    L [label = "{L;98;[4,9]}";];
     DistributeI -> J [label = "ItoJ";];
     DistributeI -> K [label = "ItoJ";];
     DistributeI -> L [label = "ItoJ";];

@@ -1,14 +1,14 @@
 digraph G {
   subgraph cluster_0 {
-    A [label = "{A;99;[3,5]}";];
+    A [label = "{A;97;[3,5]}";];
     A -> B [label = "AtoB";];
     A -> E [label = "AtoE";];
-    B [label = "{B;99;[1,5]}";];
+    B [label = "{B;98;[1,5]}";];
     B -> C [label = "BtoC";];
     C [label = "{C;99;[3,5],[2,3];lock1}";];
     C-> D [label = "CtoD";];
-    D [label = "{D;99;[10,12],[2,3];lock1}";];
-    E [label = "{E;99;[2,3]}";];
+    D [label = "{D;98;[10,12],[2,3];lock1}";];
+    E [label = "{E;98;[2,3]}";];
     E -> Distribute;
     Distribute -> F [label = "EtoF";];
     Distribute -> G [label = "EtoG";];
@@ -17,19 +17,19 @@ digraph G {
     WaitFG [label = "WaitBE";];
     WaitFG -> D;
     Distribute [label = "DistributeD", shape = "diamond"];
-    F [label = "{F;99;[1,2],[3,4];lock2}";];
-    G [label = "{G;99;[3,5],[1,2];lock2}";];
+    F [label = "{F;96;[1,2],[3,4];lock2}";];
+    G [label = "{G;96;[3,5],[1,2];lock2}";];
     D -> A [label ="spin,50", style = "dashed"];
-    label = "T2;0;true;50";
+    label = "T2;0;true;100";
   }
 
   subgraph cluster_1 {
-    I [label = "{I;99;[6,9]}";];
+    I [label = "{I;96;[6,9]}";];
     I -> DistributeI;
     DistributeI [label = "DistributeI", shape = "diamond"];
     J [label = "{J;99;[3,5]}";];
     K [label = "{K;99;[2,4]}";];
-    L [label = "{L;99;[2,5]}";];
+    L [label = "{L;98;[4,9]}";];
     DistributeI -> J [label = "ItoJ";];
     DistributeI -> K [label = "ItoJ";];
     DistributeI -> L [label = "ItoJ";];
@@ -38,17 +38,17 @@ digraph G {
     K -> WaitIKL;
     L -> WaitIKL;
     WaitIKL -> M;
-    M [label = "{M;99;[2,3]}";];
-    N [label = "{N;99;[1,2]}";];
+    M [label = "{M;98;[2,3]}";];
+    N [label = "{N;96;[1,2]}";];
     M -> N [label = "MtoN";];
     N -> I [label ="spin,80", style = "dashed"];
-    label = "T1;1;true;80";
+    label = "T1;0;true;80";
   }
   start -> A;
   start -> I;
   D -> end;
   N -> end;
 
-  start [label ="{start;1;99;[2,3]}", shape=Mdiamond];
-  end [label ="{end;0;99;[2,3]}", shape=Msquare];
+  start [label ="{start;0;97;[2,3]}", shape=Mdiamond];
+  end [label ="{end;0;97;[2,3]}", shape=Msquare];
 }

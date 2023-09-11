@@ -15,7 +15,8 @@ typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS,
     PTPN;
 typedef boost::graph_traits<PTPN>::vertex_descriptor vertex_ptpn;
 
-class ProbPetriNet : public PetriNet {
+class ProbPetriNet : public PetriNet
+{
 public:
   boost::dynamic_properties ptpn_dp;
   PTPN ptpn;
@@ -29,6 +30,8 @@ public:
   std::unordered_map<std::string, std::vector<std::vector<vertex_ptpn>>>
       preempt_task_vertexes;
 
+  // DAG 任务计时器的开始和结束
+  std::unordered_map<std::string, std::vector<vertex_ptpn>> sub_task_timer;
   void create_core_vertex(int num);
   void bind_task_core(const GConfig &config);
   void create_lock_vertex(const GConfig &config);

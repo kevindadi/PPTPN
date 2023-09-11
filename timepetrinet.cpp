@@ -6,10 +6,13 @@
 #include <csignal>
 #include <queue>
 #include <utility>
+#include <thread>
+#include <chrono>
 
 #define BOOST_CHRONO_EXITENSIONS
 
-void TimePetriNet::init_graph() {
+void TimePetriNet::init_graph()
+{
   tpn_dp.property("node_id", get(&TPetriNetElement::name, time_petri_net));
   tpn_dp.property("label", get(&TPetriNetElement::label, time_petri_net));
   tpn_dp.property("shape", get(&TPetriNetElement::shape, time_petri_net));
@@ -20,13 +23,16 @@ void TimePetriNet::init_graph() {
   tpn_dp.property("name", gname_pn);
 }
 
-void TimePetriNet::construct_petri_net(const Config &config) {
+void TimePetriNet::construct_petri_net(const Config &config)
+{
   collect_task(config);
   auto pt_a = boost::chrono::steady_clock::now();
   //  PetriNet::construct_petri_net();
   std::map<std::string, vertex_tpn> wait_v;
-  for (const auto &id : task_name) {
-    if (id.second.find("Wait") != std::string::npos) {
+  for (const auto &id : task_name)
+  {
+    if (id.second.find("Wait") != std::string::npos)
+    {
       std::string wait0 = "wait" + std::to_string(element_id);
       element_id += 1;
       //      std::string wait1 = "wait" + std::to_string(element_id);
@@ -49,7 +55,8 @@ void TimePetriNet::construct_petri_net(const Config &config) {
       BOOST_LOG_TRIVIAL(debug) << "find wait vertex!";
       continue;
     }
-    if (id.second.find("Distribute") != std::string::npos) {
+    if (id.second.find("Distribute") != std::string::npos)
+    {
       std::string dist = "distribute" + std::to_string(element_id);
       element_id += 1;
       TPetriNetTransition pt = {0, 256, std::make_pair(0, 0), 256};
@@ -98,12 +105,16 @@ void TimePetriNet::construct_petri_net(const Config &config) {
     node.push_back(entry);
     node.push_back(get_core);
     node.push_back(ready);
-    if (tc_t.lock.empty()) {
+    if (tc_t.lock.empty())
+    {
       add_edge(ready, exec, time_petri_net);
-    } else {
+    }
+    else
+    {
       size_t lock_n = tc_t.lock.size();
 
-      for (int i = 0; i < lock_n; i++) {
+      for (int i = 0; i < lock_n; i++)
+      {
         auto lock_name = tc_t.lock[i];
         vertex_tpn get_lock = add_transition(
             time_petri_net, task_lock + lock_name, false,
@@ -116,7 +127,8 @@ void TimePetriNet::construct_petri_net(const Config &config) {
       }
       auto link = node.back();
 
-      for (int j = (lock_n - 1); j >= 0; j--) {
+      for (int j = (lock_n - 1); j >= 0; j--)
+      {
         auto lock_name = tc_t.lock[j];
         auto t = tc_t.time[j];
         vertex_tpn drop_lock =
@@ -126,10 +138,13 @@ void TimePetriNet::construct_petri_net(const Config &config) {
             add_place(time_petri_net, task_unlock + lock_name, 0);
         add_edge(node.back(), drop_lock, time_petri_net);
         add_edge(drop_lock, unlocked, time_petri_net);
-        if (lock_n == 1) {
+        if (lock_n == 1)
+        {
           // add_edge(link, drop_lock, time_petri_net);
           add_edge(unlocked, exec, time_petri_net);
-        } else if (j == 0) {
+        }
+        else if (j == 0)
+        {
           add_edge(unlocked, exec, time_petri_net);
         }
         node.push_back(drop_lock);
@@ -154,11 +169,13 @@ void TimePetriNet::construct_petri_net(const Config &config) {
   BOOST_LOG_TRIVIAL(info) << "DEAL DAG EDGE";
   // 除自环外，任务链接关系
   std::map<std::size_t, std::vector<std::size_t>> s_t_map;
-  for (boost::tie(ei, ei_end) = edges(config.dag); ei != ei_end; ++ei) {
+  for (boost::tie(ei, ei_end) = edges(config.dag); ei != ei_end; ++ei)
+  {
     auto source_vertex = index[source(*ei, config.dag)];
     auto target_vertex = index[target(*ei, config.dag)];
     // 自环
-    if (source_vertex == target_vertex) {
+    if (source_vertex == target_vertex)
+    {
       std::string n =
           (*(id_name_map_me.find(index[source(*ei, config.dag)]))).second;
 
@@ -180,7 +197,9 @@ void TimePetriNet::construct_petri_net(const Config &config) {
       auto v_start = id_start_end[source_vertex];
       vertex_tpn v_s = v_start.head;
       add_edge(v2, v_s, time_petri_net);
-    } else {
+    }
+    else
+    {
       //      if (s_t_map.count(source_vertex) != 0) {
       //        s_t_map.at(source_vertex).push_back(target_vertex);
       //      }else {
@@ -192,18 +211,23 @@ void TimePetriNet::construct_petri_net(const Config &config) {
       std::string target_vertex_name =
           (*(id_name_map_me.find(target_vertex))).second;
       if ((source_vertex_name.find("Wait") == 0) ||
-          (source_vertex_name.find("Distribute") == 0)) {
+          (source_vertex_name.find("Distribute") == 0))
+      {
         vertex_tpn wait_vertex = id_start_end[source_vertex].get<1>();
         vertex_tpn next_task = id_start_end[target_vertex].get<0>();
         add_edge(wait_vertex, next_task, time_petri_net);
-      } else if (target_vertex_name.find("Wait") == 0 ||
-                 (target_vertex_name.find("Distribute") == 0)) {
+      }
+      else if (target_vertex_name.find("Wait") == 0 ||
+               (target_vertex_name.find("Distribute") == 0))
+      {
         vertex_tpn wait_vertex = id_start_end[target_vertex].get<0>();
         vertex_tpn last_task = id_start_end[source_vertex].get<1>();
         add_edge(last_task, wait_vertex, time_petri_net);
         task_succ.insert(std::make_pair(target_vertex, wait_vertex));
         // std::cout << "target:" << target_vertex_name << std::endl;
-      } else {
+      }
+      else
+      {
         std::string link_name = "link" + std::to_string(element_id);
         element_id += 1;
         vertex_tpn link = add_transition(
@@ -245,11 +269,13 @@ void TimePetriNet::construct_petri_net(const Config &config) {
   boost::write_graphviz_dp(os, time_petri_net, tpn_dp);
 }
 
-bool TimePetriNet::collect_task(const Config &config) {
+bool TimePetriNet::collect_task(const Config &config)
+{
   id_name_map_me = config.task_index;
   typename boost::property_map<DAG, boost::vertex_index_t>::type index =
       get(boost::vertex_index, config.dag);
-  BOOST_FOREACH (DAG::vertex_descriptor v, vertices(config.dag)) {
+  BOOST_FOREACH (DAG::vertex_descriptor v, vertices(config.dag))
+  {
     std::string id = get("node_id", config.dag_dp, v);
 
     task_name.emplace_back(index[v], id);
@@ -259,20 +285,24 @@ bool TimePetriNet::collect_task(const Config &config) {
 }
 
 TimePetriNet::vertex_tpn TimePetriNet::add_place(TPN &g, std::string name,
-                                                 int token) {
+                                                 int token)
+{
   TPetriNetElement element = {name, token};
   return add_vertex(element, g);
 }
 
 TimePetriNet::vertex_tpn TimePetriNet::add_transition(TPN &g, std::string name,
                                                       bool enable,
-                                                      TPetriNetTransition pnt) {
+                                                      TPetriNetTransition pnt)
+{
   TPetriNetElement element = {name, enable, pnt};
   return add_vertex(element, g);
 }
 
-bool TimePetriNet::create_core_vertex(int num) {
-  for (int i = 0; i < num; i++) {
+bool TimePetriNet::create_core_vertex(int num)
+{
+  for (int i = 0; i < num; i++)
+  {
     std::string core_name = "core" + std::to_string(i);
     // vertex_tpn c = add_vertex(PetriNetElement{core_name, core_name, "circle",
     // 1}, time_petri_net);
@@ -283,8 +313,10 @@ bool TimePetriNet::create_core_vertex(int num) {
   return true;
 }
 
-void TimePetriNet::bind_task_core(const Config &config) {
-  for (auto t : config.j_task_name) {
+void TimePetriNet::bind_task_core(const Config &config)
+{
+  for (auto t : config.j_task_name)
+  {
     auto task_pair = single_task_node.find(t);
     auto task_vertex = task_pair->second;
     vertex_tpn get = task_vertex[1];
@@ -296,11 +328,14 @@ void TimePetriNet::bind_task_core(const Config &config) {
   BOOST_LOG_TRIVIAL(info) << "Task Bind Core Completed!";
 }
 
-bool TimePetriNet::create_lock_vertex(const Config &config) {
-  if (config.locks.empty()) {
+bool TimePetriNet::create_lock_vertex(const Config &config)
+{
+  if (config.locks.empty())
+  {
     return false;
   }
-  for (const auto &lock : config.locks) {
+  for (const auto &lock : config.locks)
+  {
     vertex_tpn v = add_place(time_petri_net, lock, 1);
     lock_vertex.insert(std::make_pair(lock, v));
   }
@@ -308,16 +343,23 @@ bool TimePetriNet::create_lock_vertex(const Config &config) {
   return true;
 }
 
-void TimePetriNet::task_bind_lock(const Config &config) {
+void TimePetriNet::task_bind_lock(const Config &config)
+{
   // 绑定所有边界点
-  for (auto t : config.j_task_name) {
+  for (auto t : config.j_task_name)
+  {
     auto task_V = multi_task_node.find(t)->second;
-    for (auto v : task_V) {
-      if (v.size() <= 5) {
+    for (auto v : task_V)
+    {
+      if (v.size() <= 5)
+      {
         break;
-      } else {
+      }
+      else
+      {
         int lock_N = config.task.find(t)->second.lock.size();
-        for (int i = 0; i < lock_N; i++) {
+        for (int i = 0; i < lock_N; i++)
+        {
           // 按照锁的次序获得锁的类型
           std::string lock_type = config.task.find(t)->second.lock[i];
           vertex_tpn glock = v[(3 + 2 * i)];
@@ -332,15 +374,20 @@ void TimePetriNet::task_bind_lock(const Config &config) {
   BOOST_LOG_TRIVIAL(info) << "Task Bind Lock Completed!";
 }
 
-void TimePetriNet::bind_task_priority(Config &config) {
+void TimePetriNet::bind_task_priority(Config &config)
+{
   std::map<int, std::vector<TaskConfig>> tp = config.classify_priority();
   std::vector<TaskConfig>::iterator it1, it2;
-  for (auto t : tp) {
+  for (auto t : tp)
+  {
     BOOST_LOG_TRIVIAL(debug) << "core index: " << t.first;
-    for (it1 = t.second.begin(); it1 != t.second.end() - 1; ++it1) {
+    for (it1 = t.second.begin(); it1 != t.second.end(); ++it1)
+    {
       std::string task_name_t = it1->name;
-      for (it2 = it1 + 1; it2 != t.second.end(); ++it2) {
-        if (it1->priority == it2->priority) {
+      for (it2 = it1 + 1; it2 != t.second.end(); ++it2)
+      {
+        if (it1->priority == it2->priority)
+        {
           continue;
         }
         BOOST_LOG_TRIVIAL(info)
@@ -349,13 +396,15 @@ void TimePetriNet::bind_task_priority(Config &config) {
         auto it1_vertex = multi_task_node.find(it1->name);
         auto it2_vertex = multi_task_node.find(it2->name);
 
-        for (auto it : it1_vertex->second) {
+        for (auto it : it1_vertex->second)
+        {
           // auto preempt_task_node = it[2];
           // 判断it中是否有锁
           // 以任务的配置文件判断，正好检查构建 Petri 网模型的正确性
           TaskConfig tc_it1 = config.task.find(it1->name)->second;
           TaskConfig tc_it2 = config.task.find(it2->name)->second;
-          if (tc_it1.lock.empty()) {
+          if (tc_it1.lock.empty())
+          {
             // mark the preempt task transition could be handled
             auto handle_vertex = it[2];
             time_petri_net[it[3]].pnt.is_handle = true;
@@ -403,11 +452,15 @@ void TimePetriNet::bind_task_priority(Config &config) {
             node.push_back(preempt_task_start);
             node.push_back(get_core);
             node.push_back(ready);
-            if (tc_it2.lock.empty()) {
+            if (tc_it2.lock.empty())
+            {
               add_edge(ready, exec, time_petri_net);
               element_id += 1;
-            } else {
-              for (int j = 0; j < tc_it2.lock.size(); j++) {
+            }
+            else
+            {
+              for (int j = 0; j < tc_it2.lock.size(); j++)
+              {
                 auto lock_name = tc_it2.lock[j];
                 vertex_tpn get_lock = add_transition(
                     time_petri_net,
@@ -425,7 +478,8 @@ void TimePetriNet::bind_task_priority(Config &config) {
                 //                }
               }
               auto link = node.back();
-              for (int k = (tc_it2.lock.size() - 1); k >= 0; k--) {
+              for (int k = (tc_it2.lock.size() - 1); k >= 0; k--)
+              {
                 auto lock_name = tc_it2.lock[k];
                 auto l_t = tc_it2.time[k];
                 vertex_tpn drop_lock = add_transition(
@@ -437,9 +491,12 @@ void TimePetriNet::bind_task_priority(Config &config) {
                     task_unlock + lock_name + std::to_string(element_id), 0);
                 add_edge(node.back(), drop_lock, time_petri_net);
                 add_edge(drop_lock, unlocked, time_petri_net);
-                if (tc_it2.lock.size() == 1) {
+                if (tc_it2.lock.size() == 1)
+                {
                   add_edge(unlocked, exec, time_petri_net);
-                } else if (k == 0) {
+                }
+                else if (k == 0)
+                {
                   add_edge(unlocked, exec, time_petri_net);
                 }
                 node.push_back(drop_lock);
@@ -450,16 +507,20 @@ void TimePetriNet::bind_task_priority(Config &config) {
             node.push_back(exec);
             node.push_back(preempt_task_end);
             multi_task_node.find(it2->name)->second.push_back(node);
-          } else {
+          }
+          else
+          {
             // 如果抢占的任务有锁，判断锁的类型是否可被抢占，无锁，按照正常排列
             BOOST_LOG_TRIVIAL(info) << "preempt task has locks";
             int task_v_num = it.size();
             int lock_n = config.task.find(it1->name)->second.lock.size();
             // 记录自旋锁在锁集中出现的位置
             int record = 0;
-            for (int l = 0; l < lock_n; l++) {
+            for (int l = 0; l < lock_n; l++)
+            {
               if (config.task.find(it1->name)->second.lock[l].find("spin") !=
-                  std::string::npos) {
+                  std::string::npos)
+              {
                 record = l + 1;
                 BOOST_LOG_TRIVIAL(info) << it1->name << "->"
                                         << "spin locks index: " << record;
@@ -468,9 +529,11 @@ void TimePetriNet::bind_task_priority(Config &config) {
             // 如果没有自旋锁，不需要看锁的数量，直接遍历任务结构，第二个place
             // 到倒数第二个 place 都可以抢占
             //
-            if (record <= 0) {
+            if (record <= 0)
+            {
               for (int p = 2, q = (task_v_num - 3), l = 0; l <= lock_n;
-                   p = p + 2, q = q - 2, l++) {
+                   p = p + 2, q = q - 2, l++)
+              {
                 auto preempt_vertex_front = it[p];
                 auto preempt_vertex_back = it[q];
                 //              auto lock_type =
@@ -482,10 +545,13 @@ void TimePetriNet::bind_task_priority(Config &config) {
                                      (it2_vertex->second)[0][0],
                                      (it2_vertex->second)[0].back());
               }
-            } else {
+            }
+            else
+            {
               // 如果有自旋锁，记录位置
               for (int p = 2, q = (task_v_num - 3), l = 0; l < record;
-                   p = p + 2, q = q - 2, l++) {
+                   p = p + 2, q = q - 2, l++)
+              {
                 auto preempt_vertex_front = it[p];
                 auto preempt_vertex_back = it[q];
                 //              auto lock_type =
@@ -510,7 +576,8 @@ void TimePetriNet::bind_task_priority(Config &config) {
 void TimePetriNet::create_priority_task(const Config &config,
                                         const std::string &name,
                                         vertex_tpn preempt_vertex, int handle_t,
-                                        vertex_tpn start, vertex_tpn end) {
+                                        vertex_tpn start, vertex_tpn end)
+{
   time_petri_net[(handle_t + 1)].pnt.is_handle = true;
 
   std::string task_get = name + "get_core" + std::to_string(element_id);
@@ -546,11 +613,15 @@ void TimePetriNet::create_priority_task(const Config &config,
   node.push_back(get_core);
   node.push_back(ready);
 
-  if (tc_t.lock.empty()) {
+  if (tc_t.lock.empty())
+  {
     add_edge(ready, exec, time_petri_net);
     element_id += 1;
-  } else {
-    for (int j = 0; j < tc_t.lock.size(); j++) {
+  }
+  else
+  {
+    for (int j = 0; j < tc_t.lock.size(); j++)
+    {
       auto lock_name = tc_t.lock[j];
       vertex_tpn get_lock =
           add_transition(time_petri_net, task_lock + lock_name, false,
@@ -562,7 +633,8 @@ void TimePetriNet::create_priority_task(const Config &config,
       add_edge(get_lock, deal, time_petri_net);
     }
     // auto link = node.back();
-    for (int k = (tc_t.lock.size() - 1); k >= 0; k--) {
+    for (int k = (tc_t.lock.size() - 1); k >= 0; k--)
+    {
       auto lock_name = tc_t.lock[k];
       auto t = tc_t.time[k];
       vertex_tpn drop_lock =
@@ -572,9 +644,12 @@ void TimePetriNet::create_priority_task(const Config &config,
           add_place(time_petri_net, task_unlock + lock_name, 0);
       add_edge(node.back(), drop_lock, time_petri_net);
       add_edge(drop_lock, unlocked, time_petri_net);
-      if (tc_t.lock.size() == 1) {
+      if (tc_t.lock.size() == 1)
+      {
         add_edge(unlocked, exec, time_petri_net);
-      } else if (k == 0) {
+      }
+      else if (k == 0)
+      {
         add_edge(unlocked, exec, time_petri_net);
       }
       node.push_back(drop_lock);
@@ -588,7 +663,8 @@ void TimePetriNet::create_priority_task(const Config &config,
   multi_task_node.find(name)->second.push_back(node);
 }
 
-StateClass TimePetriNet::get_initial_state_class() {
+StateClass TimePetriNet::get_initial_state_class()
+{
   BOOST_LOG_TRIVIAL(info) << "get_initial_state_class";
   Marking initial_markings;
   //  std::set<std::size_t> h_t,H_t;
@@ -597,23 +673,31 @@ StateClass TimePetriNet::get_initial_state_class() {
   boost::graph_traits<TPN>::vertex_iterator vi, vi_end;
   boost::graph_traits<TPN>::in_edge_iterator in_i, in_end;
   for (boost::tie(vi, vi_end) = boost::vertices(time_petri_net); vi != vi_end;
-       ++vi) {
-    if (time_petri_net[*vi].shape == "circle") {
-      if (time_petri_net[*vi].token == 1) {
+       ++vi)
+  {
+    if (time_petri_net[*vi].shape == "circle")
+    {
+      if (time_petri_net[*vi].token == 1)
+      {
         initial_markings.indexes.insert(index(*vi));
         initial_markings.labels.insert(time_petri_net[*vi].label);
       }
-    } else {
+    }
+    else
+    {
       bool flag = true;
       for (boost::tie(in_i, in_end) = boost::in_edges(*vi, time_petri_net);
-           in_i != in_end; ++in_i) {
+           in_i != in_end; ++in_i)
+      {
         auto source_vertex = source(*in_i, time_petri_net);
-        if (time_petri_net[source_vertex].token == 0) {
+        if (time_petri_net[source_vertex].token == 0)
+        {
           flag = false;
           break;
         }
       }
-      if (flag) {
+      if (flag)
+      {
         //        if (time_petri_net[*vi].pnt.is_handle) {
         //          H_t.insert(index(*vi));
         //          enabled_t_time.insert(std::make_pair(index(*vi), 0));
@@ -629,7 +713,8 @@ StateClass TimePetriNet::get_initial_state_class() {
   return StateClass{initial_markings, all_t};
 }
 
-void TimePetriNet::generate_state_class() {
+void TimePetriNet::generate_state_class()
+{
   BOOST_LOG_TRIVIAL(info) << "Generating state class";
   auto pt_a = boost::chrono::steady_clock::now();
   std::queue<StateClass> q;
@@ -641,26 +726,32 @@ void TimePetriNet::generate_state_class() {
       boost::add_vertex(SCGVertex{vertex_label}, state_class_graph.scg);
   state_class_graph.scg_vertex_map.insert(
       std::make_pair(initial_state_class, v_id));
-  int i = 0;
-  while (!q.empty()) {
+  // int i = 0;
+  while (!q.empty())
+  {
     StateClass s = q.front();
     q.pop();
     ScgVertexD prev_vertex = state_class_graph.add_scg_vertex(s);
 
     std::vector<SchedT> sched_t = get_sched_t(s);
 
-    for (auto &t : sched_t) {
+    for (auto &t : sched_t)
+    {
       StateClass new_state = fire_transition(s, t);
-      std::cout << i << std::endl;
-      ++i;
+      // std::cout << i << std::endl;
+      // ++i;
       // BOOST_LOG_TRIVIAL(info) << "new state: ";
       // new_state.print_current_mark();
-      if (scg.find(new_state) != scg.end()) {
-
-      } else {
-        scg.insert(new_state);
+      if (state_class_graph.scg_vertex_map.find(new_state) != state_class_graph.scg_vertex_map.end())
+      {
+      }
+      else
+      {
+        // scg.insert(new_state);
         q.push(new_state);
-        new_state.print_current_state();
+        // new_state.print_current_state();
+        // std::this_thread::sleep_for(std::chrono::seconds(1));
+        //  new_state.print_current_state();
       }
 
       auto succ_vertex = state_class_graph.add_scg_vertex(new_state);
@@ -676,12 +767,13 @@ void TimePetriNet::generate_state_class() {
   boost::chrono::duration<double> sec =
       boost::chrono::steady_clock::now() - pt_a;
   BOOST_LOG_TRIVIAL(info) << "Generate SCG Time(s): " << sec.count();
-  BOOST_LOG_TRIVIAL(info) << "SCG NUM: " << scg.size();
+  BOOST_LOG_TRIVIAL(info) << "SCG NUM: " << state_class_graph.scg_vertex_map.size();
   BOOST_LOG_TRIVIAL(info) << "SYSTEM NO DEADLOCK!";
   state_class_graph.write_to_dot("out.dot");
 }
 
-std::vector<SchedT> TimePetriNet::get_sched_t(StateClass &state) {
+std::vector<SchedT> TimePetriNet::get_sched_t(StateClass &state)
+{
   BOOST_LOG_TRIVIAL(debug) << "get sched t";
   set_state_class(state);
   // 获得使能的变迁
@@ -689,15 +781,21 @@ std::vector<SchedT> TimePetriNet::get_sched_t(StateClass &state) {
   std::vector<SchedT> sched_T;
   boost::graph_traits<TPN>::vertex_iterator vi, vi_end;
   boost::graph_traits<TPN>::in_edge_iterator in_i, in_end;
-  for (boost::tie(vi, vi_end) = vertices(time_petri_net); vi != vi_end; ++vi) {
+  for (boost::tie(vi, vi_end) = vertices(time_petri_net); vi != vi_end; ++vi)
+  {
     bool enable_t = true;
-    if (time_petri_net[*vi].shape == "circle") {
+    if (time_petri_net[*vi].shape == "circle")
+    {
       continue;
-    } else {
+    }
+    else
+    {
       for (boost::tie(in_i, in_end) = in_edges(*vi, time_petri_net);
-           in_i != in_end; ++in_i) {
+           in_i != in_end; ++in_i)
+      {
         auto source_vertex = source(*in_i, time_petri_net);
-        if (time_petri_net[source_vertex].token == 0) {
+        if (time_petri_net[source_vertex].token == 0)
+        {
           enable_t = false;
           break;
         }
@@ -707,17 +805,20 @@ std::vector<SchedT> TimePetriNet::get_sched_t(StateClass &state) {
     }
   }
 
-  if (enabled_t_s.empty()) {
+  if (enabled_t_s.empty())
+  {
     return {};
   }
 
   // 遍历这些变迁,找到符合发生区间的变迁集合
   std::pair<int, int> fire_time = {INT_MAX, INT_MAX};
-  for (auto t : enabled_t_s) {
+  for (auto t : enabled_t_s)
+  {
     // 如果等待时间已超过最短发生时间
     int f_min =
         time_petri_net[t].pnt.const_time.first - time_petri_net[t].pnt.runtime;
-    if (f_min < 0) {
+    if (f_min < 0)
+    {
       f_min = 0;
     }
     int f_max =
@@ -725,53 +826,72 @@ std::vector<SchedT> TimePetriNet::get_sched_t(StateClass &state) {
     fire_time.first = (f_min < fire_time.first) ? f_min : fire_time.first;
     fire_time.second = (f_max < fire_time.second) ? f_max : fire_time.second;
   }
-  if ((fire_time.first < 0) && (fire_time.second < 0)) {
+  if ((fire_time.first < 0) && (fire_time.second < 0))
+  {
     // BOOST_LOG_TRIVIAL(error) << "fire time not leq zero";
   }
   // find transition which satifies the time domain
   std::pair<int, int> sched_time = {0, 0};
   int s_h, s_l;
-  for (auto t : enabled_t_s) {
+  for (auto t : enabled_t_s)
+  {
     int t_min =
         time_petri_net[t].pnt.const_time.first - time_petri_net[t].pnt.runtime;
-    if (t_min < 0) {
+    if (t_min < 0)
+    {
       t_min = 0;
     }
     int t_max =
         time_petri_net[t].pnt.const_time.second - time_petri_net[t].pnt.runtime;
-    if (t_min > fire_time.second) {
-
-      sched_time = fire_time;
-    } else if (t_max > fire_time.second) {
+    if (t_min > fire_time.second)
+    {
+      // sched_time = fire_time;
+      continue;
+    }
+    else if (t_max > fire_time.second)
+    {
       // transition's max go beyond time_d
-      if (t_min >= fire_time.first) {
+      if (t_min >= fire_time.first)
+      {
         sched_time = {t_min, fire_time.second};
-      } else {
-        BOOST_LOG_TRIVIAL(error) << "the time_d min value is error";
+        sched_T.push_back(SchedT{t, sched_time});
       }
-    } else {
-      if (t_min >= fire_time.first) {
-        sched_time = {t_min, t_max};
-      } else {
+      else
+      {
         BOOST_LOG_TRIVIAL(error) << "the time_d min value is error";
       }
     }
-
-    sched_T.push_back(SchedT{t, sched_time});
+    else
+    {
+      if (t_min >= fire_time.first)
+      {
+        sched_time = {t_min, t_max};
+        sched_T.push_back(SchedT{t, sched_time});
+      }
+      else
+      {
+        BOOST_LOG_TRIVIAL(error) << "the time_d min value is error";
+      }
+    }
   }
 
   // 删除优先级
   auto s_it = sched_T.begin();
-  while (s_it != sched_T.end()) {
+  while (s_it != sched_T.end())
+  {
     auto next = s_it + 1;
-    while (next != sched_T.end()) {
+    while (next != sched_T.end())
+    {
       if ((time_petri_net[(*s_it).t].pnt.priority >
            time_petri_net[(*next).t].pnt.priority) &&
           (time_petri_net[(*s_it).t].pnt.c ==
-           time_petri_net[(*next).t].pnt.c)) {
+           time_petri_net[(*next).t].pnt.c))
+      {
         sched_T.erase(next);
         next = s_it + 1;
-      } else {
+      }
+      else
+      {
         ++next;
       }
     }
@@ -797,7 +917,8 @@ std::vector<SchedT> TimePetriNet::get_sched_t(StateClass &state) {
   //    //    }
   //    sched_T.erase(pos); // 移除该元素
   //  }
-  for (auto d : sched_T) {
+  for (auto d : sched_T)
+  {
     BOOST_LOG_TRIVIAL(debug) << time_petri_net[d.t].label;
   }
 
@@ -805,7 +926,8 @@ std::vector<SchedT> TimePetriNet::get_sched_t(StateClass &state) {
 }
 
 StateClass TimePetriNet::fire_transition(const StateClass &sc,
-                                         SchedT transition) {
+                                         SchedT transition)
+{
   BOOST_LOG_TRIVIAL(debug) << "fire_transition: " << transition.t;
   // reset!
   set_state_class(sc);
@@ -814,15 +936,21 @@ StateClass TimePetriNet::fire_transition(const StateClass &sc,
   std::vector<std::size_t> enabled_t, old_enabled_t;
   boost::graph_traits<TPN>::vertex_iterator vi, vi_end;
   boost::graph_traits<TPN>::in_edge_iterator in_i, in_end;
-  for (boost::tie(vi, vi_end) = vertices(time_petri_net); vi != vi_end; ++vi) {
+  for (boost::tie(vi, vi_end) = vertices(time_petri_net); vi != vi_end; ++vi)
+  {
     bool enable_t = true;
-    if (time_petri_net[*vi].shape == "circle") {
+    if (time_petri_net[*vi].shape == "circle")
+    {
       continue;
-    } else {
+    }
+    else
+    {
       for (boost::tie(in_i, in_end) = in_edges(*vi, time_petri_net);
-           in_i != in_end; ++in_i) {
+           in_i != in_end; ++in_i)
+      {
         auto source_vertex = source(*in_i, time_petri_net);
-        if (time_petri_net[source_vertex].token == 0) {
+        if (time_petri_net[source_vertex].token == 0)
+        {
           enable_t = false;
           break;
         }
@@ -835,15 +963,20 @@ StateClass TimePetriNet::fire_transition(const StateClass &sc,
 
   // 删除优先级
   auto s_it = enabled_t.begin();
-  while (s_it != enabled_t.end()) {
+  while (s_it != enabled_t.end())
+  {
     auto next = s_it + 1;
-    while (next != enabled_t.end()) {
+    while (next != enabled_t.end())
+    {
       if ((time_petri_net[(*s_it)].pnt.priority >
            time_petri_net[(*next)].pnt.priority) &&
-          (time_petri_net[(*s_it)].pnt.c == time_petri_net[(*next)].pnt.c)) {
+          (time_petri_net[(*s_it)].pnt.c == time_petri_net[(*next)].pnt.c))
+      {
         enabled_t.erase(next);
         next = s_it + 1;
-      } else {
+      }
+      else
+      {
         ++next;
       }
     }
@@ -870,12 +1003,15 @@ StateClass TimePetriNet::fire_transition(const StateClass &sc,
   //    enabled_t.erase(pos);  // 移除该元素
   //  }
   // 2. 将除发生变迁外的使能时间+状态转移时间
-  for (auto t : enabled_t) {
-    if (transition.time.second == transition.time.first) {
+  for (auto t : enabled_t)
+  {
+    if (transition.time.second == transition.time.first)
+    {
       time_petri_net[t].pnt.runtime += transition.time.first;
-    } else {
-      time_petri_net[t].pnt.runtime +=
-          (transition.time.second - transition.time.first);
+    }
+    else
+    {
+      time_petri_net[t].pnt.runtime += transition.time.second;
     }
   }
   time_petri_net[transition.t].pnt.runtime = 0;
@@ -886,41 +1022,56 @@ StateClass TimePetriNet::fire_transition(const StateClass &sc,
   std::set<T_wait> all_t;
   // 发生变迁的前置集为 0
   for (boost::tie(in_i, in_end) = in_edges(transition.t, time_petri_net);
-       in_i != in_end; ++in_i) {
+       in_i != in_end; ++in_i)
+  {
     vertex_tpn place = source(*in_i, time_petri_net);
-    if (time_petri_net[place].token < 0) {
+    if (time_petri_net[place].token < 0)
+    {
       BOOST_LOG_TRIVIAL(error)
           << "place token <= 0, the transition not enabled";
-    } else {
+    }
+    else
+    {
       time_petri_net[place].token = 0;
     }
   }
   // 发生变迁的后继集为 1
   typename boost::graph_traits<TPN>::out_edge_iterator out_i, out_end;
   for (boost::tie(out_i, out_end) = out_edges(transition.t, time_petri_net);
-       out_i != out_end; ++out_i) {
+       out_i != out_end; ++out_i)
+  {
     vertex_tpn place = target(*out_i, time_petri_net);
-    if (time_petri_net[place].token > 1) {
+    if (time_petri_net[place].token > 1)
+    {
       BOOST_LOG_TRIVIAL(error)
           << "safe petri net, the place not increment >= 1";
-    } else {
+    }
+    else
+    {
       time_petri_net[place].token = 1;
     }
   }
   // 4.获取新的标识
   std::vector<std::size_t> new_enabled_t;
-  for (boost::tie(vi, vi_end) = vertices(time_petri_net); vi != vi_end; ++vi) {
+  for (boost::tie(vi, vi_end) = vertices(time_petri_net); vi != vi_end; ++vi)
+  {
     bool enable_t = true;
-    if (time_petri_net[*vi].shape == "circle") {
-      if (time_petri_net[*vi].token == 1) {
+    if (time_petri_net[*vi].shape == "circle")
+    {
+      if (time_petri_net[*vi].token == 1)
+      {
         new_mark.indexes.insert(vertex(*vi, time_petri_net));
         new_mark.labels.insert(time_petri_net[*vi].label);
       }
-    } else {
+    }
+    else
+    {
       for (boost::tie(in_i, in_end) = in_edges(*vi, time_petri_net);
-           in_i != in_end; ++in_i) {
+           in_i != in_end; ++in_i)
+      {
         auto source_vertex = source(*in_i, time_petri_net);
-        if (time_petri_net[source_vertex].token == 0) {
+        if (time_petri_net[source_vertex].token == 0)
+        {
           enable_t = false;
           break;
         }
@@ -938,7 +1089,8 @@ StateClass TimePetriNet::fire_transition(const StateClass &sc,
   std::set_intersection(old_enabled_t.begin(), old_enabled_t.end(),
                         new_enabled_t.begin(), new_enabled_t.end(),
                         std::inserter(common, common.begin()));
-  for (unsigned long it : common) {
+  for (unsigned long it : common)
+  {
     all_t.insert({it, time_petri_net[it].pnt.runtime});
     //    h_t.insert(it);
     //    time.insert(std::make_pair(it, time_petri_net[it].pnt.runtime));
@@ -948,13 +1100,17 @@ StateClass TimePetriNet::fire_transition(const StateClass &sc,
   std::set_difference(old_enabled_t.begin(), old_enabled_t.end(),
                       new_enabled_t.begin(), new_enabled_t.end(),
                       std::inserter(old_minus_new, old_minus_new.begin()));
-  for (unsigned long it : old_minus_new) {
+  for (unsigned long it : old_minus_new)
+  {
     // 若为可挂起变迁,则保存已运行时间
-    if (time_petri_net[it].pnt.is_handle) {
+    if (time_petri_net[it].pnt.is_handle)
+    {
       all_t.insert({it, time_petri_net[it].pnt.runtime});
       //      H_t.insert(it);
       //      time.insert(std::make_pair(it, time_petri_net[it].pnt.runtime));
-    } else {
+    }
+    else
+    {
       time_petri_net[it].pnt.runtime = 0;
     }
   }
@@ -963,12 +1119,16 @@ StateClass TimePetriNet::fire_transition(const StateClass &sc,
   std::set_difference(new_enabled_t.begin(), new_enabled_t.end(),
                       old_enabled_t.begin(), old_enabled_t.end(),
                       std::inserter(new_minus_old, new_minus_old.begin()));
-  for (unsigned long it : new_minus_old) {
-    if (time_petri_net[it].pnt.is_handle) {
+  for (unsigned long it : new_minus_old)
+  {
+    if (time_petri_net[it].pnt.is_handle)
+    {
       all_t.insert({it, time_petri_net[it].pnt.runtime});
       //      h_t.insert(it);
       //      time.insert(std::make_pair(it, time_petri_net[it].pnt.runtime));
-    } else {
+    }
+    else
+    {
       //      h_t.insert(it);
       //      time.insert(std::make_pair(it, 0));
       all_t.insert({it, 0});
@@ -999,16 +1159,19 @@ StateClass TimePetriNet::fire_transition(const StateClass &sc,
   return {new_mark, all_t};
 }
 
-void TimePetriNet::set_state_class(const StateClass &state_class) {
+void TimePetriNet::set_state_class(const StateClass &state_class)
+{
   // 首先重置原有状态
   boost::graph_traits<TPN>::vertex_iterator vi, vi_end;
-  for (boost::tie(vi, vi_end) = vertices(time_petri_net); vi != vi_end; ++vi) {
+  for (boost::tie(vi, vi_end) = vertices(time_petri_net); vi != vi_end; ++vi)
+  {
     time_petri_net[*vi].token = 0;
     time_petri_net[*vi].enabled = false;
     time_petri_net[*vi].pnt.runtime = 0;
   }
   // 2. 设置标识
-  for (auto m : state_class.mark.indexes) {
+  for (auto m : state_class.mark.indexes)
+  {
     time_petri_net[m].token = 1;
   }
   // 3. 设置各个变迁的已等待时间
@@ -1020,7 +1183,8 @@ void TimePetriNet::set_state_class(const StateClass &state_class) {
   //    time_petri_net[t].pnt.runtime = state_class.t_time.find(t)->second;
   //  }
   // 5.设置所有变迁的已等待时间
-  for (auto t : state_class.all_t) {
+  for (auto t : state_class.all_t)
+  {
     time_petri_net[t.t].pnt.runtime = t.time;
   }
 }

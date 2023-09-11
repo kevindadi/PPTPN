@@ -149,7 +149,7 @@ struct Marking
   std::set<std::size_t> indexes;
   std::set<std::string> labels;
 
-  bool operator==(const Marking &other)
+  bool operator==(const Marking &other) const
   {
     //    std::set<std::size_t> diff;
     //    std::set_symmetric_difference(indexes.begin(), indexes.end(),
@@ -198,7 +198,6 @@ struct SchedT
 struct T_wait
 {
   std::size_t t;
-  std::string name;
   int time;
 
   // Define the less-than operator for SchedT
@@ -213,19 +212,42 @@ struct T_wait
     // If 't' is equal, compare based on 'time'
     return time < other.time;
   }
-
+  // 需要在T_wait中定义operator==以便于比较
   bool operator==(const T_wait &other) const
   {
-    if (t != other.t)
-      return false;
-    if (time != other.time)
-      return false;
-    return true;
+    return t == other.t && time == other.time;
   }
 
   T_wait() = default;
   T_wait(std::size_t t, int time) : t(t), time(time) {}
 };
+
+namespace std
+{
+  // 为Marking定义哈希函数
+  template <>
+  struct hash<Marking>
+  {
+    std::size_t operator()(const Marking &m) const
+    {
+      std::size_t hash_val = 0;
+      for (const auto &index : m.indexes)
+      {
+        hash_val ^= std::hash<std::size_t>()(index);
+      }
+      return hash_val;
+    }
+  };
+
+  template <>
+  struct hash<T_wait>
+  {
+    std::size_t operator()(const T_wait &t) const
+    {
+      return std::hash<std::size_t>()(t.t) ^ std::hash<int>()(t.time);
+    }
+  };
+}
 
 struct SCGVertex
 {
@@ -246,26 +268,29 @@ public:
   Marking mark;
   // 使能变迁和可挂起变迁的等待时间
   std::set<T_wait> all_t;
-  // 可调度变迁集
-  std::set<std::size_t> t_sched;
-  // 可挂起变迁
-  std::set<std::size_t> handle_t_sched;
-  // 变迁的已等待时间
-  std::unordered_map<std::size_t, int> t_time;
+  // // 可调度变迁集
+  // std::set<std::size_t> t_sched;
+  // // 可挂起变迁
+  // std::set<std::size_t> handle_t_sched;
+  // // 变迁的已等待时间
+  // std::unordered_map<std::size_t, int> t_time;
 
 public:
   StateClass() = default;
-  StateClass(Marking mark, const std::set<std::size_t> &h_t,
-             const std::set<std::size_t> &H_t,
-             const std::unordered_map<std::size_t, int> &t_time)
-      : mark(std::move(mark)), t_sched(h_t), handle_t_sched(H_t),
-        t_time(t_time) {}
+  // StateClass(Marking mark, const std::set<std::size_t> &h_t,
+  //            const std::set<std::size_t> &H_t,
+  //            const std::unordered_map<std::size_t, int> &t_time)
+  //     : mark(std::move(mark)), t_sched(h_t), handle_t_sched(H_t),
+  //       t_time(t_time) {}
   StateClass(Marking mark, std::set<T_wait> all_t)
       : mark(std::move(mark)), all_t(std::move(all_t)) {}
   void print_current_mark();
   void print_current_state();
   std::string to_scg_vertex();
-  bool operator==(const StateClass &other);
+  bool operator==(const StateClass &other) const
+  {
+    return mark == other.mark && all_t == other.all_t;
+  }
 
   bool operator<(const StateClass &other) const
   {
@@ -279,13 +304,42 @@ public:
     return all_t < other.all_t;
   };
 };
+
+// 为StateClass定义哈希函数
+struct StateClassHasher
+{
+  std::size_t operator()(const StateClass &k) const
+  {
+    // 计算mark的哈希值
+    std::size_t mark_hash = std::hash<Marking>()(k.mark);
+
+    // 计算all_t的哈希值
+    std::size_t all_t_hash = 0;
+    for (const auto &t : k.all_t)
+    {
+      all_t_hash ^= std::hash<T_wait>()(t);
+    }
+
+    return mark_hash ^ all_t_hash;
+  }
+};
+
+// 为StateClass定义等价比较函数
+struct StateClassEqual
+{
+  bool operator()(const StateClass &a, const StateClass &b) const
+  {
+    return a == b;
+  }
+};
+
 typedef boost::property<boost::graph_name_t, std::string> graph_scg;
 typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS,
                               SCGVertex, SCGEdge, graph_scg>
     SCG;
 typedef boost::graph_traits<SCG>::vertex_descriptor ScgVertexD;
 typedef boost::graph_traits<SCG>::edge_descriptor ScgEdgeD;
-typedef std::map<StateClass, ScgVertexD> ScgVertexMap;
+typedef std::unordered_map<StateClass, ScgVertexD, StateClassHasher, StateClassEqual> ScgVertexMap;
 typedef std::vector<ScgEdgeD> Path;
 
 class WCETBFSVisitor : public boost::default_bfs_visitor
