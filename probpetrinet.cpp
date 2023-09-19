@@ -1007,7 +1007,7 @@ StateClass ProbPetriNet::get_initial_state_class()
       }
       if (flag)
       {
-        all_t.insert({*vi, 0});
+        all_t.insert({*vi, {0, 0}});
       }
     }
   }
@@ -1022,7 +1022,8 @@ void ProbPetriNet::set_state_class(const StateClass &state_class)
   {
     ptpn[*vi].token = 0;
     ptpn[*vi].enabled = false;
-    ptpn[*vi].pnt.runtime = 0;
+    ptpn[*vi].pnt.waiting = {0, 0};
+    // ptpn[*vi].pnt.runtime = 0;
   }
   // 2. 设置标识
   for (auto m : state_class.mark.indexes)
@@ -1040,7 +1041,8 @@ void ProbPetriNet::set_state_class(const StateClass &state_class)
   // 5.设置所有变迁的已等待时间
   for (const auto &t : state_class.all_t)
   {
-    ptpn[t.t].pnt.runtime = t.time;
+    ptpn[t.t].pnt.waiting = t.ht;
+    // ptpn[t.t].pnt.runtime = t.time;
   }
 }
 void ProbPetriNet::generate_state_class()
@@ -1151,12 +1153,14 @@ std::vector<SchedT> ProbPetriNet::get_sched_t(StateClass &state)
   for (auto t : enabled_t_s)
   {
     // 如果等待时间已超过最短发生时间
-    int f_min = ptpn[t].pnt.const_time.first - ptpn[t].pnt.runtime;
+    int f_min = ptpn[t].pnt.const_time.first - ptpn[t].pnt.waiting.second;
+    // int f_min = ptpn[t].pnt.const_time.first - ptpn[t].pnt.runtime;
     if (f_min < 0)
     {
       f_min = 0;
     }
-    int f_max = ptpn[t].pnt.const_time.second - ptpn[t].pnt.runtime;
+    int f_max = ptpn[t].pnt.const_time.second - ptpn[t].pnt.waiting.first;
+    // int f_max = ptpn[t].pnt.const_time.second - ptpn[t].pnt.runtime;
     fire_time.first = (f_min < fire_time.first) ? f_min : fire_time.first;
     fire_time.second = (f_max < fire_time.second) ? f_max : fire_time.second;
   }
@@ -1169,12 +1173,14 @@ std::vector<SchedT> ProbPetriNet::get_sched_t(StateClass &state)
   int s_h, s_l;
   for (auto t : enabled_t_s)
   {
-    int t_min = ptpn[t].pnt.const_time.first - ptpn[t].pnt.runtime;
+    int t_min = ptpn[t].pnt.const_time.first - ptpn[t].pnt.waiting.second;
+    // int t_min = ptpn[t].pnt.const_time.first - ptpn[t].pnt.runtime;
     if (t_min < 0)
     {
       t_min = 0;
     }
-    int t_max = ptpn[t].pnt.const_time.second - ptpn[t].pnt.runtime;
+    int t_max = ptpn[t].pnt.const_time.second - ptpn[t].pnt.waiting.first;
+    // int t_max = ptpn[t].pnt.const_time.second - ptpn[t].pnt.runtime;
     if (t_min > fire_time.second)
     {
       // sched_time = fire_time;
@@ -1297,14 +1303,19 @@ StateClass ProbPetriNet::fire_transition(const StateClass &sc,
   {
     if (transition.time.second == transition.time.first)
     {
-      ptpn[t].pnt.runtime += transition.time.first;
+      ptpn[t].pnt.waiting.first += transition.time.first;
+      ptpn[t].pnt.waiting.second += transition.time.first;
+      // ptpn[t].pnt.runtime += transition.time.first;
     }
     else
     {
-      ptpn[t].pnt.runtime += transition.time.second;
+      ptpn[t].pnt.waiting.first += transition.time.first;
+      ptpn[t].pnt.waiting.second += transition.time.second;
+      // ptpn[t].pnt.runtime += transition.time.second;
     }
   }
-  ptpn[transition.t].pnt.runtime = 0;
+  // ptpn[transition.t].pnt.runtime = 0;
+  ptpn[transition.t].pnt.waiting = {0, 0};
   // 3. 发生该变迁
   Marking new_mark;
   //  std::set<std::size_t> h_t, H_t;
@@ -1381,7 +1392,8 @@ StateClass ProbPetriNet::fire_transition(const StateClass &sc,
                         std::inserter(common, common.begin()));
   for (unsigned long it : common)
   {
-    all_t.insert({it, ptpn[it].pnt.runtime});
+    all_t.insert({it, ptpn[it].pnt.waiting});
+    // all_t.insert({it, ptpn[it].pnt.runtime});
     //    h_t.insert(it);
     //    time.insert(std::make_pair(it, time_petri_net[it].pnt.runtime));
   }
@@ -1395,13 +1407,15 @@ StateClass ProbPetriNet::fire_transition(const StateClass &sc,
     // 若为可挂起变迁,则保存已运行时间
     if (ptpn[it].pnt.is_handle)
     {
-      all_t.insert({it, ptpn[it].pnt.runtime});
+      all_t.insert({it, ptpn[it].pnt.waiting});
+      // all_t.insert({it, ptpn[it].pnt.runtime});
       //      H_t.insert(it);
       //      time.insert(std::make_pair(it, time_petri_net[it].pnt.runtime));
     }
     else
     {
-      ptpn[it].pnt.runtime = 0;
+      ptpn[it].pnt.waiting = {0, 0};
+      // ptpn[it].pnt.runtime = 0;
     }
   }
   // 5.3 现状态使能而前状态不使能
@@ -1413,7 +1427,8 @@ StateClass ProbPetriNet::fire_transition(const StateClass &sc,
   {
     if (ptpn[it].pnt.is_handle)
     {
-      all_t.insert({it, ptpn[it].pnt.runtime});
+      all_t.insert({it, ptpn[it].pnt.waiting});
+      // all_t.insert({it, ptpn[it].pnt.runtime});
       //      h_t.insert(it);
       //      time.insert(std::make_pair(it, time_petri_net[it].pnt.runtime));
     }
@@ -1421,7 +1436,7 @@ StateClass ProbPetriNet::fire_transition(const StateClass &sc,
     {
       //      h_t.insert(it);
       //      time.insert(std::make_pair(it, 0));
-      all_t.insert({it, 0});
+      all_t.insert({it, {0, 0}});
     }
   }
   return {new_mark, all_t};

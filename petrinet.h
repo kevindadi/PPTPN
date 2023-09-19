@@ -8,13 +8,15 @@
 #include <string>
 #include "config.h"
 
-struct Place {
+struct Place
+{
   std::string name, label;
   std::string shape = "circle";
   int token = 0;
 };
 
-struct Transition {
+struct Transition
+{
   std::string name, label;
   std::string shape = "box";
   bool enable = false;
@@ -24,20 +26,21 @@ struct Transition {
   std::pair<int, int> const_time = {0, 0};
 };
 
-enum PetriNetElement {
+enum PetriNetElement
+{
   Place,
   Transition,
 };
 
-struct PetriNetEdge {
+struct PetriNetEdge
+{
   std::string label;
 };
 
-class PetriNet {
-  typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS,
-                                PetriNetElement, PetriNetEdge, graph_p> PN;
- public:
-  virtual void construct_petri_net(const Config& config);
+class PetriNet
+{
+public:
+  virtual void construct_petri_net(const Config &config);
 };
 
-#endif //PPTPN__PETRINET_H_
+#endif // PPTPN__PETRINET_H_

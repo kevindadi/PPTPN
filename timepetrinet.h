@@ -92,7 +92,7 @@ public:
         std::cout << std::endl;
         for (const auto t : value.all_t)
         {
-          outputFile << t.t << " " << t.time << " ";
+          // outputFile << t.t << " " << t.time << " ";
         }
         std::cout << std::endl;
       }

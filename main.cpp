@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
   desc.add_options()("help", "produce help message")(
       "deadline", po::value<int>(&deadline)->default_value(0),
       "check deadline")(
-      "style", po::value<std::string>(&dot_style)->default_value("PSTPN"),
+      "style", po::value<std::string>(&dot_style)->default_value("PTPN"),
       "dot style only support PSTPN or PTPN")(
       "file", po::value<std::string>(&file_path)->default_value("dag.dot"),
       "petri net with dot file");
@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
   }
   // 注册信号处理函数
   // signal(SIGINT, signalHandler);
-  if (dot_style.find("PSTPN") != std::string::npos)
+  if (dot_style.find("PTPN") != std::string::npos)
   {
     char *dag_file = const_cast<char *>(file_path.c_str());
     GConfig config(dag_file);

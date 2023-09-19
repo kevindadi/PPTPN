@@ -21,6 +21,7 @@ struct TPetriNetTransition
   bool is_handle = false;
   int runtime = 0;
   int priority = 0;
+  std::pair<int, int> waiting = {0, 0};
   std::pair<int, int> const_time = {0, 0};
   // 该变迁分配的处理器资源
   int c = 0;
@@ -77,7 +78,7 @@ struct PTPNTransition
 {
   bool is_handle = false;
   bool is_random = false;
-  int runtime = 0;
+  std::pair<int, int> waiting = {0, 0};
   int priority = 0;
   std::pair<int, int> const_time = {0, 0};
   // 该变迁分配的处理器资源
@@ -88,26 +89,26 @@ struct PTPNTransition
   {
     is_handle = false;
     is_random = false;
-    runtime = 0;
+    waiting = {0, 0};
   };
   PTPNTransition(bool is_handle, int priority, std::pair<int, int> time, int c)
       : is_handle(is_handle), priority(priority), const_time(time), c(c)
   {
     is_random = false;
-    runtime = 0;
+    waiting = {0, 0};
   };
   PTPNTransition(int priority, std::pair<int, int> time, int c, bool is_random)
       : priority(priority), const_time(time), c(c), is_random(is_random)
   {
     is_handle = false;
-    runtime = 0;
+    waiting = {0, 0};
   };
   PTPNTransition(bool is_handle, int priority, std::pair<int, int> time, int c,
                  bool is_random)
       : is_handle(is_handle), priority(priority), const_time(time), c(c),
         is_random(is_random)
   {
-    runtime = 0;
+    waiting = {0, 0};
   };
 };
 
@@ -198,7 +199,7 @@ struct SchedT
 struct T_wait
 {
   std::size_t t;
-  int time;
+  std::pair<int, int> ht;
 
   // Define the less-than operator for SchedT
   bool operator<(const T_wait &other) const
@@ -210,16 +211,16 @@ struct T_wait
       return false;
 
     // If 't' is equal, compare based on 'time'
-    return time < other.time;
+    return ht < other.ht;
   }
   // 需要在T_wait中定义operator==以便于比较
   bool operator==(const T_wait &other) const
   {
-    return t == other.t && time == other.time;
+    return t == other.t && ht == other.ht;
   }
 
   T_wait() = default;
-  T_wait(std::size_t t, int time) : t(t), time(time) {}
+  T_wait(std::size_t t, std::pair<int, int> time) : t(t), ht(time) {}
 };
 
 namespace std
@@ -244,7 +245,11 @@ namespace std
   {
     std::size_t operator()(const T_wait &t) const
     {
-      return std::hash<std::size_t>()(t.t) ^ std::hash<int>()(t.time);
+      std::size_t seed = 0;
+      seed ^= std::hash<std::size_t>()(t.t) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      seed ^= (std::hash<int>()(t.ht.first) ^ std::hash<int>()(t.ht.second) << 1) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+      return seed;
+      // return std::hash<std::size_t>()(t.t) ^ std::hash<int>()(t.ht.first) ^ std::hash<int>()(t.ht.second);
     }
   };
 }

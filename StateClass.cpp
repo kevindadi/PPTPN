@@ -61,7 +61,7 @@ void StateClass::print_current_state()
   std::cout << "current time domain: ";
   for (const auto &t : all_t)
   {
-    std::cout << t.t << ": " << t.time << ";";
+    std::cout << t.t << ": " << t.ht.first << "," << t.ht.second << ";";
   }
   std::cout << std::endl;
   std::cout << "-------------------------" << std::endl;
@@ -79,7 +79,8 @@ std::string StateClass::to_scg_vertex()
   {
     times.append(std::to_string(t.t))
         .append(":")
-        .append(std::to_string(t.time).append(";"));
+        .append(std::to_string(t.ht.first).append(","))
+        .append(std::to_string(t.ht.second).append(";"));
   }
   return labels + times;
 }

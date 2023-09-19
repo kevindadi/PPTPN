@@ -706,7 +706,7 @@ StateClass TimePetriNet::get_initial_state_class()
         //          enabled_t_time.insert(std::make_pair(index(*vi), 0));
         //        }
 
-        all_t.insert({*vi, 0});
+        all_t.insert({*vi, {0, 0}});
       }
     }
   }
@@ -1091,7 +1091,7 @@ StateClass TimePetriNet::fire_transition(const StateClass &sc,
                         std::inserter(common, common.begin()));
   for (unsigned long it : common)
   {
-    all_t.insert({it, time_petri_net[it].pnt.runtime});
+    all_t.insert({it, time_petri_net[it].pnt.waiting});
     //    h_t.insert(it);
     //    time.insert(std::make_pair(it, time_petri_net[it].pnt.runtime));
   }
@@ -1105,7 +1105,7 @@ StateClass TimePetriNet::fire_transition(const StateClass &sc,
     // 若为可挂起变迁,则保存已运行时间
     if (time_petri_net[it].pnt.is_handle)
     {
-      all_t.insert({it, time_petri_net[it].pnt.runtime});
+      all_t.insert({it, time_petri_net[it].pnt.waiting});
       //      H_t.insert(it);
       //      time.insert(std::make_pair(it, time_petri_net[it].pnt.runtime));
     }
@@ -1123,7 +1123,7 @@ StateClass TimePetriNet::fire_transition(const StateClass &sc,
   {
     if (time_petri_net[it].pnt.is_handle)
     {
-      all_t.insert({it, time_petri_net[it].pnt.runtime});
+      all_t.insert({it, time_petri_net[it].pnt.waiting});
       //      h_t.insert(it);
       //      time.insert(std::make_pair(it, time_petri_net[it].pnt.runtime));
     }
@@ -1131,7 +1131,7 @@ StateClass TimePetriNet::fire_transition(const StateClass &sc,
     {
       //      h_t.insert(it);
       //      time.insert(std::make_pair(it, 0));
-      all_t.insert({it, 0});
+      all_t.insert({it, {0, 0}});
     }
   }
   //  for (auto it = all_t.begin(); it != all_t.end(); ++it) {
@@ -1185,6 +1185,6 @@ void TimePetriNet::set_state_class(const StateClass &state_class)
   // 5.设置所有变迁的已等待时间
   for (auto t : state_class.all_t)
   {
-    time_petri_net[t.t].pnt.runtime = t.time;
+    time_petri_net[t.t].pnt.waiting = t.ht;
   }
 }
