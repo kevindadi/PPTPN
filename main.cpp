@@ -87,6 +87,7 @@ int main(int argc, char *argv[])
     double timeout = 10;
     tpn.initial_state_class.print_current_state();
     tpn.generate_state_class();
+    
   }
 
   return 0;

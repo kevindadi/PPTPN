@@ -1,4 +1,5 @@
 //
+// boost的graphviz库并不提供子模块解析
 // Created by Kevin on 2023/8/8.
 //
 
@@ -13,14 +14,16 @@
 using namespace boost;
 namespace logging = boost::log;
 
-struct SubGraphConfig {
+struct SubGraphConfig
+{
   std::string name;
   int core;
   bool is_period;
   int period;
 };
 
-struct SubTaskConfig {
+struct SubTaskConfig
+{
   std::string name;
   int core, priority;
   std::vector<std::pair<int, int>> time;
@@ -28,10 +31,12 @@ struct SubTaskConfig {
   bool is_sub;
 };
 
-class GConfig {
+class GConfig
+{
 public:
   GConfig() = default;
-  ~GConfig() {
+  ~GConfig()
+  {
     // Clean up
     dotFile = nullptr;
     agclose(graph);

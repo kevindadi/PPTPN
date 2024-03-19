@@ -305,13 +305,14 @@ bool StateClassGraph::check_deadlock()
   }
   if (no_successors.empty())
   {
+    std::cout << "????" << std::endl;
     return false;
   }
   else
   {
     for (const auto &v : no_successors)
     {
-      std::cout << scg[v].label << std::endl;
+      std::cout << scg[v].id << std::endl;
     }
   }
   return true;

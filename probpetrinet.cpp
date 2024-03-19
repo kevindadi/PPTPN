@@ -1099,11 +1099,11 @@ void ProbPetriNet::generate_state_class()
   BOOST_LOG_TRIVIAL(info) << "SCG NUM: " << state_class_graph.scg_vertex_map.size();
   if (state_class_graph.check_deadlock())
   {
-    BOOST_LOG_TRIVIAL(info) << "SYSTEM NO DEADLOCK!";
+    BOOST_LOG_TRIVIAL(info) << "SYSTEM HAS DEADLOCK!";
   }
   else
   {
-    BOOST_LOG_TRIVIAL(info) << "SYSTEM HAS DEADLOCK!";
+    BOOST_LOG_TRIVIAL(info) << "SYSTEM NO DEADLOCK!";
   }
 
   state_class_graph.write_to_dot("out.dot");
