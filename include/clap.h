@@ -50,7 +50,7 @@ public:
     // 所有任务的集合
     vector<NodeType> all_task;
     // 所有任务的优先级
-    std::unordered_map<string, int> task_priority;
+    std::unordered_map<string, int> tasks_priority;
     // 周期任务的开始任务和结束任务, 以及时间周期
     vector<std::tuple<string, string, int>> period_task;
 
@@ -60,6 +60,8 @@ public:
     std::unordered_map<string, NodeType> nodes_type;
     // 任务使用的锁集合
     set<string> lock_set;
+    // 每个任务使用锁的映射
+    std::map<string, vector<string>> task_locks_map;
     // 任务分配核心数
     int core;
 
@@ -67,7 +69,7 @@ public:
     void parse_tdg();
 
     // 解析 vertex 的 label 属性
-    NodeType parse_vertex_label(const string& label);
+    NodeType parse_vertex_label(const string label);
     // 解析 time 数组中的每个时间区间
     static vector<int> parse_time_vec(string times);
 

@@ -1,5 +1,6 @@
 //#include "timepetrinet.h"
 #include <iostream>
+#include "priority_time_petri_net.h"
 //TimePetriNet tpn;
 // DAG --------------------------------
 // int main() {
@@ -93,6 +94,8 @@ int main(int argc, char *argv[])
     TDG tdg_rap =  {"../test/label.dot"};
     tdg_rap.parse_tdg();
     tdg_rap.classify_priority();
+    PriorityTimePetriNet ptpn;
+    ptpn.transform_tdg_to_ptpn(tdg_rap);
   }
 
   return 0;

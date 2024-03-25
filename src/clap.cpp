@@ -66,34 +66,35 @@ void TDG::parse_tdg() {
               PeriodicTask p_task = get<PeriodicTask>(node_type);
               string t_name = p_task.name;
               all_task.emplace_back(p_task);
-              task_priority.insert(make_pair(t_name, p_task.priority));
+              tasks_priority.insert(make_pair(t_name, p_task.priority));
               nodes_type.insert(make_pair(t_name, p_task));
               vertexes_type.insert(make_pair(t_name, VertexType::TASK));
               BOOST_LOG_TRIVIAL(info) << t_name << ": " << "type: TASK";
             } else if (holds_alternative<APeriodicTask>(node_type)) {
               APeriodicTask ap_task = get<APeriodicTask>(node_type);
               string t_name = ap_task.name;
+
               all_task.emplace_back(ap_task);
-              task_priority.insert(make_pair(t_name, ap_task.priority));
+              tasks_priority.insert(make_pair(t_name, ap_task.priority));
               nodes_type.insert(make_pair(t_name, ap_task));
               vertexes_type.insert(make_pair(t_name, VertexType::INTERRUPT));
               BOOST_LOG_TRIVIAL(info) << t_name << ": " << "type: INTERRUPT";
             } else if (holds_alternative<SyncTask>(node_type)) {
-              SyncTask ap_task = get<SyncTask>(node_type);
-              string t_name = ap_task.name;
-              nodes_type.insert(make_pair(t_name, ap_task));
+              SyncTask s_task = get<SyncTask>(node_type);
+              string t_name = s_task.name;
+              nodes_type.insert(make_pair(t_name, s_task));
               vertexes_type.insert(make_pair(t_name, VertexType::SYNC));
               BOOST_LOG_TRIVIAL(info) << t_name << ": " << "type: SYNC";
             } else if (holds_alternative<DistTask>(node_type)) {
-              DistTask ap_task = get<DistTask>(node_type);
-              string t_name = ap_task.name;
-              nodes_type.insert(make_pair(t_name, ap_task));
+              DistTask d_task = get<DistTask>(node_type);
+              string t_name = d_task.name;
+              nodes_type.insert(make_pair(t_name, d_task));
               vertexes_type.insert(make_pair(t_name, VertexType::DIST));
               BOOST_LOG_TRIVIAL(info) << t_name << ": " << "type: DIST";
             } else {
-              EmptyTask ap_task = get<EmptyTask>(node_type);
-              string t_name = ap_task.name;
-              nodes_type.insert(make_pair(t_name, ap_task));
+              EmptyTask e_task = get<EmptyTask>(node_type);
+              string t_name = e_task.name;
+              nodes_type.insert(make_pair(t_name, e_task));
               vertexes_type.insert(make_pair(t_name, VertexType::EMPTY));
               BOOST_LOG_TRIVIAL(info) << t_name << ": " << "type: EMPTY";
             }
@@ -123,7 +124,7 @@ void TDG::parse_tdg() {
 }
 
 // 按照 label 类型返回
-NodeType TDG::parse_vertex_label(const string& label) {
+NodeType TDG::parse_vertex_label(const string label) {
   NodeType node_type;
   regex rgx("\\{(.*?)\\}");
   smatch matches;
@@ -165,6 +166,13 @@ NodeType TDG::parse_vertex_label(const string& label) {
         while (getline(lock_stream, lock_token, ',')) {
           task_locks.push_back(lock_token);
           lock_set.insert(lock_token);
+          if (task_locks_map.find(name) == task_locks_map.end()) {
+            vector<string> locks;
+            locks.push_back(lock_token);
+            task_locks_map.insert(make_pair(name, locks));
+          }else {
+            task_locks_map[name].push_back(lock_token);
+          }
         }
       }
 
@@ -219,7 +227,7 @@ std::unordered_map<int, vector<string>> TDG::classify_priority() {
   for (auto &tasks: core_task) {
     std::sort(tasks.second.begin(), tasks.second.end(),
               [&](const string& t1, const string& t2){
-      return task_priority[t1] < task_priority[t2];
+      return tasks_priority[t1] < tasks_priority[t2];
     });
   }
 
@@ -228,5 +236,7 @@ std::unordered_map<int, vector<string>> TDG::classify_priority() {
     for (auto task : it->second) {
       std::cout << task << " < ";
     }
+    std::cout << std::endl;
   }
+  return core_task;
 }

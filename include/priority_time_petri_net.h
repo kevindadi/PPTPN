@@ -97,11 +97,22 @@ public: // 图映射
   // 创建处理器资源库所
   void add_cpu_resource(int nums);
   // 创建锁资源库所
-  void add_lock_resource(set<string> locks_name);
+  void add_lock_resource(const set<string>& locks_name);
   // 任务绑定CPU资源
   void task_bind_cpu_resource(vector<NodeType> &all_task);
   // 任务绑定锁资源
-  void task_bind_lock_resource(vector<NodeType> &all_task);
+  void task_bind_lock_resource(vector<NodeType> &all_task, std::map<string, vector<string>> &task_locks);
+
+  // 节点映射函数
+  pair<vertex_ptpn, vertex_ptpn> add_node_ptpn(NodeType node_type);
+  pair<vertex_ptpn, vertex_ptpn> add_ap_node_ptpn(APeriodicTask &ap_task);
+  pair<vertex_ptpn, vertex_ptpn> add_p_node_ptpn(PeriodicTask &p_task);
+  // 看门狗网结构
+  void add_monitor_ptpn(vertex_ptpn start, vertex_ptpn end);
+  // 建立任务抢占关系
+  void add_preempt_task_ptpn();
+  // 节点命名 随机增加, != vertex_index_t
+  int node_index = 0;
 public: // 状态图生成
 
 
