@@ -1,5 +1,5 @@
-#ifndef CONFIG
-#define CONFIG
+#ifndef DAG_CONFIG
+#define DAG_CONFIG
 #include <string>
 #include <vector>
 #include <variant>
@@ -16,7 +16,7 @@ struct DAGVertex
 struct DAGEdge
 {
     std::string label;
-    int weight = 0;
+    std::string style;
 };
 
 // 非周期任务：偶发任务和普通任务
@@ -26,9 +26,9 @@ struct APeriodicTask
     int core = 0;
     int priority = 100;
     // 任务的执行时间
-    pair<int, int> time = {0, 0};
+    vector<pair<int, int>> time;
     bool is_lock = false;
-    string lock;
+    vector<string> lock;
     bool is_period = false;
     // 如果是偶发任务，period为偶发周期
     int period = 1000;
@@ -39,9 +39,9 @@ struct PeriodicTask
     string name;
     int core = 0;
     int priority = 100;
-    pair<int, int> time = {0, 0};
+    vector<pair<int, int>> time;
     bool is_lock = false;
-    string lock;
+    vector<string> lock;
     // 周期任务，并且自身结束即周期结束
     bool is_period = false;
     int period;
@@ -59,6 +59,10 @@ struct SyncTask
     pair<int, int> time = {0, 0};
 };
 
-using NodeType = variant<PeriodicTask, APeriodicTask, DistTask, SyncTask>;
+struct EmptyTask {
+  string name;
+};
+
+using NodeType = variant<PeriodicTask, APeriodicTask, DistTask, SyncTask, EmptyTask>;
 
 #endif

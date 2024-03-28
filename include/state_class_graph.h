@@ -1,23 +1,21 @@
 //
-// Created by Kevin on 2023/7/28.
+// Created by 张凯文 on 2024/3/22.
 //
 
-#ifndef PPTPN_STATECLASS_H
-#define PPTPN_STATECLASS_H
+#ifndef PPTPN_INCLUDE_STATE_CLASS_GRAPH_H
+#define PPTPN_INCLUDE_STATE_CLASS_GRAPH_H
+
 #include <algorithm>
 #include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/breadth_first_search.hpp>
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/graph_utility.hpp>
 #include <boost/graph/graphviz.hpp>
-#include <boost/graph/breadth_first_search.hpp>
-#include <iterator>
-#include <set>
 #include <string>
 #include <unordered_map>
 #include <utility>
 
-struct TPetriNetTransition
-{
+struct TPetriNetTransition {
   bool is_handle = false;
   int runtime = 0;
   int priority = 0;
@@ -27,18 +25,17 @@ struct TPetriNetTransition
   TPetriNetTransition() = default;
   TPetriNetTransition(int runtime, int priority, std::pair<int, int> const_time,
                       int core)
-      : runtime(runtime), priority(priority), const_time(const_time), c(core)
-  {
+      : runtime(runtime), priority(priority), const_time(std::move(const_time)),
+        c(core) {
     is_handle = false;
   };
   TPetriNetTransition(bool is_handle, int runtime, int priority,
                       std::pair<int, int> const_time)
       : is_handle(is_handle), runtime(runtime), priority(priority),
-        const_time(const_time){};
+        const_time(std::move(const_time)){};
 };
 
-struct TPetriNetElement
-{
+struct TPetriNetElement {
   std::string name, label, shape;
   int token = 0;
   bool enabled = false;
@@ -47,8 +44,7 @@ struct TPetriNetElement
   TPetriNetElement() = default;
 
   TPetriNetElement(const std::string &name, int token)
-      : name(name), token(token)
-  {
+      : name(name), token(token) {
     label = name;
     shape = "circle";
     enabled = false;
@@ -57,24 +53,21 @@ struct TPetriNetElement
 
   TPetriNetElement(const std::string &name, bool enable,
                    TPetriNetTransition pnt)
-      : name(name), enabled(enable), pnt(std::move(pnt))
-  {
+      : name(name), enabled(enable), pnt(std::move(pnt)) {
     label = name;
     shape = "box";
     token = 0;
   }
 };
 
-struct TPetriNetEdge
-{
+struct TPetriNetEdge {
   std::string label;
   std::pair<int, int>
       weight;   // min_weight and max_weight represent the firing time interval
   int priority; // low-level propity remove;
 };
 
-struct PTPNTransition
-{
+struct PTPNTransition {
   bool is_handle = false;
   bool is_random = false;
   int runtime = 0;
@@ -84,106 +77,38 @@ struct PTPNTransition
   int c = 0;
   PTPNTransition() = default;
   PTPNTransition(int priority, std::pair<int, int> time, int c)
-      : priority(priority), const_time(time), c(c)
-  {
+      : priority(priority), const_time(std::move(time)), c(c) {
     is_handle = false;
     is_random = false;
     runtime = 0;
   };
   PTPNTransition(bool is_handle, int priority, std::pair<int, int> time, int c)
-      : is_handle(is_handle), priority(priority), const_time(time), c(c)
-  {
+      : is_handle(is_handle), priority(priority), const_time(std::move(time)),
+        c(c) {
     is_random = false;
     runtime = 0;
   };
   PTPNTransition(int priority, std::pair<int, int> time, int c, bool is_random)
-      : priority(priority), const_time(time), c(c), is_random(is_random)
-  {
+      : priority(priority), const_time(std::move(time)), c(c),
+        is_random(is_random) {
     is_handle = false;
     runtime = 0;
   };
   PTPNTransition(bool is_handle, int priority, std::pair<int, int> time, int c,
                  bool is_random)
-      : is_handle(is_handle), priority(priority), const_time(time), c(c),
-        is_random(is_random)
-  {
+      : is_handle(is_handle), priority(priority), const_time(std::move(time)),
+        c(c), is_random(is_random) {
     runtime = 0;
   };
 };
 
-struct PTPNVertex
-{
-  std::string name, label, shape;
-  int token = 0;
-  bool enabled = false;
-  PTPNTransition pnt;
-
-  PTPNVertex() = default;
-
-  PTPNVertex(const std::string &name, int token) : name(name), token(token)
-  {
-    label = name;
-    shape = "circle";
-    enabled = false;
-    pnt = {};
-  }
-
-  PTPNVertex(const std::string &name, PTPNTransition pnt)
-      : name(name), pnt(std::move(pnt))
-  {
-    enabled = false;
-    label = name;
-    shape = "box";
-    token = 0;
-  }
-};
-
-struct PTPNEdge
-{
-  std::string label;
-  std::pair<int, int> weight;
-};
-
-struct Marking
-{
-  std::set<std::size_t> indexes;
-  std::set<std::string> labels;
-
-  bool operator==(const Marking &other) const
-  {
-    //    std::set<std::size_t> diff;
-    //    std::set_symmetric_difference(indexes.begin(), indexes.end(),
-    //                                  other.indexes.begin(),
-    //                                  other.indexes.end(), std::inserter(diff,
-    //                                  diff.begin()));
-    //    if (diff.empty()) {
-    //      return true;
-    //    }else {
-    //      return false;
-    //    }
-    if (indexes.size() != other.indexes.size())
-    {
-      return false;
-    }
-    if (indexes == other.indexes)
-    {
-      return true;
-    }
-    return false;
-  }
-
-  // Define the less-than operator for Marking
-  bool operator<(const Marking &other) const { return indexes < other.indexes; }
-};
-
-struct SchedT
-{
+// 可发生变迁, 从中筛选可调度变迁
+struct SchedT {
   std::size_t t;
   std::pair<int, int> time;
 
   // Define the less-than operator for SchedT
-  bool operator<(const SchedT &other) const
-  {
+  bool operator<(const SchedT &other) const {
     // Compare the 't' member first
     if (t < other.t)
       return true;
@@ -195,14 +120,13 @@ struct SchedT
   }
 };
 
-struct T_wait
-{
+// 可挂起变迁的等待时间
+struct T_wait {
   std::size_t t;
   int time;
 
   // Define the less-than operator for SchedT
-  bool operator<(const T_wait &other) const
-  {
+  bool operator<(const T_wait &other) const {
     // Compare the 't' member first
     if (t < other.t)
       return true;
@@ -213,8 +137,7 @@ struct T_wait
     return time < other.time;
   }
   // 需要在T_wait中定义operator==以便于比较
-  bool operator==(const T_wait &other) const
-  {
+  bool operator==(const T_wait &other) const {
     return t == other.t && time == other.time;
   }
 
@@ -222,78 +145,53 @@ struct T_wait
   T_wait(std::size_t t, int time) : t(t), time(time) {}
 };
 
-namespace std
-{
-  // 为Marking定义哈希函数
-  template <>
-  struct hash<Marking>
-  {
-    std::size_t operator()(const Marking &m) const
-    {
-      std::size_t hash_val = 0;
-      for (const auto &index : m.indexes)
-      {
-        hash_val ^= std::hash<std::size_t>()(index);
-      }
-      return hash_val;
-    }
-  };
-
-  template <>
-  struct hash<T_wait>
-  {
-    std::size_t operator()(const T_wait &t) const
-    {
-      return std::hash<std::size_t>()(t.t) ^ std::hash<int>()(t.time);
-    }
-  };
-}
-
-struct SCGVertex
-{
+// 状态类图的节点
+struct SCGVertex {
   std::string id;
   std::string label;
 };
 
-struct SCGEdge
-{
+// 状态类图中的编
+struct SCGEdge {
   std::string label;
   std::pair<int, int> time;
 };
 
-class StateClass
-{
+struct Marking {
+  std::set<std::size_t> indexes;
+  std::set<std::string> labels;
+
+  bool operator==(const Marking &other) const {
+    if (indexes.size() != other.indexes.size()) {
+      return false;
+    }
+    if (indexes == other.indexes) {
+      return true;
+    }
+    return false;
+  }
+  bool operator<(const Marking &other) const { return indexes < other.indexes; }
+};
+//
+class StateClass {
 public:
   // 当前标识
   Marking mark;
   // 使能变迁和可挂起变迁的等待时间
   std::set<T_wait> all_t;
-  // // 可调度变迁集
-  // std::set<std::size_t> t_sched;
-  // // 可挂起变迁
-  // std::set<std::size_t> handle_t_sched;
-  // // 变迁的已等待时间
-  // std::unordered_map<std::size_t, int> t_time;
 
 public:
   StateClass() = default;
-  // StateClass(Marking mark, const std::set<std::size_t> &h_t,
-  //            const std::set<std::size_t> &H_t,
-  //            const std::unordered_map<std::size_t, int> &t_time)
-  //     : mark(std::move(mark)), t_sched(h_t), handle_t_sched(H_t),
-  //       t_time(t_time) {}
   StateClass(Marking mark, std::set<T_wait> all_t)
       : mark(std::move(mark)), all_t(std::move(all_t)) {}
   void print_current_mark();
   void print_current_state();
   std::string to_scg_vertex();
-  bool operator==(const StateClass &other) const
-  {
+  bool operator==(const StateClass &other) const {
     return mark == other.mark && all_t == other.all_t;
   }
 
-  bool operator<(const StateClass &other) const
-  {
+  bool operator<(const StateClass &other) const {
     // Compare the mark member first
     if (mark < other.mark)
       return true;
@@ -305,18 +203,34 @@ public:
   };
 };
 
+namespace std {
+// 为Marking定义哈希函数
+template <> struct hash<Marking> {
+  std::size_t operator()(const Marking &m) const {
+    std::size_t hash_val = 0;
+    for (const auto &index : m.indexes) {
+      hash_val ^= std::hash<std::size_t>()(index);
+    }
+    return hash_val;
+  }
+};
+
+template <> struct hash<T_wait> {
+  std::size_t operator()(const T_wait &t) const {
+    return std::hash<std::size_t>()(t.t) ^ std::hash<int>()(t.time);
+  }
+};
+} // namespace std
+
 // 为StateClass定义哈希函数
-struct StateClassHasher
-{
-  std::size_t operator()(const StateClass &k) const
-  {
+struct StateClassHasher {
+  std::size_t operator()(const StateClass &k) const {
     // 计算mark的哈希值
     std::size_t mark_hash = std::hash<Marking>()(k.mark);
 
     // 计算all_t的哈希值
     std::size_t all_t_hash = 0;
-    for (const auto &t : k.all_t)
-    {
+    for (const auto &t : k.all_t) {
       all_t_hash ^= std::hash<T_wait>()(t);
     }
 
@@ -325,10 +239,8 @@ struct StateClassHasher
 };
 
 // 为StateClass定义等价比较函数
-struct StateClassEqual
-{
-  bool operator()(const StateClass &a, const StateClass &b) const
-  {
+struct StateClassEqual {
+  bool operator()(const StateClass &a, const StateClass &b) const {
     return a == b;
   }
 };
@@ -339,20 +251,21 @@ typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS,
     SCG;
 typedef boost::graph_traits<SCG>::vertex_descriptor ScgVertexD;
 typedef boost::graph_traits<SCG>::edge_descriptor ScgEdgeD;
-typedef std::unordered_map<StateClass, ScgVertexD, StateClassHasher, StateClassEqual> ScgVertexMap;
+typedef std::unordered_map<StateClass, ScgVertexD, StateClassHasher,
+                           StateClassEqual>
+    ScgVertexMap;
 typedef std::vector<ScgEdgeD> Path;
 
-class WCETBFSVisitor : public boost::default_bfs_visitor
-{
+class WCETBFSVisitor : public boost::default_bfs_visitor {
 public:
-  WCETBFSVisitor(const std::string &end_name, const std::string &exit_name) : _endName(end_name), _exitName(exit_name) {}
+  WCETBFSVisitor(const std::string &end_name, const std::string &exit_name)
+      : _endName(end_name), _exitName(exit_name) {}
 
   std::string _endName;
   std::string _exitName;
 };
 
-class StateClassGraph
-{
+class StateClassGraph {
 public:
   SCG scg;
   ScgVertexMap scg_vertex_map;
@@ -369,10 +282,10 @@ public:
   std::pair<int, std::vector<Path>>
   calculate_wcet(ScgVertexD &start, ScgVertexD &end, std::string &exit_flag);
   int only_calculate_wcet(ScgVertexD start, ScgVertexD end);
-  std::pair<std::set<ScgVertexD>, std::set<ScgVertexD>> find_task_vertex(std::string task_name);
+  std::pair<std::set<ScgVertexD>, std::set<ScgVertexD>>
+  find_task_vertex(std::string task_name);
   int task_wcet();
   // Check deadlock
   bool check_deadlock();
 };
-
-#endif // PPTPN_STATECLASS_H
+#endif // PPTPN_INCLUDE_STATE_CLASS_GRAPH_H

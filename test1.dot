@@ -1,6 +1,0 @@
-digraph G {
-    A [label = "A";];
-    A -> A [label = "spin,5";];
-    A -> B [label = "AtoB";];
-    B [label = "B";];
-}
