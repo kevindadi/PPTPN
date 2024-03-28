@@ -46,8 +46,7 @@ struct PTPNVertex {
 
   PTPNVertex() = default;
 
-  PTPNVertex(const std::string &name, int token) : name(name), token(token)
-  {
+  PTPNVertex(const std::string &name, int token) : name(name), token(token) {
     label = name;
     shape = "circle";
     enabled = false;
@@ -55,8 +54,7 @@ struct PTPNVertex {
   }
 
   PTPNVertex(const std::string &name, PTPNTransition pnt)
-      : name(name), pnt(std::move(pnt))
-  {
+      : name(name), pnt(std::move(pnt)) {
     enabled = false;
     label = name;
     shape = "box";
@@ -88,37 +86,58 @@ class PriorityTimePetriNet {
   std::map<string, pair<vertex_ptpn, vertex_ptpn>> node_start_end_map;
   // 任务节点对应的优先级结构
   std::unordered_map<string, vector<vector<vertex_ptpn>>> task_pn_map;
+
 public: // 图映射
   // 初始化 Petri 网结构，决定网的表示形式
   void init();
 
   // TDG_RAP 到优先级时间 Petri 网的主函数
-  void transform_tdg_to_ptpn(TDG& tdg);
+  void transform_tdg_to_ptpn(TDG &tdg);
   // 创建处理器资源库所
   void add_cpu_resource(int nums);
   // 创建锁资源库所
-  void add_lock_resource(const set<string>& locks_name);
+  void add_lock_resource(const set<string> &locks_name);
   // 任务绑定CPU资源
   void task_bind_cpu_resource(vector<NodeType> &all_task);
   // 任务绑定锁资源
-  void task_bind_lock_resource(vector<NodeType> &all_task, std::map<string, vector<string>> &task_locks);
+  void task_bind_lock_resource(vector<NodeType> &all_task,
+                               std::map<string, vector<string>> &task_locks);
 
   // 节点映射函数
   pair<vertex_ptpn, vertex_ptpn> add_node_ptpn(NodeType node_type);
   pair<vertex_ptpn, vertex_ptpn> add_ap_node_ptpn(APeriodicTask &ap_task);
   pair<vertex_ptpn, vertex_ptpn> add_p_node_ptpn(PeriodicTask &p_task);
   // 看门狗网结构
-  void add_monitor_ptpn(vertex_ptpn start, vertex_ptpn end);
+  void add_monitor_ptpn(const string &task_name, int task_period_time,
+                        vertex_ptpn start, vertex_ptpn end);
   // 建立任务抢占关系
-  void add_preempt_task_ptpn();
+  void add_preempt_task_ptpn(
+      const std::unordered_map<int, vector<string>> &core_task,
+      const std::unordered_map<string, TaskConfig> &tc,
+      const std::unordered_map<string, NodeType> &nodes_type);
+  // 对某个任务添加抢占路径
+  void create_task_priority(const std::string &name, vertex_ptpn preempt_vertex,
+                            size_t handle_t, vertex_ptpn start, vertex_ptpn end,
+                            NodeType task_type);
   // 节点命名 随机增加, != vertex_index_t
   int node_index = 0;
+
 public: // 状态图生成
+  typename boost::property_map<PTPN, boost::vertex_index_t>::type index =
+      get(boost::vertex_index, ptpn);
 
+  StateClass initial_state_class;
+  StateClass get_initial_state_class();
+  std::set<StateClass> scg;
+  // 重新初始化Petri网
+  void set_state_class(const StateClass &state_class);
 
-public: // 性能分析和死锁检测
-
+  // 生成状态类图主函数
+  void generate_state_class();
+  // 获得每个状态类下可调度的变迁集
+  std::vector<SchedT> get_sched_t(StateClass &state);
+  // 发生变迁产生新的状态类
+  StateClass fire_transition(const StateClass &sc, SchedT transition);
 };
 
-
-#endif //PPTPN_INCLUDE_PRIORITY_TIME_PETRI_NET_H
+#endif // PPTPN_INCLUDE_PRIORITY_TIME_PETRI_NET_H
