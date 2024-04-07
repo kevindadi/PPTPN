@@ -4,17 +4,20 @@
 #include "priority_time_petri_net.h"
 
 // TODO: need rebuild
-vertex_ptpn add_place(PTPN &pn, const string &name, int token) {
+vertex_ptpn add_place(PTPN &pn, const string &name, int token)
+{
   PTPNVertex element = {name, token};
   return boost::add_vertex(element, pn);
 }
 // TODO: need rebuild
-vertex_ptpn add_transition(PTPN &pn, std::string name, PTPNTransition pnt) {
+vertex_ptpn add_transition(PTPN &pn, std::string name, PTPNTransition pnt)
+{
   PTPNVertex element = {name, pnt};
   return boost::add_vertex(element, pn);
 }
 
-void PriorityTimePetriNet::init() {
+void PriorityTimePetriNet::init()
+{
   ptpn_dp.property("node_id", get(&PTPNVertex::name, ptpn));
   ptpn_dp.property("label", get(&PTPNVertex::label, ptpn));
   ptpn_dp.property("shape", get(&PTPNVertex::shape, ptpn));
@@ -30,8 +33,10 @@ void PriorityTimePetriNet::init() {
 // 然后绑定每个任务的 CPU
 // 根据优先级,建立抢占变迁
 // 绑定锁
-void PriorityTimePetriNet::transform_tdg_to_ptpn(TDG &tdg) {
-  BOOST_FOREACH (TDG_RAP::vertex_descriptor v, vertices(tdg.tdg)) {
+void PriorityTimePetriNet::transform_tdg_to_ptpn(TDG &tdg)
+{
+  BOOST_FOREACH (TDG_RAP::vertex_descriptor v, vertices(tdg.tdg))
+  {
     // 根据保存用的类型进行转换
     BOOST_LOG_TRIVIAL(debug) << tdg.tdg[v].name;
     NodeType node_type = tdg.nodes_type.find(tdg.tdg[v].name)->second;
@@ -39,11 +44,13 @@ void PriorityTimePetriNet::transform_tdg_to_ptpn(TDG &tdg) {
   }
   BOOST_LOG_TRIVIAL(info) << "Transform Vertex Complete!";
   // 遍历边
-  BOOST_FOREACH (TDG_RAP::edge_descriptor e, edges(tdg.tdg)) {
+  BOOST_FOREACH (TDG_RAP::edge_descriptor e, edges(tdg.tdg))
+  {
     auto source_name = tdg.tdg[source(e, tdg.tdg)].name;
     auto target_name = tdg.tdg[target(e, tdg.tdg)].name;
     // 前后节点相同的边为
-    if (source_name == target_name) {
+    if (source_name == target_name)
+    {
       // 找到前后节点,建立看门狗网结构
       int task_period_time = stoi(tdg.tdg[e].label);
       auto task_start_end = node_start_end_map.find(source_name)->second;
@@ -52,7 +59,8 @@ void PriorityTimePetriNet::transform_tdg_to_ptpn(TDG &tdg) {
       continue;
     }
     // 边类型为虚线
-    if (tdg.tdg[e].style.find("dashed") != string::npos) {
+    if (tdg.tdg[e].style.find("dashed") != string::npos)
+    {
       // 虚线链接的尾节点为开始节点,头节点为结束节点
 
       continue;
@@ -71,12 +79,15 @@ void PriorityTimePetriNet::transform_tdg_to_ptpn(TDG &tdg) {
   BOOST_LOG_TRIVIAL(info) << "petri net F num: " << boost::num_edges(ptpn);
 }
 
-void PriorityTimePetriNet::add_lock_resource(const set<string> &locks_name) {
-  if (locks_name.empty()) {
+void PriorityTimePetriNet::add_lock_resource(const set<string> &locks_name)
+{
+  if (locks_name.empty())
+  {
     BOOST_LOG_TRIVIAL(info) << "TDG_RAP without locks!";
     return;
   }
-  for (const auto &lock_name : locks_name) {
+  for (const auto &lock_name : locks_name)
+  {
     PTPNVertex lock_place = {lock_name, 1};
     vertex_ptpn l = add_vertex(lock_place, ptpn);
     locks_place.insert(make_pair(lock_name, l));
@@ -84,8 +95,10 @@ void PriorityTimePetriNet::add_lock_resource(const set<string> &locks_name) {
   BOOST_LOG_TRIVIAL(info) << "create lock resource!";
 }
 
-void PriorityTimePetriNet::add_cpu_resource(int nums) {
-  for (int i = 0; i < nums; i++) {
+void PriorityTimePetriNet::add_cpu_resource(int nums)
+{
+  for (int i = 0; i < nums; i++)
+  {
     string cpu_name = "core" + std::to_string(i);
     // vertex_tpn c = add_vertex(PetriNetElement{core_name, core_name, "circle",
     // 1}, time_petri_net);
@@ -97,9 +110,12 @@ void PriorityTimePetriNet::add_cpu_resource(int nums) {
 }
 
 // 根据任务类型绑定不同位置的 CPU
-void PriorityTimePetriNet::task_bind_cpu_resource(vector<NodeType> &all_task) {
-  for (const auto &task : all_task) {
-    if (holds_alternative<APeriodicTask>(task)) {
+void PriorityTimePetriNet::task_bind_cpu_resource(vector<NodeType> &all_task)
+{
+  for (const auto &task : all_task)
+  {
+    if (holds_alternative<APeriodicTask>(task))
+    {
       auto ap_task = get<APeriodicTask>(task);
       int cpu_index = ap_task.core;
       auto task_pt_chains = node_pn_map.find(ap_task.name)->second;
@@ -107,7 +123,9 @@ void PriorityTimePetriNet::task_bind_cpu_resource(vector<NodeType> &all_task) {
       add_edge(cpus_place[cpu_index], task_pt_chains[3], ptpn);
       add_edge(task_pt_chains[task_pt_chains.size() - 2], cpus_place[cpu_index],
                ptpn);
-    } else if (holds_alternative<PeriodicTask>(task)) {
+    }
+    else if (holds_alternative<PeriodicTask>(task))
+    {
       auto p_task = get<PeriodicTask>(task);
       int cpu_index = p_task.core;
       auto task_pt_chains = node_pn_map.find(p_task.name)->second;
@@ -115,7 +133,9 @@ void PriorityTimePetriNet::task_bind_cpu_resource(vector<NodeType> &all_task) {
       add_edge(cpus_place[cpu_index], task_pt_chains[1], ptpn);
       add_edge(task_pt_chains[task_pt_chains.size() - 2], cpus_place[cpu_index],
                ptpn);
-    } else {
+    }
+    else
+    {
       continue;
     }
   }
@@ -123,19 +143,27 @@ void PriorityTimePetriNet::task_bind_cpu_resource(vector<NodeType> &all_task) {
 
 // 根据任务种锁的数量和类型绑定
 void PriorityTimePetriNet::task_bind_lock_resource(
-    vector<NodeType> &all_task, std::map<string, vector<string>> &task_locks) {
-  for (const auto &task : all_task) {
-    if (holds_alternative<APeriodicTask>(task)) {
+    vector<NodeType> &all_task, std::map<string, vector<string>> &task_locks)
+{
+  for (const auto &task : all_task)
+  {
+    if (holds_alternative<APeriodicTask>(task))
+    {
       auto ap_task = get<APeriodicTask>(task);
       int cpu_index = ap_task.core;
       auto all_task_pt_chains = task_pn_map.find(ap_task.name)->second;
-      for (const auto &task_pt_chain : all_task_pt_chains) {
-        if (task_pt_chain.size() < 7) {
+      for (const auto &task_pt_chain : all_task_pt_chains)
+      {
+        if (task_pt_chain.size() < 7)
+        {
           // 7 为不含锁的 P-T 链长度
           break;
-        } else {
+        }
+        else
+        {
           size_t lock_nums = task_locks.find(ap_task.name)->second.size();
-          for (int i = 0; i < lock_nums; i++) {
+          for (int i = 0; i < lock_nums; i++)
+          {
             // 按照锁的次序获得锁的类型
             std::string lock_type = ap_task.lock[i];
             vertex_ptpn get_lock = task_pt_chain[(5 + 2 * i)];
@@ -147,17 +175,24 @@ void PriorityTimePetriNet::task_bind_lock_resource(
           }
         }
       }
-    } else if (holds_alternative<PeriodicTask>(task)) {
+    }
+    else if (holds_alternative<PeriodicTask>(task))
+    {
       auto p_task = get<PeriodicTask>(task);
       int cpu_index = p_task.core;
       auto all_task_pt_chains = task_pn_map.find(p_task.name)->second;
-      for (const auto &task_pt_chain : all_task_pt_chains) {
-        if (task_pt_chain.size() < 7) {
+      for (const auto &task_pt_chain : all_task_pt_chains)
+      {
+        if (task_pt_chain.size() < 7)
+        {
           // 7 为不含锁的 P-T 链长度
           break;
-        } else {
+        }
+        else
+        {
           size_t lock_nums = task_locks.find(p_task.name)->second.size();
-          for (int i = 0; i < lock_nums; i++) {
+          for (int i = 0; i < lock_nums; i++)
+          {
             // 按照锁的次序获得锁的类型
             std::string lock_type = p_task.lock[i];
             vertex_ptpn get_lock = task_pt_chain[(3 + 2 * i)];
@@ -169,7 +204,9 @@ void PriorityTimePetriNet::task_bind_lock_resource(
           }
         }
       }
-    } else {
+    }
+    else
+    {
       continue;
     }
   }
@@ -178,23 +215,31 @@ void PriorityTimePetriNet::task_bind_lock_resource(
 // 映射规则主函数,包含不同类型,便于之后扩展
 // 根据不同类型进行相应的转换,并返回转换后的开始和结束节点,以进行前后链接
 pair<vertex_ptpn, vertex_ptpn>
-PriorityTimePetriNet::add_node_ptpn(NodeType node_type) {
+PriorityTimePetriNet::add_node_ptpn(NodeType node_type)
+{
 
-  if (holds_alternative<PeriodicTask>(node_type)) {
+  if (holds_alternative<PeriodicTask>(node_type))
+  {
     PeriodicTask p_task = get<PeriodicTask>(node_type);
     auto result = add_p_node_ptpn(p_task);
     node_start_end_map.insert(make_pair(p_task.name, result));
     BOOST_LOG_TRIVIAL(info)
         << p_task.name << "'s petri net start node: " << result.first
         << " end node: " << result.second;
-  } else if (holds_alternative<APeriodicTask>(node_type)) {
+    return result;
+  }
+  else if (holds_alternative<APeriodicTask>(node_type))
+  {
     APeriodicTask ap_task = get<APeriodicTask>(node_type);
     auto result = add_ap_node_ptpn(ap_task);
     node_start_end_map.insert(make_pair(ap_task.name, result));
     BOOST_LOG_TRIVIAL(info)
         << ap_task.name << "'s petri net start node: " << result.first
         << " end node: " << result.second;
-  } else if (holds_alternative<SyncTask>(node_type)) {
+    return result;
+  }
+  else if (holds_alternative<SyncTask>(node_type))
+  {
     SyncTask ap_task = get<SyncTask>(node_type);
     string t_name = ap_task.name;
     vertex_ptpn result =
@@ -204,7 +249,10 @@ PriorityTimePetriNet::add_node_ptpn(NodeType node_type) {
     node_start_end_map.insert(make_pair(t_name, make_pair(result, result)));
     BOOST_LOG_TRIVIAL(info) << t_name << ": "
                             << "type: SYNC";
-  } else if (holds_alternative<DistTask>(node_type)) {
+    return {result, result};
+  }
+  else if (holds_alternative<DistTask>(node_type))
+  {
     DistTask ap_task = get<DistTask>(node_type);
     string t_name = ap_task.name;
     vertex_ptpn result =
@@ -214,7 +262,10 @@ PriorityTimePetriNet::add_node_ptpn(NodeType node_type) {
     node_start_end_map.insert(make_pair(t_name, make_pair(result, result)));
     BOOST_LOG_TRIVIAL(info) << t_name << ": "
                             << "type: DIST";
-  } else {
+    return {result, result};
+  }
+  else
+  {
     EmptyTask ap_task = get<EmptyTask>(node_type);
     string t_name = ap_task.name;
     vertex_ptpn result = add_place(ptpn, "Empty" + to_string(node_index), 0);
@@ -222,12 +273,14 @@ PriorityTimePetriNet::add_node_ptpn(NodeType node_type) {
     node_start_end_map.insert(make_pair(t_name, make_pair(result, result)));
     BOOST_LOG_TRIVIAL(info) << t_name << ": "
                             << "type: EMPTY";
+    return {result, result};
   }
 }
 
 // 针对非周期的偶发任务和中断任务建模
 pair<vertex_ptpn, vertex_ptpn>
-PriorityTimePetriNet::add_ap_node_ptpn(APeriodicTask &ap_task) {
+PriorityTimePetriNet::add_ap_node_ptpn(APeriodicTask &ap_task)
+{
   pair<vertex_ptpn, vertex_ptpn> result;
   string t_name = ap_task.name;
   string task_random_period = t_name + "random";
@@ -278,11 +331,15 @@ PriorityTimePetriNet::add_ap_node_ptpn(APeriodicTask &ap_task) {
   task_pt_chain.push_back(ready);
   result.first = random;
   result.second = exit;
-  if (ap_task.lock.empty()) {
+  if (ap_task.lock.empty())
+  {
     add_edge(ready, exec, ptpn);
-  } else {
+  }
+  else
+  {
     size_t lock_nums = ap_task.lock.size();
-    for (int i = 0; i < lock_nums; i++) {
+    for (int i = 0; i < lock_nums; i++)
+    {
       auto lock_name = ap_task.lock[i];
       vertex_ptpn get_lock =
           add_transition(ptpn, task_lock.append(lock_name),
@@ -294,7 +351,8 @@ PriorityTimePetriNet::add_ap_node_ptpn(APeriodicTask &ap_task) {
       add_edge(get_lock, deal, ptpn);
     }
     // 释放锁的步骤
-    for (int j = (int)(lock_nums - 1); j >= 0; j--) {
+    for (int j = (int)(lock_nums - 1); j >= 0; j--)
+    {
       auto lock_name = ap_task.lock[j];
       auto t = ap_task.time[j];
       vertex_ptpn drop_lock =
@@ -303,10 +361,13 @@ PriorityTimePetriNet::add_ap_node_ptpn(APeriodicTask &ap_task) {
       vertex_ptpn unlocked = add_place(ptpn, task_unlock + lock_name, 0);
       add_edge(task_pt_chain.back(), drop_lock, ptpn);
       add_edge(drop_lock, unlocked, ptpn);
-      if (lock_nums == 1) {
+      if (lock_nums == 1)
+      {
         // add_edge(link, drop_lock, time_petri_net);
         add_edge(unlocked, exec, ptpn);
-      } else if (j == 0) {
+      }
+      else if (j == 0)
+      {
         add_edge(unlocked, exec, ptpn);
       }
       task_pt_chain.push_back(drop_lock);
@@ -326,7 +387,8 @@ PriorityTimePetriNet::add_ap_node_ptpn(APeriodicTask &ap_task) {
 // 对于普通任务或者带周期的任务建模
 // 普通任务和周期任务的区别在于是否有截止时间约束
 pair<vertex_ptpn, vertex_ptpn>
-PriorityTimePetriNet::add_p_node_ptpn(PeriodicTask &p_task) {
+PriorityTimePetriNet::add_p_node_ptpn(PeriodicTask &p_task)
+{
   pair<vertex_ptpn, vertex_ptpn> result;
   string t_name = p_task.name;
   string task_entry = t_name + "entry";
@@ -367,11 +429,15 @@ PriorityTimePetriNet::add_p_node_ptpn(PeriodicTask &p_task) {
   task_pt_chain.push_back(ready);
   result.first = entry;
   result.second = exit;
-  if (p_task.lock.empty()) {
+  if (p_task.lock.empty())
+  {
     add_edge(ready, exec, ptpn);
-  } else {
+  }
+  else
+  {
     int lock_nums = (int)p_task.lock.size();
-    for (int i = 0; i < lock_nums; i++) {
+    for (int i = 0; i < lock_nums; i++)
+    {
       auto lock_name = p_task.lock[i];
       vertex_ptpn get_lock =
           add_transition(ptpn, task_lock.append(lock_name),
@@ -383,7 +449,8 @@ PriorityTimePetriNet::add_p_node_ptpn(PeriodicTask &p_task) {
       add_edge(get_lock, deal, ptpn);
     }
     // 释放锁的步骤
-    for (int j = (lock_nums - 1); j >= 0; j--) {
+    for (int j = (lock_nums - 1); j >= 0; j--)
+    {
       auto lock_name = p_task.lock[j];
       auto t = p_task.time[j];
       vertex_ptpn drop_lock =
@@ -392,9 +459,12 @@ PriorityTimePetriNet::add_p_node_ptpn(PeriodicTask &p_task) {
       vertex_ptpn unlocked = add_place(ptpn, task_unlock + lock_name, 0);
       add_edge(task_pt_chain.back(), drop_lock, ptpn);
       add_edge(drop_lock, unlocked, ptpn);
-      if (lock_nums == 1) {
+      if (lock_nums == 1)
+      {
         add_edge(unlocked, exec, ptpn);
-      } else if (j == 0) {
+      }
+      else if (j == 0)
+      {
         add_edge(unlocked, exec, ptpn);
       }
       task_pt_chain.push_back(drop_lock);
@@ -416,7 +486,8 @@ PriorityTimePetriNet::add_p_node_ptpn(PeriodicTask &p_task) {
 void PriorityTimePetriNet::add_monitor_ptpn(const string &task_name,
                                             int task_period_time,
                                             vertex_ptpn start,
-                                            vertex_ptpn end) {
+                                            vertex_ptpn end)
+{
   // namespace
   string place_deadline = task_name + "deadline";
   string place_timeout = task_name + "timeout";
@@ -463,18 +534,23 @@ void PriorityTimePetriNet::add_monitor_ptpn(const string &task_name,
 void PriorityTimePetriNet::add_preempt_task_ptpn(
     const std::unordered_map<int, vector<string>> &core_task,
     const std::unordered_map<string, TaskConfig> &tc,
-    const std::unordered_map<string, NodeType> &nodes_type) {
-  for (auto c_task : core_task) {
+    const std::unordered_map<string, NodeType> &nodes_type)
+{
+  for (auto c_task : core_task)
+  {
     BOOST_LOG_TRIVIAL(debug) << "core index: " << c_task.first;
     for (auto l_t = c_task.second.begin(); l_t != c_task.second.end() - 1;
-         l_t++) {
+         l_t++)
+    {
       vector<string>::iterator h_t;
       string l_t_name = *l_t;
       TaskConfig l_tc = tc.find(*l_t)->second;
       TaskConfig h_tc = tc.find(*h_t)->second;
-      for (h_t = l_t + 1; h_t != c_task.second.end(); h_t++) {
+      for (h_t = l_t + 1; h_t != c_task.second.end(); h_t++)
+      {
         string h_t_name = *h_t;
-        if (l_tc.priority == h_tc.priority) {
+        if (l_tc.priority == h_tc.priority)
+        {
           continue;
         }
         BOOST_LOG_TRIVIAL(debug) << "priority " << *l_t << ": " << l_tc.priority
@@ -483,7 +559,8 @@ void PriorityTimePetriNet::add_preempt_task_ptpn(
         auto h_t_pns = task_pn_map.find(*h_t);
 
         // 对低优先级的任务的每条执行流进行抢占
-        for (auto l_t_pn : l_t_pns->second) {
+        for (auto l_t_pn : l_t_pns->second)
+        {
           //          NodeType l_t_type = nodes_type.find(*l_t)->second;
           //          NodeType h_t_type = nodes_type.find(*h_t)->second;
 
@@ -528,10 +605,13 @@ void PriorityTimePetriNet::add_preempt_task_ptpn(
                                l_t_pn[task_pn_size - 2], l_t_pn[0],
                                l_t_pn.back(), nodes_type.find(*h_t)->second);
 
-          if (!l_tc.locks.empty()) {
+          if (!l_tc.locks.empty())
+          {
             size_t lock_nums = l_tc.locks.size();
-            for (int i = 0; i < lock_nums; i++) {
-              if (l_tc.locks[i].find("spin") != string::npos) {
+            for (int i = 0; i < lock_nums; i++)
+            {
+              if (l_tc.locks[i].find("spin") != string::npos)
+              {
                 break;
               }
               ptpn[l_t_pn[task_pn_size - 2 - 2 * (i + 1)]].pnt.is_handle = true;
@@ -549,7 +629,8 @@ void PriorityTimePetriNet::add_preempt_task_ptpn(
 
 void PriorityTimePetriNet::create_task_priority(
     const std::string &name, vertex_ptpn preempt_vertex, size_t handle_t,
-    vertex_ptpn start, vertex_ptpn end, NodeType task_type) {
+    vertex_ptpn start, vertex_ptpn end, NodeType task_type)
+{
   ptpn[handle_t].pnt.is_handle = true;
   string task_get = name + "get_core" + std::to_string(node_index);
   string task_ready = name + "ready" + std::to_string(node_index);
@@ -562,7 +643,8 @@ void PriorityTimePetriNet::create_task_priority(
   std::vector<std::vector<vertex_ptpn>> task_preempt_path;
   std::vector<vertex_ptpn> node;
   node.push_back(start);
-  if (holds_alternative<APeriodicTask>(task_type)) {
+  if (holds_alternative<APeriodicTask>(task_type))
+  {
     APeriodicTask task = get<APeriodicTask>(task_type);
     vertex_ptpn get_core = add_transition(
         ptpn, task_get,
@@ -580,11 +662,15 @@ void PriorityTimePetriNet::create_task_priority(
     node.push_back(get_core);
     node.push_back(ready);
 
-    if (task.lock.empty()) {
+    if (task.lock.empty())
+    {
       add_edge(ready, exec, ptpn);
       node_index += 1;
-    } else {
-      for (int j = 0; j < task.lock.size(); j++) {
+    }
+    else
+    {
+      for (int j = 0; j < task.lock.size(); j++)
+      {
         auto lock_name = task.lock[j];
         std::string gl = task_lock + lock_name + to_string(node_index);
         vertex_ptpn get_lock =
@@ -595,7 +681,8 @@ void PriorityTimePetriNet::create_task_priority(
         node.push_back(deal);
         add_edge(get_lock, deal, ptpn);
       }
-      for (int k = (int)(task.lock.size() - 1); k >= 0; k--) {
+      for (int k = (int)(task.lock.size() - 1); k >= 0; k--)
+      {
         auto lock_name = task.lock[k];
         auto t = task.time[k];
         std::string dl = task_drop + lock_name + to_string(node_index);
@@ -604,9 +691,12 @@ void PriorityTimePetriNet::create_task_priority(
         vertex_ptpn unlocked = add_place(ptpn, task_unlock + lock_name, 0);
         add_edge(node.back(), drop_lock, ptpn);
         add_edge(drop_lock, unlocked, ptpn);
-        if (task.lock.size() == 1) {
+        if (task.lock.size() == 1)
+        {
           add_edge(unlocked, exec, ptpn);
-        } else if (k == 0) {
+        }
+        else if (k == 0)
+        {
           add_edge(unlocked, exec, ptpn);
         }
         node.push_back(drop_lock);
@@ -618,7 +708,9 @@ void PriorityTimePetriNet::create_task_priority(
     node.push_back(end);
 
     task_pn_map.find(task.name)->second.push_back(node);
-  } else if (holds_alternative<PeriodicTask>(task_type)) {
+  }
+  else if (holds_alternative<PeriodicTask>(task_type))
+  {
     PeriodicTask task = get<PeriodicTask>(task_type);
     vertex_ptpn get_core = add_transition(
         ptpn, task_get,
@@ -636,11 +728,15 @@ void PriorityTimePetriNet::create_task_priority(
     node.push_back(get_core);
     node.push_back(ready);
 
-    if (task.lock.empty()) {
+    if (task.lock.empty())
+    {
       add_edge(ready, exec, ptpn);
       node_index += 1;
-    } else {
-      for (int j = 0; j < task.lock.size(); j++) {
+    }
+    else
+    {
+      for (int j = 0; j < task.lock.size(); j++)
+      {
         auto lock_name = task.lock[j];
         std::string gl = task_lock + lock_name + to_string(node_index);
         vertex_ptpn get_lock =
@@ -651,7 +747,8 @@ void PriorityTimePetriNet::create_task_priority(
         node.push_back(deal);
         add_edge(get_lock, deal, ptpn);
       }
-      for (int k = (int)(task.lock.size() - 1); k >= 0; k--) {
+      for (int k = (int)(task.lock.size() - 1); k >= 0; k--)
+      {
         auto lock_name = task.lock[k];
         auto t = task.time[k];
         std::string dl = task_drop + lock_name + to_string(node_index);
@@ -660,9 +757,12 @@ void PriorityTimePetriNet::create_task_priority(
         vertex_ptpn unlocked = add_place(ptpn, task_unlock + lock_name, 0);
         add_edge(node.back(), drop_lock, ptpn);
         add_edge(drop_lock, unlocked, ptpn);
-        if (task.lock.size() == 1) {
+        if (task.lock.size() == 1)
+        {
           add_edge(unlocked, exec, ptpn);
-        } else if (k == 0) {
+        }
+        else if (k == 0)
+        {
           add_edge(unlocked, exec, ptpn);
         }
         node.push_back(drop_lock);
@@ -674,7 +774,9 @@ void PriorityTimePetriNet::create_task_priority(
     node.push_back(end);
 
     task_pn_map.find(task.name)->second.push_back(node);
-  } else {
+  }
+  else
+  {
     BOOST_LOG_TRIVIAL(error) << "unreachable!";
   }
 }
