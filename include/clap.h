@@ -2,6 +2,7 @@
 #define CLAP
 
 #include "dag.h"
+// #include "owner_error.h"
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/graph_utility.hpp>
@@ -28,13 +29,8 @@ struct TaskConfig {
   vector<string> locks;
 };
 
-// 任务类型, 后续扩展
-enum TaskType {
-  Task,
-  InterTask,
-};
 // 节点类型的枚举，区别于结构体枚举，仅为后续区分, TASK包含周期任务和一般任务
-enum VertexType { TASK, INTERRUPT, SYNC, DIST, EMPTY };
+enum VertexType { TASK, SYNC, DIST, EMPTY };
 // 边的枚举, 不同节点类型
 enum EdgeType {
 
@@ -62,6 +58,8 @@ public:
   std::unordered_map<string, VertexType> vertexes_type;
   // 每个节点的名字和其属性的映射
   std::unordered_map<string, NodeType> nodes_type;
+  // 任务节点的名字和其类型的映射
+  std::unordered_map<string, TaskType> tasks_type;
   // 节点名字和其 vertex_index 的映射
   std::unordered_map<string, graph_traits<TDG_RAP>::vertex_descriptor>
       vertex_index;
@@ -78,7 +76,7 @@ public:
   void parse_tdg();
 
   // 解析 vertex 的 label 属性
-  NodeType parse_vertex_label(const string label);
+  NodeType parse_vertex_label(const string &label);
   // 解析 time 数组中的每个时间区间
   static vector<int> parse_time_vec(string times);
 

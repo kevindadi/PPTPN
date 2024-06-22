@@ -25,11 +25,9 @@ void PriorityTimePetriNet::init() {
   ptpn_dp.property("name", gname_pn);
 }
 
-// 转换主函数
-// 首先对所有节点进行转换
-// 然后绑定每个任务的 CPU
-// 根据优先级,建立抢占变迁
-// 绑定锁
+/// \brief 转换主函数, 首先对所有节点进行转换,然后绑定每个任务的 CPU
+//// 根据优先级,建立抢占变迁, 绑定锁
+/// \param tdg
 void PriorityTimePetriNet::transform_tdg_to_ptpn(TDG &tdg) {
   BOOST_FOREACH (TDG_RAP::vertex_descriptor v, vertices(tdg.tdg)) {
     // 根据保存用的类型进行转换
@@ -65,12 +63,14 @@ void PriorityTimePetriNet::transform_tdg_to_ptpn(TDG &tdg) {
   }
   add_cpu_resource(6);
   add_lock_resource(tdg.lock_set);
+  // add_preempt_task_ptpn();
   task_bind_cpu_resource(tdg.all_task);
   task_bind_lock_resource(tdg.all_task, tdg.task_locks_map);
   BOOST_LOG_TRIVIAL(info) << "petri net P+T num: " << boost::num_vertices(ptpn);
   BOOST_LOG_TRIVIAL(info) << "petri net F num: " << boost::num_edges(ptpn);
 }
 
+/// 为锁资源创建库所
 void PriorityTimePetriNet::add_lock_resource(const set<string> &locks_name) {
   if (locks_name.empty()) {
     BOOST_LOG_TRIVIAL(info) << "TDG_RAP without locks!";
@@ -84,11 +84,12 @@ void PriorityTimePetriNet::add_lock_resource(const set<string> &locks_name) {
   BOOST_LOG_TRIVIAL(info) << "create lock resource!";
 }
 
+/// 为处理器资源创建库所
 void PriorityTimePetriNet::add_cpu_resource(int nums) {
   for (int i = 0; i < nums; i++) {
     string cpu_name = "core" + std::to_string(i);
     // vertex_tpn c = add_vertex(PetriNetElement{core_name, core_name, "circle",
-    // 1}, time_petri_net);
+    // 1}, ptpn);
     PTPNVertex cpu_place = {cpu_name, 1};
     vertex_ptpn c = add_vertex(cpu_place, ptpn);
     cpus_place.push_back(c);
@@ -96,7 +97,7 @@ void PriorityTimePetriNet::add_cpu_resource(int nums) {
   BOOST_LOG_TRIVIAL(info) << "create core resource!";
 }
 
-// 根据任务类型绑定不同位置的 CPU
+/// 根据任务类型绑定不同位置的 CPU
 void PriorityTimePetriNet::task_bind_cpu_resource(vector<NodeType> &all_task) {
   for (const auto &task : all_task) {
     if (holds_alternative<APeriodicTask>(task)) {
@@ -104,7 +105,7 @@ void PriorityTimePetriNet::task_bind_cpu_resource(vector<NodeType> &all_task) {
       int cpu_index = ap_task.core;
       auto task_pt_chains = node_pn_map.find(ap_task.name)->second;
       // Random -> Trigger -> Start -> Get CPU -> Run -> Drop CPU -> End
-      add_edge(cpus_place[cpu_index], task_pt_chains[3], ptpn);
+      add_edge(cpus_place[cpu_index], task_pt_chains[1], ptpn);
       add_edge(task_pt_chains[task_pt_chains.size() - 2], cpus_place[cpu_index],
                ptpn);
     } else if (holds_alternative<PeriodicTask>(task)) {
@@ -121,7 +122,7 @@ void PriorityTimePetriNet::task_bind_cpu_resource(vector<NodeType> &all_task) {
   }
 }
 
-// 根据任务种锁的数量和类型绑定
+/// 根据任务种锁的数量和类型绑定
 void PriorityTimePetriNet::task_bind_lock_resource(
     vector<NodeType> &all_task, std::map<string, vector<string>> &task_locks) {
   for (const auto &task : all_task) {
@@ -138,7 +139,7 @@ void PriorityTimePetriNet::task_bind_lock_resource(
           for (int i = 0; i < lock_nums; i++) {
             // 按照锁的次序获得锁的类型
             std::string lock_type = ap_task.lock[i];
-            vertex_ptpn get_lock = task_pt_chain[(5 + 2 * i)];
+            vertex_ptpn get_lock = task_pt_chain[(3 + 2 * i)];
             vertex_ptpn drop_lock =
                 task_pt_chain[(task_pt_chain.size() - 4 - 2 * i)];
             vertex_ptpn lock = locks_place.find(lock_type)->second;
@@ -175,8 +176,8 @@ void PriorityTimePetriNet::task_bind_lock_resource(
   }
 }
 
-// 映射规则主函数,包含不同类型,便于之后扩展
-// 根据不同类型进行相应的转换,并返回转换后的开始和结束节点,以进行前后链接
+/// 映射规则主函数,包含不同类型,便于之后扩展
+/// 根据不同类型进行相应的转换,并返回转换后的开始和结束节点,以进行前后链接
 pair<vertex_ptpn, vertex_ptpn>
 PriorityTimePetriNet::add_node_ptpn(NodeType node_type) {
 
@@ -202,8 +203,7 @@ PriorityTimePetriNet::add_node_ptpn(NodeType node_type) {
                        PTPNTransition{100, make_pair(0, 0), INT_MAX});
     node_index += 1;
     node_start_end_map.insert(make_pair(t_name, make_pair(result, result)));
-    BOOST_LOG_TRIVIAL(info) << t_name << ": "
-                            << "type: SYNC";
+    BOOST_LOG_TRIVIAL(info) << t_name << ": " << "type: SYNC";
   } else if (holds_alternative<DistTask>(node_type)) {
     DistTask ap_task = get<DistTask>(node_type);
     string t_name = ap_task.name;
@@ -212,24 +212,22 @@ PriorityTimePetriNet::add_node_ptpn(NodeType node_type) {
                        PTPNTransition{100, make_pair(0, 0), INT_MAX});
     node_index += 1;
     node_start_end_map.insert(make_pair(t_name, make_pair(result, result)));
-    BOOST_LOG_TRIVIAL(info) << t_name << ": "
-                            << "type: DIST";
+    BOOST_LOG_TRIVIAL(info) << t_name << ": " << "type: DIST";
   } else {
     EmptyTask ap_task = get<EmptyTask>(node_type);
     string t_name = ap_task.name;
     vertex_ptpn result = add_place(ptpn, "Empty" + to_string(node_index), 0);
     node_index += 1;
     node_start_end_map.insert(make_pair(t_name, make_pair(result, result)));
-    BOOST_LOG_TRIVIAL(info) << t_name << ": "
-                            << "type: EMPTY";
+    BOOST_LOG_TRIVIAL(info) << t_name << ": " << "type: EMPTY";
   }
 }
 
-// 针对非周期的偶发任务和中断任务建模
+/// 针对非周期的偶发任务和中断任务建模
 pair<vertex_ptpn, vertex_ptpn>
-PriorityTimePetriNet::add_ap_node_ptpn(APeriodicTask &ap_task) {
+PriorityTimePetriNet::add_p_node_ptpn(PeriodicTask &p_task) {
   pair<vertex_ptpn, vertex_ptpn> result;
-  string t_name = ap_task.name;
+  string t_name = p_task.name;
   string task_random_period = t_name + "random";
   string task_fire = t_name + "fire";
   string task_entry = t_name + "entry";
@@ -246,15 +244,15 @@ PriorityTimePetriNet::add_ap_node_ptpn(APeriodicTask &ap_task) {
   vector<vertex_ptpn> task_pt_chain;
   vector<vector<vertex_ptpn>> task_pt_chains;
   // 任务属性结构
-  int task_priority = ap_task.priority;
-  int task_core = ap_task.core;
+  int task_priority = p_task.priority;
+  int task_core = p_task.core;
   // 任务临界区外执行时间
-  auto task_exec_time = ap_task.time[(ap_task.time.size() - 1)];
+  auto task_exec_time = p_task.time[(p_task.time.size() - 1)];
 
   vertex_ptpn random = add_place(ptpn, task_random_period, 1);
   vertex_ptpn fire = add_transition(
       ptpn, task_fire,
-      PTPNTransition{task_priority, make_pair(0, ap_task.period), task_core});
+      PTPNTransition{task_priority, p_task.period_time, task_core});
   vertex_ptpn entry = add_place(ptpn, task_entry, 0);
   vertex_ptpn get_core = add_transition(
       ptpn, task_get,
@@ -276,14 +274,14 @@ PriorityTimePetriNet::add_ap_node_ptpn(APeriodicTask &ap_task) {
   task_pt_chain.push_back(entry);
   task_pt_chain.push_back(get_core);
   task_pt_chain.push_back(ready);
-  result.first = random;
+  result.first = entry;
   result.second = exit;
-  if (ap_task.lock.empty()) {
+  if (p_task.lock.empty()) {
     add_edge(ready, exec, ptpn);
   } else {
-    size_t lock_nums = ap_task.lock.size();
+    size_t lock_nums = p_task.lock.size();
     for (int i = 0; i < lock_nums; i++) {
-      auto lock_name = ap_task.lock[i];
+      auto lock_name = p_task.lock[i];
       vertex_ptpn get_lock =
           add_transition(ptpn, task_lock.append(lock_name),
                          PTPNTransition{task_priority, {0, 0}, task_core});
@@ -295,8 +293,8 @@ PriorityTimePetriNet::add_ap_node_ptpn(APeriodicTask &ap_task) {
     }
     // 释放锁的步骤
     for (int j = (int)(lock_nums - 1); j >= 0; j--) {
-      auto lock_name = ap_task.lock[j];
-      auto t = ap_task.time[j];
+      auto lock_name = p_task.lock[j];
+      auto t = p_task.time[j];
       vertex_ptpn drop_lock =
           add_transition(ptpn, task_drop.append(lock_name),
                          PTPNTransition{task_priority, t, task_core});
@@ -304,7 +302,7 @@ PriorityTimePetriNet::add_ap_node_ptpn(APeriodicTask &ap_task) {
       add_edge(task_pt_chain.back(), drop_lock, ptpn);
       add_edge(drop_lock, unlocked, ptpn);
       if (lock_nums == 1) {
-        // add_edge(link, drop_lock, time_petri_net);
+        // add_edge(link, drop_lock, ptpn);
         add_edge(unlocked, exec, ptpn);
       } else if (j == 0) {
         add_edge(unlocked, exec, ptpn);
@@ -323,12 +321,12 @@ PriorityTimePetriNet::add_ap_node_ptpn(APeriodicTask &ap_task) {
   return result;
 }
 
-// 对于普通任务或者带周期的任务建模
-// 普通任务和周期任务的区别在于是否有截止时间约束
+/// 对于普通任务或者带周期的任务建模
+/// 普通任务和周期任务的区别在于是否有截止时间约束
 pair<vertex_ptpn, vertex_ptpn>
-PriorityTimePetriNet::add_p_node_ptpn(PeriodicTask &p_task) {
+PriorityTimePetriNet::add_ap_node_ptpn(APeriodicTask &ap_task) {
   pair<vertex_ptpn, vertex_ptpn> result;
-  string t_name = p_task.name;
+  string t_name = ap_task.name;
   string task_entry = t_name + "entry";
   string task_get = t_name + "get_core";
   string task_ready = t_name + "ready";
@@ -343,10 +341,10 @@ PriorityTimePetriNet::add_p_node_ptpn(PeriodicTask &p_task) {
   vector<vertex_ptpn> task_pt_chain;
   vector<vector<vertex_ptpn>> task_pt_chains;
   // 任务属性结构
-  int task_priority = p_task.priority;
-  int task_core = p_task.core;
+  int task_priority = ap_task.priority;
+  int task_core = ap_task.core;
   // 任务临界区外执行时间
-  auto task_exec_time = p_task.time[(p_task.time.size() - 1)];
+  auto task_exec_time = ap_task.time[(ap_task.time.size() - 1)];
 
   vertex_ptpn entry = add_place(ptpn, task_entry, 0);
   vertex_ptpn get_core = add_transition(
@@ -367,12 +365,12 @@ PriorityTimePetriNet::add_p_node_ptpn(PeriodicTask &p_task) {
   task_pt_chain.push_back(ready);
   result.first = entry;
   result.second = exit;
-  if (p_task.lock.empty()) {
+  if (ap_task.lock.empty()) {
     add_edge(ready, exec, ptpn);
   } else {
-    int lock_nums = (int)p_task.lock.size();
+    int lock_nums = (int)ap_task.lock.size();
     for (int i = 0; i < lock_nums; i++) {
-      auto lock_name = p_task.lock[i];
+      auto lock_name = ap_task.lock[i];
       vertex_ptpn get_lock =
           add_transition(ptpn, task_lock.append(lock_name),
                          PTPNTransition{task_priority, {0, 0}, task_core});
@@ -384,8 +382,8 @@ PriorityTimePetriNet::add_p_node_ptpn(PeriodicTask &p_task) {
     }
     // 释放锁的步骤
     for (int j = (lock_nums - 1); j >= 0; j--) {
-      auto lock_name = p_task.lock[j];
-      auto t = p_task.time[j];
+      auto lock_name = ap_task.lock[j];
+      auto t = ap_task.time[j];
       vertex_ptpn drop_lock =
           add_transition(ptpn, task_drop.append(lock_name),
                          PTPNTransition{task_priority, t, task_core});
@@ -411,8 +409,8 @@ PriorityTimePetriNet::add_p_node_ptpn(PeriodicTask &p_task) {
   return result;
 }
 
-// 增加看门狗子网结构,只链接每个周期任务的开始和结束节点
-// 检测每个路径(包括抢占路径)的任务执行流
+/// 增加看门狗子网结构,只链接每个周期任务的开始和结束节点
+/// 检测每个路径(包括抢占路径)的任务执行流
 void PriorityTimePetriNet::add_monitor_ptpn(const string &task_name,
                                             int task_period_time,
                                             vertex_ptpn start,
@@ -457,9 +455,13 @@ void PriorityTimePetriNet::add_monitor_ptpn(const string &task_name,
   add_edge(task_timed, task_deadline, ptpn);
 }
 
-// 为每个任务添加抢占的执行序列
-// 根据任务的分配的处理器资源,对每个处理器上的任务从低优先级开始 (t1, t2,
-// t3,...) t2 抢占 t1, t3 抢占 t1 和 t2,以此类推
+/// \brief
+/// 为每个任务添加抢占的执行序列,根据任务的分配的处理器资源,对每个处理器上的任务从低优先级开始
+/// (t1, t2,
+///  t3,...) t2 抢占 t1, t3 抢占 t1 和 t2,以此类推
+/// \param core_task 分配到同一处理器的任务名称数组
+/// \param tc 任务属性映射
+/// \param nodes_type 任务类型映射
 void PriorityTimePetriNet::add_preempt_task_ptpn(
     const std::unordered_map<int, vector<string>> &core_task,
     const std::unordered_map<string, TaskConfig> &tc,
@@ -477,56 +479,52 @@ void PriorityTimePetriNet::add_preempt_task_ptpn(
         if (l_tc.priority == h_tc.priority) {
           continue;
         }
-        BOOST_LOG_TRIVIAL(debug) << "priority " << *l_t << ": " << l_tc.priority
-                                 << *h_t << ": " << h_tc.priority;
         auto l_t_pns = task_pn_map.find(*l_t);
         auto h_t_pns = task_pn_map.find(*h_t);
+        vector<vertex_ptpn> h_t_pn = h_t_pns->second[0];
+        // 需要判断抢占和被抢占任务的类型
+        NodeType node_type = nodes_type.at(h_t_name);
+        if (holds_alternative<PeriodicTask>(node_type)) {
+          PeriodicTask p_task = get<PeriodicTask>(node_type);
+          if (p_task.task_type == TaskType::INTERRUPT) {
+            // 如果是中断任务，就要多建立执行序列
+            // 对低优先级的任务的每条执行流进行抢占
+            for (auto l_t_pn : l_t_pns->second) {
+              // 如果高优先级任务不是中断,执行 hlf 抢占, 否则, 执行 lgj 抢占
+              int task_pn_size = l_t_pn.size();
+              ptpn[l_t_pn[task_pn_size - 2]].pnt.is_handle = true;
+              create_task_priority(
+                  h_t_name, l_t_pn[task_pn_size - 3], l_t_pn[task_pn_size - 2],
+                  l_t_pn[0], l_t_pn.back(), nodes_type.find(*h_t)->second);
 
-        // 对低优先级的任务的每条执行流进行抢占
+              if (!l_tc.locks.empty()) {
+                size_t lock_nums = l_tc.locks.size();
+                for (int i = 0; i < lock_nums; i++) {
+                  if (l_tc.locks[i].find("spin") != string::npos) {
+                    break;
+                  }
+                  ptpn[l_t_pn[task_pn_size - 2 - 2 * (i + 1)]].pnt.is_handle =
+                      true;
+                  create_task_priority(
+                      h_t_name, l_t_pn[task_pn_size - 3 - 2 * (i + 1)],
+                      l_t_pn[task_pn_size - 2 - 2 * (i + 1)], l_t_pn[0],
+                      l_t_pn.back(), nodes_type.find(*h_t)->second);
+                }
+              }
+            }
+            // 处理中断任务的抢占序列后返回上一层 for
+            // 循环,下面继续处理非中断抢占
+            continue;
+          }
+        }
+
         for (auto l_t_pn : l_t_pns->second) {
-          //          NodeType l_t_type = nodes_type.find(*l_t)->second;
-          //          NodeType h_t_type = nodes_type.find(*h_t)->second;
-
-          //          if (holds_alternative<APeriodicTask>(l_t_type)) {
-          //            auto l_t_task = get<APeriodicTask>(l_t_type);
-          //            if (holds_alternative<PeriodicTask>(h_t_type)) {
-          //              auto h_t_task = get<PeriodicTask>(h_t_type);
-          //              if (l_t_task.lock.empty()) {
-          //                ptpn[l_t_pn[3]].pnt.is_handle = true;
-          //                create_task_priority(l_t_name, l_t_pn[2], l_t_pn[3],
-          //                l_t_pn[0],
-          //                                     l_t_pn.back(), h_t_task);
-          //              } else {
-          //                int locks_num = (int)l_t_task.lock.size();
-          //                for (int i = 0; i <= locks_num; i++) {
-          //                  ptpn[l_t_pn[locks_num - (2 * i)]].pnt.is_handle =
-          //                  true; create_task_priority(h_t_name, l_t_pn[2],
-          //                  l_t_pn[3], l_t_pn[0],
-          //                                       l_t_pn.back(), h_t_task);
-          //                }
-          //              }
-          //
-          //            } else if (holds_alternative<APeriodicTask>(h_t_type)) {
-          //
-          //            } else {
-          //              BOOST_LOG_TRIVIAL(error) << "unreachable!";
-          //            }
-          //          } else if (holds_alternative<PeriodicTask>(l_t_type)) {
-          //            if (holds_alternative<APeriodicTask>(h_t_type)) {
-          //
-          //            } else if (holds_alternative<PeriodicTask>(h_t_type)) {
-          //
-          //            } else {
-          //              BOOST_LOG_TRIVIAL(error) << "unreachable!";
-          //            }
-          //          } else {
-          //            BOOST_LOG_TRIVIAL(error) << "unreachable!";
-          //          }
+          // 如果高优先级任务不是中断,执行 hlf 抢占, 否则, 执行 lgj 抢占
           int task_pn_size = l_t_pn.size();
           ptpn[l_t_pn[task_pn_size - 2]].pnt.is_handle = true;
-          create_task_priority(l_t_name, l_t_pn[task_pn_size - 3],
-                               l_t_pn[task_pn_size - 2], l_t_pn[0],
-                               l_t_pn.back(), nodes_type.find(*h_t)->second);
+          create_hlf_task_priority(
+              h_t_name, l_t_pn[task_pn_size - 3], l_t_pn[task_pn_size - 2],
+              h_t_pn[0], l_t_pn[0], h_t_pn[2], h_tc.priority, h_tc.core);
 
           if (!l_tc.locks.empty()) {
             size_t lock_nums = l_tc.locks.size();
@@ -535,18 +533,27 @@ void PriorityTimePetriNet::add_preempt_task_ptpn(
                 break;
               }
               ptpn[l_t_pn[task_pn_size - 2 - 2 * (i + 1)]].pnt.is_handle = true;
-              create_task_priority(
-                  l_t_name, l_t_pn[task_pn_size - 3 - 2 * (i + 1)],
-                  l_t_pn[task_pn_size - 2 - 2 * (i + 1)], l_t_pn[0],
-                  l_t_pn.back(), nodes_type.find(*h_t)->second);
+              create_hlf_task_priority(
+                  h_t_name, l_t_pn[task_pn_size - 3 - 2 * (i + 1)],
+                  l_t_pn[task_pn_size - 2 - 2 * (i + 1)], h_t_pn[0], l_t_pn[0],
+                  h_t_pn[2], h_tc.priority, h_tc.core);
             }
           }
         }
+        BOOST_LOG_TRIVIAL(debug) << "priority " << *l_t << ": " << l_tc.priority
+                                 << *h_t << ": " << h_tc.priority;
       }
     }
   }
 }
 
+/// \brief 根据软件学报论文创建抢占变迁
+/// \param name 高优先级任务的名字
+/// \param preempt_vertex 发生抢占的库所
+/// \param handle_t 可挂起的变迁
+/// \param start 高优先级的开始库所
+/// \param end 高优先级的结束库所
+/// \param task_type 高优先级任务类型
 void PriorityTimePetriNet::create_task_priority(
     const std::string &name, vertex_ptpn preempt_vertex, size_t handle_t,
     vertex_ptpn start, vertex_ptpn end, NodeType task_type) {
@@ -676,5 +683,456 @@ void PriorityTimePetriNet::create_task_priority(
     task_pn_map.find(task.name)->second.push_back(node);
   } else {
     BOOST_LOG_TRIVIAL(error) << "unreachable!";
+  }
+}
+
+/// \brief 根据 ACM 论文创建的抢占变迁
+/// \param name 高优先级任务的名字
+/// \param preempt_vertex 发生抢占的库所
+/// \param handle_t 可挂起的变迁
+/// \param h_start 高优先级任务的开始库所
+/// \param l_start 低优先级任务的开始库所
+/// \param h_ready 高优先级任务获得处理器资源后的库所
+/// \param task_priority 高优先级任务的优先级
+/// \param task_core 高优先级任务的处理器资源
+void PriorityTimePetriNet::create_hlf_task_priority(
+    const std::string &name, vertex_ptpn preempt_vertex, size_t handle_t,
+    vertex_ptpn h_start, vertex_ptpn l_start, vertex_ptpn h_ready,
+    int task_priority, int task_core) {
+  ptpn[handle_t].pnt.is_handle = true;
+  string task_get = name + "get_core" + std::to_string(node_index);
+
+  vertex_ptpn get_core = add_transition(
+      ptpn, task_get,
+      PTPNTransition{task_priority, std::make_pair(0, 0), task_core});
+
+  add_edge(h_start, get_core, ptpn);
+  add_edge(preempt_vertex, get_core, ptpn);
+  add_edge(get_core, h_ready, ptpn);
+  add_edge(get_core, l_start, ptpn);
+
+  node_index += 1;
+}
+
+StateClass PriorityTimePetriNet::get_initial_state_class() {
+  BOOST_LOG_TRIVIAL(info) << "get_initial_state_class";
+  Marking initial_markings;
+  //  std::set<std::size_t> h_t,H_t;
+  //  std::unordered_map<size_t, int> enabled_t_time;
+  std::set<T_wait> all_t;
+  boost::graph_traits<PTPN>::vertex_iterator vi, vi_end;
+  boost::graph_traits<PTPN>::in_edge_iterator in_i, in_end;
+  for (boost::tie(vi, vi_end) = boost::vertices(ptpn); vi != vi_end; ++vi) {
+    if (ptpn[*vi].shape == "circle") {
+      if (ptpn[*vi].token == 1) {
+        initial_markings.indexes.insert(index(*vi));
+        initial_markings.labels.insert(ptpn[*vi].label);
+      }
+    } else {
+      bool flag = true;
+      for (boost::tie(in_i, in_end) = boost::in_edges(*vi, ptpn);
+           in_i != in_end; ++in_i) {
+        auto source_vertex = source(*in_i, ptpn);
+        if (ptpn[source_vertex].token == 0) {
+          flag = false;
+          break;
+        }
+      }
+      if (flag) {
+        //        if (ptpn[*vi].pnt.is_handle) {
+        //          H_t.insert(index(*vi));
+        //          enabled_t_time.insert(std::make_pair(index(*vi), 0));
+        //        } else {
+        //          h_t.insert(index(*vi));
+        //          enabled_t_time.insert(std::make_pair(index(*vi), 0));
+        //        }
+
+        all_t.insert({*vi, 0});
+      }
+    }
+  }
+  return StateClass{initial_markings, all_t};
+}
+
+void PriorityTimePetriNet::generate_state_class() {
+  BOOST_LOG_TRIVIAL(info) << "Generating state class";
+  auto pt_a = chrono::steady_clock::now();
+  queue<StateClass> q;
+  q.push(initial_state_class);
+  scg.insert(initial_state_class);
+
+  std::string vertex_label = initial_state_class.to_scg_vertex();
+  ScgVertexD v_id =
+      boost::add_vertex(SCGVertex{vertex_label}, state_class_graph.scg);
+  state_class_graph.scg_vertex_map.insert(
+      std::make_pair(initial_state_class, v_id));
+  int i = 0;
+  while (!q.empty()) {
+    StateClass s = q.front();
+    q.pop();
+    ScgVertexD prev_vertex = state_class_graph.add_scg_vertex(s);
+
+    std::vector<SchedT> sched_t = get_sched_t(s);
+
+    for (auto &t : sched_t) {
+      StateClass new_state = fire_transition(s, t);
+      std::cout << i << std::endl;
+      ++i;
+      // BOOST_LOG_TRIVIAL(info) << "new state: ";
+      // new_state.print_current_mark();
+      if (scg.find(new_state) != scg.end()) {
+
+      } else {
+        scg.insert(new_state);
+        q.push(new_state);
+        new_state.print_current_state();
+      }
+
+      auto succ_vertex = state_class_graph.add_scg_vertex(new_state);
+      SCGEdge scg_e = {std::to_string(t.time.first)
+                           .append(":")
+                           .append(std::to_string(t.time.second))};
+      boost::add_edge(prev_vertex, succ_vertex, scg_e, state_class_graph.scg);
+    }
+    //    if (sec.count() >= timeout) {
+    //        break;
+    //    }
+  }
+  chrono::duration<double> sec = chrono::steady_clock::now() - pt_a;
+  BOOST_LOG_TRIVIAL(info) << "Generate SCG Time(s): " << sec.count();
+  BOOST_LOG_TRIVIAL(info) << "SCG NUM: " << scg.size();
+  BOOST_LOG_TRIVIAL(info) << "SYSTEM NO DEADLOCK!";
+  state_class_graph.write_to_dot("out.dot");
+}
+
+std::vector<SchedT> PriorityTimePetriNet::get_sched_t(StateClass &state) {
+  BOOST_LOG_TRIVIAL(debug) << "get sched t";
+  set_state_class(state);
+  // 获得使能的变迁
+  std::vector<vertex_ptpn> enabled_t_s;
+  std::vector<SchedT> sched_T;
+  boost::graph_traits<PTPN>::vertex_iterator vi, vi_end;
+  boost::graph_traits<PTPN>::in_edge_iterator in_i, in_end;
+  for (boost::tie(vi, vi_end) = vertices(ptpn); vi != vi_end; ++vi) {
+    bool enable_t = true;
+    if (ptpn[*vi].shape == "circle") {
+      continue;
+    } else {
+      for (boost::tie(in_i, in_end) = in_edges(*vi, ptpn); in_i != in_end;
+           ++in_i) {
+        auto source_vertex = source(*in_i, ptpn);
+        if (ptpn[source_vertex].token == 0) {
+          enable_t = false;
+          break;
+        }
+      }
+      if (enable_t)
+        enabled_t_s.push_back(vertex(*vi, ptpn));
+    }
+  }
+
+  if (enabled_t_s.empty()) {
+    return {};
+  }
+
+  // 遍历这些变迁,找到符合发生区间的变迁集合
+  std::pair<int, int> fire_time = {INT_MAX, INT_MAX};
+  for (auto t : enabled_t_s) {
+    // 如果等待时间已超过最短发生时间
+    int f_min = ptpn[t].pnt.const_time.first - ptpn[t].pnt.runtime;
+    if (f_min < 0) {
+      f_min = 0;
+    }
+    int f_max = ptpn[t].pnt.const_time.second - ptpn[t].pnt.runtime;
+    fire_time.first = (f_min < fire_time.first) ? f_min : fire_time.first;
+    fire_time.second = (f_max < fire_time.second) ? f_max : fire_time.second;
+  }
+  if ((fire_time.first < 0) && (fire_time.second < 0)) {
+    // BOOST_LOG_TRIVIAL(error) << "fire time not leq zero";
+  }
+  // find transition which satifies the time domain
+  std::pair<int, int> sched_time = {0, 0};
+  int s_h, s_l;
+  for (auto t : enabled_t_s) {
+    int t_min = ptpn[t].pnt.const_time.first - ptpn[t].pnt.runtime;
+    if (t_min < 0) {
+      t_min = 0;
+    }
+    int t_max = ptpn[t].pnt.const_time.second - ptpn[t].pnt.runtime;
+    if (t_min > fire_time.second) {
+
+      sched_time = fire_time;
+    } else if (t_max > fire_time.second) {
+      // transition's max go beyond time_d
+      if (t_min >= fire_time.first) {
+        sched_time = {t_min, fire_time.second};
+      } else {
+        BOOST_LOG_TRIVIAL(error) << "the time_d min value is error";
+      }
+    } else {
+      if (t_min >= fire_time.first) {
+        sched_time = {t_min, t_max};
+      } else {
+        BOOST_LOG_TRIVIAL(error) << "the time_d min value is error";
+      }
+    }
+
+    sched_T.push_back(SchedT{t, sched_time});
+  }
+
+  // 删除优先级
+  auto s_it = sched_T.begin();
+  while (s_it != sched_T.end()) {
+    auto next = s_it + 1;
+    while (next != sched_T.end()) {
+      if ((ptpn[(*s_it).t].pnt.priority > ptpn[(*next).t].pnt.priority) &&
+          (ptpn[(*s_it).t].pnt.c == ptpn[(*next).t].pnt.c)) {
+        sched_T.erase(next);
+        next = s_it + 1;
+      } else {
+        ++next;
+      }
+    }
+    ++s_it;
+  }
+  //  std::vector<int> erase_index;
+  //  for (int i = 0; i < sched_T.size() - 1; i++) {
+  //    for (int j = 1; j < sched_T.size(); j++) {
+  //      if ((ptpn[sched_T[i].t].pnt.priority <
+  //      ptpn[sched_T[j].t].pnt.priority) &&
+  //            (ptpn[sched_T[i].t].pnt.c == ptpn[sched_T[j].t].pnt.c)) {
+  //        erase_index.push_back(i);
+  //        }
+  //    }
+  //  }
+  //  // 遍历要删除的下标集合
+  //  for (auto it = erase_index.rbegin(); it != erase_index.rend(); ++it) {
+  //    auto index_i = *it;
+  //    auto pos = sched_T.begin() + index_i; // 获取对应元素的迭代器
+  //    // 如果该变迁为可挂起变迁,记录已等待时间
+  //    //    if (ptpn[sched_T[*pos].t].pnt.is_handle) {
+  //    //    }
+  //    sched_T.erase(pos); // 移除该元素
+  //  }
+  for (auto d : sched_T) {
+    BOOST_LOG_TRIVIAL(debug) << ptpn[d.t].label;
+  }
+
+  return sched_T;
+}
+
+StateClass PriorityTimePetriNet::fire_transition(const StateClass &sc,
+                                                 SchedT transition) {
+  BOOST_LOG_TRIVIAL(debug) << "fire_transition: " << transition.t;
+  // reset!
+  set_state_class(sc);
+  // fire transition
+  // 1. 首先获取所有可调度变迁
+  std::vector<std::size_t> enabled_t, old_enabled_t;
+  boost::graph_traits<PTPN>::vertex_iterator vi, vi_end;
+  boost::graph_traits<PTPN>::in_edge_iterator in_i, in_end;
+  for (boost::tie(vi, vi_end) = vertices(ptpn); vi != vi_end; ++vi) {
+    bool enable_t = true;
+    if (ptpn[*vi].shape == "circle") {
+      continue;
+    } else {
+      for (boost::tie(in_i, in_end) = in_edges(*vi, ptpn); in_i != in_end;
+           ++in_i) {
+        auto source_vertex = source(*in_i, ptpn);
+        if (ptpn[source_vertex].token == 0) {
+          enable_t = false;
+          break;
+        }
+      }
+      if (enable_t)
+        enabled_t.push_back(vertex(*vi, ptpn));
+      old_enabled_t.push_back(vertex(*vi, ptpn));
+    }
+  }
+
+  // 删除优先级
+  auto s_it = enabled_t.begin();
+  while (s_it != enabled_t.end()) {
+    auto next = s_it + 1;
+    while (next != enabled_t.end()) {
+      if ((ptpn[(*s_it)].pnt.priority > ptpn[(*next)].pnt.priority) &&
+          (ptpn[(*s_it)].pnt.c == ptpn[(*next)].pnt.c)) {
+        enabled_t.erase(next);
+        next = s_it + 1;
+      } else {
+        ++next;
+      }
+    }
+    ++s_it;
+  }
+  //  std::vector<int> erase_index;
+  //  for (int i = 0; i < enabled_t.size() - 1; i++) {
+  //    for (int j = 1; j < enabled_t.size(); j++) {
+  //        if ((ptpn[enabled_t[i]].pnt.priority <
+  //        ptpn[enabled_t[j]].pnt.priority) &&
+  //            (ptpn[enabled_t[i]].pnt.c == ptpn[enabled_t[j]].pnt.c)) {
+  //        erase_index.push_back(i);
+  //        }
+  //    }
+  //  }
+  //  // 遍历要删除的下标集合
+  //  for (auto it = erase_index.rbegin(); it != erase_index.rend(); ++it) {
+  //    auto index_i = *it;
+  //    auto pos = enabled_t.begin() + index_i;  // 获取对应元素的迭代器
+  //    // 如果该变迁为可挂起变迁,记录已等待时间
+  //    //    if (ptpn[sched_T[*pos].t].pnt.is_handle) {
+  //    //    }
+  //    enabled_t.erase(pos);  // 移除该元素
+  //  }
+  // 2. 将除发生变迁外的使能时间+状态转移时间
+  for (auto t : enabled_t) {
+    if (transition.time.second == transition.time.first) {
+      ptpn[t].pnt.runtime += transition.time.first;
+    } else {
+      ptpn[t].pnt.runtime += (transition.time.second - transition.time.first);
+    }
+  }
+  ptpn[transition.t].pnt.runtime = 0;
+  // 3. 发生该变迁
+  Marking new_mark;
+  //  std::set<std::size_t> h_t, H_t;
+  //  std::unordered_map<std::size_t, int> time;
+  std::set<T_wait> all_t;
+  // 发生变迁的前置集为 0
+  for (boost::tie(in_i, in_end) = in_edges(transition.t, ptpn); in_i != in_end;
+       ++in_i) {
+    vertex_ptpn place = source(*in_i, ptpn);
+    if (ptpn[place].token < 0) {
+      BOOST_LOG_TRIVIAL(error)
+          << "place token <= 0, the transition not enabled";
+    } else {
+      ptpn[place].token = 0;
+    }
+  }
+  // 发生变迁的后继集为 1
+  typename boost::graph_traits<PTPN>::out_edge_iterator out_i, out_end;
+  for (boost::tie(out_i, out_end) = out_edges(transition.t, ptpn);
+       out_i != out_end; ++out_i) {
+    vertex_ptpn place = target(*out_i, ptpn);
+    if (ptpn[place].token > 1) {
+      BOOST_LOG_TRIVIAL(error)
+          << "safe petri net, the place not increment >= 1";
+    } else {
+      ptpn[place].token = 1;
+    }
+  }
+  // 4.获取新的标识
+  std::vector<std::size_t> new_enabled_t;
+  for (boost::tie(vi, vi_end) = vertices(ptpn); vi != vi_end; ++vi) {
+    bool enable_t = true;
+    if (ptpn[*vi].shape == "circle") {
+      if (ptpn[*vi].token == 1) {
+        new_mark.indexes.insert(vertex(*vi, ptpn));
+        new_mark.labels.insert(ptpn[*vi].label);
+      }
+    } else {
+      for (boost::tie(in_i, in_end) = in_edges(*vi, ptpn); in_i != in_end;
+           ++in_i) {
+        auto source_vertex = source(*in_i, ptpn);
+        if (ptpn[source_vertex].token == 0) {
+          enable_t = false;
+          break;
+        }
+      }
+      if (enable_t)
+        new_enabled_t.push_back(vertex(*vi, ptpn));
+    }
+  }
+
+  // 5. 比较前后使能部分,前一种状态使能,而新状态不使能,则为可挂起变迁
+  // 将所有变迁等待时间置为0
+
+  // 5.1 公共部分
+  std::set<std::size_t> common;
+  std::set_intersection(old_enabled_t.begin(), old_enabled_t.end(),
+                        new_enabled_t.begin(), new_enabled_t.end(),
+                        std::inserter(common, common.begin()));
+  for (unsigned long it : common) {
+    all_t.insert({it, ptpn[it].pnt.runtime});
+    //    h_t.insert(it);
+    //    time.insert(std::make_pair(it, ptpn[it].pnt.runtime));
+  }
+  // 5.2 前状态使能而现状态不使能
+  std::set<std::size_t> old_minus_new;
+  std::set_difference(old_enabled_t.begin(), old_enabled_t.end(),
+                      new_enabled_t.begin(), new_enabled_t.end(),
+                      std::inserter(old_minus_new, old_minus_new.begin()));
+  for (unsigned long it : old_minus_new) {
+    // 若为可挂起变迁,则保存已运行时间
+    if (ptpn[it].pnt.is_handle) {
+      all_t.insert({it, ptpn[it].pnt.runtime});
+      //      H_t.insert(it);
+      //      time.insert(std::make_pair(it, ptpn[it].pnt.runtime));
+    } else {
+      ptpn[it].pnt.runtime = 0;
+    }
+  }
+  // 5.3 现状态使能而前状态不使能
+  std::set<std::size_t> new_minus_old;
+  std::set_difference(new_enabled_t.begin(), new_enabled_t.end(),
+                      old_enabled_t.begin(), old_enabled_t.end(),
+                      std::inserter(new_minus_old, new_minus_old.begin()));
+  for (unsigned long it : new_minus_old) {
+    if (ptpn[it].pnt.is_handle) {
+      all_t.insert({it, ptpn[it].pnt.runtime});
+      //      h_t.insert(it);
+      //      time.insert(std::make_pair(it, ptpn[it].pnt.runtime));
+    } else {
+      //      h_t.insert(it);
+      //      time.insert(std::make_pair(it, 0));
+      all_t.insert({it, 0});
+    }
+  }
+  //  for (auto it = all_t.begin(); it != all_t.end(); ++it) {
+  //    for (auto it2 = std::next(it); it2 != all_t.end(); ) {
+  //      if ((ptpn[(*it).t].pnt.priority < ptpn[(*it2).t].pnt.priority) &&
+  //          (ptpn[(*it).t].pnt.c == ptpn[(*it2).t].pnt.c)) {
+  //        if (ptpn[(*it2).t].pnt.is_handle) {
+  //          ++it2;
+  //        } else {
+  //          it2 = all_t.erase(it);
+  //        }
+  //      } else {
+  //        // 继续迭代
+  //        ++it2;
+  //      }
+  //    }
+  //  }
+  //  StateClass new_sc;
+  //  new_sc.mark = new_mark;
+  //  new_sc.t_sched = h_t;
+  //  new_sc.handle_t_sched = H_t;
+  //  new_sc.t_time = time;
+  return {new_mark, all_t};
+}
+
+void PriorityTimePetriNet::set_state_class(const StateClass &state_class) {
+  // 首先重置原有状态
+  boost::graph_traits<PTPN>::vertex_iterator vi, vi_end;
+  for (boost::tie(vi, vi_end) = vertices(ptpn); vi != vi_end; ++vi) {
+    ptpn[*vi].token = 0;
+    ptpn[*vi].enabled = false;
+    ptpn[*vi].pnt.runtime = 0;
+  }
+  // 2. 设置标识
+  for (auto m : state_class.mark.indexes) {
+    ptpn[m].token = 1;
+  }
+  // 3. 设置各个变迁的已等待时间
+  //  for (auto t : state_class.t_sched) {
+  //    ptpn[t].pnt.runtime = state_class.t_time.find(t)->second;
+  //  }
+  // 4. 可挂起变迁的已等待时间
+  //  for (auto t : state_class.handle_t_sched) {
+  //    ptpn[t].pnt.runtime = state_class.t_time.find(t)->second;
+  //  }
+  // 5.设置所有变迁的已等待时间
+  for (auto t : state_class.all_t) {
+    ptpn[t.t].pnt.runtime = t.time;
   }
 }

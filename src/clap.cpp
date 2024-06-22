@@ -68,8 +68,8 @@ void TDG::parse_tdg() {
         tasks_priority.insert(make_pair(t_name, p_task.priority));
         nodes_type.insert(make_pair(t_name, p_task));
         vertexes_type.insert(make_pair(t_name, VertexType::TASK));
-        BOOST_LOG_TRIVIAL(info) << t_name << ": "
-                                << "type: TASK";
+        BOOST_LOG_TRIVIAL(info)
+            << t_name << ": " << TaskTypeToString[p_task.task_type];
       } else if (holds_alternative<APeriodicTask>(node_type)) {
         APeriodicTask ap_task = get<APeriodicTask>(node_type);
         string t_name = ap_task.name;
@@ -77,16 +77,15 @@ void TDG::parse_tdg() {
         all_task.emplace_back(ap_task);
         tasks_priority.insert(make_pair(t_name, ap_task.priority));
         nodes_type.insert(make_pair(t_name, ap_task));
-        vertexes_type.insert(make_pair(t_name, VertexType::INTERRUPT));
-        BOOST_LOG_TRIVIAL(info) << t_name << ": "
-                                << "type: INTERRUPT";
+        vertexes_type.insert(make_pair(t_name, VertexType::TASK));
+        BOOST_LOG_TRIVIAL(info)
+            << t_name << ": " << TaskTypeToString[ap_task.task_type];
       } else if (holds_alternative<SyncTask>(node_type)) {
         SyncTask s_task = get<SyncTask>(node_type);
         string t_name = s_task.name;
         nodes_type.insert(make_pair(t_name, s_task));
         vertexes_type.insert(make_pair(t_name, VertexType::SYNC));
-        BOOST_LOG_TRIVIAL(info) << t_name << ": "
-                                << "type: SYNC";
+        BOOST_LOG_TRIVIAL(info) << t_name << ": " << "type: SYNC";
       } else if (holds_alternative<DistTask>(node_type)) {
         DistTask d_task = get<DistTask>(node_type);
         string t_name = d_task.name;
@@ -95,15 +94,13 @@ void TDG::parse_tdg() {
         //              label.0");
         nodes_type.insert(make_pair(t_name, d_task));
         vertexes_type.insert(make_pair(t_name, VertexType::DIST));
-        BOOST_LOG_TRIVIAL(info) << t_name << ": "
-                                << "type: DIST";
+        BOOST_LOG_TRIVIAL(info) << t_name << ": " << "type: DIST";
       } else {
         EmptyTask e_task = get<EmptyTask>(node_type);
         string t_name = e_task.name;
         nodes_type.insert(make_pair(t_name, e_task));
         vertexes_type.insert(make_pair(t_name, VertexType::EMPTY));
-        BOOST_LOG_TRIVIAL(info) << t_name << ": "
-                                << "type: EMPTY";
+        BOOST_LOG_TRIVIAL(info) << t_name << ": " << "type: EMPTY";
       }
       //            if (label.find("Wait") == std::string::npos) {
       //              dag_task_name.push_back(label);
@@ -112,19 +109,8 @@ void TDG::parse_tdg() {
     }
     // 遍历边，找到自环或回环，确定周期任务
     BOOST_FOREACH (TDG_RAP::edge_descriptor e, edges(tdg)) {
-      auto source_name = tdg[source(e, tdg)].name;
-      auto target_name = tdg[target(e, tdg)].name;
-      // 前后节点相同的边为
-      if (source_name == target_name) {
-        // 保存为自环
-        int period_time = stoi(tdg[e].label);
-        period_task.emplace_back(source_name, target_name, period_time);
-      }
-      // 边类型为虚线
-      if (tdg[e].style.find("dashed") != string::npos) {
-        int period_time = stoi(tdg[e].label);
-        period_task.emplace_back(source_name, target_name, period_time);
-      }
+      //      auto source_name = tdg[source(e, tdg)].name;
+      //      auto target_name = tdg[target(e, tdg)].name;
       BOOST_LOG_TRIVIAL(debug)
           << "Edge: " << tdg[e].label << "weight: " << stoi(tdg[e].label);
     }
@@ -132,7 +118,7 @@ void TDG::parse_tdg() {
 }
 
 // 按照 label 类型返回
-NodeType TDG::parse_vertex_label(const string label) {
+NodeType TDG::parse_vertex_label(const string &label) {
   NodeType node_type;
   regex rgx("\\{(.*?)\\}");
   smatch matches;
@@ -147,27 +133,65 @@ NodeType TDG::parse_vertex_label(const string label) {
     }
     string name = parts[0];
     // 根据长度判断 vertex 属于那种类型和是否包含锁变量
-    //  size <=2，不属于任务类型, 根据名字开头字母判断属于同步、分发或空节点
-    if (parts.size() <= 2 && parts[0].substr(0, 4) == "Wait") {
-      return SyncTask{name};
-    } else if (parts.size() <= 2 && parts[0].substr(0, 4) == "Dist") {
-      return DistTask{name};
-    } else if (parts.size() <= 2 && parts[0].substr(0, 4) == "Empty") {
-      return EmptyTask{name};
+    // 判断第二个元素是否是时间
+    vector<int> period_times = parse_time_vec(parts[1]);
+    if (period_times.empty()) {
+      //  size <=2，不属于任务类型,
+      //  根据名字开头字母判断属于同步、分发或空节点
+      if (parts.size() <= 2 && parts[0].substr(0, 4) == "Wait") {
+        return SyncTask{name};
+      } else if (parts.size() <= 2 && parts[0].substr(0, 4) == "Dist") {
+        return DistTask{name};
+      } else if (parts.size() <= 2 && parts[0].substr(0, 4) == "Empty") {
+        return EmptyTask{name};
+      } else {
+        int task_priority = stoi(parts[1]);
+        int task_core = stoi(parts[2]);
+        vector<pair<int, int>> task_times;
+        vector<int> time_values = parse_time_vec(parts[3]);
+        for (size_t i = 0; i < time_values.size(); i += 2) {
+          task_times.emplace_back(time_values[i], time_values[i + 1]);
+        }
+        vector<string> task_locks;
+        bool is_lock = false;
+        if (parts.size() >= 5) {
+          is_lock = true;
+          string lock_token;
+          string locks_name = parts[4];
+          istringstream lock_stream(locks_name);
+          while (getline(lock_stream, lock_token, ',')) {
+            task_locks.push_back(lock_token);
+            lock_set.insert(lock_token);
+            if (task_locks_map.find(name) == task_locks_map.end()) {
+              vector<string> locks;
+              locks.push_back(lock_token);
+              task_locks_map.insert(make_pair(name, locks));
+            } else {
+              task_locks_map[name].push_back(lock_token);
+            }
+          }
+        }
+
+        tasks_type.insert(make_pair(name, TaskType::NORMAL));
+        return APeriodicTask{name,       task_core, task_priority,
+                             task_times, is_lock,   task_locks};
+      }
     } else {
-      int task_priority = stoi(parts[1]);
-      int task_core = stoi(parts[2]);
+      pair<int, int> task_period_time =
+          make_pair(period_times[0], period_times[1]);
+      int task_priority = stoi(parts[2]);
+      int task_core = stoi(parts[3]);
       vector<pair<int, int>> task_times;
-      vector<int> time_values = parse_time_vec(parts[3]);
+      vector<int> time_values = parse_time_vec(parts[4]);
       for (size_t i = 0; i < time_values.size(); i += 2) {
         task_times.emplace_back(time_values[i], time_values[i + 1]);
       }
       vector<string> task_locks;
       bool is_lock = false;
-      if (parts.size() >= 5) {
+      if (parts.size() >= 6) {
         is_lock = true;
         string lock_token;
-        string locks_name = parts[4];
+        string locks_name = parts[5];
         istringstream lock_stream(locks_name);
         while (getline(lock_stream, lock_token, ',')) {
           task_locks.push_back(lock_token);
@@ -181,19 +205,30 @@ NodeType TDG::parse_vertex_label(const string label) {
           }
         }
       }
-
       // 如果命名中有中断任务
       if (name.substr(0, 9) == "Interrupt") {
-        return APeriodicTask{name,    task_core,  task_priority, task_times,
-                             is_lock, task_locks, false};
+        tasks_type.insert(make_pair(name, TaskType::INTERRUPT));
+        BOOST_LOG_TRIVIAL(debug) << "Interrupt task:" << name;
+        return PeriodicTask{
+            name,    task_core,  task_priority,       task_times,
+            is_lock, task_locks, TaskType::INTERRUPT, task_period_time};
+      } else if (name.substr(0, 9) == "Sporadic") {
+        BOOST_LOG_TRIVIAL(debug) << "Sporadic task:" << name;
+        tasks_type.insert(make_pair(name, TaskType::APERIOD));
+        return PeriodicTask{
+            name,    task_core,  task_priority,     task_times,
+            is_lock, task_locks, TaskType::APERIOD, task_period_time};
       } else {
-        return PeriodicTask{name,    task_core,  task_priority, task_times,
-                            is_lock, task_locks, true,          100};
+        BOOST_LOG_TRIVIAL(debug) << "Periodic task:" << name;
+        tasks_type.insert(make_pair(name, TaskType::PERIOD));
+        return PeriodicTask{
+            name,    task_core,  task_priority,    task_times,
+            is_lock, task_locks, TaskType::PERIOD, task_period_time};
       }
     }
+
   } else {
     // 未发现匹配表达式
-
     BOOST_THROW_EXCEPTION(LabelParseException("WRONG LABEL!"));
   }
 }

@@ -119,13 +119,19 @@ public: // 图映射
   void create_task_priority(const std::string &name, vertex_ptpn preempt_vertex,
                             size_t handle_t, vertex_ptpn start, vertex_ptpn end,
                             NodeType task_type);
+  // 对某个任务添加抢占变迁
+  void create_hlf_task_priority(const std::string &name,
+                                vertex_ptpn preempt_vertex, size_t handle_t,
+                                vertex_ptpn h_start, vertex_ptpn l_start,
+                                vertex_ptpn h_ready, int task_priority,
+                                int task_core);
   // 节点命名 随机增加, != vertex_index_t
   int node_index = 0;
 
 public: // 状态图生成
   typename boost::property_map<PTPN, boost::vertex_index_t>::type index =
       get(boost::vertex_index, ptpn);
-
+  StateClassGraph state_class_graph;
   StateClass initial_state_class;
   StateClass get_initial_state_class();
   std::set<StateClass> scg;
