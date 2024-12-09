@@ -3,6 +3,7 @@
 //
 
 #include "state_class_graph.h"
+
 #include <algorithm>
 #include <future>
 #include <iostream>
@@ -131,14 +132,13 @@ void StateClassGraph::dfs_all_path(ScgVertexD start, std::string &end,
       // cout << current_path.back() << endl;
     }
   }
-  
+
   current_path.pop_back();
   visited[start] = false;
 }
 
-std::pair<int, std::vector<Path>>
-StateClassGraph::calculate_wcet(ScgVertexD &start, ScgVertexD &end,
-                                std::string &exit_flag) {
+std::pair<int, std::vector<Path>> StateClassGraph::calculate_wcet(
+    ScgVertexD &start, ScgVertexD &end, std::string &exit_flag) {
   // Find all paths between v1 and v5
   std::vector<Path> all_paths;
   Path current_path;

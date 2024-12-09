@@ -1,7 +1,3 @@
-//
-// Created by 张凯文 on 2024/3/22.
-//
-
 #ifndef PPTPN_INCLUDE_STATE_CLASS_GRAPH_H
 #define PPTPN_INCLUDE_STATE_CLASS_GRAPH_H
 
@@ -270,6 +266,7 @@ public:
   SCG scg;
   ScgVertexMap scg_vertex_map;
   ScgVertexD add_scg_vertex(StateClass sc);
+  TDG_RAP initial_net;
   void write_to_dot(const std::string &scg_path);
 
   void dfs_all_path(ScgVertexD start, ScgVertexD end,

@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.25)
 project(PTPN)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_TOOLCHAIN_FILE "/home/kevin/vcpkg/scripts/buildsystems/vcpkg.cmake")
 find_package(Boost REQUIRED COMPONENTS graph log program_options)
 if (BOOST_FOUND)
     include_directories(${BOOST_INCLUDE_DIR})

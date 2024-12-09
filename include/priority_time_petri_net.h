@@ -1,7 +1,3 @@
-//
-// Created by 张凯文 on 2024/3/22.
-//
-
 #ifndef PPTPN_INCLUDE_PRIORITY_TIME_PETRI_NET_H
 #define PPTPN_INCLUDE_PRIORITY_TIME_PETRI_NET_H
 

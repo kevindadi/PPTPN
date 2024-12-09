@@ -1,7 +1,3 @@
-//
-// Created by 张凯文 on 2024/3/26.
-//
-
 #ifndef PPTPN_INCLUDE_OWNER_ASSERT_H
 #define PPTPN_INCLUDE_OWNER_ASSERT_H
 

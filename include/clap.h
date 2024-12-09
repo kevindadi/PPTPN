@@ -1,7 +1,6 @@
 #ifndef CLAP
 #define CLAP
 
-#include "dag.h"
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/graph_utility.hpp>
@@ -11,6 +10,8 @@
 #include <boost/log/trivial.hpp>
 #include <set>
 #include <vector>
+
+#include "dag.h"
 
 using namespace boost;
 namespace logging = boost::log;
@@ -41,14 +42,17 @@ enum EdgeType {
 };
 // TDG结构体，包含DAG图中所有信息
 class TDG {
-public:
-  TDG() = default;
-  TDG(string);
+ public:
+    TDG(TDG&&) noexcept = default;
+    TDG& operator=(TDG&&) noexcept = default;
+    TDG(const TDG&) = delete;
+    TDG& operator=(const TDG&) = delete;
   // ~TDGRAP();
-  TDG_RAP tdg;
+private:
+  std::unique_ptr<TDG_RAP> tdg;
   boost::dynamic_properties tdg_dp;
 
-public:
+ public:
   // TDG-RAP文件路径
   string tdg_file;
   // 所有任务的集合
@@ -74,7 +78,7 @@ public:
   // 优先级抢占的任务配置简化
   std::unordered_map<string, TaskConfig> tasks_config;
 
-public:
+ public:
   void parse_tdg();
 
   // 解析 vertex 的 label 属性
@@ -85,4 +89,4 @@ public:
   std::unordered_map<int, vector<string>> classify_priority();
 };
 
-#endif // PPTPN_GCONFIG_H
+#endif  // PPTPN_GCONFIG_H

@@ -1,5 +1,5 @@
-
 #include "clap.h"
+
 #include <boost/exception/all.hpp>
 #include <boost/static_assert.hpp>
 #include <regex>
