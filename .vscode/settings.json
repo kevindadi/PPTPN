@@ -82,8 +82,8 @@
         "typeinfo": "cpp",
         "valarray": "cpp",
         "variant": "cpp",
-        "format": "cpp"
-    },
-    "editor.formatOnSave": true,
-    "clang-format.style": "Google"
+        "format": "cpp",
+        "charconv": "cpp",
+        "*.ipp": "cpp"
+    }
 }

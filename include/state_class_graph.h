@@ -3,100 +3,18 @@
 
 #include <algorithm>
 #include <boost/graph/adjacency_list.hpp>
-#include <boost/graph/breadth_first_search.hpp>
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/graph_utility.hpp>
 #include <boost/graph/graphviz.hpp>
+#include <boost/graph/breadth_first_search.hpp>
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include "priority_time_petri_net.h"
 
-struct TPetriNetTransition {
-  bool is_handle = false;
-  int runtime = 0;
-  int priority = 0;
-  std::pair<int, int> const_time = {0, 0};
-  // 该变迁分配的处理器资源
-  int c = 0;
-  TPetriNetTransition() = default;
-  TPetriNetTransition(int runtime, int priority, std::pair<int, int> const_time,
-                      int core)
-      : runtime(runtime), priority(priority), const_time(std::move(const_time)),
-        c(core) {
-    is_handle = false;
-  };
-  TPetriNetTransition(bool is_handle, int runtime, int priority,
-                      std::pair<int, int> const_time)
-      : is_handle(is_handle), runtime(runtime), priority(priority),
-        const_time(std::move(const_time)){};
-};
+using namespace boost;
 
-struct TPetriNetElement {
-  std::string name, label, shape;
-  int token = 0;
-  bool enabled = false;
-  TPetriNetTransition pnt;
 
-  TPetriNetElement() = default;
-
-  TPetriNetElement(const std::string &name, int token)
-      : name(name), token(token) {
-    label = name;
-    shape = "circle";
-    enabled = false;
-    pnt = {};
-  }
-
-  TPetriNetElement(const std::string &name, bool enable,
-                   TPetriNetTransition pnt)
-      : name(name), enabled(enable), pnt(std::move(pnt)) {
-    label = name;
-    shape = "box";
-    token = 0;
-  }
-};
-
-struct TPetriNetEdge {
-  std::string label;
-  std::pair<int, int>
-      weight;   // min_weight and max_weight represent the firing time interval
-  int priority; // low-level propity remove;
-};
-
-struct PTPNTransition {
-  bool is_handle = false;
-  bool is_random = false;
-  int runtime = 0;
-  int priority = 0;
-  std::pair<int, int> const_time = {0, 0};
-  // 该变迁分配的处理器资源
-  int c = 0;
-  PTPNTransition() = default;
-  PTPNTransition(int priority, std::pair<int, int> time, int c)
-      : priority(priority), const_time(std::move(time)), c(c) {
-    is_handle = false;
-    is_random = false;
-    runtime = 0;
-  };
-  PTPNTransition(bool is_handle, int priority, std::pair<int, int> time, int c)
-      : is_handle(is_handle), priority(priority), const_time(std::move(time)),
-        c(c) {
-    is_random = false;
-    runtime = 0;
-  };
-  PTPNTransition(int priority, std::pair<int, int> time, int c, bool is_random)
-      : priority(priority), const_time(std::move(time)), c(c),
-        is_random(is_random) {
-    is_handle = false;
-    runtime = 0;
-  };
-  PTPNTransition(bool is_handle, int priority, std::pair<int, int> time, int c,
-                 bool is_random)
-      : is_handle(is_handle), priority(priority), const_time(std::move(time)),
-        c(c), is_random(is_random) {
-    runtime = 0;
-  };
-};
 
 // 可发生变迁, 从中筛选可调度变迁
 struct SchedT {
@@ -167,6 +85,10 @@ struct Marking {
     return false;
   }
   bool operator<(const Marking &other) const { return indexes < other.indexes; }
+
+  bool operator!=(const Marking& other) const {
+    return indexes != other.indexes;
+  }
 };
 //
 class StateClass {
@@ -180,19 +102,14 @@ public:
   StateClass() = default;
   StateClass(Marking mark, std::set<T_wait> all_t)
       : mark(std::move(mark)), all_t(std::move(all_t)) {}
-  void print_current_mark();
-  void print_current_state();
+
   std::string to_scg_vertex();
   bool operator==(const StateClass &other) const {
     return mark == other.mark && all_t == other.all_t;
   }
 
   bool operator<(const StateClass &other) const {
-    // Compare the mark member first
-    if (mark < other.mark)
-      return true;
-    if (other.mark < mark)
-      return false;
+    if (mark != other.mark) return mark < other.mark;
 
     // If the mark members are equal, compare the all_t member
     return all_t < other.all_t;
@@ -247,42 +164,62 @@ typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS,
     SCG;
 typedef boost::graph_traits<SCG>::vertex_descriptor ScgVertexD;
 typedef boost::graph_traits<SCG>::edge_descriptor ScgEdgeD;
+typedef std::vector<ScgEdgeD> Path;
 typedef std::unordered_map<StateClass, ScgVertexD, StateClassHasher,
                            StateClassEqual>
     ScgVertexMap;
-typedef std::vector<ScgEdgeD> Path;
-
-class WCETBFSVisitor : public boost::default_bfs_visitor {
-public:
-  WCETBFSVisitor(const std::string &end_name, const std::string &exit_name)
-      : _endName(end_name), _exitName(exit_name) {}
-
-  std::string _endName;
-  std::string _exitName;
-};
-
 class StateClassGraph {
-public:
-  SCG scg;
+private:
+  // 初始网模型,用于并行加速
+  std::unique_ptr<PTPN> init_ptpn;
+  // 初始标识
+  Marking init_mark;
+  // 初始状态类
+  StateClass init_state_class;
+  std::set<StateClass> sc_sets;
   ScgVertexMap scg_vertex_map;
-  ScgVertexD add_scg_vertex(StateClass sc);
-  TDG_RAP initial_net;
-  void write_to_dot(const std::string &scg_path);
+private:
+  void set_state_class(const StateClass &state_class);
+  // 获得每个状态类下可调度的变迁集
+  std::vector<SchedT> get_sched_transitions(const StateClass &state_class);
+  // 发生变迁产生新的状态类
+  StateClass fire_transition(const StateClass &sc, SchedT transition);
 
-  void dfs_all_path(ScgVertexD start, ScgVertexD end,
-                    std::vector<Path> &all_path, Path &current_path,
-                    std::vector<bool> &visited, std::string &exit_flag);
-  void dfs_all_path(ScgVertexD start, std::string &end,
-                    std::vector<Path> &all_path, Path &current_path,
-                    std::vector<bool> &visited, std::string &exit_flag);
-  // calculate wcet
-  std::pair<int, std::vector<Path>>
-  calculate_wcet(ScgVertexD &start, ScgVertexD &end, std::string &exit_flag);
-  int only_calculate_wcet(ScgVertexD start, ScgVertexD end);
-  std::pair<std::set<ScgVertexD>, std::set<ScgVertexD>>
-  find_task_vertex(std::string task_name);
-  int task_wcet();
-  // Check deadlock
-  bool check_deadlock();
+  ScgVertexD add_scg_vertex(StateClass sc);
+  bool is_transition_enabled(const PTPN& ptpn, vertex_ptpn v);
+  // 获取初始状态下的等待时间集合
+  StateClass get_initial_state_class(const PTPN& source_ptpn);
+  // 获取使能的变迁
+  std::vector<vertex_ptpn> get_enabled_transitions();
+  // 计算变迁的发生时间域
+  std::pair<int, int> calculate_fire_time_domain(const std::vector<vertex_ptpn>& enabled_t_s);
+  // 获取符合发生时间域的变迁
+  std::vector<SchedT> get_time_satisfied_transitions(const std::vector<vertex_ptpn>& enabled_t_s, const std::pair<int, int>& fire_time);  
+  // 应用优先级规则
+  void apply_priority_rules(std::vector<SchedT>& sched_T);
+  void apply_priority_rules(std::vector<std::size_t>& enabled_t);
+  // 获取使能的变迁的前置变迁
+  std::pair<std::vector<std::size_t>, std::vector<std::size_t>> get_enabled_transitions_with_history();
+  // 更新变迁的等待时间
+  void update_transition_times(const std::vector<std::size_t>& enabled_t, 
+                           const SchedT& transition);  
+  // 执行变迁
+  void execute_transition(const SchedT& transition);
+  // 获取新标识和新使能变迁
+  std::pair<Marking, std::vector<std::size_t>> get_new_marking_and_enabled();
+  // 计算新的等待时间集合
+  std::set<T_wait> calculate_new_wait_times(const std::vector<std::size_t>& old_enabled_t, const std::vector<std::size_t>& new_enabled_t);
+
+public:
+  // 构造函数
+  StateClassGraph(const PTPN& source_ptpn) 
+  : init_ptpn(deep_copy_graph(source_ptpn)) {
+      init_state_class = get_initial_state_class(source_ptpn);
+  }
+  // 状态类图,insert唯一的stateclass
+  SCG scg; 
+
+  // 生成状态类图主函数
+  void generate_state_class();
 };
 #endif // PPTPN_INCLUDE_STATE_CLASS_GRAPH_H
