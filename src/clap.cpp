@@ -119,11 +119,16 @@ void TDG::parse_tdg() {
   }
 }
 
+bool is_time_range(const string& str) {
+    return str.front() == '[' && str.back() == ']' && str.find(',') != string::npos;
+}
+
 // 按照 label 类型返回
 NodeType TDG::parse_vertex_label(const string &label) {
   if (label.empty()) {
     BOOST_THROW_EXCEPTION(LabelParseException("Label cannot be empty"));
   }
+  BOOST_LOG_TRIVIAL(info) << "Parsing label: " << label;
   NodeType node_type;
   regex rgx("\\{(.*?)\\}");
   smatch matches;
@@ -140,143 +145,115 @@ NodeType TDG::parse_vertex_label(const string &label) {
     }
 
     // 检查是否至少包含名称
-  if (parts.empty()) {
-    BOOST_THROW_EXCEPTION(LabelParseException("No task name found in label"));
-  }
+    if (parts.empty()) {
+      BOOST_THROW_EXCEPTION(LabelParseException("No task name found in label"));
+    }
 
-  string name = parts[0];
-  if (name.empty()) {
-    BOOST_THROW_EXCEPTION(LabelParseException("Task name cannot be empty"));
-  }
-
-  // 检查是否有足够的部分用于解析
-  if (parts.size() < 2) {
-    BOOST_THROW_EXCEPTION(
-        LabelParseException("Insufficient parameters in label for task: " + name));
-  }
-
-    // 根据长度判断 vertex 属于那种类型和是否包含锁变量
-    // 判断第二个元素是否是时间
-    try {
-    vector<int> period_times = parse_time_vec(parts[1]);
-    if (period_times.empty()) {
-      //  size <=2，不属于任务类型,
-      //  根据名字开头字母判断属于同步、分发或空节点
-      if (parts.size() <= 2 && parts[0].substr(0, 4) == "Wait") {
+    string name = parts[0];
+    if (name.empty()) {
+      BOOST_THROW_EXCEPTION(LabelParseException("Task name cannot be empty"));
+    }
+    
+    // 首先处理特殊节点
+    if (parts.size() <= 2) {
+      if (name.substr(0, 4) == "Wait") {
         return SyncTask{name};
-      } else if (parts.size() <= 2 && parts[0].substr(0, 4) == "Dist") {
+      } else if (name.substr(0, 4) == "Dist") {
         return DistTask{name};
-      } else if (parts.size() <= 2 && parts[0].substr(0, 4) == "Empty") {
+      } else if (name.substr(0, 5) == "Empty") {
         return EmptyTask{name};
-      } else {
-        
-        int task_priority, task_core;
-        try {
-          task_priority = stoi(parts[1]);
-          task_core = stoi(parts[2]);
-        } catch (const std::invalid_argument& e) {
-          BOOST_THROW_EXCEPTION(
-              TimeValueException("Invalid number format in task parameters for: " + name,
-                               "Failed to parse priority or core count"));
-        }
-
-        if (task_priority < 0) {
-          BOOST_THROW_EXCEPTION(
-              TimeValueException("Invalid priority value for task: " + name,
-                               "Priority must be non-negative"));
-        }
-        if (task_core < 0) {
-          BOOST_THROW_EXCEPTION(
-              TimeValueException("Invalid core count for task: " + name,
-                               "Core count must be non-negative"));
-        }
-        vector<pair<int, int>> task_times;
-        vector<int> time_values = parse_time_vec(parts[3]);
-        for (size_t i = 0; i < time_values.size(); i += 2) {
-          task_times.emplace_back(time_values[i], time_values[i + 1]);
-        }
-        vector<string> task_locks;
-        bool is_lock = false;
-        if (parts.size() >= 5) {
-          is_lock = true;
-          string lock_token;
-          string locks_name = parts[4];
-          istringstream lock_stream(locks_name);
-          while (getline(lock_stream, lock_token, ',')) {
-            task_locks.push_back(lock_token);
-            lock_set.insert(lock_token);
-            if (task_locks_map.find(name) == task_locks_map.end()) {
-              vector<string> locks;
-              locks.push_back(lock_token);
-              task_locks_map.insert(make_pair(name, locks));
-            } else {
-              task_locks_map[name].push_back(lock_token);
-            }
-          }
-        }
-
-        tasks_type.insert(make_pair(name, TaskType::NORMAL));
-        return APeriodicTask{name,       task_core, task_priority,
-                             task_times, is_lock,   task_locks};
       }
-    } else {
-      pair<int, int> task_period_time =
-          make_pair(period_times[0], period_times[1]);
+    }
+    
+    bool has_period = false;
+    vector<int> period_times;
+     try {
+      period_times = parse_time_vec(parts[1]);
+      has_period = true;
+    } catch (const TimeValueException& e) {
+      has_period = false;
+    }
+
+    if (has_period) {
+      // 处理周期性任务
+      pair<int, int> task_period_time = make_pair(period_times[0], period_times[1]);
       int task_priority = stoi(parts[2]);
       int task_core = stoi(parts[3]);
       vector<pair<int, int>> task_times;
       vector<int> time_values = parse_time_vec(parts[4]);
+      
       for (size_t i = 0; i < time_values.size(); i += 2) {
         task_times.emplace_back(time_values[i], time_values[i + 1]);
       }
+
       vector<string> task_locks;
       bool is_lock = false;
       if (parts.size() >= 6) {
         is_lock = true;
-        string lock_token;
         string locks_name = parts[5];
         istringstream lock_stream(locks_name);
+        string lock_token;
         while (getline(lock_stream, lock_token, ',')) {
           task_locks.push_back(lock_token);
           lock_set.insert(lock_token);
           if (task_locks_map.find(name) == task_locks_map.end()) {
-            vector<string> locks;
-            locks.push_back(lock_token);
-            task_locks_map.insert(make_pair(name, locks));
+            task_locks_map[name] = {lock_token};
           } else {
             task_locks_map[name].push_back(lock_token);
           }
         }
       }
-      // 如果命名中有中断任务
+
+      TaskType task_type = TaskType::PERIOD;
       if (name.substr(0, 9) == "Interrupt") {
-        tasks_type.insert(make_pair(name, TaskType::INTERRUPT));
-        BOOST_LOG_TRIVIAL(debug) << "Interrupt task:" << name;
-        return PeriodicTask{
-            name,    task_core,  task_priority,       task_times,
-            is_lock, task_locks, TaskType::INTERRUPT, task_period_time};
-      } else if (name.substr(0, 9) == "Sporadic") {
-        BOOST_LOG_TRIVIAL(debug) << "Sporadic task:" << name;
-        tasks_type.insert(make_pair(name, TaskType::APERIOD));
-        return PeriodicTask{
-            name,    task_core,  task_priority,     task_times,
-            is_lock, task_locks, TaskType::APERIOD, task_period_time};
-      } else {
-        BOOST_LOG_TRIVIAL(debug) << "Periodic task:" << name;
-        tasks_type.insert(make_pair(name, TaskType::PERIOD));
-        return PeriodicTask{
-            name,    task_core,  task_priority,    task_times,
-            is_lock, task_locks, TaskType::PERIOD, task_period_time};
+        task_type = TaskType::PERIOD;
+      } else if (name.substr(0, 8) == "Sporadic") {
+        task_type = TaskType::APERIOD;
+      }
+      
+      tasks_type.insert(make_pair(name, task_type));
+      return PeriodicTask{name, task_core, task_priority, task_times, 
+                         is_lock, task_locks, task_type, task_period_time};
+    } else {
+      // 处理非周期性任务
+      if (parts.size() < 4) {
+        BOOST_THROW_EXCEPTION(LabelParseException("Insufficient parameters for aperiodic task: " + name));
+      }
+
+      int task_priority = stoi(parts[1]);
+      int task_core = stoi(parts[2]);
+      vector<pair<int, int>> task_times;
+      vector<int> time_values = parse_time_vec(parts[3]);
+      
+      for (size_t i = 0; i < time_values.size(); i += 2) {
+        task_times.emplace_back(time_values[i], time_values[i + 1]);
+      }
+
+      vector<string> task_locks;
+      bool is_lock = false;
+      if (parts.size() >= 5) {
+        is_lock = true;
+        string locks_name = parts[4];
+        istringstream lock_stream(locks_name);
+        string lock_token;
+        while (getline(lock_stream, lock_token, ',')) {
+          task_locks.push_back(lock_token);
+          lock_set.insert(lock_token);
+          if (task_locks_map.find(name) == task_locks_map.end()) {
+            task_locks_map[name] = {lock_token};
+          } else {
+            task_locks_map[name].push_back(lock_token);
+          }
         }
       }
-    } catch (const TimeValueException& e) {
-      throw;
-    }catch (const std::exception &ex) {
-      BOOST_THROW_EXCEPTION(LabelParseException("Error parsing task parameters: " + string(ex.what())));
-    } 
-  } else {
-    BOOST_THROW_EXCEPTION(LabelParseException("Invalid label format: " + label));
+
+      tasks_type.insert(make_pair(name, TaskType::NORMAL));
+      return APeriodicTask{name, task_core, task_priority, task_times, 
+                          is_lock, task_locks};
+    }
+    
   }
+  BOOST_THROW_EXCEPTION(LabelParseException("Invalid label format: " + label));
 }
 
 vector<int> TDG::parse_time_vec(string times_string) {

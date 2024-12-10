@@ -173,15 +173,45 @@ std::vector<SchedT> StateClassGraph::get_time_satisfied_transitions(
     int t_min = std::max(0, trans.pnt.const_time.first - trans.pnt.runtime);
     int t_max = trans.pnt.const_time.second - trans.pnt.runtime;
     
+    // 添加日志输出以便调试
+    BOOST_LOG_TRIVIAL(debug) << "Transition " << trans.name 
+                            << ": t_min=" << t_min 
+                            << ", t_max=" << t_max
+                            << ", fire_time=(" << fire_time.first 
+                            << "," << fire_time.second << ")";
+    if (t_max < 0) {
+      BOOST_LOG_TRIVIAL(warning) << "变迁 " << trans.name 
+                                << " 已超过最大等待时间，应该已经发生";
+      // 这种情况下应该立即发生
+      sched_T.push_back(SchedT{t, {0, 0}});
+      continue;
+    }
     std::pair<int, int> sched_time;
+    // 只检查最小值是否超出区间
     if (t_min > fire_time.second) {
+      BOOST_LOG_TRIVIAL(debug) << "跳过变迁 " << trans.name 
+                              << ": 最小发生时间超出区间";
       sched_time = fire_time;
-    } else if (t_max > fire_time.second && t_min >= fire_time.first) {
-      sched_time = {t_min, fire_time.second};
-    } else if (t_min >= fire_time.first) {
-      sched_time = {t_min, t_max};
+    } else if (t_max > fire_time.second) {
+      if (t_min >= fire_time.first) {
+        sched_time = {t_min, fire_time.second};
+      } else {
+        BOOST_LOG_TRIVIAL(error) << "the time_d min value is error";
+      }
     } else {
-      BOOST_LOG_TRIVIAL(error) << "Invalid time domain minimum value";
+      if (t_min >= fire_time.first) {
+        sched_time = {t_min, t_max};
+      } else {
+        BOOST_LOG_TRIVIAL(error) << "the time_d min value is error";
+      }
+    }
+    
+
+    // 验证时间窗口的有效性
+    if (sched_time.first > sched_time.second) {
+      BOOST_LOG_TRIVIAL(error) << "Invalid time domain: min(" 
+                              << sched_time.first << ") > max(" 
+                              << sched_time.second << ")";
       continue;
     }
     
@@ -361,8 +391,8 @@ void StateClassGraph::generate_state_class() {
   auto start_time = chrono::steady_clock::now();
   
   // 初始化队列和状态集
-  queue<StateClass> state_queue;
-  set<StateClass> visited_states;  // 记录已访问的状态
+  std::queue<StateClass> state_queue;
+  std::set<StateClass> visited_states;  // 记录已访问的状态
   
   // 处理初始状态
   state_queue.push(init_state_class);
@@ -422,7 +452,101 @@ void StateClassGraph::generate_state_class() {
   BOOST_LOG_TRIVIAL(info) << "- Unique states: " << visited_states.size();
 }
 
+void StateClassGraph::generate_state_class_with_thread(int num_threads) {
+    // 初始化
+    pending_states.push(init_state_class);
+    sc_sets.insert(init_state_class);
+    add_scg_vertex(init_state_class);
+    
+    // 创建工作线程
+    std::vector<std::thread> threads;
+    std::vector<std::unique_ptr<PTPN>> thread_ptpns;
+    
+    // 为每个线程创建独立的PTPN副本
+    for (int i = 0; i < num_threads; ++i) {
+        thread_ptpns.push_back(deep_copy_graph(*init_ptpn));
+        threads.emplace_back(&StateClassGraph::worker_thread, this, i);
+    }
+    
+    // 等待所有线程完成
+    for (auto& thread : threads) {
+        thread.join();
+    }
+}
 
+void StateClassGraph::worker_thread(int thread_id) {
+    auto& local_ptpn = thread_ptpns[thread_id];
+    StateClass current_state;
+    
+    while (true) {
+        // 获取下一个待处理的状态类
+        if (!get_next_state(current_state)) {
+            break;  // 没有更多状态需要处理
+        }
+        
+        process_state_class(current_state, local_ptpn);
+    }
+}
+
+void StateClassGraph::process_state_class(const StateClass& state_class, std::unique_ptr<PTPN>& local_ptpn) {
+    // 获取可调度��迁
+    auto sched_transitions = get_sched_transitions(state_class);
+    
+    // 对每个可调度变迁
+    for (const auto& transition : sched_transitions) {
+        // 发生变迁，得到新状态类
+        StateClass new_state = fire_transition(state_class, transition);
+        
+        // 检查并添加新状态类
+        add_new_state(new_state);
+        
+        // 添加边
+        {
+            std::lock_guard<std::mutex> lock(scg_mutex);
+            ScgVertexD source = scg_vertex_map[state_class];
+            ScgVertexD target = scg_vertex_map[new_state];
+            add_edge(source, target, SCGEdge{std::to_string(transition.t), transition.time}, scg);
+        }
+    }
+}
+
+bool StateClassGraph::get_next_state(StateClass& state) {
+    std::unique_lock<std::mutex> lock(queue_mutex);
+    
+    // 等待直到有新的状态或处理完成
+    cv.wait(lock, [this] {
+        return !pending_states.empty() || processing_complete;
+    });
+    
+    if (pending_states.empty()) {
+        if (!processing_complete) {
+            processing_complete = true;
+            cv.notify_all();  // 通知其他线程处理完成
+        }
+        return false;
+    }
+    
+    state = pending_states.front();
+    pending_states.pop();
+    return true;
+}
+
+void StateClassGraph::add_new_state(const StateClass& new_state) {
+    std::lock_guard<std::mutex> lock(queue_mutex);
+    
+    // 检查状态是否已存在
+    if (sc_sets.find(new_state) == sc_sets.end()) {
+        sc_sets.insert(new_state);
+        pending_states.push(new_state);
+        
+        {
+            std::lock_guard<std::mutex> scg_lock(scg_mutex);
+            add_scg_vertex(new_state);
+        }
+        
+        cv.notify_one();  // 通知等待的线程有新状态可处理
+    }
+}
 
 
 

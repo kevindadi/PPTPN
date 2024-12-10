@@ -3,9 +3,9 @@ digraph G {
     A -> B [xlabel = "19"; style = "";];
     A -> E [xlabel = "19"; style = "";];
     B [label = "{B;98;1;[1,5]}";];
-    B -> C [xlabel = "19"; style = "";];
-    C [label = "{InterruptC;[1,3];99;2;[3,5],[2,3];lock1}";];
-    C-> D [xlabel = "19"; style = "ddd";];
+    B -> InterruptC [xlabel = "19"; style = "";];
+    InterruptC [label = "{InterruptC;[1,3];99;2;[3,5],[2,3];lock1}";];
+    InterruptC-> D [xlabel = "19"; style = "ddd";];
     D [label = "{D;96;2;[10,12],[2,3];lock1}";];
     E [label = "{E;97;2;[2,3]}";];
     E -> DistributeE [xlabel = "19"; style = "";];
@@ -13,9 +13,9 @@ digraph G {
     DistributeE -> G [xlabel = "19"; style = "";];
     F -> WaitFG [xlabel = "19"; style = "";];
     G -> WaitFG [xlabel = "19"; style = "";];
-    WaitFG [label = "{WaitFG;10}";];
+    WaitFG [label = "{WaitFG;}";];
     WaitFG -> D [xlabel = "19"; style = "";];
-    DistributeE [label = "{DistributeE;10}", shape = "diamond"];
+    DistributeE [label = "{DistributeE;}", shape = "diamond"];
     F [label = "{F;96;1;[1,2],[3,4];lock2}";];
     G [label = "{G;96;1;[3,5],[1,2];lock2}";];
     D -> A [xlabel ="50", style = "dashed"];
