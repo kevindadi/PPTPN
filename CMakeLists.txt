@@ -28,7 +28,9 @@ add_executable(PTPN main.cpp include/clap.h include/dag.h src/clap.cpp
         include/state_class_graph.h
         src/state_class_graph.cpp
         include/owner_assert.h
-        include/owner_error.h)
+        include/owner_error.h
+        include/calcuate.h
+        src/calcuate.cpp)
 target_link_libraries(PTPN Boost::graph Boost::log Boost::program_options)
 
 #enable_testing()
