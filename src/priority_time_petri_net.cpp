@@ -64,16 +64,20 @@ void PriorityTimePetriNet::transform_tdg_to_ptpn(TDG &tdg) {
     
     // 2. 转换边
     transform_edges(tdg);
+
+    // 3. 创建优先级抢占关系
+    add_preempt_task_ptpn(tdg.classify_priority(), tdg.tasks_config, tdg.nodes_type);
     
-    // 3. 添加资源和绑定
+    // 4. 添加资源和绑定
     add_resources_and_bindings(tdg);
     
-    // 4. 输出网络信息
+    // 5. 输出网络信息
     log_network_info();
   } catch (const std::exception& e) {
     BOOST_LOG_TRIVIAL(error) << "Failed to transform TDG to PTPN: " << e.what();
     throw;
   }
+
 }
 
 
@@ -163,8 +167,24 @@ void PriorityTimePetriNet::handle_normal_edge(const string& source_name,
   
   vertex_ptpn source_node = source_it->second.second;
   vertex_ptpn target_node = target_it->second.first;
+
+  BOOST_LOG_TRIVIAL(debug) << "source_name: " << source_name << " target_name: " << target_name;
+
+  // 如果链接的某个节点属于Dist，Sync则直接链接
+  if (source_name.substr(0, 4) ==  "Dist" || source_name.substr(0, 4) == "Wait") {
+    add_edge(source_node, target_node, ptpn);
+    return;
+  } else if (target_name.substr(0, 4) == "Dist" || target_name.substr(0, 4) == "Wait") {
+    add_edge(source_node, target_node, ptpn);
+    return;
+  } 
   
-  add_edge(source_node, target_node, ptpn);
+  // 添加中间变迁
+  string trans_name = source_name + "_to_" + target_name;
+  vertex_ptpn middle_trans = add_transition(ptpn, trans_name, PTPNTransition{0, {0,0}, INT_MAX});
+                
+  add_edge(source_node, middle_trans, ptpn);
+  add_edge(middle_trans, target_node, ptpn);
   BOOST_LOG_TRIVIAL(debug) << "Added edge: " << source_node << " -> " << target_node;
 }
 
@@ -248,12 +268,12 @@ void PriorityTimePetriNet::task_bind_lock_resource(
   auto bind_task_locks = [&](const string& task_name,
                             const vector<string>& lock_types,
                             const vector<vector<vertex_ptpn>>& task_pt_chains) {
-    constexpr size_t MIN_CHAIN_LENGTH = 7; // 不含锁的 P-T 链最小长度
+    constexpr size_t MIN_CHAIN_LENGTH = 5; // 不含锁的 P-T 链最小长度
     
     for (const auto& task_pt_chain : task_pt_chains) {
       // 检查链长度是否满足最小要求
       if (task_pt_chain.size() < MIN_CHAIN_LENGTH) {
-        BOOST_LOG_TRIVIAL(debug) << "Skip chain for " << task_name 
+        BOOST_LOG_TRIVIAL(error) << "Skip chain for " << task_name 
                                 << ": too short for locks";
         continue;
       }
@@ -265,7 +285,7 @@ void PriorityTimePetriNet::task_bind_lock_resource(
         continue;
       }
       size_t lock_nums = task_locks_it->second.size();
-      
+      BOOST_LOG_TRIVIAL(debug) << "chains size for task : " << task_name << " is: " << task_pt_chain.size();
       // 为每个锁添加获取和释放边
       for (size_t i = 0; i < lock_nums; i++) {
         try {
@@ -274,7 +294,7 @@ void PriorityTimePetriNet::task_bind_lock_resource(
           
           // 计算获取和释放锁的节点索引
           vertex_ptpn get_lock = task_pt_chain[3 + 2 * i];
-          vertex_ptpn drop_lock = task_pt_chain[task_pt_chain.size() - 4 - 2 * i];
+          vertex_ptpn drop_lock = task_pt_chain[task_pt_chain.size() - 2 - 2 * (i + 1)];
           
           // 查找对应的锁库所
           auto lock_it = locks_place.find(lock_type);
@@ -378,9 +398,15 @@ PriorityTimePetriNet::add_node_ptpn(NodeType node_type) {
 
 
 // 处理锁资源的辅助函数
-void handle_locks(PriorityTimePetriNet* ptpn, const TaskNodeNames& names,
+vertex_ptpn handle_locks(PriorityTimePetriNet* ptpn, const TaskNodeNames& names,
                  vector<vertex_ptpn>& chain, const vector<string>& locks,
                  const vector<pair<int,int>>& times, int priority, int core) {
+  vertex_ptpn last_lock_place;
+  vertex_ptpn first_unlock_trans;
+
+  // 获取ready库所（在chain中的倒数第三个位置）
+  vertex_ptpn ready = chain[chain.size()-3];
+
   for (size_t i = 0; i < locks.size(); i++) {
     // 获取锁
     string gl = names.get_lock + locks[i];
@@ -388,12 +414,21 @@ void handle_locks(PriorityTimePetriNet* ptpn, const TaskNodeNames& names,
         ptpn->ptpn, gl, PTPNTransition{priority, {0, 0}, core});
     vertex_ptpn deal = ptpn->add_place(ptpn->ptpn, names.deal + locks[i], 0);
     
-    ptpn->add_edge(chain.back(), get_lock, ptpn->ptpn);
+    // 如果是第一个锁，将ready库所与获取锁的变迁连接
+    if (i == 0) {
+      ptpn->add_edge(ready, get_lock, ptpn->ptpn);
+    } else {
+      ptpn->add_edge(chain.back(), get_lock, ptpn->ptpn);
+    }
     chain.push_back(get_lock);
     chain.push_back(deal);
     ptpn->add_edge(get_lock, deal, ptpn->ptpn);
+
+    // 记录最后一个锁的库所
+    last_lock_place = deal;
   }
   
+  vertex_ptpn last_unlocked_place;
   // 释放锁
   for (int j = locks.size() - 1; j >= 0; j--) {
     string dl = names.drop_lock + locks[j];
@@ -401,17 +436,28 @@ void handle_locks(PriorityTimePetriNet* ptpn, const TaskNodeNames& names,
         ptpn->ptpn, dl, PTPNTransition{priority, times[j], core});
     vertex_ptpn unlocked = ptpn->add_place(
         ptpn->ptpn, names.unlock + locks[j], 0);
-    
+  
     ptpn->add_edge(chain.back(), drop_lock, ptpn->ptpn);
     ptpn->add_edge(drop_lock, unlocked, ptpn->ptpn);
     
-    if (locks.size() == 1 || j == 0) {
-      ptpn->add_edge(unlocked, chain[chain.size()-3], ptpn->ptpn);
-    }
-    
     chain.push_back(drop_lock);
     chain.push_back(unlocked);
+
+    // 记录第一个解锁的变迁
+    if (j == locks.size() - 1) {
+      first_unlock_trans = drop_lock;
+    }
+    if (j == 0) {
+      last_unlocked_place = unlocked;
+    }
+  } 
+
+  // 将最后一个锁的库所与第一个解锁的变迁连接起来
+  if (last_lock_place && first_unlock_trans) {
+    ptpn->add_edge(last_lock_place, first_unlock_trans, ptpn->ptpn);
   }
+
+  return last_unlocked_place;
 }
 
 pair<vertex_ptpn, vertex_ptpn>
@@ -434,8 +480,10 @@ PriorityTimePetriNet::add_p_node_ptpn(PeriodicTask &p_task) {
   
   // 处理锁资源
   if (!p_task.lock.empty()) {
-    handle_locks(this, names, basic.task_pt_chain, p_task.lock, p_task.time,
-                p_task.priority, p_task.core);
+    vertex_ptpn last_place = handle_locks(this, names, basic.task_pt_chain, 
+                                          p_task.lock, p_task.time,
+                                          p_task.priority, p_task.core);
+    add_edge(last_place, basic.exec, ptpn);
   } else {
     add_edge(basic.ready, basic.exec, ptpn);
   }
@@ -462,8 +510,10 @@ PriorityTimePetriNet::add_ap_node_ptpn(APeriodicTask &ap_task) {
   
   // 处理锁资源
   if (!ap_task.lock.empty()) {
-    handle_locks(this, names, basic.task_pt_chain, ap_task.lock, ap_task.time,
-                ap_task.priority, ap_task.core);
+    vertex_ptpn last_place = handle_locks(this, names, basic.task_pt_chain, 
+                                          ap_task.lock, ap_task.time,
+                                          ap_task.priority, ap_task.core);
+    add_edge(last_place, basic.exec, ptpn);
   } else {
     add_edge(basic.ready, basic.exec, ptpn);
   }
@@ -558,6 +608,13 @@ void PriorityTimePetriNet::add_preempt_task_ptpn(
     
     // 处理锁
     if (!l_tc.locks.empty()) {
+      constexpr size_t MIN_CHAIN_LENGTH = 9;
+      // 检查链长度是否满足最小要求
+      if (l_t_pn.size() < MIN_CHAIN_LENGTH) {
+        BOOST_LOG_TRIVIAL(debug) << "Skip chain for " << l_t_name 
+                                << ": too short for locks";
+        return;
+      }
       for (size_t i = 0; i < l_tc.locks.size(); i++) {
         if (l_tc.locks[i].find("spin") != string::npos) break;
         
@@ -622,7 +679,7 @@ void PriorityTimePetriNet::add_preempt_task_ptpn(
 /// \param preempt_vertex 发生抢占的库所
 /// \param handle_t 可挂起的变迁
 /// \param start 高优先级的开始库所
-/// \param end 高优先级的结束库所
+/// \param end 高优先��的结束库所
 /// \param task_type 高优先级任务类型
 void PriorityTimePetriNet::create_task_priority(
     const std::string &name, vertex_ptpn preempt_vertex, size_t handle_t,
@@ -680,9 +737,9 @@ void PriorityTimePetriNet::create_task_priority(
     if (locks.empty()) {
       return;
     }
-
     // 添加获取锁的结构
     for (size_t j = 0; j < locks.size(); j++) {
+      if (locks[j].find("spin") != string::npos) break;
       std::string gl = node_names.get_lock + locks[j] + to_string(node_index);
       vertex_ptpn get_lock = add_transition(ptpn, gl, PTPNTransition{256, {0, 0}, core});
       vertex_ptpn deal = add_place(ptpn, node_names.deal + locks[j], 0);
@@ -691,6 +748,8 @@ void PriorityTimePetriNet::create_task_priority(
       node.push_back(get_lock);
       node.push_back(deal);
       add_edge(get_lock, deal, ptpn);
+
+
     }
 
     // 添加释放锁的结构
@@ -720,6 +779,7 @@ void PriorityTimePetriNet::create_task_priority(
       add_edge(ready, exec, ptpn);
     } else {
       handle_locks(task.lock, task.time, task.core);
+      add_edge(node.back(), exec, ptpn);
     }
     
     node.push_back(exec);
@@ -734,6 +794,7 @@ void PriorityTimePetriNet::create_task_priority(
       add_edge(ready, exec, ptpn);
     } else {
       handle_locks(task.lock, task.time, task.core);
+      add_edge(node.back(), exec, ptpn);
     }
     
     node.push_back(exec);
@@ -776,3 +837,109 @@ void PriorityTimePetriNet::create_hlf_task_priority(
   node_index += 1;
 }
 
+bool PriorityTimePetriNet::verify_petri_net_structure() {
+  bool is_valid = true;
+    
+    // 遍历所有顶点
+    for (auto [vi, vi_end] = vertices(ptpn); vi != vi_end; ++vi) {
+        const auto& vertex = ptpn[*vi];
+        
+        if (vertex.shape == "box") {  // 变迁
+            // 检查1：变迁的前后节点必须是库所且不能为空
+            bool has_input = false;
+            bool has_output = false;
+            bool all_inputs_are_places = true;
+            bool all_outputs_are_places = true;
+            
+            // 检查入边
+            for (auto [ei, ei_end] = in_edges(*vi, ptpn); ei != ei_end; ++ei) {
+                has_input = true;
+                vertex_ptpn pre = source(*ei, ptpn);
+                if (ptpn[pre].shape != "circle") {
+                    all_inputs_are_places = false;
+                    BOOST_LOG_TRIVIAL(error) << "变迁 " << vertex.name 
+                        << " 的前置节点 " << ptpn[pre].name 
+                        << " 不是库所";
+                }
+            }
+            
+            // 检查出边
+            for (auto [ei, ei_end] = out_edges(*vi, ptpn); ei != ei_end; ++ei) {
+                has_output = true;
+                vertex_ptpn suc = target(*ei, ptpn);
+                if (ptpn[suc].shape != "circle") {
+                    all_outputs_are_places = false;
+                    BOOST_LOG_TRIVIAL(error) << "变迁 " << vertex.name 
+                        << " 的后继节点 " << ptpn[suc].name 
+                        << " 不是库所";
+                }
+            }
+            
+            if (!has_input || !has_output) {
+                is_valid = false;
+                BOOST_LOG_TRIVIAL(error) << "变迁 " << vertex.name 
+                    << " 的前置或后继节点为空";
+            }
+            
+            if (!all_inputs_are_places || !all_outputs_are_places) {
+                is_valid = false;
+            }
+            
+            // 检查4：变迁时间约束的有效性
+            if (vertex.pnt.const_time.first < 0 || 
+                vertex.pnt.const_time.second < vertex.pnt.const_time.first) {
+                is_valid = false;
+                BOOST_LOG_TRIVIAL(error) << "变迁 " << vertex.name 
+                    << " 的时间约束无效: [" 
+                    << vertex.pnt.const_time.first << "," 
+                    << vertex.pnt.const_time.second << "]";
+            }
+            
+        } else if (vertex.shape == "circle") {  // 库所
+            // 检查2：库所的前后节点必须是变迁（但可以为空）
+            bool all_inputs_are_transitions = true;
+            bool all_outputs_are_transitions = true;
+            
+            // 检查入边
+            for (auto [ei, ei_end] = in_edges(*vi, ptpn); ei != ei_end; ++ei) {
+                vertex_ptpn pre = source(*ei, ptpn);
+                if (ptpn[pre].shape != "box") {
+                    all_inputs_are_transitions = false;
+                    BOOST_LOG_TRIVIAL(error) << "库所 " << vertex.name 
+                        << " 的前置节点 " << ptpn[pre].name 
+                        << " 不是变迁";
+                }
+            }
+            
+            // 检查出边
+            for (auto [ei, ei_end] = out_edges(*vi, ptpn); ei != ei_end; ++ei) {
+                vertex_ptpn suc = target(*ei, ptpn);
+                if (ptpn[suc].shape != "box") {
+                    all_outputs_are_transitions = false;
+                    BOOST_LOG_TRIVIAL(error) << "库所 " << vertex.name 
+                            << " 的后继节点 " << ptpn[suc].name 
+                        << " 不是变迁";
+                }
+            }
+            
+            if (!all_inputs_are_transitions || !all_outputs_are_transitions) {
+                is_valid = false;
+            }
+            
+            // 检查3：token数量必须是0或1
+            if (vertex.token < 0 || vertex.token > 1) {
+                is_valid = false;
+                BOOST_LOG_TRIVIAL(error) << "库所 " << vertex.name 
+                    << " 的token数量无效: " << vertex.token;
+            }
+        }
+    }
+    
+    if (is_valid) {
+        BOOST_LOG_TRIVIAL(info) << "Petri网结构验证通过";
+    } else {
+        BOOST_LOG_TRIVIAL(error) << "Petri网结构验证失败";
+    }
+    
+    return is_valid;
+}

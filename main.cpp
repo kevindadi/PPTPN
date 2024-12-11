@@ -32,9 +32,13 @@ int main(int argc, char *argv[]) {
   PriorityTimePetriNet ptpn;
   ptpn.init();
   ptpn.transform_tdg_to_ptpn(tdg_rap);
+  if (!ptpn.verify_petri_net_structure()) {
+    BOOST_LOG_TRIVIAL(error) << "Petri net structure is incorrect";
+    return 1;
+  } 
   StateClassGraph Scg(ptpn.ptpn);
-  Scg.generate_state_class_with_thread(64); 
-  check_deadlock(Scg.scg);
+  Scg.generate_state_class();
+  // check_deadlock(Scg.scg);
   return 0;
 }
 

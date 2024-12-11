@@ -52,7 +52,7 @@ StateClass StateClassGraph::get_initial_state_class(const PTPN& source_ptpn) {
       }
     } 
     return StateClass(mark, all_t);
-  }
+}
 
 std::string StateClass::to_scg_vertex() {
   std::string labels;
@@ -117,12 +117,13 @@ std::vector<SchedT> StateClassGraph::get_sched_transitions(const StateClass &sta
     return {};
   }
 
+
   // 计算发生时间区间
   auto fire_time = calculate_fire_time_domain(enabled_transitions);
   
   // 获取满足时间约束的变迁
   auto sched_transitions = get_time_satisfied_transitions(enabled_transitions, fire_time);
-  
+
   // 应用优先级规则
   apply_priority_rules(sched_transitions);
 
@@ -149,17 +150,33 @@ std::vector<vertex_ptpn> StateClassGraph::get_enabled_transitions() {
 }
 
 std::pair<int, int> StateClassGraph::calculate_fire_time_domain(const std::vector<vertex_ptpn>& enabled_t_s) {
-  std::pair<int, int> fire_time = {INT_MAX, INT_MAX};
+  std::pair<int, int> fire_time = {0, INT_MAX};
   
   for (auto t : enabled_t_s) {
     const auto& trans = (*init_ptpn)[t];
     int f_min = std::max(0, trans.pnt.const_time.first - trans.pnt.runtime);
     int f_max = trans.pnt.const_time.second - trans.pnt.runtime;
     
+    if (f_max < 0) {
+      BOOST_LOG_TRIVIAL(debug) << "变迁 " << trans.name << " 已超时，设置为立即发生";
+      return {0, 0};
+    }
+
     fire_time.first = std::min(fire_time.first, f_min);
-    fire_time.second = std::min(fire_time.second, f_max);
+    if (f_max < fire_time.second) {
+      fire_time.second = f_max;
+    }
+
+    if (f_min > f_max) {
+      BOOST_LOG_TRIVIAL(error) << "calculate_fire_time_domain error: min(" 
+                              << f_min << ") > max(" 
+                              << f_max << ")";
+    }
   }
-  
+  if (fire_time.first > fire_time.second) {
+    BOOST_LOG_TRIVIAL(debug) << "调整无效的时间区间为立即发生";
+    return {0, 0};
+  }
   return fire_time;
 }
 
@@ -180,7 +197,7 @@ std::vector<SchedT> StateClassGraph::get_time_satisfied_transitions(
                             << ", fire_time=(" << fire_time.first 
                             << "," << fire_time.second << ")";
     if (t_max < 0) {
-      BOOST_LOG_TRIVIAL(warning) << "变迁 " << trans.name 
+      BOOST_LOG_TRIVIAL(debug) << "变迁 " << trans.name 
                                 << " 已超过最大等待时间，应该已经发生";
       // 这种情况下应该立即发生
       sched_T.push_back(SchedT{t, {0, 0}});
@@ -489,7 +506,7 @@ void StateClassGraph::worker_thread(int thread_id) {
 }
 
 void StateClassGraph::process_state_class(const StateClass& state_class, std::unique_ptr<PTPN>& local_ptpn) {
-    // 获取可调度��迁
+    // 获取可调度变迁
     auto sched_transitions = get_sched_transitions(state_class);
     
     // 对每个可调度变迁

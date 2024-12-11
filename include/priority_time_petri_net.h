@@ -176,8 +176,6 @@ inline std::unique_ptr<PTPN> deep_copy_graph(const PTPN& ptpn) {
   return std::make_unique<PTPN>(scg_ptpn);
 } 
 class PriorityTimePetriNet {
-  
-
   // cpu 对应的库所
   vector<vertex_ptpn> cpus_place;
   // 锁对应的库所
@@ -196,6 +194,8 @@ public: // 图映射
   PTPN ptpn;
   // TDG_RAP 到优先级时间 Petri 网的主函数
   void transform_tdg_to_ptpn(TDG &tdg);
+  // 验证Petri结构正确性
+  bool verify_petri_net_structure();
   
   vertex_ptpn add_place(PTPN& pn, const string& name, int token) {
     return boost::add_vertex(PTPNVertex(name, token), pn);

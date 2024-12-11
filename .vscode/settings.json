@@ -85,5 +85,7 @@
         "format": "cpp",
         "charconv": "cpp",
         "*.ipp": "cpp"
-    }
+    },
+    "editor.formatOnSave": true,
+    "clang-format.style": "Google"
 }
