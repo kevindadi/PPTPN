@@ -8,6 +8,10 @@
 #include <boost/graph/graphviz.hpp>
 #include <boost/graph/breadth_first_search.hpp>
 #include <string>
+#include <thread>
+#include <mutex>
+#include <future>
+#include <queue>
 #include <unordered_map>
 #include <utility>
 #include "priority_time_petri_net.h"
@@ -221,5 +225,20 @@ public:
 
   // 生成状态类图主函数
   void generate_state_class();
+  void generate_state_class_with_thread(int num_threads = std::thread::hardware_concurrency());
+
+private:
+  std::mutex scg_mutex;  // 保护状态类图的互斥锁
+  std::mutex queue_mutex; // 保护待处理队列的互斥锁
+  std::condition_variable cv; // 条件变量用于线程同步
+  std::queue<StateClass> pending_states; // 待处理的状态类队列
+  bool processing_complete = false; // 处理完成标志
+  std::vector<std::unique_ptr<PTPN>> thread_ptpns;
+  // 新增的私有方法
+  void worker_thread(int thread_id);
+  void process_state_class(const StateClass& state_class, std::unique_ptr<PTPN>& local_ptpn);
+  bool get_next_state(StateClass& state);
+  void add_new_state(const StateClass& new_state);
 };
 #endif // PPTPN_INCLUDE_STATE_CLASS_GRAPH_H
+
