@@ -1,0 +1,21 @@
+{
+  "name" : "pptpn",
+  "version-string" : "1.0.0",
+  "builtin-baseline" : "ebf90b95b170725379768b2de378d3af6f713bfd",
+  "dependencies" : [ {
+    "name" : "boost-graph",
+    "version>=" : "1.82.0#2"
+  }, {
+    "name" : "boost-log",
+    "version>=" : "1.82.0#2"
+  }, {
+    "name" : "nlohmann-json",
+    "version>=" : "3.11.2"
+  }, {
+    "name" : "graphviz",
+    "version>=" : "7.0.0#2"
+  }, {
+    "name" : "boost-program-options",
+    "version>=" : "1.82.0#2"
+  } ]
+}
