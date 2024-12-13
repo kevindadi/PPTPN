@@ -1,4 +1,3 @@
-
 #include "clap.h"
 #include <boost/exception/all.hpp>
 #include <boost/static_assert.hpp>
@@ -51,6 +50,31 @@ void TDG::parse_tdg() {
       std::string id = get("node_id", tdg_dp, v);
       std::string label = get("label", tdg_dp, v);
       vertex_index.insert({id, v});
+      
+      // 检查是否是资源节点
+      if (id == "CPU" || id == "MUTEX" || id == "SPINLOCK") {
+        try {
+          Resource resource = parse_resource_label(label);
+          ResourceType type;
+          if (id == "CPU") type = ResourceType::CPU;
+          else if (id == "MUTEX") type = ResourceType::MUTEX;
+          else type = ResourceType::SPINLOCK;
+          
+          resources[type] = resource;
+          BOOST_LOG_TRIVIAL(info) << "Resource " << id << ": count=" 
+                                 << resource.count;
+          if (type == ResourceType::CPU) {
+            BOOST_LOG_TRIVIAL(info) << "CPU cores per unit: " 
+                                   << resource.cores;
+          }
+          continue;
+        } catch (const LabelParseException& ex) {
+          BOOST_LOG_TRIVIAL(error) << "Failed to parse resource label: " 
+                                  << ex.what();
+          throw;
+        }
+      }
+      
       BOOST_LOG_TRIVIAL(debug) << label;
       NodeType node_type;
       try {
@@ -371,4 +395,41 @@ std::unordered_map<int, vector<string>> TDG::classify_priority() {
   }
 
   return core_task;
+}
+
+// 添加解析资源标签的函数实现
+Resource TDG::parse_resource_label(const string& label) {
+  if (label.empty()) {
+    BOOST_THROW_EXCEPTION(LabelParseException("Resource label cannot be empty"));
+  }
+  
+  regex rgx("\\{(.*?)\\}");
+  smatch matches;
+  if (regex_search(label, matches, rgx)) {
+    string content = matches[1].str();
+    vector<string> parts;
+    istringstream ss(content);
+    string token;
+    while (getline(ss, token, ';')) {
+      parts.push_back(token);
+    }
+    
+    if (parts.size() < 2) {
+      BOOST_THROW_EXCEPTION(
+          LabelParseException("Resource label must have at least name and count"));
+    }
+    
+    Resource resource;
+    resource.name = parts[0];
+    resource.count = stoi(parts[1]);
+    
+    if (resource.name == "CPU" && parts.size() >= 3) {
+      resource.cores = stoi(parts[2]);
+    }
+    
+    return resource;
+  }
+  
+  BOOST_THROW_EXCEPTION(
+      LabelParseException("Invalid resource label format: " + label));
 }

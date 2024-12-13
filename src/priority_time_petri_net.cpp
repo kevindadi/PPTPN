@@ -80,12 +80,16 @@ void PriorityTimePetriNet::transform_tdg_to_ptpn(TDG &tdg) {
 
 }
 
-
 void PriorityTimePetriNet::transform_vertices(TDG &tdg) {
   BOOST_FOREACH (TDG_RAP::vertex_descriptor v, vertices(tdg.tdg)) {
     const string& vertex_name = tdg.tdg[v].name;
     BOOST_LOG_TRIVIAL(debug) << "Processing vertex: " << vertex_name;
-    
+    string id = get("node_id", tdg.tdg_dp, v);
+    // 如果节点为CPU，则跳过
+    if (id == "CPU" || id == "MUTEX" || id == "SPINLOCK") {
+      continue;
+    }
+
     try {
       auto node_type_it = tdg.nodes_type.find(vertex_name);
       if (node_type_it == tdg.nodes_type.end()) {
@@ -190,7 +194,12 @@ void PriorityTimePetriNet::handle_normal_edge(const string& source_name,
 
 void PriorityTimePetriNet::add_resources_and_bindings(TDG &tdg) {
   // 添加CPU资源
-  add_cpu_resource(6);
+  if (auto it = tdg.resources.find(ResourceType::CPU); it != tdg.resources.end()) {
+    add_cpu_resource(it->second.count, it->second.cores);
+  } else {
+    BOOST_LOG_TRIVIAL(warning) << "No CPU resource defined, using default";
+    add_cpu_resource(6);
+  }
   
   // 添加锁资源
   add_lock_resource(tdg.lock_set);
@@ -229,6 +238,17 @@ void PriorityTimePetriNet::add_cpu_resource(int nums) {
     // vertex_tpn c = add_vertex(PetriNetElement{core_name, core_name, "circle",
     // 1}, ptpn);
     PTPNVertex cpu_place = {cpu_name, 1};
+    vertex_ptpn c = add_vertex(cpu_place, ptpn);
+    cpus_place.push_back(c);
+  }
+  BOOST_LOG_TRIVIAL(info) << "create core resource!";
+}
+
+void PriorityTimePetriNet::add_cpu_resource(int counts, int cores) {
+  is_safe_net = false;
+  for (int i = 0; i < counts; i++) {
+    string cpu_name = "core" + std::to_string(i); 
+    PTPNVertex cpu_place = {cpu_name, cores};
     vertex_ptpn c = add_vertex(cpu_place, ptpn);
     cpus_place.push_back(c);
   }
@@ -679,7 +699,7 @@ void PriorityTimePetriNet::add_preempt_task_ptpn(
 /// \param preempt_vertex 发生抢占的库所
 /// \param handle_t 可挂起的变迁
 /// \param start 高优先级的开始库所
-/// \param end 高优先��的结束库所
+/// \param end 高优先级的结束库所
 /// \param task_type 高优先级任务类型
 void PriorityTimePetriNet::create_task_priority(
     const std::string &name, vertex_ptpn preempt_vertex, size_t handle_t,
@@ -926,11 +946,13 @@ bool PriorityTimePetriNet::verify_petri_net_structure() {
                 is_valid = false;
             }
             
-            // 检查3：token数量必须是0或1
+            // 检查3：对于安全网来说,token数量必须是0或1 
+            if (is_safe_net) {  
             if (vertex.token < 0 || vertex.token > 1) {
                 is_valid = false;
                 BOOST_LOG_TRIVIAL(error) << "库所 " << vertex.name 
                     << " 的token数量无效: " << vertex.token;
+            }
             }
         }
     }

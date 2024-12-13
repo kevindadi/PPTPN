@@ -251,8 +251,10 @@ private:
   void add_resources_and_bindings(TDG &tdg);
   void log_network_info();
 
-private:// 创建处理器资源库所
+private:
+  bool is_safe_net = true;
   void add_cpu_resource(int nums);
+  void add_cpu_resource(int counts, int cores);
   // 创建锁资源库所
   void add_lock_resource(const set<string> &locks_name);
   // 任务绑定CPU资源

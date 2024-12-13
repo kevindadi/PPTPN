@@ -68,11 +68,25 @@ struct EmptyTask {
   string name;
 };
 
-enum Resources {
+
+struct Resource {
+  string name;
+  int count;      // 资源数量
+  int cores = 0;  // CPU专用：每个CPU的核心数
+};
+
+// 修改 Resources 枚举
+enum ResourceType {
   CPU,
   MUTEX,
   SPINLOCK,
 };
+
+// 添加资源类型到字符串的映射
+inline std::unordered_map<ResourceType, std::string> ResourceTypeToString = {
+    {ResourceType::CPU, "CPU"},
+    {ResourceType::MUTEX, "MUTEX"},
+    {ResourceType::SPINLOCK, "SPINLOCK"}};
 
 using NodeType =
     variant<PeriodicTask, APeriodicTask, DistTask, SyncTask, EmptyTask>;
