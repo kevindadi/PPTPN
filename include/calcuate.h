@@ -27,7 +27,7 @@ std::pair<int, std::vector<Path>> calculate_wcet(SCG &scg, ScgVertexD start, Scg
                                 std::string exit_flag);
 
 int task_wcet(SCG& scg, std::string start_task, std::string exit_task);
-bool check_deadlock(SCG& scg);
+bool check_deadlock(SCG& scg, std::vector<string>& period_task_lists);
 
 class ThreadPool {
 public:

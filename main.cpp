@@ -36,9 +36,9 @@ int main(int argc, char *argv[]) {
     BOOST_LOG_TRIVIAL(error) << "Petri net structure is incorrect";
     return 1;
   } 
-  StateClassGraph Scg(ptpn.ptpn);
+  StateClassGraph Scg(ptpn.ptpn, std::vector<std::size_t>{1, 2});
   Scg.generate_state_class();
-  // check_deadlock(Scg.scg);
+  // check_deadlock(Scg.scg); 
   return 0;
 }
 

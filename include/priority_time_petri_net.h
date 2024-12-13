@@ -192,6 +192,8 @@ public: // 图映射
   void init();
   boost::dynamic_properties ptpn_dp;
   PTPN ptpn;
+  // 周期函数的周期变迁ID
+  std::vector<std::size_t> period_transitions_id;
   // TDG_RAP 到优先级时间 Petri 网的主函数
   void transform_tdg_to_ptpn(TDG &tdg);
   // 验证Petri结构正确性

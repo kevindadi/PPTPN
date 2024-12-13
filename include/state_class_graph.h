@@ -69,7 +69,7 @@ struct SCGVertex {
   std::string label;
 };
 
-// 状态类图中的编
+// 状态类图中的边，包含使能的变迁
 struct SCGEdge {
   std::string label;
   std::pair<int, int> time;
@@ -101,7 +101,6 @@ public:
   Marking mark;
   // 使能变迁和可挂起变迁的等待时间
   std::set<T_wait> all_t;
-
 public:
   StateClass() = default;
   StateClass(Marking mark, std::set<T_wait> all_t)
@@ -215,9 +214,12 @@ private:
   std::set<T_wait> calculate_new_wait_times(const std::vector<std::size_t>& old_enabled_t, const std::vector<std::size_t>& new_enabled_t);
 
 public:
+  // 周期变迁 Names和Id
+  std::vector<std::string> period_transitions;
+  std::vector<std::size_t> period_transitions_id;
   // 构造函数
-  StateClassGraph(const PTPN& source_ptpn) 
-  : init_ptpn(deep_copy_graph(source_ptpn)) {
+  StateClassGraph(const PTPN& source_ptpn, std::vector<std::size_t> period_transitions_id) 
+  : init_ptpn(deep_copy_graph(source_ptpn)), period_transitions_id(period_transitions_id) {
       init_state_class = get_initial_state_class(source_ptpn);
   }
   // 状态类图,insert唯一的stateclass
@@ -227,18 +229,126 @@ public:
   void generate_state_class();
   void generate_state_class_with_thread(int num_threads = std::thread::hardware_concurrency());
 
+  // 死锁StateClass
+  std::set<StateClass> deadlock_sc_sets;
+
 private:
-  std::mutex scg_mutex;  // 保护状态类图的互斥锁
-  std::mutex queue_mutex; // 保护待处理队列的互斥锁
-  std::condition_variable cv; // 条件变量用于线程同步
-  std::queue<StateClass> pending_states; // 待处理的状态类队列
-  bool processing_complete = false; // 处理完成标志
+  std::mutex scg_mutex;  // 保护图结构的互斥锁
+  std::mutex queue_mutex;  // 保护队列的互斥锁
+  std::condition_variable cv;
+  std::atomic<int> active_threads{0};
+  std::atomic<bool> processing_complete{false};
   std::vector<std::unique_ptr<PTPN>> thread_ptpns;
-  // 新增的私有方法
+  std::queue<StateClass> pending_states;
+  // 并发generate实现
+  std::vector<SchedT> get_sched_transitions(const StateClass &state_class, PTPN& local_ptpn);
+  StateClass fire_transition(const StateClass &sc, SchedT transition, PTPN& local_ptpn);
+  void process_state_class(const StateClass& state_class, PTPN& local_ptpn);
   void worker_thread(int thread_id);
-  void process_state_class(const StateClass& state_class, std::unique_ptr<PTPN>& local_ptpn);
-  bool get_next_state(StateClass& state);
+  bool get_next_state(StateClass& states);
   void add_new_state(const StateClass& new_state);
+
+  void set_state_class(const StateClass &state_class, PTPN& local_ptpn);
+  std::vector<vertex_ptpn> get_enabled_transitions(PTPN& local_ptpn);
+  std::pair<std::vector<std::size_t>, std::vector<std::size_t>> 
+  get_enabled_transitions_with_history(PTPN& local_ptpn);
+  std::pair<int, int> calculate_fire_time_domain(
+      const std::vector<vertex_ptpn>& enabled_t_s, 
+      PTPN& local_ptpn);
+  void execute_transition(const SchedT& transition, PTPN& local_ptpn);
+  std::pair<Marking, std::vector<std::size_t>> 
+  get_new_marking_and_enabled(PTPN& local_ptpn);
+  std::set<T_wait> calculate_new_wait_times(
+      const std::vector<std::size_t>& old_enabled_t,
+      const std::vector<std::size_t>& new_enabled_t,
+      PTPN& local_ptpn);
+  void apply_priority_rules(std::vector<SchedT>& sched_T, PTPN& local_ptpn);
+  void apply_priority_rules(std::vector<std::size_t>& enabled_t, PTPN& local_ptpn);
+  void update_transition_times(const std::vector<std::size_t>& enabled_t, 
+                            const SchedT& transition, PTPN& local_ptpn);
+  std::vector<SchedT> get_time_satisfied_transitions(   
+      const std::vector<vertex_ptpn>& enabled_t_s,
+      const std::pair<int, int>& fire_time, PTPN& local_ptpn);  
+};
+
+
+class WorkQueue {
+private:
+    std::deque<StateClass> queue;
+    std::mutex mutex;
+    
+public:
+    bool try_steal(StateClass& state) {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (queue.empty()) return false;
+        state = std::move(queue.back());
+        queue.pop_back();
+        return true;
+    }
+    
+    void push(StateClass state) {
+        std::lock_guard<std::mutex> lock(mutex);
+        queue.push_front(std::move(state));
+    }
+    
+    bool try_pop(StateClass& state) {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (queue.empty()) return false;
+        state = std::move(queue.front());
+        queue.pop_front();
+        return true;
+    }
+};
+
+class WorkStealing {
+private:
+    std::vector<WorkQueue> queues;
+    std::atomic<bool> done{false};
+    
+public:
+    explicit WorkStealing(size_t n) : queues(n) {}
+    
+    void push(size_t id, StateClass state) {
+        queues[id].push(std::move(state));
+    }
+    
+    bool try_pop(size_t id, StateClass& state) {
+        // 先尝试从自己的队列中获取任务
+        if (queues[id].try_pop(state)) return true;
+        
+        // 否则尝试从其他队列偷取任务
+        for (size_t i = 0; i < queues.size(); ++i) {
+            if (i == id) continue;
+            if (queues[i].try_steal(state)) return true;
+        }
+        return false;
+    }
+    
+    void finish() { done = true; }
+    bool is_done() const { return done; }
+};
+
+template<typename T>
+class ObjectPool {
+    std::vector<std::unique_ptr<T>> objects;
+    std::vector<T*> free_objects;
+    std::mutex mutex;
+    
+public:
+    T* acquire() {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (free_objects.empty()) {
+            objects.push_back(std::make_unique<T>());
+            return objects.back().get();
+        }
+        T* obj = free_objects.back();
+        free_objects.pop_back();
+        return obj;
+    }
+    
+    void release(T* obj) {
+        std::lock_guard<std::mutex> lock(mutex);
+        free_objects.push_back(obj);
+    }
 };
 #endif // PPTPN_INCLUDE_STATE_CLASS_GRAPH_H
-

@@ -469,7 +469,7 @@ PriorityTimePetriNet::add_p_node_ptpn(PeriodicTask &p_task) {
   vertex_ptpn random = add_place(ptpn, task_random_period, 1);
   vertex_ptpn fire = add_transition(ptpn, p_task.name + "fire",
       PTPNTransition{p_task.priority, p_task.period_time, p_task.core});
-  
+  period_transitions_id.push_back(fire);
   // 创建基本任务结构
   BasicTaskStructure basic(this, names, p_task.priority, p_task.core, 
                           p_task.time.back());

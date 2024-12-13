@@ -140,22 +140,43 @@ int task_wcet(SCG& scg, std::string start_task, std::string exit_task)
   return max_wcet;
 }
 
-bool check_deadlock(SCG& scg) {
-  std::vector<ScgVertexD> no_successors;
-  typedef boost::graph_traits<SCG>::vertex_iterator vertex_iter;
-  vertex_iter vi, vi_end;
-  for (boost::tie(vi, vi_end) = boost::vertices(scg); vi != vi_end; ++vi) {
-    if (boost::out_degree(*vi, scg) == 0) {
-      no_successors.push_back(*vi);
+// 检查死锁,排除周期任务的发生
+bool check_deadlock(SCG& scg, std::vector<std::string>& period_task_lists) {
+    typedef boost::graph_traits<SCG>::vertex_iterator vertex_iter;
+    vertex_iter vi, vi_end;
+    
+    for (boost::tie(vi, vi_end) = boost::vertices(scg); vi != vi_end; ++vi) {
+        // 跳过初始节点（初始节点的索引为0）
+        if (*vi == 0) continue;
+        
+        auto out_degree = boost::out_degree(*vi, scg);
+        
+        // 如果出度为0是死锁
+        if (out_degree == 0) {
+            BOOST_LOG_TRIVIAL(warning) << "Deadlock detected at vertex: " << scg[*vi].id;
+            return true;
+        }
+        
+        // 检查后继边是否全是周期任务
+        bool all_successors_are_periodic = true;
+        for (auto [ei, ei_end] = boost::out_edges(*vi, scg); ei != ei_end; ++ei) {
+            ScgVertexD target_vertex = boost::target(*ei, scg);
+            const std::string& target_id = scg[target_vertex].id;
+            
+            // 如果后继任务不在周期任务列表中，标记为false
+            if (std::find(period_task_lists.begin(), period_task_lists.end(), target_id) == period_task_lists.end()) {
+                all_successors_are_periodic = false;
+                break;
+            }
+        }
+        
+        // 如果所有后继边都是周期任务，也是死锁
+        if (all_successors_are_periodic) {
+            BOOST_LOG_TRIVIAL(warning) << "Deadlock detected at vertex with only periodic successors: " << scg[*vi].id;
+            return true;
+        }
     }
-  }
-  if (no_successors.empty()) {
-    std::cout << "????" << std::endl;
+    
+    // 如果没有检测到死锁，返回false
     return false;
-  } else {
-    for (const auto &v : no_successors) {
-      std::cout << scg[v].id << std::endl;
-    }
-  }
-  return true;
 }
