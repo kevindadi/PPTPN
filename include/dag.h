@@ -68,6 +68,12 @@ struct EmptyTask {
   string name;
 };
 
+enum Resources {
+  CPU,
+  MUTEX,
+  SPINLOCK,
+};
+
 using NodeType =
     variant<PeriodicTask, APeriodicTask, DistTask, SyncTask, EmptyTask>;
 
