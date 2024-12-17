@@ -18,8 +18,6 @@
 
 using namespace boost;
 
-
-
 // 可发生变迁, 从中筛选可调度变迁
 struct SchedT {
   std::size_t t;

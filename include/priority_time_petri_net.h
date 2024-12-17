@@ -112,11 +112,9 @@ struct PTPNTransition {
   PTPNTransition(int priority, std::pair<int, int> time, int c)
       : PTPNTransition(false, priority, std::move(time), c, false) {}
 
-  // 委处理变迁
   PTPNTransition(bool is_handle, int priority, std::pair<int, int> time, int c)
       : PTPNTransition(is_handle, priority, std::move(time), c, false) {}
 
-  // 随机变迁
   PTPNTransition(int priority, std::pair<int, int> time, int c, bool is_random)
       : PTPNTransition(false, priority, std::move(time), c, is_random) {}
 };
@@ -147,7 +145,11 @@ struct PTPNVertex {
 
 struct PTPNEdge {
   std::string label;
-  std::pair<int, int> weight;
+  int weight;
+  std::pair<int, int> times;
+
+  PTPNEdge() = default;
+  PTPNEdge(const string& label, int weight, std::pair<int, int> times) : label(label), weight(weight), times(times) {}
 };
 
 typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS,
@@ -165,7 +167,7 @@ inline std::unique_ptr<PTPN> deep_copy_graph(const PTPN& ptpn) {
     vertex_ptpn new_vertex = add_vertex(ptpn[*vi], scg_ptpn);
     vertex_map[*vi] = new_vertex;
   }
-    
+  
   for (auto [ei, ei_end] = edges(ptpn); ei != ei_end; ++ei) {
      add_edge(vertex_map[source(*ei, ptpn)],
             vertex_map[target(*ei, ptpn)],
@@ -205,6 +207,10 @@ public: // 图映射
   
   vertex_ptpn add_transition(PTPN& pn, const string& name, PTPNTransition pnt) {
     return boost::add_vertex(PTPNVertex(name, pnt), pn);
+  }
+
+  void add_edge(vertex_ptpn u, vertex_ptpn v, PTPN& pn, const string& label, int weight, std::pair<int, int> times) {
+    boost::add_edge(u, v, PTPNEdge(label, weight, times), pn);
   }
 
   void add_edge(vertex_ptpn u, vertex_ptpn v, PTPN& pn) {

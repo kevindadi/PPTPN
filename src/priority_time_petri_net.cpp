@@ -858,7 +858,7 @@ void PriorityTimePetriNet::create_hlf_task_priority(
 }
 
 bool PriorityTimePetriNet::verify_petri_net_structure() {
-  bool is_valid = true;
+    bool is_valid = true;
     
     // 遍历所有顶点
     for (auto [vi, vi_end] = vertices(ptpn); vi != vi_end; ++vi) {
@@ -948,11 +948,11 @@ bool PriorityTimePetriNet::verify_petri_net_structure() {
             
             // 检查3：对于安全网来说,token数量必须是0或1 
             if (is_safe_net) {  
-            if (vertex.token < 0 || vertex.token > 1) {
-                is_valid = false;
-                BOOST_LOG_TRIVIAL(error) << "库所 " << vertex.name 
-                    << " 的token数量无效: " << vertex.token;
-            }
+                if (vertex.token < 0 || vertex.token > 1) {
+                    is_valid = false;
+                    BOOST_LOG_TRIVIAL(error) << "库所 " << vertex.name 
+                        << " 的token数量无效: " << vertex.token;
+                }
             }
         }
     }
