@@ -1,24 +1,21 @@
 #ifndef PPTPN_INCLUDE_STATE_CLASS_GRAPH_H
 #define PPTPN_INCLUDE_STATE_CLASS_GRAPH_H
 
+#include "priority_time_petri_net.h"
 #include <algorithm>
 #include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/breadth_first_search.hpp>
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/graph_utility.hpp>
 #include <boost/graph/graphviz.hpp>
-#include <boost/graph/breadth_first_search.hpp>
+#include <mutex>
+#include <queue>
 #include <string>
 #include <thread>
-#include <mutex>
-#include <future>
-#include <queue>
 #include <unordered_map>
 #include <utility>
-#include "priority_time_petri_net.h"
 
 using namespace boost;
-
-
 
 // 可发生变迁, 从中筛选可调度变迁
 struct SchedT {
@@ -90,7 +87,7 @@ struct Marking {
   }
   bool operator<(const Marking &other) const { return indexes < other.indexes; }
 
-  bool operator!=(const Marking& other) const {
+  bool operator!=(const Marking &other) const {
     return indexes != other.indexes;
   }
 };
@@ -113,7 +110,8 @@ public:
   }
 
   bool operator<(const StateClass &other) const {
-    if (mark != other.mark) return mark < other.mark;
+    if (mark != other.mark)
+      return mark < other.mark;
 
     // If the mark members are equal, compare the all_t member
     return all_t < other.all_t;
@@ -175,13 +173,14 @@ typedef std::unordered_map<StateClass, ScgVertexD, StateClassHasher,
 class StateClassGraph {
 private:
   // 初始网模型,用于并行加速
-  std::unique_ptr<PTPN> init_ptpn;
+  ptpn::PriorityTPNGraph init_ptpn;
   // 初始标识
   Marking init_mark;
   // 初始状态类
   StateClass init_state_class;
   std::set<StateClass> sc_sets;
   ScgVertexMap scg_vertex_map;
+
 private:
   void set_state_class(const StateClass &state_class);
   // 获得每个状态类下可调度的变迁集
@@ -190,55 +189,47 @@ private:
   StateClass fire_transition(const StateClass &sc, SchedT transition);
 
   ScgVertexD add_scg_vertex(StateClass sc);
-  bool is_transition_enabled(const PTPN& ptpn, vertex_ptpn v);
+  bool is_transition_enabled(const ptpn::PriorityTPNGraph &ptpn,
+                             ptpn::ptpn_v_desc v);
   // 获取初始状态下的等待时间集合
-  StateClass get_initial_state_class(const PTPN& source_ptpn);
+  StateClass get_initial_state_class(const ptpn::PriorityTPNGraph &source_ptpn);
   // 获取使能的变迁
-  std::vector<vertex_ptpn> get_enabled_transitions();
+  std::vector<ptpn::ptpn_v_desc> get_enabled_transitions();
   // 计算变迁的发生时间域
-  std::pair<int, int> calculate_fire_time_domain(const std::vector<vertex_ptpn>& enabled_t_s);
+  std::pair<int, int>
+  calculate_fire_time_domain(const std::vector<ptpn::ptpn_v_desc> &enabled_t_s);
   // 获取符合发生时间域的变迁
-  std::vector<SchedT> get_time_satisfied_transitions(const std::vector<vertex_ptpn>& enabled_t_s, const std::pair<int, int>& fire_time);  
+  std::vector<SchedT> get_time_satisfied_transitions(
+      const std::vector<ptpn::ptpn_v_desc> &enabled_t_s,
+      const std::pair<int, int> &fire_time);
   // 应用优先级规则
-  void apply_priority_rules(std::vector<SchedT>& sched_T);
-  void apply_priority_rules(std::vector<std::size_t>& enabled_t);
+  void apply_priority_rules(std::vector<SchedT> &sched_T);
+  void apply_priority_rules(std::vector<std::size_t> &enabled_t);
   // 获取使能的变迁的前置变迁
-  std::pair<std::vector<std::size_t>, std::vector<std::size_t>> get_enabled_transitions_with_history();
+  std::pair<std::vector<std::size_t>, std::vector<std::size_t>>
+  get_enabled_transitions_with_history();
   // 更新变迁的等待时间
-  void update_transition_times(const std::vector<std::size_t>& enabled_t, 
-                           const SchedT& transition);  
+  void update_transition_times(const std::vector<std::size_t> &enabled_t,
+                               const SchedT &transition);
   // 执行变迁
-  void execute_transition(const SchedT& transition);
+  void execute_transition(const SchedT &transition);
   // 获取新标识和新使能变迁
   std::pair<Marking, std::vector<std::size_t>> get_new_marking_and_enabled();
   // 计算新的等待时间集合
-  std::set<T_wait> calculate_new_wait_times(const std::vector<std::size_t>& old_enabled_t, const std::vector<std::size_t>& new_enabled_t);
+  std::set<T_wait>
+  calculate_new_wait_times(const std::vector<std::size_t> &old_enabled_t,
+                           const std::vector<std::size_t> &new_enabled_t);
 
 public:
   // 构造函数
-  StateClassGraph(const PTPN& source_ptpn) 
-  : init_ptpn(deep_copy_graph(source_ptpn)) {
-      init_state_class = get_initial_state_class(source_ptpn);
+  StateClassGraph(ptpn::PriorityTPNGraph source_ptpn) {
+    init_ptpn = source_ptpn;
+    init_state_class = get_initial_state_class(source_ptpn);
   }
   // 状态类图,insert唯一的stateclass
-  SCG scg; 
+  SCG scg;
 
   // 生成状态类图主函数
   void generate_state_class();
-  void generate_state_class_with_thread(int num_threads = std::thread::hardware_concurrency());
-
-private:
-  std::mutex scg_mutex;  // 保护状态类图的互斥锁
-  std::mutex queue_mutex; // 保护待处理队列的互斥锁
-  std::condition_variable cv; // 条件变量用于线程同步
-  std::queue<StateClass> pending_states; // 待处理的状态类队列
-  bool processing_complete = false; // 处理完成标志
-  std::vector<std::unique_ptr<PTPN>> thread_ptpns;
-  // 新增的私有方法
-  void worker_thread(int thread_id);
-  void process_state_class(const StateClass& state_class, std::unique_ptr<PTPN>& local_ptpn);
-  bool get_next_state(StateClass& state);
-  void add_new_state(const StateClass& new_state);
 };
 #endif // PPTPN_INCLUDE_STATE_CLASS_GRAPH_H
-
