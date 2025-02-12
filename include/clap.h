@@ -72,11 +72,15 @@ public:
   // 优先级抢占的任务配置简化
   std::unordered_map<string, TaskConfig> tasks_config;
 
+  // 资源相关映射
+  std::unordered_map<ResourceType, Resource> resources;
+
 public:
   void parse_tdg();
 
   // 解析 vertex 的 label 属性
   NodeType parse_vertex_label(const string &label);
+  Resource parse_resource_label(const string &label);
   // 解析 time 数组中的每个时间区间
   static vector<int> parse_time_vec(string times);
 

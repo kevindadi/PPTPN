@@ -30,7 +30,9 @@ add_executable(PTPN main.cpp include/clap.h include/dag.h src/clap.cpp
         include/owner_assert.h
         include/owner_error.h
         include/calcuate.h
-        src/calcuate.cpp)
+        src/calcuate.cpp
+        include/unsafe_scg.h
+        src/unsafe_scg.cpp)
 target_link_libraries(PTPN Boost::graph Boost::log Boost::program_options)
 
 #enable_testing()
