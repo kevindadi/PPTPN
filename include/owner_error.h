@@ -6,7 +6,6 @@
 #define PPTPN_INCLUDE_OWNER_ERROR_H
 #include <boost/system/error_code.hpp>
 #include <boost/system/system_error.hpp>
-#include <iostream>
 #include <string>
 
 enum class ParseErrorCodes {
@@ -66,12 +65,12 @@ public:
   }
 };
 
-const boost::system::error_category &parse_error_category() {
+inline const boost::system::error_category &parse_error_category() {
   static ParseErrorCategory instance;
   return instance;
 }
 
-const boost::system::error_category &gen_pn_error_category() {
+inline const boost::system::error_category &gen_pn_error_category() {
   static GenPNErrorCategory instance;
   return instance;
 }
@@ -81,11 +80,11 @@ const boost::system::error_category &gen_pn_error_category() {
 //   return instance;
 // }
 
-boost::system::error_code make_error_code(ParseErrorCodes e) {
+inline boost::system::error_code make_error_code(ParseErrorCodes e) {
   return {static_cast<int>(e), parse_error_category()};
 }
 
-boost::system::error_code make_error_code(GenPNErrorCodes e) {
+inline boost::system::error_code make_error_code(GenPNErrorCodes e) {
   return {static_cast<int>(e), gen_pn_error_category()};
 }
 

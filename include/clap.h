@@ -14,9 +14,6 @@
 #include <vector>
 
 using namespace boost;
-namespace logging = boost::log;
-
-using namespace boost;
 
 typedef property<graph_name_t, std::string> TDG_RAP_P;
 typedef adjacency_list<vecS, vecS, directedS, DAGVertex, DAGEdge, TDG_RAP_P>

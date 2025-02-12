@@ -195,11 +195,11 @@ void PriorityTPN::handle_normal_edge(const string &source_name,
   // 如果链接的某个节点属于Dist，Sync则直接链接
   if (source_name.substr(0, 4) == "Dist" ||
       source_name.substr(0, 4) == "Wait") {
-    add_edge(source_node, target_node, graph);
+    add_edge(source_node, target_node, Edge{.weight = 1}, graph);
     return;
   } else if (target_name.substr(0, 4) == "Dist" ||
              target_name.substr(0, 4) == "Wait") {
-    add_edge(source_node, target_node, graph);
+    add_edge(source_node, target_node, Edge{.weight = 1}, graph);
     return;
   }
 
@@ -921,16 +921,20 @@ bool PriorityTPN::verify_petri_net_structure() {
       }
 
       // 检查4：变迁时间约束的有效性
-      // if (vertex.const_time.first < 0 ||
-      //     vertex.const_time.second < vertex.pnt.const_time.first) {
-      //   is_valid = false;
-      //   BOOST_LOG_TRIVIAL(error)
-      //       << "变迁 " << vertex.name << " 的时间约束无效: ["
-      //       << vertex.pnt.const_time.first << ","
-      //       << vertex.pnt.const_time.second << "]";
-      // }
+      if (vertex.is_transition()) {
+        auto transition = vertex.as_transition();
+        if (transition.const_time.first < 0 ||
+            transition.const_time.second < transition.const_time.first) {
+          is_valid = false;
+          BOOST_LOG_TRIVIAL(error)
+              << "变迁 " << vertex.name << " 的时间约束无效: ["
+              << transition.const_time.first << ","
+              << transition.const_time.second << "]";
+        }
+      }
 
     } else if (vertex.shape == "circle") { // 库所
+      auto place = vertex.as_place();
       // 检查2：库所的前后节点必须是变迁（但可以为空）
       bool all_inputs_are_transitions = true;
       bool all_outputs_are_transitions = true;
@@ -960,12 +964,11 @@ bool PriorityTPN::verify_petri_net_structure() {
       }
 
       // 检查3：token数量必须是0或1
-      // if (vertex.token < 0 || vertex.token > 1) {
-      //   is_valid = false;
-      //   BOOST_LOG_TRIVIAL(error)
-      //       << "库所 " << vertex.name << " 的token数量无效: " <<
-      //       vertex.token;
-      // }
+      if (place.token < 0 || place.token > 1) {
+        is_valid = false;
+        BOOST_LOG_TRIVIAL(error)
+            << "库所 " << vertex.name << " 的token数量无效: " << place.token;
+      }
     }
   }
 

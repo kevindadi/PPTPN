@@ -1,7 +1,6 @@
 #ifndef PPTPN_INCLUDE_PRIORITY_TIME_PETRI_NET_H
 #define PPTPN_INCLUDE_PRIORITY_TIME_PETRI_NET_H
 
-#include <algorithm>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/graph_utility.hpp>
@@ -35,7 +34,7 @@ enum VertexShape { Circle, Box };
 
 struct Edge {
   std::string label;
-  std::pair<int, int> fire_times = {0, 0};
+  int weight = 1;
 };
 
 struct Vertex {

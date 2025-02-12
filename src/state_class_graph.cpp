@@ -1,5 +1,303 @@
 #include "state_class_graph.h"
 #include "priority_time_petri_net.h"
+#include <unordered_map>
+
+namespace scg {
+void StateClassGraph::generate_state_class_graph() {
+  // 计算初始状态
+  auto initial_state = compute_initial_state();
+  auto initial_vertex = add_state(initial_state);
+
+  // 使用工作列表算法计算状态类图
+  std::vector<Vertex> work_list{initial_vertex};
+  std::unordered_map<State, Vertex> state_to_vertex;
+  state_to_vertex[*initial_state] = initial_vertex;
+
+  while (!work_list.empty()) {
+    auto current_vertex = work_list.back();
+    work_list.pop_back();
+
+    auto current_state = get_vertex_state(current_vertex);
+    auto enabled_trans = get_enabled_transitions(*current_state);
+    auto fireable_trans =
+        get_fireable_transitions(*current_state, enabled_trans);
+    auto filtered_trans = filter_by_priority(fireable_trans);
+
+    for (const auto &[t, firing_interval] : filtered_trans) {
+      auto next_state =
+          compute_successor_state(*current_state, t, firing_interval);
+
+      // 检查是否是新状态
+      auto it = state_to_vertex.find(*next_state);
+      if (it == state_to_vertex.end()) {
+        // 新状态
+        auto next_vertex = add_state(next_state);
+        add_edge(current_vertex, next_vertex, t);
+        work_list.push_back(next_vertex);
+        state_to_vertex[*next_state] = next_vertex;
+      } else {
+        // 已存在的状态
+        add_edge(current_vertex, it->second, t);
+      }
+    }
+  }
+}
+
+// 计算初始状态
+std::shared_ptr<State> StateClassGraph::compute_initial_state() {
+  std::unordered_map<int, int> initial_marking;
+  std::vector<int> enabled_transitions;
+
+  // 遍历 Petri 网的所有顶点
+  boost::graph_traits<ptpn::PriorityTPNGraph>::vertex_iterator vi, vi_end;
+  for (boost::tie(vi, vi_end) = boost::vertices(pn_graph); vi != vi_end; ++vi) {
+    const auto &vertex = pn_graph[*vi];
+    if (vertex.is_place()) {
+      const auto &place = vertex.as_place();
+      if (place.token >= 1) {
+        initial_marking[*vi] = place.token;
+      }
+    } else if (vertex.is_transition()) {
+      if (is_transition_enabled(*vi, initial_marking)) {
+        enabled_transitions.push_back(*vi);
+      }
+    }
+  }
+
+  std::vector<TimeConstraint> initial_constraints;
+  for (int t : enabled_transitions) {
+    const auto &transition = pn_graph[t].as_transition();
+    TimeInterval runtimes(0, 0);
+    initial_constraints.push_back(
+        TimeConstraint(t, runtimes.min, runtimes.max));
+  }
+
+  return std::make_shared<State>(initial_marking, initial_constraints,
+                                 enabled_transitions);
+}
+
+std::vector<TimeConstraint> StateClassGraph::update_time_constraints(
+    const State &current_state, int fired_transition,
+    const TimeInterval &firing_interval,
+    const std::vector<int> &new_enabled_transitions) {
+  std::vector<TimeConstraint> new_constraints;
+
+  // 更新现有的时间约束
+  for (const auto &tc : current_state.time_constraints) {
+    if (tc.transition_id != fired_transition) {
+      TimeInterval old_interval(tc.min_time, tc.max_time);
+      TimeInterval new_interval = old_interval.intersect(
+          TimeInterval(old_interval.min - firing_interval.max,
+                       old_interval.max - firing_interval.min));
+
+      if (new_interval.is_valid()) {
+        new_constraints.emplace_back(tc.transition_id, new_interval.min,
+                                     new_interval.max);
+      }
+    }
+  }
+
+  // 为新使能的变迁添加时间约束
+  for (int t : new_enabled_transitions) {
+    const auto &transition = pn_graph[t].as_transition();
+    if (transition.const_time.first > 0 ||
+        transition.const_time.second <
+            std::numeric_limits<double>::infinity()) {
+      new_constraints.emplace_back(t, transition.const_time.first,
+                                   transition.const_time.second);
+    }
+  }
+
+  return new_constraints;
+}
+
+bool StateClassGraph::is_transition_enabled(
+    int transition_id, const std::unordered_map<int, int> &marking) {
+  boost::graph_traits<ptpn::PriorityTPNGraph>::in_edge_iterator ei, ei_end;
+  for (boost::tie(ei, ei_end) = boost::in_edges(transition_id, pn_graph);
+       ei != ei_end; ++ei) {
+    auto source = boost::source(*ei, pn_graph);
+    if (pn_graph[source].is_place()) {
+      int weight = pn_graph[*ei].weight;
+      auto it = marking.find(source);
+      if (it == marking.end() || it->second < weight) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+// 获取使能变迁
+
+std::vector<int> StateClassGraph::get_enabled_transitions(State &state) {
+  std::vector<int> enabled;
+  boost::graph_traits<ptpn::PriorityTPNGraph>::vertex_iterator vi, vi_end;
+  for (boost::tie(vi, vi_end) = boost::vertices(pn_graph); vi != vi_end; ++vi) {
+    if (pn_graph[*vi].is_transition()) {
+      bool is_enabled = true;
+      // 检查前置库所是否有足够的 token
+      boost::graph_traits<ptpn::PriorityTPNGraph>::in_edge_iterator ei, ei_end;
+      for (boost::tie(ei, ei_end) = boost::in_edges(*vi, pn_graph);
+           ei != ei_end; ++ei) {
+        auto source = boost::source(*ei, pn_graph);
+        if (pn_graph[source].is_place()) {
+          int place_index = (int)(source);
+          if (state.marking[place_index] < 1) {
+            is_enabled = false;
+            break;
+          }
+        }
+      }
+      if (is_enabled) {
+        enabled.push_back(static_cast<int>(*vi));
+      }
+    }
+  }
+  return enabled;
+}
+
+std::vector<std::pair<int, TimeInterval>>
+StateClassGraph::get_fireable_transitions(
+    const State &state, const std::vector<int> &enabled_trans) {
+  std::vector<std::pair<int, TimeInterval>> fireable_trans;
+
+  for (int t : enabled_trans) {
+    const auto &transition = pn_graph[t].as_transition();
+    TimeInterval const_time(transition.const_time.first,
+                            transition.const_time.second);
+    TimeInterval runtime(transition.runtimes.first, transition.runtimes.second);
+
+    // 计算可发生的时间区间
+    TimeInterval fireable_interval(std::max(0.0, const_time.min - runtime.max),
+                                   const_time.max - runtime.min);
+
+    if (fireable_interval.is_valid()) {
+      fireable_trans.emplace_back(t, fireable_interval);
+      BOOST_LOG_TRIVIAL(error)
+          << "无效Transition " << pn_graph[t].name << " is fireable in ["
+          << fireable_interval.min << ", " << fireable_interval.max << "]";
+    }
+  }
+
+  return fireable_trans;
+}
+
+// 根据优先级过滤变迁
+std::vector<std::pair<int, TimeInterval>> StateClassGraph::filter_by_priority(
+    const std::vector<std::pair<int, TimeInterval>> &fireable_trans) {
+  if (fireable_trans.empty()) {
+    return {};
+  }
+
+  std::vector<std::pair<int, TimeInterval>> filtered;
+  std::unordered_map<int, int>
+      core_highest_priority; // core_id -> highest priority
+
+  // 第一次遍历:找到每个 core 上的最高优先级
+  for (auto t : fireable_trans) {
+    const auto &transition = pn_graph[t.first].as_transition();
+
+    int core_id = transition.core;
+    int priority = transition.priority;
+
+    auto it = core_highest_priority.find(core_id);
+    if (it == core_highest_priority.end()) {
+      core_highest_priority[core_id] = priority;
+    } else {
+      core_highest_priority[core_id] = std::max(it->second, priority);
+    }
+  }
+
+  // 第二次遍历:保留在任一 core 上具有最高优先级的变迁
+  for (auto t : fireable_trans) {
+    const auto &transition = pn_graph[t.first].as_transition();
+    bool has_highest = false;
+
+    // 检查该变迁是否在任一 core 上具有最高优先级
+    int core_id = transition.core;
+    int priority = transition.priority;
+
+    if (priority == core_highest_priority[core_id]) {
+      has_highest = true;
+      break;
+    }
+
+    if (has_highest) {
+      filtered.push_back(t);
+    }
+  }
+
+  return filtered;
+}
+
+// 计算后继状态
+std::shared_ptr<State>
+StateClassGraph::compute_successor_state(const State &current_state,
+                                         int transition,
+                                         const TimeInterval &firing_interval) {
+  std::unordered_map<int, int> new_marking = current_state.marking;
+  std::vector<int> new_enabled_transitions;
+
+  // 更新标识
+  update_marking(new_marking, transition);
+
+  // 更新使能变迁
+  new_enabled_transitions = update_enabled_transitions(new_marking);
+
+  // 更新时间约束
+  std::vector<TimeConstraint> new_constraints = update_time_constraints(
+      current_state, transition, firing_interval, new_enabled_transitions);
+
+  return std::make_shared<State>(new_marking, new_constraints,
+                                 new_enabled_transitions);
+}
+
+void StateClassGraph::update_marking(std::unordered_map<int, int> &marking,
+                                     int transition) {
+  // 减少输入库所的 token
+  boost::graph_traits<ptpn::PriorityTPNGraph>::in_edge_iterator ei, ei_end;
+  for (boost::tie(ei, ei_end) = boost::in_edges(transition, pn_graph);
+       ei != ei_end; ++ei) {
+    auto source = boost::source(*ei, pn_graph);
+    if (pn_graph[source].is_place()) {
+      int weight = pn_graph[*ei].weight;
+      marking[source] -= weight;
+      if (marking[source] == 0) {
+        marking.erase(source);
+      }
+    }
+  }
+
+  // 增加输出库所的 token
+  boost::graph_traits<ptpn::PriorityTPNGraph>::out_edge_iterator eo, eo_end;
+  for (boost::tie(eo, eo_end) = boost::out_edges(transition, pn_graph);
+       eo != eo_end; ++eo) {
+    auto target = boost::target(*eo, pn_graph);
+    if (pn_graph[target].is_place()) {
+      int weight = pn_graph[*eo].weight;
+      marking[target] += weight;
+    }
+  }
+}
+
+std::vector<int> StateClassGraph::update_enabled_transitions(
+    const std::unordered_map<int, int> &marking) {
+  std::vector<int> enabled;
+  boost::graph_traits<ptpn::PriorityTPNGraph>::vertex_iterator vi, vi_end;
+  for (boost::tie(vi, vi_end) = boost::vertices(pn_graph); vi != vi_end; ++vi) {
+    if (pn_graph[*vi].is_transition() && is_transition_enabled(*vi, marking)) {
+      enabled.push_back(*vi);
+    }
+  }
+  return enabled;
+}
+
+// 获取顶点对应的状态
+std::shared_ptr<State> StateClassGraph::get_vertex_state(Vertex v) {
+  return (*graph)[v].state;
+}
+} // namespace scg
 
 bool StateClassGraph::is_transition_enabled(const ptpn::PriorityTPNGraph &ptpn,
                                             ptpn::ptpn_v_desc v) {
