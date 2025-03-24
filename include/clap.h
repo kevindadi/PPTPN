@@ -19,7 +19,8 @@ typedef property<graph_name_t, std::string> TDG_RAP_P;
 typedef adjacency_list<vecS, vecS, directedS, DAGVertex, DAGEdge, TDG_RAP_P>
     TDG_RAP;
 
-struct TaskConfig {
+struct TaskConfig
+{
   int core;
   int priority;
   vector<pair<int, int>> times;
@@ -27,21 +28,38 @@ struct TaskConfig {
 };
 
 // 节点类型的枚举，区别于结构体枚举，仅为后续区分, TASK包含周期任务和一般任务
-enum VertexType { TASK, SYNC, DIST, EMPTY };
+enum TDGVertexType
+{
+  TASK,
+  SYNC,
+  DIST,
+  EMPTY
+};
 // 边的枚举, 不同节点类型
-enum EdgeType {
+enum EdgeType
+{
 
 };
 // TDG结构体，包含DAG图中所有信息
-class TDG {
+class TDG
+{
 public:
   TDG() = default;
-  TDG(string);
+  TDG(string tdg_file, int num_cpus, int cores_per_cpu)
+      : tdg_file(std::move(tdg_file)),
+        num_cpus(num_cpus),
+        cores_per_cpu(cores_per_cpu)
+  {
+    boost::log::core::get()->set_filter(boost::log::trivial::severity >=
+                                        boost::log::trivial::info);
+  }
   // ~TDGRAP();
   TDG_RAP tdg;
   boost::dynamic_properties tdg_dp;
 
 public:
+  int num_cpus;      // CPU数量
+  int cores_per_cpu; // 每个CPU的核心数
   // TDG-RAP文件路径
   string tdg_file;
   // 所有任务的集合
@@ -52,7 +70,7 @@ public:
   vector<std::tuple<string, string, int>> period_task;
 
   // 每个节点的名字和类型映射
-  std::unordered_map<string, VertexType> vertexes_type;
+  std::unordered_map<string, TDGVertexType> vertexes_type;
   // 每个节点的名字和其属性的映射
   std::unordered_map<string, NodeType> nodes_type;
   // 任务节点的名字和其类型的映射
@@ -64,8 +82,6 @@ public:
   set<string> lock_set;
   // 每个任务使用锁的映射
   std::map<string, vector<string>> task_locks_map;
-  // 任务分配核心数
-  int core;
   // 优先级抢占的任务配置简化
   std::unordered_map<string, TaskConfig> tasks_config;
 

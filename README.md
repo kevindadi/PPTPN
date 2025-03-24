@@ -1,4 +1,4 @@
-# 优先级时间Petri网
+# 优先级时间 Petri 网
 
 ## 依赖
 
@@ -8,11 +8,11 @@
 ## 安装
 
 ```bash
-vcpkg install boost-graph boost-log nlohmann-json graphviz boost-program-options
+vcpkg install boost
 ```
 
 ```bash
-cmake -Bbuild -H .   
+cmake -Bbuild -H .
 cmake --build build
 ```
 
