@@ -6,41 +6,88 @@
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 
 namespace priority_scg
 {
+    static std::shared_ptr<spdlog::logger> init_state_logger()
+    {
+        auto logger = spdlog::stdout_color_mt("state_class");
+        logger->set_pattern("[%^%l%$] [%^STATE CLASS%$] %v");
+        logger->set_level(spdlog::level::debug);
+        return logger;
+    }
+
+    static auto state_logger = init_state_logger();
+
     bool PriorityStateClass::operator==(const PriorityStateClass &other) const
     {
-        if (marking != other.marking)
+        // 首先比较标记是否相同
+        if (marking.size() != other.marking.size())
         {
             return false;
         }
 
-        // 如果时间约束数量不同，则状态类不同
-        if (time_constraints.size() != other.time_constraints.size())
+        for (const auto &p_m : marking)
         {
-            return false;
-        }
-
-        // 比较每个时间约束
-        for (const auto &tc1 : time_constraints)
-        {
-            bool found_match = false;
-            for (const auto &tc2 : other.time_constraints)
+            // 只比较token数量大于0的库所
+            if (p_m.second <= 0)
             {
-                if (tc1 == tc2)
-                {
-                    found_match = true;
-                    break;
-                }
+                continue;
             }
-            if (!found_match)
+
+            auto it = other.marking.find(p_m.first);
+            if (it == other.marking.end() || it->second != p_m.second)
             {
                 return false;
             }
         }
 
-        return true;
+        for (const auto &p_m : other.marking)
+        {
+            // 只比较token数量大于0的库所
+            if (p_m.second <= 0)
+            {
+                continue;
+            }
+
+            auto it = marking.find(p_m.first);
+            if (it == marking.end())
+            {
+                return false;
+            }
+        }
+
+        // 然后比较时间约束是否相同
+        if (time_constraints.size() != other.time_constraints.size())
+        {
+            return false;
+        }
+
+        for (const auto &tc : time_constraints)
+        {
+            bool found = false;
+            for (const auto &other_tc : other.time_constraints)
+            {
+                if (tc.transition == other_tc.transition &&
+                    tc.time_interval == other_tc.time_interval &&
+                    tc.priority == other_tc.priority &&
+                    tc.cpu == other_tc.cpu)
+                {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                return false;
+            }
+        }
+
+        // 最后比较挂起变迁是否相同
+        return suspended_transitions == other.suspended_transitions;
     }
 
     std::string PriorityStateClass::to_string() const
@@ -73,7 +120,7 @@ namespace priority_scg
             ss << "t" << tc.transition << ":["
                << tc.time_interval.lower << ","
                << (tc.time_interval.upper == INT_MAX ? "∞" : std::to_string(tc.time_interval.upper))
-               << "] (priority:" << tc.priority << ")";
+               << "] (priority:" << tc.priority << ", cpu:" << tc.cpu << ")";
             first = false;
         }
         ss << "}\n";
@@ -119,7 +166,6 @@ namespace priority_scg
                 continue;
             }
 
-            // 检查该变迁的所有输入库所是否都有足够的token
             bool is_enabled = true;
             boost::graph_traits<PriorityTPNGraph>::in_edge_iterator ei, ei_end;
             for (boost::tie(ei, ei_end) = in_edges(v, graph); ei != ei_end; ++ei)
@@ -134,7 +180,6 @@ namespace priority_scg
 
                 int weight = graph[*ei].weight;
 
-                // 检查该库所是否在当前标记中
                 auto it = marking.find(source);
                 if (it == marking.end() || it->second < weight)
                 {
@@ -232,8 +277,14 @@ namespace priority_scg
                 int weight = graph[*ei].weight;
                 new_marking[source] -= weight;
 
-                // 如果token数量为0，从标记中移除该库所
-                if (new_marking[source] == 0)
+                // 如果token数量小于等于0，从标记中移除该库所
+                // 正常情况下不应该出现负数标记，如果出现则记录警告
+                if (new_marking[source] < 0)
+                {
+                    state_logger->warn("计算后继状态时出现负数标记: p{}:{}", source, new_marking[source]);
+                }
+
+                if (new_marking[source] <= 0)
                 {
                     new_marking.erase(source);
                 }
@@ -251,6 +302,9 @@ namespace priority_scg
             {
                 int weight = graph[*oe].weight;
                 new_marking[target] += weight;
+
+                // 确保添加的token为正数
+                assert(new_marking[target] > 0 && "添加token后标记数应为正数");
             }
         }
 
@@ -301,72 +355,73 @@ namespace priority_scg
             {
                 new_enabled_transitions.push_back(v);
 
-                // 如果是新启用的变迁，添加初始时间约束
-                bool was_enabled = false;
+                // 计算该变迁的时间约束
+                const Transition &t = vertex.as_transition();
+                TimeInterval initial_interval(t.const_time.first, t.const_time.second);
+
+                // 对于新启用的变迁或从挂起中恢复的变迁，使用初始时间约束
+                bool newly_enabled = true;
                 for (const auto &tc : time_constraints)
                 {
                     if (tc.transition == v)
                     {
-                        was_enabled = true;
+                        newly_enabled = false;
 
-                        // 如果不是刚触发的变迁，保持时间约束
-                        if (v != fired_transition)
+                        // 如果不是刚触发的变迁，并且不是挂起状态或不再挂起，则需要根据触发变迁的时间调整时间约束
+                        if (v != fired_transition && !(is_suspended(v) && new_suspended.find(v) != new_suspended.end()))
                         {
-                            // 如果变迁之前是挂起状态并且还在挂起集合中，保持其当前时间约束
-                            if (is_suspended(v) && new_suspended.find(v) != new_suspended.end())
+                            // 获取触发变迁的时间（lower值）
+                            TimeInterval firing_time(0, 0);
+                            for (const auto &ftc : time_constraints)
                             {
-                                new_constraints.push_back(tc);
+                                if (ftc.transition == fired_transition)
+                                {
+                                    firing_time.lower = ftc.time_interval.lower;
+                                    break;
+                                }
                             }
-                            // 否则更新时间约束（减去经过的时间）
+
+                            // 更新时间约束，减去触发时间
+                            TimeInterval updated_interval = tc.time_interval;
+                            updated_interval.lower = std::max(0, updated_interval.lower - firing_time.lower);
+                            if (updated_interval.upper != INT_MAX)
+                            {
+                                updated_interval.upper = updated_interval.upper - firing_time.lower;
+                            }
+
+                            // 确保更新后的区间合法
+                            if (updated_interval.is_valid())
+                            {
+                                new_constraints.push_back(TransitionTimeConstraint(v, updated_interval, tc.priority, tc.cpu));
+                            }
                             else
                             {
-                                // 找到被触发变迁的时间约束，获取触发时间
-                                TimeInterval firing_time(0, 0);
-                                for (const auto &ftc : time_constraints)
-                                {
-                                    if (ftc.transition == fired_transition)
-                                    {
-                                        firing_time = TimeInterval(ftc.time_interval.lower, ftc.time_interval.lower);
-                                        break;
-                                    }
-                                }
-
-                                // 更新时间约束
-                                TimeInterval updated_interval = tc.time_interval;
-                                // 减去触发时间
-                                updated_interval.lower = std::max(0, updated_interval.lower - firing_time.lower);
-                                if (updated_interval.upper != INT_MAX)
-                                {
-                                    updated_interval.upper = updated_interval.upper - firing_time.lower;
-                                }
-
-                                new_constraints.push_back(TransitionTimeConstraint(v, updated_interval, tc.priority));
+                                state_logger->warn("变迁 t{} 更新后的时间区间 [{}, {}] 无效",
+                                                   v, updated_interval.lower, updated_interval.upper);
                             }
                         }
+                        // 如果是挂起状态且仍然挂起，保持原时间约束
+                        else if (is_suspended(v) && new_suspended.find(v) != new_suspended.end())
+                        {
+                            new_constraints.push_back(tc);
+                        }
+
                         break;
                     }
                 }
 
-                // 如果是新启用的变迁或者是刚从挂起状态恢复的变迁，添加初始时间约束
-                if (!was_enabled || (was_enabled && v == fired_transition && is_suspended(v)))
+                // 如果是新启用的变迁或者从挂起状态恢复的变迁，使用初始时间约束
+                if (newly_enabled || (v == fired_transition && is_suspended(v)))
                 {
-                    const Transition &t = vertex.as_transition();
-                    TimeInterval initial_interval(t.const_time.first, t.const_time.second);
-                    new_constraints.push_back(TransitionTimeConstraint(v, initial_interval, t.priority));
+                    new_constraints.push_back(TransitionTimeConstraint(v, initial_interval, t.priority, t.core));
                 }
             }
         }
 
         // 创建新的状态类
-        auto new_state = std::make_shared<PriorityStateClass>(new_marking, new_constraints);
-
-        // 复制挂起状态
-        for (const auto &suspended : new_suspended)
-        {
-            new_state->mark_suspended(suspended, get_suspended_clock(suspended));
-        }
-
-        return new_state;
+        auto successor = std::make_shared<PriorityStateClass>(new_marking, new_constraints);
+        successor->suspended_transitions = new_suspended;
+        return successor;
     }
 
     void PriorityStateClass::mark_suspended(ptpn_v_desc transition, const TimeInterval &clock_time)
@@ -394,166 +449,130 @@ namespace priority_scg
         auto initial_state = compute_initial_state();
         if (!initial_state)
         {
-            std::cerr << "无法计算初始状态类" << std::endl;
+            state_logger->error("无法计算初始状态类");
             return;
         }
 
+        state_logger->info("初始状态类: \n{}", initial_state->to_string());
+
         // 添加初始状态到状态类图
         SCGVertex initial_vertex = add_state(initial_state);
-
-        // 使用广度优先搜索生成状态类图
         std::queue<std::pair<SCGVertex, std::shared_ptr<PriorityStateClass>>> queue;
-        std::unordered_map<std::string, SCGVertex> state_map; // 用于检测已访问的状态
+        std::unordered_map<std::string, SCGVertex> state_map;
 
-        // 将初始状态添加到队列
         queue.push({initial_vertex, initial_state});
         state_map[initial_state->to_string()] = initial_vertex;
 
+        int state_counter = 0;
         while (!queue.empty())
         {
             auto [current_vertex, current_state] = queue.front();
             queue.pop();
+            state_counter++;
 
-            // 获取当前状态中启用的变迁
+            state_logger->debug("\n处理状态 #{}: {}", state_counter, current_state->to_string());
+
+            // 检查标记中是否有非法值（负数或零值）
+            for (const auto &[place, tokens] : current_state->marking)
+            {
+                if (tokens <= 0)
+                {
+                    state_logger->error("状态 #{} 中发现非法标记: p{}:{} <= 0",
+                                        state_counter, place, tokens);
+                    assert(tokens > 0 && "标记中出现负数或零值，这是不合法的");
+                    continue; // 跳过当前状态
+                }
+            }
+
             auto enabled_transitions = current_state->get_enabled_transitions(petri_net);
+            state_logger->debug("启用的变迁数量: {}", enabled_transitions.size());
+            for (const auto &t : enabled_transitions)
+            {
+                const Vertex &v = petri_net[t];
+                state_logger->debug("  变迁 t{} ({}): 优先级={}, CPU={}",
+                                    t, v.name, v.as_transition().priority, v.as_transition().core);
+            }
+
             auto filter_result = current_state->filter_by_priority(enabled_transitions, petri_net);
+            state_logger->debug("优先级过滤后的变迁数量: {}", filter_result.enabled_transitions.size());
+            state_logger->debug("挂起的变迁数量: {}", filter_result.suspended_transitions.size());
 
             if (filter_result.enabled_transitions.empty())
             {
-                continue; // 没有可用变迁，继续处理下一个状态
+                state_logger->warn("没有可用变迁，跳过当前状态");
+                continue;
             }
 
-            // 计算所有使能变迁的时间区间交集（全局时间）
-            TimeInterval common_interval(0, INT_MAX);
-            for (const auto &transition : filter_result.enabled_transitions)
-            {
-                for (const auto &constraint : current_state->get_time_constraints())
-                {
-                    if (constraint.transition == transition)
-                    {
-                        common_interval = common_interval.intersect(constraint.time_interval);
-                        break;
-                    }
-                }
-            }
-
-            if (!common_interval.is_valid())
-            {
-                continue; // 如果没有有效的时间区间交集，跳过这个状态
-            }
-
-            // 处理保留的高优先级变迁
+            // 计算时间区间和可调度变迁
+            TimeInterval common_interval(0, 0);
             auto schedulable_transitions = current_state->get_schedulable_transitions(
                 filter_result.enabled_transitions, petri_net, common_interval);
 
-            // 处理挂起变迁
-            for (const auto &suspended_transition : filter_result.suspended_transitions)
+            // 如果没有可调度变迁或时间区间无效，跳过当前状态
+            if (schedulable_transitions.empty() || !common_interval.is_valid())
             {
-                // 找到对应的时间约束
-                for (const auto &constraint : current_state->get_time_constraints())
-                {
-                    if (constraint.transition == suspended_transition)
-                    {
-                        // 创建一个新的状态，将变迁标记为挂起
-                        auto suspended_state = std::make_shared<PriorityStateClass>(*current_state);
-                        suspended_state->mark_suspended(suspended_transition, constraint.time_interval);
-
-                        // 将新状态添加到队列...
-                        break;
-                    }
-                }
+                state_logger->warn("没有可调度变迁或时间区间无效，跳过当前状态");
+                continue;
             }
+
+            state_logger->debug("可调度变迁数量: {}", schedulable_transitions.size());
+            state_logger->debug("状态间链接边权重 (common_interval): [{}, {}]",
+                                common_interval.lower,
+                                common_interval.upper == INT_MAX ? "∞" : std::to_string(common_interval.upper));
 
             // 处理每个可调度的变迁
             for (const auto &transition : schedulable_transitions)
             {
                 const Vertex &vertex = petri_net[transition];
                 const Transition &t = vertex.as_transition();
-                bool is_highest_priority = true;
 
-                // 检查是否是最高优先级
-                for (const auto &other_t : schedulable_transitions)
+                state_logger->debug("处理变迁 t{} ({}): 优先级={}, CPU={}, 可挂起={}",
+                                    transition, vertex.name, t.priority, t.core, t.handle ? "是" : "否");
+
+                // 计算后继状态
+                auto successor_state = current_state->compute_successor(petri_net, transition);
+
+                // 检查后继状态的标记是否合法
+                bool has_invalid_marking = false;
+                for (const auto &[place, tokens] : successor_state->marking)
                 {
-                    if (other_t == transition)
-                        continue;
-
-                    const Transition &other_trans = petri_net[other_t].as_transition();
-                    if (t.core == other_trans.core && other_trans.priority < t.priority)
+                    if (tokens <= 0)
                     {
-                        is_highest_priority = false;
+                        state_logger->error("后继状态中发现非法标记: p{}:{} <= 0", place, tokens);
+                        has_invalid_marking = true;
                         break;
                     }
                 }
 
-                if (is_highest_priority)
+                if (has_invalid_marking)
                 {
-                    // 对于最高优先级变迁，直接执行
-                    auto successor_state = current_state->compute_successor(petri_net, transition);
-                    auto successor_key = successor_state->to_string();
-                    SCGVertex successor_vertex;
-
-                    auto it = state_map.find(successor_key);
-                    if (it == state_map.end())
-                    {
-                        successor_vertex = add_state(successor_state);
-                        state_map[successor_key] = successor_vertex;
-                        queue.push({successor_vertex, successor_state});
-                    }
-                    else
-                    {
-                        successor_vertex = it->second;
-                    }
-
-                    add_edge(current_vertex, successor_vertex, transition, common_interval);
+                    state_logger->error("跳过触发变迁 t{} 生成的后继状态，因为它产生了非法标记", transition);
+                    continue;
                 }
-                else if (t.handle)
+
+                // 更新触发变迁的runtimes（已在计算后继状态时完成）
+                auto successor_key = successor_state->to_string();
+                SCGVertex successor_vertex;
+
+                auto it = state_map.find(successor_key);
+                if (it == state_map.end())
                 {
-                    // 对于可挂起变迁，创建两个后继状态
-
-                    // 1. 执行该变迁
-                    auto successor_state = current_state->compute_successor(petri_net, transition);
-                    auto successor_key = successor_state->to_string();
-                    SCGVertex successor_vertex;
-
-                    auto it = state_map.find(successor_key);
-                    if (it == state_map.end())
-                    {
-                        successor_vertex = add_state(successor_state);
-                        state_map[successor_key] = successor_vertex;
-                        queue.push({successor_vertex, successor_state});
-                    }
-                    else
-                    {
-                        successor_vertex = it->second;
-                    }
-
-                    add_edge(current_vertex, successor_vertex, transition, common_interval);
-
-                    // 2. 挂起该变迁
-                    auto suspended_state = std::make_shared<PriorityStateClass>(*current_state);
-                    suspended_state->mark_suspended(transition, current_state->get_suspended_clock(transition));
-                    successor_key = suspended_state->to_string();
-
-                    it = state_map.find(successor_key);
-                    if (it == state_map.end())
-                    {
-                        successor_vertex = add_state(suspended_state);
-                        state_map[successor_key] = successor_vertex;
-                        queue.push({successor_vertex, suspended_state});
-                    }
-                    else
-                    {
-                        successor_vertex = it->second;
-                    }
-
-                    add_edge(current_vertex, successor_vertex, transition, common_interval);
+                    successor_vertex = add_state(successor_state);
+                    state_map[successor_key] = successor_vertex;
+                    queue.push({successor_vertex, successor_state});
                 }
-                // 对于不可挂起的低优先级变迁，不处理
+                else
+                {
+                    successor_vertex = it->second;
+                }
+
+                // 添加边，使用 common_interval 作为边的权重
+                add_edge(current_vertex, successor_vertex, transition, common_interval);
             }
         }
 
-        std::cout << "状态类图生成完成，共有 " << num_vertices(graph) << " 个状态和 "
-                  << num_edges(graph) << " 个转换。" << std::endl;
+        state_logger->info("状态类图生成完成，共有 {} 个状态和 {} 个转换",
+                           num_vertices(graph), num_edges(graph));
     }
 
     void PriorityStateClassAnalyzer::export_to_dot(const std::string &filename)
@@ -561,7 +580,7 @@ namespace priority_scg
         std::ofstream dot_file(filename);
         if (!dot_file.is_open())
         {
-            std::cerr << "无法打开文件: " << filename << std::endl;
+            state_logger->error("无法打开文件: {}", filename);
             return;
         }
 
@@ -578,7 +597,7 @@ namespace priority_scg
         // 写入DOT文件
         boost::write_graphviz_dp(dot_file, graph, dp);
 
-        std::cout << "状态类图导出功能暂时禁用" << std::endl;
+        state_logger->info("状态类图已导出到: {}", filename);
     }
 
     bool PriorityStateClassAnalyzer::has_deadlock_states() const
@@ -697,21 +716,38 @@ namespace priority_scg
         // 初始时间约束（针对在初始标记中启用的变迁）
         std::vector<TransitionTimeConstraint> initial_constraints;
 
-        // 遍历所有变迁，找出在初始标记中启用的变迁
+        // 遍历所有变迁，找出在初始标记中启用的变迁，并确保其运行时间为0
         for (boost::tie(vi, vi_end) = vertices(petri_net); vi != vi_end; ++vi)
         {
             const Vertex &vertex = petri_net[*vi];
 
-            if (vertex.is_transition() && is_transition_enabled(*vi, initial_marking))
+            if (vertex.is_transition())
             {
-                const Transition &transition = vertex.as_transition();
-                TimeInterval initial_interval(transition.const_time.first, transition.const_time.second);
-                initial_constraints.push_back(
-                    TransitionTimeConstraint(*vi, initial_interval, transition.priority));
+                // 确保所有变迁的 runtimes 初始化为 0
+                Transition &transition = const_cast<Transition &>(vertex.as_transition());
+                transition.runtimes = std::make_pair(0, 0);
+
+                // 检查变迁是否在初始状态下启用
+                if (is_transition_enabled(*vi, initial_marking))
+                {
+                    // 添加初始时间约束
+                    TimeInterval initial_interval(transition.const_time.first, transition.const_time.second);
+                    initial_constraints.push_back(
+                        TransitionTimeConstraint(*vi, initial_interval, transition.priority, transition.core));
+
+                    state_logger->debug("初始状态下启用变迁 t{} ({})，初始时间区间: [{}, {}]",
+                                        *vi, vertex.name,
+                                        initial_interval.lower,
+                                        initial_interval.upper == INT_MAX ? "∞" : std::to_string(initial_interval.upper));
+                }
             }
         }
 
-        return std::make_shared<PriorityStateClass>(initial_marking, initial_constraints);
+        auto initial_state = std::make_shared<PriorityStateClass>(initial_marking, initial_constraints);
+        state_logger->info("初始状态标记: {}", initial_state->marking_to_string());
+        state_logger->info("初始状态启用变迁数量: {}", initial_constraints.size());
+
+        return initial_state;
     }
 
     SCGVertex PriorityStateClassAnalyzer::add_state(const std::shared_ptr<PriorityStateClass> &state)
@@ -841,7 +877,7 @@ namespace priority_scg
                         }
 
                         new_constraints.push_back(TransitionTimeConstraint(
-                            transition, updated_interval, tc.priority));
+                            transition, updated_interval, tc.priority, tc.cpu));
                     }
                     break;
                 }
@@ -854,7 +890,7 @@ namespace priority_scg
                 const Transition &t = vertex.as_transition();
                 TimeInterval initial_interval(t.const_time.first, t.const_time.second);
                 new_constraints.push_back(TransitionTimeConstraint(
-                    transition, initial_interval, t.priority));
+                    transition, initial_interval, t.priority, t.core));
             }
         }
 
@@ -982,287 +1018,92 @@ namespace priority_scg
     {
         std::vector<ptpn_v_desc> schedulable_transitions;
 
-        // 初始化时间区间为最大范围
-        common_interval = TimeInterval(0, INT_MAX);
+        // 使用 map 存储每个变迁的静态时间区间
+        std::map<ptpn_v_desc, TimeInterval> transition_intervals;
 
-        // 计算所有使能变迁的时间区间交集
+        // 第一步：计算每个使能变迁的静态时间区间并存储到 map 中
         for (const auto &transition : enabled_transitions)
         {
-            bool found = false;
-            for (const auto &constraint : time_constraints)
-            {
-                if (constraint.transition == transition)
-                {
-                    common_interval = common_interval.intersect(constraint.time_interval);
-                    found = true;
-                    break;
-                }
-            }
+            // 获取变迁的静态时间约束
+            const Vertex &vertex = graph[transition];
+            const Transition &t = vertex.as_transition();
 
-            // 如果没有找到变迁的时间约束，说明该变迁不是当前可用的
-            if (!found)
-            {
-                // 使用变迁的静态时间约束
-                const Vertex &vertex = graph[transition];
-                const Transition &t = vertex.as_transition();
-                TimeInterval static_interval(t.const_time.first, t.const_time.second);
-                common_interval = common_interval.intersect(static_interval);
-            }
+            // 计算时间区间：const_time - runtimes
+            // 例如：const_time=[3,5], runtimes=[1,2]
+            // 则时间区间为：[max(0, 3-2), max(0, 5-1)] = [1,4]
+            TimeInterval static_interval(
+                std::max(0, t.const_time.first - t.runtimes.second), // 最小时间 = max(0, 最小约束时间 - 最大运行时间)
+                std::max(0, t.const_time.second - t.runtimes.first)  // 最大时间 = max(0, 最大约束时间 - 最小运行时间)
+            );
+
+            // 存储到 map 中
+            transition_intervals[transition] = static_interval;
+
+            state_logger->debug("变迁 t{} 的时间区间: static_interval=[{}, {}], const_time=[{},{}], runtimes=[{},{}]",
+                                transition,
+                                static_interval.lower, static_interval.upper == INT_MAX ? "∞" : std::to_string(static_interval.upper),
+                                t.const_time.first, t.const_time.second,
+                                t.runtimes.first, t.runtimes.second);
         }
 
-        // 检查时间区间是否有效
+        // 如果没有使能变迁，返回空列表
+        if (transition_intervals.empty())
+        {
+            state_logger->warn("没有使能变迁，返回空列表");
+            return schedulable_transitions;
+        }
+
+        // 第二步：计算共同时间区间（使用最小上界和最小下界）
+        int min_lower = INT_MAX;
+        int min_upper = INT_MAX;
+
+        // 找出所有区间中的最小下界和最小上界
+        for (const auto &[transition, interval] : transition_intervals)
+        {
+            min_lower = std::min(min_lower, interval.lower);
+            min_upper = std::min(min_upper, interval.upper);
+        }
+
+        // 设置共同时间区间
+        common_interval = TimeInterval(min_lower, min_upper);
+
         if (!common_interval.is_valid())
         {
+            state_logger->warn("无效的时间区间：[{}, {}]，跳过当前状态",
+                               common_interval.lower, common_interval.upper);
             return {}; // 返回空列表，表示没有可调度的变迁
         }
+        state_logger->info("共同时间区间: [{}, {}]", common_interval.lower,
+                           common_interval.upper == INT_MAX ? "∞" : std::to_string(common_interval.upper));
 
-        // 找出在共同时间区间内可以调度的变迁
+        // 第三步：筛选可调度的变迁（与共同时间区间有交集的变迁）
         for (const auto &transition : enabled_transitions)
         {
-            for (const auto &constraint : time_constraints)
+            const TimeInterval &static_interval = transition_intervals[transition];
+
+            // 计算变迁静态区间与公共区间的交集
+            TimeInterval intersection = static_interval.intersect(common_interval);
+
+            // 判断变迁是否可调度：变迁的静态时间区间与共同区间有交集
+            if (intersection.is_valid())
             {
-                if (constraint.transition == transition)
-                {
-                    // 检查变迁的时间区间是否与共同区间相交
-                    TimeInterval intersection = constraint.time_interval.intersect(common_interval);
-                    if (intersection.is_valid())
-                    {
-                        schedulable_transitions.push_back(transition);
-                    }
-                    break;
-                }
+                schedulable_transitions.push_back(transition);
+                state_logger->debug("变迁 t{} 的时间区间 [{}, {}] 与共同区间 [{}, {}] 有交集 [{}, {}]，可调度",
+                                    transition,
+                                    static_interval.lower, static_interval.upper == INT_MAX ? "∞" : std::to_string(static_interval.upper),
+                                    common_interval.lower, common_interval.upper == INT_MAX ? "∞" : std::to_string(common_interval.upper),
+                                    intersection.lower, intersection.upper == INT_MAX ? "∞" : std::to_string(intersection.upper));
+            }
+            else
+            {
+                state_logger->debug("变迁 t{} 的时间区间 [{}, {}] 与共同区间 [{}, {}] 无交集，不可调度",
+                                    transition,
+                                    static_interval.lower, static_interval.upper == INT_MAX ? "∞" : std::to_string(static_interval.upper),
+                                    common_interval.lower, common_interval.upper == INT_MAX ? "∞" : std::to_string(common_interval.upper));
             }
         }
 
         return schedulable_transitions;
-    }
-
-    // 使用修正后的算法生成状态类图
-    void PriorityStateClassAnalyzer::generate_state_class_graph_corrected()
-    {
-        // 计算初始状态类
-        auto initial_state = compute_initial_state();
-        if (!initial_state)
-        {
-            std::cerr << "无法计算初始状态类" << std::endl;
-            return;
-        }
-
-        // 添加初始状态到状态类图
-        SCGVertex initial_vertex = add_state(initial_state);
-
-        // 使用广度优先搜索生成状态类图
-        std::queue<std::pair<SCGVertex, std::shared_ptr<PriorityStateClass>>> queue;
-        std::unordered_map<std::string, SCGVertex> state_map; // 用于检测已访问的状态
-
-        // 将初始状态添加到队列
-        queue.push({initial_vertex, initial_state});
-        state_map[initial_state->to_string()] = initial_vertex;
-
-        while (!queue.empty())
-        {
-            auto [current_vertex, current_state] = queue.front();
-            queue.pop();
-
-            // 获取当前状态中启用的变迁
-            auto enabled_transitions = current_state->get_enabled_transitions(petri_net);
-
-            if (enabled_transitions.empty())
-            {
-                continue; // 没有使能的变迁，继续处理下一个状态
-            }
-
-            // 应用优先级过滤，同一CPU上只保留最高优先级的变迁和可挂起变迁
-            auto priority_filtered_transitions = current_state->filter_by_priority(enabled_transitions, petri_net);
-
-            if (priority_filtered_transitions.enabled_transitions.empty())
-            {
-                continue; // 没有通过优先级过滤的变迁
-            }
-
-            // 计算可调度变迁（在时间约束下可以触发的变迁）
-            TimeInterval common_interval;
-            auto schedulable_transitions = current_state->get_schedulable_transitions(
-                priority_filtered_transitions.enabled_transitions, petri_net, common_interval);
-
-            if (schedulable_transitions.empty())
-            {
-                continue; // 没有可调度的变迁
-            }
-
-            // 处理每个可调度的变迁
-            for (const auto &transition : schedulable_transitions)
-            {
-                const Vertex &vertex = petri_net[transition];
-                const Transition &t = vertex.as_transition();
-
-                // 检查是否是最高优先级变迁
-                bool is_highest_priority = true;
-                for (const auto &other_t : schedulable_transitions)
-                {
-                    if (other_t == transition)
-                        continue;
-
-                    const Transition &other_trans = petri_net[other_t].as_transition();
-                    if (t.core == other_trans.core && other_trans.priority < t.priority)
-                    {
-                        is_highest_priority = false;
-                        break;
-                    }
-                }
-
-                if (is_highest_priority)
-                {
-                    // 对于最高优先级变迁，直接执行
-                    auto successor_state = current_state->compute_successor(petri_net, transition);
-                    auto successor_key = successor_state->to_string();
-                    SCGVertex successor_vertex;
-
-                    auto it = state_map.find(successor_key);
-                    if (it == state_map.end())
-                    {
-                        // 新状态，添加到状态类图和队列
-                        successor_vertex = add_state(successor_state);
-                        state_map[successor_key] = successor_vertex;
-                        queue.push({successor_vertex, successor_state});
-                    }
-                    else
-                    {
-                        // 已存在的状态，直接使用
-                        successor_vertex = it->second;
-                    }
-
-                    // 添加从当前状态到后继状态的边
-                    add_edge(current_vertex, successor_vertex, transition, common_interval);
-                }
-                else if (t.handle)
-                {
-                    // 对于非最高优先级的可挂起变迁，创建两个后继状态
-
-                    // 1. 执行该变迁的后继状态
-                    auto executed_state = current_state->compute_successor(petri_net, transition);
-                    auto executed_key = executed_state->to_string();
-                    SCGVertex executed_vertex;
-
-                    auto it = state_map.find(executed_key);
-                    if (it == state_map.end())
-                    {
-                        executed_vertex = add_state(executed_state);
-                        state_map[executed_key] = executed_vertex;
-                        queue.push({executed_vertex, executed_state});
-                    }
-                    else
-                    {
-                        executed_vertex = it->second;
-                    }
-
-                    add_edge(current_vertex, executed_vertex, transition, common_interval);
-
-                    // 2. 挂起该变迁的后继状态
-                    auto suspended_state = std::make_shared<PriorityStateClass>(*current_state);
-                    suspended_state->mark_suspended(transition, current_state->get_suspended_clock(transition));
-                    auto suspended_key = suspended_state->to_string();
-
-                    SCGVertex suspended_vertex;
-                    it = state_map.find(suspended_key);
-                    if (it == state_map.end())
-                    {
-                        suspended_vertex = add_state(suspended_state);
-                        state_map[suspended_key] = suspended_vertex;
-                        queue.push({suspended_vertex, suspended_state});
-                    }
-                    else
-                    {
-                        suspended_vertex = it->second;
-                    }
-
-                    add_edge(current_vertex, suspended_vertex, transition, common_interval);
-                }
-                // 对于不可挂起的低优先级变迁，不处理
-            }
-        }
-
-        std::cout << "修正后的状态类图生成完成，共有 " << num_vertices(graph) << " 个状态和 "
-                  << num_edges(graph) << " 个转换。" << std::endl;
-    }
-
-    // 测试状态类生成算法
-    void PriorityStateClassAnalyzer::test_state_class_generation()
-    {
-        std::cout << "开始测试状态类生成算法..." << std::endl;
-
-        // 1. 计算初始状态
-        auto initial_state = compute_initial_state();
-        if (!initial_state)
-        {
-            std::cerr << "无法计算初始状态类，测试失败" << std::endl;
-            return;
-        }
-
-        std::cout << "初始状态类：" << std::endl;
-        std::cout << initial_state->to_string() << std::endl;
-
-        // 2. 获取初始状态的使能变迁
-        auto enabled_transitions = initial_state->get_enabled_transitions(petri_net);
-        std::cout << "初始状态使能变迁数量: " << enabled_transitions.size() << std::endl;
-
-        for (const auto &transition : enabled_transitions)
-        {
-            const Vertex &vertex = petri_net[transition];
-            const Transition &t = vertex.as_transition();
-            std::cout << "  变迁 t" << transition << " (" << vertex.name << "): 优先级=" << t.priority
-                      << ", CPU=" << t.core << ", 时间=["
-                      << t.const_time.first << ","
-                      << (t.const_time.second == INT_MAX ? "∞" : std::to_string(t.const_time.second))
-                      << "], 可挂起=" << (t.handle ? "是" : "否") << std::endl;
-        }
-
-        // 3. 按优先级过滤变迁
-        auto filtered_transitions = initial_state->filter_by_priority(enabled_transitions, petri_net);
-        std::cout << "优先级过滤后的变迁数量: " << filtered_transitions.enabled_transitions.size() << std::endl;
-
-        for (const auto &transition : filtered_transitions.enabled_transitions)
-        {
-            const Vertex &vertex = petri_net[transition];
-            const Transition &t = vertex.as_transition();
-            std::cout << "  变迁 t" << transition << " (" << vertex.name << "): 优先级=" << t.priority
-                      << ", CPU=" << t.core << std::endl;
-        }
-
-        // 4. 获取可调度变迁
-        TimeInterval common_interval;
-        auto schedulable_transitions = initial_state->get_schedulable_transitions(
-            filtered_transitions.enabled_transitions, petri_net, common_interval);
-
-        std::cout << "可调度变迁数量: " << schedulable_transitions.size() << std::endl;
-        std::cout << "共同时间区间: [" << common_interval.lower << ", "
-                  << (common_interval.upper == INT_MAX ? "∞" : std::to_string(common_interval.upper))
-                  << "]" << std::endl;
-
-        for (const auto &transition : schedulable_transitions)
-        {
-            const Vertex &vertex = petri_net[transition];
-            const Transition &t = vertex.as_transition();
-            std::cout << "  变迁 t" << transition << " (" << vertex.name << ")" << std::endl;
-        }
-
-        // 5. 计算一些后继状态
-        if (!schedulable_transitions.empty())
-        {
-            std::cout << "计算部分后继状态:" << std::endl;
-
-            for (size_t i = 0; i < std::min(size_t(3), schedulable_transitions.size()); ++i)
-            {
-                auto transition = schedulable_transitions[i];
-                const Vertex &vertex = petri_net[transition];
-
-                std::cout << "触发变迁 t" << transition << " (" << vertex.name << ") 后的状态类:" << std::endl;
-                auto successor = initial_state->compute_successor(petri_net, transition);
-                std::cout << successor->to_string() << std::endl;
-            }
-        }
-
-        std::cout << "状态类生成算法测试完成" << std::endl;
     }
 
     TimeInterval PriorityStateClass::get_suspended_clock(ptpn_v_desc transition) const
@@ -1273,5 +1114,31 @@ namespace priority_scg
             return it->second;
         }
         return TimeInterval(0, 0); // 默认返回零时间
+    }
+
+    std::string PriorityStateClass::marking_to_string() const
+    {
+        std::stringstream ss;
+        ss << "[";
+
+        bool first = true;
+        for (const auto &p_m : marking)
+        {
+            // 忽略token数量小于等于0的库所
+            if (p_m.second <= 0)
+            {
+                continue;
+            }
+
+            if (!first)
+            {
+                ss << ", ";
+            }
+            ss << "p" << p_m.first << ":" << p_m.second;
+            first = false;
+        }
+
+        ss << "]";
+        return ss.str();
     }
 } // namespace priority_scg

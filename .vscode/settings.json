@@ -98,7 +98,9 @@
         "locale": "cpp",
         "print": "cpp",
         "queue": "cpp",
-        "stack": "cpp"
+        "stack": "cpp",
+        "__config": "cpp",
+        "*.inc": "cpp"
     },
     "editor.formatOnSave": true,
     "clang-format.executable": "/opt/homebrew/bin/clang-format",

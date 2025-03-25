@@ -4,6 +4,7 @@
 #include "differential_state_class.h"
 #include <boost/program_options.hpp>
 #include <iostream>
+#include <spdlog/spdlog.h>
 
 namespace po = boost::program_options;
 
@@ -27,10 +28,9 @@ int main(int argc, char *argv[])
   std::string file_path;
   std::string dot_style;
   std::string scg_type;
-  bool test_mode = false;
 
   po::options_description desc("选项");
-  desc.add_options()("help", "显示帮助信息")("deadline", po::value<int>(&deadline)->default_value(0), "设置截止时间进行检查")("style", po::value<std::string>(&dot_style)->default_value("NEWPN"), "点文件样式，支持 PSTPN 或 PTPN")("file", po::value<std::string>(&file_path)->default_value("dag.dot"), "指定Petri网的dot文件路径")("scg_type", po::value<std::string>(&scg_type)->default_value("original"), "状态类图算法类型：original、priority、priority_corrected 或 differential")("cpus", po::value<int>(&num_cpus)->required(), "CPU数量")("cores", po::value<int>(&cores_per_cpu)->required(), "每个CPU的核心数")("test", po::bool_switch(&test_mode), "运行测试模式");
+  desc.add_options()("help", "显示帮助信息")("deadline", po::value<int>(&deadline)->default_value(0), "设置截止时间进行检查")("file", po::value<std::string>(&file_path)->default_value("dag.dot"), "指定Petri网的dot文件路径")("scg_type", po::value<std::string>(&scg_type)->default_value("original"), "状态类图算法类型:priority或 differential")("cpus", po::value<int>(&num_cpus)->required(), "CPU数量")("cores", po::value<int>(&cores_per_cpu)->required(), "每个CPU的核心数");
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -56,52 +56,10 @@ int main(int argc, char *argv[])
     // 使用优先级状态类分析器
     priority_scg::PriorityStateClassAnalyzer priority_analyzer(ptpn.get_graph());
 
-    if (test_mode)
-    {
-      priority_analyzer.test_state_class_generation();
-      return 0;
-    }
-
     priority_analyzer.generate_state_class_graph();
 
     // 导出状态类图到DOT文件
     priority_analyzer.export_to_dot("priority_state_classes.dot");
-
-    // 检查是否有死锁状态
-    if (priority_analyzer.has_deadlock_states())
-    {
-      std::cout << "检测到死锁状态！" << std::endl;
-      auto deadlock_states = priority_analyzer.get_deadlock_states();
-      std::cout << "死锁状态数量: " << deadlock_states.size() << std::endl;
-    }
-    else
-    {
-      std::cout << "没有检测到死锁状态。" << std::endl;
-    }
-
-    // 计算最大执行时间
-    auto execution_time = priority_analyzer.calculate_max_execution_time();
-    std::cout << "最大执行时间区间: [" << execution_time.lower << ", "
-              << (execution_time.upper == INT_MAX ? "∞" : std::to_string(execution_time.upper))
-              << "]" << std::endl;
-  }
-  else if (scg_type == "priority_corrected")
-  {
-    std::cout << "使用修正后的优先级时间Petri网状态类算法..." << std::endl;
-
-    // 使用优先级状态类分析器
-    priority_scg::PriorityStateClassAnalyzer priority_analyzer(ptpn.get_graph());
-
-    if (test_mode)
-    {
-      priority_analyzer.test_state_class_generation();
-      return 0;
-    }
-
-    priority_analyzer.generate_state_class_graph_corrected();
-
-    // 导出状态类图到DOT文件
-    priority_analyzer.export_to_dot("priority_corrected_state_classes.dot");
 
     // 检查是否有死锁状态
     if (priority_analyzer.has_deadlock_states())
@@ -149,12 +107,6 @@ int main(int argc, char *argv[])
     std::cout << "最大执行时间区间: [" << execution_time.lower << ", "
               << (std::isinf(execution_time.upper) ? "∞" : std::to_string(execution_time.upper))
               << "]" << std::endl;
-  }
-  else if (test_mode)
-  {
-    // 如果指定了测试模式，但没有指定具体的算法，默认使用修正后的优先级算法测试
-    priority_scg::PriorityStateClassAnalyzer priority_analyzer(ptpn.get_graph());
-    priority_analyzer.test_state_class_generation();
   }
 
   return 0;

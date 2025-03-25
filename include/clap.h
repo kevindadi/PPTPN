@@ -7,9 +7,6 @@
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/graph_utility.hpp>
 #include <boost/graph/graphviz.hpp>
-#include <boost/log/core.hpp>
-#include <boost/log/expressions.hpp>
-#include <boost/log/trivial.hpp>
 #include <set>
 #include <vector>
 
@@ -50,8 +47,6 @@ public:
         num_cpus(num_cpus),
         cores_per_cpu(cores_per_cpu)
   {
-    boost::log::core::get()->set_filter(boost::log::trivial::severity >=
-                                        boost::log::trivial::info);
   }
   // ~TDGRAP();
   TDG_RAP tdg;

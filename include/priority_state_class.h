@@ -40,6 +40,11 @@ namespace priority_scg
         {
             return lower == other.lower && upper == other.upper;
         }
+
+        std::string to_string() const
+        {
+            return "[" + std::to_string(lower) + ", " + std::to_string(upper) + "]";
+        }
     };
 
     // 代表变迁的时间约束
@@ -48,15 +53,17 @@ namespace priority_scg
         ptpn_v_desc transition;     // 变迁标识符
         TimeInterval time_interval; // 时间区间
         int priority;               // 优先级
+        int cpu;                    // cpu
 
-        TransitionTimeConstraint(ptpn_v_desc t, TimeInterval interval, int prio)
-            : transition(t), time_interval(interval), priority(prio) {}
+        TransitionTimeConstraint(ptpn_v_desc t, TimeInterval interval, int prio, int c)
+            : transition(t), time_interval(interval), priority(prio), cpu(c) {}
 
         bool operator==(const TransitionTimeConstraint &other) const
         {
             return transition == other.transition &&
                    time_interval == other.time_interval &&
-                   priority == other.priority;
+                   priority == other.priority &&
+                   cpu == other.cpu;
         }
     };
 
@@ -82,6 +89,9 @@ namespace priority_scg
 
         // 获取状态类的字符串表示（用于输出和调试）
         std::string to_string() const;
+
+        // 获取标记的字符串表示（排除标记中所有小于等于零的值）
+        std::string marking_to_string() const;
 
         // 获取当前标记中的所有可启用变迁
         std::vector<ptpn_v_desc> get_enabled_transitions(const PriorityTPNGraph &graph) const;
@@ -161,10 +171,6 @@ namespace priority_scg
         // 生成状态类图
         void generate_state_class_graph();
 
-        // 使用修正后的算法生成状态类图
-        void generate_state_class_graph_corrected();
-
-        // 导出为DOT格式
         void export_to_dot(const std::string &filename);
 
         // 检查是否有死锁状态
@@ -188,9 +194,6 @@ namespace priority_scg
 
         // 获取状态类图
         const StateClassGraph &get_graph() const { return graph; }
-
-        // 测试状态类生成算法
-        void test_state_class_generation();
 
     private:
         PriorityTPNGraph petri_net; // 原始的优先级时间 Petri 网

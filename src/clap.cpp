@@ -3,6 +3,17 @@
 #include <boost/exception/all.hpp>
 #include <boost/static_assert.hpp>
 #include <regex>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+
+static std::shared_ptr<spdlog::logger> init_tdg_logger()
+{
+  auto logger = spdlog::stdout_color_mt("tdg_rap");
+  logger->set_pattern("[%^%l%$] [%^TDG-RAP%$] %v");
+  return logger;
+}
+
+static auto tdg_logger = init_tdg_logger();
 
 struct LabelParseException : virtual boost::exception, virtual std::exception
 {
@@ -42,8 +53,7 @@ void TDG::parse_tdg()
       get(boost::vertex_index, tdg);
   if (read_graphviz(tdg_stream, tdg, tdg_dp))
   {
-    BOOST_LOG_TRIVIAL(info)
-        << "Graph Name: " << get_property(tdg, boost::graph_name);
+    tdg_logger->info("Graph Name: {}", get_property(tdg, boost::graph_name));
     // 遍历节点，确定节点类型
     BOOST_FOREACH (TDG_RAP::vertex_descriptor v, vertices(tdg))
     {
@@ -51,7 +61,7 @@ void TDG::parse_tdg()
       std::string id = get("node_id", tdg_dp, v);
       std::string label = get("label", tdg_dp, v);
       vertex_index.insert({id, v});
-      BOOST_LOG_TRIVIAL(debug) << label;
+      tdg_logger->debug("{}", label);
       NodeType node_type;
       try
       {
@@ -59,7 +69,7 @@ void TDG::parse_tdg()
       }
       catch (const LabelParseException &ex)
       {
-        BOOST_LOG_TRIVIAL(error) << id << "'s label is wrong!";
+        tdg_logger->error("{}的label错误!", id);
       }
       catch (const boost::exception &ex)
       {
@@ -78,8 +88,7 @@ void TDG::parse_tdg()
         tasks_priority.insert(make_pair(t_name, p_task.priority));
         nodes_type.insert(make_pair(t_name, p_task));
         vertexes_type.insert(make_pair(t_name, TDGVertexType::TASK));
-        BOOST_LOG_TRIVIAL(info)
-            << t_name << ": " << TaskTypeToString[p_task.task_type];
+        tdg_logger->info("{}: {}", t_name, TaskTypeToString[p_task.task_type]);
       }
       else if (holds_alternative<APeriodicTask>(node_type))
       {
@@ -90,8 +99,7 @@ void TDG::parse_tdg()
         tasks_priority.insert(make_pair(t_name, ap_task.priority));
         nodes_type.insert(make_pair(t_name, ap_task));
         vertexes_type.insert(make_pair(t_name, TDGVertexType::TASK));
-        BOOST_LOG_TRIVIAL(info)
-            << t_name << ": " << TaskTypeToString[ap_task.task_type];
+        tdg_logger->info("{}: {}", t_name, TaskTypeToString[ap_task.task_type]);
       }
       else if (holds_alternative<SyncTask>(node_type))
       {
@@ -99,7 +107,7 @@ void TDG::parse_tdg()
         string t_name = s_task.name;
         nodes_type.insert(make_pair(t_name, s_task));
         vertexes_type.insert(make_pair(t_name, TDGVertexType::SYNC));
-        BOOST_LOG_TRIVIAL(info) << t_name << ": " << "type: SYNC";
+        tdg_logger->info("{}: type: SYNC", t_name);
       }
       else if (holds_alternative<DistTask>(node_type))
       {
@@ -110,7 +118,7 @@ void TDG::parse_tdg()
         //              label.0");
         nodes_type.insert(make_pair(t_name, d_task));
         vertexes_type.insert(make_pair(t_name, TDGVertexType::DIST));
-        BOOST_LOG_TRIVIAL(info) << t_name << ": " << "type: DIST";
+        tdg_logger->info("{}: type: DIST", t_name);
       }
       else
       {
@@ -118,7 +126,7 @@ void TDG::parse_tdg()
         string t_name = e_task.name;
         nodes_type.insert(make_pair(t_name, e_task));
         vertexes_type.insert(make_pair(t_name, TDGVertexType::EMPTY));
-        BOOST_LOG_TRIVIAL(info) << t_name << ": " << "type: EMPTY";
+        tdg_logger->info("{}: type: EMPTY", t_name);
       }
       //            if (label.find("Wait") == std::string::npos) {
       //              dag_task_name.push_back(label);
@@ -130,8 +138,7 @@ void TDG::parse_tdg()
     {
       //      auto source_name = tdg[source(e, tdg)].name;
       //      auto target_name = tdg[target(e, tdg)].name;
-      BOOST_LOG_TRIVIAL(debug)
-          << "Edge: " << tdg[e].label << "weight: " << stoi(tdg[e].label);
+      tdg_logger->debug("Edge: {}weight: {}", tdg[e].label, stoi(tdg[e].label));
     }
   }
 }
@@ -149,7 +156,7 @@ NodeType TDG::parse_vertex_label(const string &label)
   {
     BOOST_THROW_EXCEPTION(LabelParseException("Label cannot be empty"));
   }
-  BOOST_LOG_TRIVIAL(info) << "Parsing label: " << label;
+  tdg_logger->info("Parsing label: {}", label);
   NodeType node_type;
   regex rgx("\\{(.*?)\\}");
   smatch matches;
@@ -440,7 +447,7 @@ std::unordered_map<int, vector<string>> TDG::classify_priority()
 
   for (auto it = core_task.begin(); it != core_task.end(); ++it)
   {
-    BOOST_LOG_TRIVIAL(info) << "Core: " << it->first;
+    tdg_logger->info("Core: {}", it->first);
     for (auto task : it->second)
     {
       std::cout << task << " < ";
