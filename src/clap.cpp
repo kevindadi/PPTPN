@@ -1,4 +1,5 @@
 #include "clap.h"
+
 #include <boost/exception/all.hpp>
 #include <boost/static_assert.hpp>
 #include <regex>
@@ -13,7 +14,8 @@ struct LabelParseException : virtual boost::exception, virtual std::exception {
 
 struct TimeValueException : virtual LabelParseException {
   std::string time_values;
-  TimeValueException() : LabelParseException(), time_values("") {} // 添加默认构造函数
+  TimeValueException()
+      : LabelParseException(), time_values("") {} // 添加默认构造函数
   explicit TimeValueException(const string &Msg, const std::string &msg)
       : LabelParseException(Msg), time_values(msg) {}
 
@@ -22,8 +24,8 @@ struct TimeValueException : virtual LabelParseException {
 
 TDG::TDG(string tdg_file) {
   this->tdg_file = std::move(tdg_file);
-  logging::core::get()->set_filter(logging::trivial::severity >=
-                                   logging::trivial::info);
+  boost::log::core::get()->set_filter(boost::log::trivial::severity >=
+                                      boost::log::trivial::info);
 }
 
 // 解析 DAG 文件，获取任务的名字，核心，优先级，锁和时间
@@ -143,8 +145,9 @@ void TDG::parse_tdg() {
   }
 }
 
-bool is_time_range(const string& str) {
-    return str.front() == '[' && str.back() == ']' && str.find(',') != string::npos;
+bool is_time_range(const string &str) {
+  return str.front() == '[' && str.back() == ']' &&
+         str.find(',') != string::npos;
 }
 
 // 按照 label 类型返回
@@ -159,8 +162,9 @@ NodeType TDG::parse_vertex_label(const string &label) {
   if (regex_search(label, matches, rgx)) {
     string content = matches[1].str();
     if (content.empty()) {
-      BOOST_THROW_EXCEPTION(LabelParseException("Empty content in label: " + label));
-    } 
+      BOOST_THROW_EXCEPTION(
+          LabelParseException("Empty content in label: " + label));
+    }
     vector<std::string> parts;
     istringstream ss(content);
     string token;
@@ -177,7 +181,7 @@ NodeType TDG::parse_vertex_label(const string &label) {
     if (name.empty()) {
       BOOST_THROW_EXCEPTION(LabelParseException("Task name cannot be empty"));
     }
-    
+
     // 首先处理特殊节点
     if (parts.size() <= 2) {
       if (name.substr(0, 4) == "Wait") {
@@ -188,24 +192,25 @@ NodeType TDG::parse_vertex_label(const string &label) {
         return EmptyTask{name};
       }
     }
-    
+
     bool has_period = false;
     vector<int> period_times;
-     try {
+    try {
       period_times = parse_time_vec(parts[1]);
       has_period = true;
-    } catch (const TimeValueException& e) {
+    } catch (const TimeValueException &e) {
       has_period = false;
     }
 
     if (has_period) {
       // 处理周期性任务
-      pair<int, int> task_period_time = make_pair(period_times[0], period_times[1]);
+      pair<int, int> task_period_time =
+          make_pair(period_times[0], period_times[1]);
       int task_priority = stoi(parts[2]);
       int task_core = stoi(parts[3]);
       vector<pair<int, int>> task_times;
       vector<int> time_values = parse_time_vec(parts[4]);
-      
+
       for (size_t i = 0; i < time_values.size(); i += 2) {
         task_times.emplace_back(time_values[i], time_values[i + 1]);
       }
@@ -234,21 +239,22 @@ NodeType TDG::parse_vertex_label(const string &label) {
       } else if (name.substr(0, 8) == "Sporadic") {
         task_type = TaskType::APERIOD;
       }
-      
+
       tasks_type.insert(make_pair(name, task_type));
-      return PeriodicTask{name, task_core, task_priority, task_times, 
-                         is_lock, task_locks, task_type, task_period_time};
+      return PeriodicTask{name,    task_core,  task_priority, task_times,
+                          is_lock, task_locks, task_type,     task_period_time};
     } else {
       // 处理非周期性任务
       if (parts.size() < 4) {
-        BOOST_THROW_EXCEPTION(LabelParseException("Insufficient parameters for aperiodic task: " + name));
+        BOOST_THROW_EXCEPTION(LabelParseException(
+            "Insufficient parameters for aperiodic task: " + name));
       }
 
       int task_priority = stoi(parts[1]);
       int task_core = stoi(parts[2]);
       vector<pair<int, int>> task_times;
       vector<int> time_values = parse_time_vec(parts[3]);
-      
+
       for (size_t i = 0; i < time_values.size(); i += 2) {
         task_times.emplace_back(time_values[i], time_values[i + 1]);
       }
@@ -272,10 +278,9 @@ NodeType TDG::parse_vertex_label(const string &label) {
       }
 
       tasks_type.insert(make_pair(name, TaskType::NORMAL));
-      return APeriodicTask{name, task_core, task_priority, task_times, 
-                          is_lock, task_locks};
+      return APeriodicTask{name,       task_core, task_priority,
+                           task_times, is_lock,   task_locks};
     }
-    
   }
   BOOST_THROW_EXCEPTION(LabelParseException("Invalid label format: " + label));
 }
@@ -283,8 +288,7 @@ NodeType TDG::parse_vertex_label(const string &label) {
 vector<int> TDG::parse_time_vec(string times_string) {
   if (times_string.empty()) {
     BOOST_THROW_EXCEPTION(
-        TimeValueException("Empty time string", 
-                         "Time string cannot be empty"));
+        TimeValueException("Empty time string", "Time string cannot be empty"));
   }
   std::vector<int> values;
   std::regex rgx(R"(\[(\d+),(\d+)\])");
@@ -293,43 +297,40 @@ vector<int> TDG::parse_time_vec(string times_string) {
   try {
     std::string::const_iterator start = times_string.begin();
     std::string::const_iterator end = times_string.end();
-    
+
     bool found_match = false;
     while (std::regex_search(start, end, matches, rgx)) {
       found_match = true;
-      
+
       // 检查匹配组的数量
       if (matches.size() != 3) { // 完整匹配 + 两个捕获组
-        BOOST_THROW_EXCEPTION(
-            TimeValueException("Invalid time format", 
-                             "Expected format: [number,number]"));
+        BOOST_THROW_EXCEPTION(TimeValueException(
+            "Invalid time format", "Expected format: [number,number]"));
       }
 
       int first_value, second_value;
       try {
         first_value = std::stoi(matches[1].str());
         second_value = std::stoi(matches[2].str());
-      } catch (const std::invalid_argument&) {
-        BOOST_THROW_EXCEPTION(
-            TimeValueException("Invalid number format", 
-                             "Failed to convert string to integer in: " + times_string));
-      } catch (const std::out_of_range&) {
-        BOOST_THROW_EXCEPTION(
-            TimeValueException("Number out of range", 
-                             "Number too large in: " + times_string));
+      } catch (const std::invalid_argument &) {
+        BOOST_THROW_EXCEPTION(TimeValueException(
+            "Invalid number format",
+            "Failed to convert string to integer in: " + times_string));
+      } catch (const std::out_of_range &) {
+        BOOST_THROW_EXCEPTION(TimeValueException(
+            "Number out of range", "Number too large in: " + times_string));
       }
 
       // 验证时间值的合理性
       if (first_value < 0 || second_value < 0) {
-        BOOST_THROW_EXCEPTION(
-            TimeValueException("Invalid time value", 
-                             "Time values must be non-negative"));
+        BOOST_THROW_EXCEPTION(TimeValueException(
+            "Invalid time value", "Time values must be non-negative"));
       }
 
       if (first_value > second_value) {
-        BOOST_THROW_EXCEPTION(
-            TimeValueException("Invalid time range", 
-                             "Start time must be less than or equal to end time"));
+        BOOST_THROW_EXCEPTION(TimeValueException(
+            "Invalid time range",
+            "Start time must be less than or equal to end time"));
       }
 
       values.push_back(first_value);
@@ -338,22 +339,22 @@ vector<int> TDG::parse_time_vec(string times_string) {
     }
 
     if (!found_match) {
-      BOOST_THROW_EXCEPTION(
-          TimeValueException("No valid time ranges found", 
-                           "Input string does not contain any valid time ranges: " + times_string));
+      BOOST_THROW_EXCEPTION(TimeValueException(
+          "No valid time ranges found",
+          "Input string does not contain any valid time ranges: " +
+              times_string));
     }
 
     // 检查结果向量的合理性
     if (values.size() % 2 != 0) {
-      BOOST_THROW_EXCEPTION(
-          TimeValueException("Invalid number of values", 
-                           "Number of parsed values must be even"));
+      BOOST_THROW_EXCEPTION(TimeValueException(
+          "Invalid number of values", "Number of parsed values must be even"));
     }
 
-  } catch (const std::regex_error& e) {
-    BOOST_THROW_EXCEPTION(
-        TimeValueException("Regex error", 
-                         "Error in regular expression matching: " + string(e.what())));
+  } catch (const std::regex_error &e) {
+    BOOST_THROW_EXCEPTION(TimeValueException(
+        "Regex error",
+        "Error in regular expression matching: " + string(e.what())));
   }
 
   return values;

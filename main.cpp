@@ -1,9 +1,9 @@
-#include "priority_time_petri_net.h"
-#include <iostream>
-#include "clap.h"
-#include <boost/program_options.hpp>
-#include "state_class_graph.h"  
 #include "calcuate.h"
+#include "clap.h"
+#include "priority_time_petri_net.h"
+#include "state_class_graph.h"
+#include <boost/program_options.hpp>
+#include <iostream>
 
 namespace po = boost::program_options;
 
@@ -26,19 +26,18 @@ int main(int argc, char *argv[]) {
     std::cout << desc << std::endl;
     return 1;
   }
-  
+
   TDG tdg_rap = {"../test/label.dot"};
   tdg_rap.parse_tdg();
-  PriorityTimePetriNet ptpn;
-  ptpn.init();
+  tdg_rap.classify_priority();
+  ptpn::PriorityTPN ptpn;
   ptpn.transform_tdg_to_ptpn(tdg_rap);
-  if (!ptpn.verify_petri_net_structure()) {
-    BOOST_LOG_TRIVIAL(error) << "Petri net structure is incorrect";
-    return 1;
-  } 
-  StateClassGraph Scg(ptpn.ptpn, std::vector<std::size_t>{1, 2});
-  Scg.generate_state_class();
-  // check_deadlock(Scg.scg); 
+
+
+  StateClassGraph scg{ptpn.get_graph()};
+  scg.generate_state_class();
+
+  check_deadlock(scg.scg);
+
   return 0;
 }
-

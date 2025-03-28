@@ -87,5 +87,6 @@
         "*.ipp": "cpp"
     },
     "editor.formatOnSave": true,
-    "clang-format.style": "Google"
+    "clang-format.executable": "/opt/homebrew/bin/clang-format",
+    "clang-format.style": "LLVM"
 }

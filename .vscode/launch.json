@@ -5,13 +5,13 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "C++ Debug",
+            "name": "Cmake Debug",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/PPTPN",
+            "program": "${workspaceFolder}/build/PTPN",
             "args": [
-                "--style",
-                "PTPN"
+                "--file",
+                "../test/label.dot"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
