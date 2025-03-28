@@ -32,9 +32,12 @@ int main(int argc, char *argv[]) {
   tdg_rap.classify_priority();
   ptpn::PriorityTPN ptpn;
   ptpn.transform_tdg_to_ptpn(tdg_rap);
+
+
   StateClassGraph scg{ptpn.get_graph()};
   scg.generate_state_class();
 
   check_deadlock(scg.scg);
+
   return 0;
 }

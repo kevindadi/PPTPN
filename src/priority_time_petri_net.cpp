@@ -102,10 +102,19 @@ void PriorityTPN::transform_tdg_to_ptpn(TDG &tdg) {
   }
 }
 
+
 void PriorityTPN::transform_vertices(TDG &tdg) {
+
   BOOST_FOREACH (TDG_RAP::vertex_descriptor v, vertices(tdg.tdg)) {
     const string &vertex_name = tdg.tdg[v].name;
     BOOST_LOG_TRIVIAL(debug) << "Processing vertex: " << vertex_name;
+
+    string id = get("node_id", tdg.tdg_dp, v);
+    // 如果节点为CPU，则跳过
+    if (id == "CPU" || id == "MUTEX" || id == "SPINLOCK") {
+      continue;
+    }
+
 
     try {
       auto node_type_it = tdg.nodes_type.find(vertex_name);
@@ -218,6 +227,7 @@ void PriorityTPN::add_resources_and_bindings(TDG &tdg) {
   // 添加CPU资源
   add_cpu_resource(6);
 
+
   // 添加锁资源
   add_lock_resource(tdg.lock_set);
 
@@ -255,6 +265,17 @@ void PriorityTPN::add_cpu_resource(int nums) {
     // TODO: cpu 数量与核心扩展
     string cpu_name = "core" + std::to_string(i);
     ptpn_v_desc c = add_place(graph, cpu_name, 1, 1);
+    cpus_place.push_back(c);
+  }
+  BOOST_LOG_TRIVIAL(info) << "create core resource!";
+}
+
+void PriorityTimePetriNet::add_cpu_resource(int counts, int cores) {
+  is_safe_net = false;
+  for (int i = 0; i < counts; i++) {
+    string cpu_name = "core" + std::to_string(i); 
+    PTPNVertex cpu_place = {cpu_name, cores};
+    vertex_ptpn c = add_vertex(cpu_place, ptpn);
     cpus_place.push_back(c);
   }
   BOOST_LOG_TRIVIAL(info) << "create core resource!";
@@ -494,10 +515,11 @@ PriorityTPN::add_p_node_ptpn(PeriodicTask &p_task) {
 
   // 创建周期任务特有的随机触发结构
   string task_random_period = p_task.name + "random";
-  ptpn_v_desc random = add_place(graph, task_random_period, 1);
-  ptpn_v_desc fire =
-      add_transition(graph, p_task.name + "fire", p_task.priority, p_task.core,
-                     p_task.period_time);
+
+  vertex_ptpn random = add_place(ptpn, task_random_period, 1);
+  vertex_ptpn fire = add_transition(ptpn, p_task.name + "fire",
+      PTPNTransition{p_task.priority, p_task.period_time, p_task.core});
+  period_transitions_id.push_back(fire);
 
   // 创建基本任务结构
   BasicTaskChains basic(graph, names, p_task.priority, p_task.core,
@@ -713,7 +735,7 @@ void PriorityTPN::add_preempt_task_ptpn(
 /// \param preempt_vertex 发生抢占的库所
 /// \param handle_t 可挂起的变迁
 /// \param start 高优先级的开始库所
-/// \param end 高优先��的结束库所
+/// \param end 高优先级的结束库所
 /// \param task_type 高优先级任务类型
 void PriorityTPN::create_task_priority(const std::string &name,
                                        ptpn_v_desc preempt_vertex,
@@ -874,28 +896,104 @@ void PriorityTPN::create_hlf_task_priority(const std::string &name,
   node_index += 1;
 }
 
-bool PriorityTPN::verify_petri_net_structure() {
-  bool is_valid = true;
+bool PriorityTimePetriNet::verify_petri_net_structure() {
+    bool is_valid = true;
+    
+    // 遍历所有顶点
+    for (auto [vi, vi_end] = vertices(ptpn); vi != vi_end; ++vi) {
+        const auto& vertex = ptpn[*vi];
+        
+        if (vertex.shape == "box") {  // 变迁
+            // 检查1：变迁的前后节点必须是库所且不能为空
+            bool has_input = false;
+            bool has_output = false;
+            bool all_inputs_are_places = true;
+            bool all_outputs_are_places = true;
+            
+            // 检查入边
+            for (auto [ei, ei_end] = in_edges(*vi, ptpn); ei != ei_end; ++ei) {
+                has_input = true;
+                vertex_ptpn pre = source(*ei, ptpn);
+                if (ptpn[pre].shape != "circle") {
+                    all_inputs_are_places = false;
+                    BOOST_LOG_TRIVIAL(error) << "变迁 " << vertex.name 
+                        << " 的前置节点 " << ptpn[pre].name 
+                        << " 不是库所";
+                }
+            }
+            
+            // 检查出边
+            for (auto [ei, ei_end] = out_edges(*vi, ptpn); ei != ei_end; ++ei) {
+                has_output = true;
+                vertex_ptpn suc = target(*ei, ptpn);
+                if (ptpn[suc].shape != "circle") {
+                    all_outputs_are_places = false;
+                    BOOST_LOG_TRIVIAL(error) << "变迁 " << vertex.name 
+                        << " 的后继节点 " << ptpn[suc].name 
+                        << " 不是库所";
+                }
+            }
+            
+            if (!has_input || !has_output) {
+                is_valid = false;
+                BOOST_LOG_TRIVIAL(error) << "变迁 " << vertex.name 
+                    << " 的前置或后继节点为空";
+            }
+            
+            if (!all_inputs_are_places || !all_outputs_are_places) {
+                is_valid = false;
+            }
+            
+            // 检查4：变迁时间约束的有效性
+            if (vertex.pnt.const_time.first < 0 || 
+                vertex.pnt.const_time.second < vertex.pnt.const_time.first) {
+                is_valid = false;
+                BOOST_LOG_TRIVIAL(error) << "变迁 " << vertex.name 
+                    << " 的时间约束无效: [" 
+                    << vertex.pnt.const_time.first << "," 
+                    << vertex.pnt.const_time.second << "]";
+            }
+            
+        } else if (vertex.shape == "circle") {  // 库所
+            // 检查2：库所的前后节点必须是变迁（但可以为空）
+            bool all_inputs_are_transitions = true;
+            bool all_outputs_are_transitions = true;
+            
+            // 检查入边
+            for (auto [ei, ei_end] = in_edges(*vi, ptpn); ei != ei_end; ++ei) {
+                vertex_ptpn pre = source(*ei, ptpn);
+                if (ptpn[pre].shape != "box") {
+                    all_inputs_are_transitions = false;
+                    BOOST_LOG_TRIVIAL(error) << "库所 " << vertex.name 
+                        << " 的前置节点 " << ptpn[pre].name 
+                        << " 不是变迁";
+                }
+            }
+            
+            // 检查出边
+            for (auto [ei, ei_end] = out_edges(*vi, ptpn); ei != ei_end; ++ei) {
+                vertex_ptpn suc = target(*ei, ptpn);
+                if (ptpn[suc].shape != "box") {
+                    all_outputs_are_transitions = false;
+                    BOOST_LOG_TRIVIAL(error) << "库所 " << vertex.name 
+                            << " 的后继节点 " << ptpn[suc].name 
+                        << " 不是变迁";
+                }
+            }
+            
+            if (!all_inputs_are_transitions || !all_outputs_are_transitions) {
+                is_valid = false;
+            }
+            
+            // 检查3：对于安全网来说,token数量必须是0或1 
+            if (is_safe_net) {  
+                if (vertex.token < 0 || vertex.token > 1) {
+                    is_valid = false;
+                    BOOST_LOG_TRIVIAL(error) << "库所 " << vertex.name 
+                        << " 的token数量无效: " << vertex.token;
+                }
+            }
 
-  // 遍历所有顶点
-  for (auto [vi, vi_end] = vertices(graph); vi != vi_end; ++vi) {
-    const auto &vertex = graph[*vi];
-
-    if (vertex.shape == "box") { // 变迁
-      // 检查1：变迁的前后节点必须是库所且不能为空
-      bool has_input = false;
-      bool has_output = false;
-      bool all_inputs_are_places = true;
-      bool all_outputs_are_places = true;
-
-      // 检查入边
-      for (auto [ei, ei_end] = in_edges(*vi, graph); ei != ei_end; ++ei) {
-        has_input = true;
-        ptpn_v_desc pre = source(*ei, graph);
-        if (graph[pre].shape != "circle") {
-          all_inputs_are_places = false;
-          BOOST_LOG_TRIVIAL(error) << "变迁 " << vertex.name << " 的前置节点 "
-                                   << graph[pre].name << " 不是库所";
         }
       }
 

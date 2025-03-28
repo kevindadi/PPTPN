@@ -37,10 +37,46 @@ struct Edge {
   int weight = 1;
 };
 
-struct Vertex {
-  std::string name, label;
-  std::string shape;
-  std::variant<Place, Transition> node;
+
+struct PTPNTransition {
+  bool is_handle{false};
+  bool is_random{false};
+  int runtime{0};
+  int priority{0};
+  std::pair<int, int> const_time{0, 0};
+  int c{0};  // 处理器资源分配
+
+  PTPNTransition() = default;
+
+  // 主构造函数
+  PTPNTransition(bool is_handle, int priority, std::pair<int, int> time, int c,
+                 bool is_random, int runtime = 0)
+      : is_handle(is_handle),
+        is_random(is_random),
+        runtime(runtime),
+        priority(priority),
+        const_time(std::move(time)),
+        c(c) {}
+
+  // 基本变迁
+  PTPNTransition(int priority, std::pair<int, int> time, int c)
+      : PTPNTransition(false, priority, std::move(time), c, false) {}
+
+  PTPNTransition(bool is_handle, int priority, std::pair<int, int> time, int c)
+      : PTPNTransition(is_handle, priority, std::move(time), c, false) {}
+
+  PTPNTransition(int priority, std::pair<int, int> time, int c, bool is_random)
+      : PTPNTransition(false, priority, std::move(time), c, is_random) {}
+};
+
+struct PTPNVertex {
+  std::string name, label, shape;
+  int token = 0;
+  bool enabled = false;
+  PTPNTransition pnt;
+
+  PTPNVertex() = default;
+
 
   // 类型判别
   bool is_place() const noexcept { return std::holds_alternative<Place>(node); }
@@ -78,40 +114,14 @@ struct Vertex {
   }
 };
 
-typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS,
-                              Vertex, Edge, TDG_RAP_P>
-    PriorityTPNGraph;
-typedef boost::graph_traits<PriorityTPNGraph>::vertex_descriptor ptpn_v_desc;
+struct PTPNEdge {
+  std::string label;
+  int weight;
+  std::pair<int, int> times;
 
-// void process_vertex(const Vertex &v) {
-//   std::visit(
-//       [](auto &&arg) {
-//         using T = std::decay_t<decltype(arg)>;
-//         if constexpr (std::is_same_v<T, Place>) {
-//           std::cout << "Place with token: " << arg.token << std::endl;
-//         } else if constexpr (std::is_same_v<T, Transition>) {
-//           std::cout << "Transition with priority: " << arg.priority
-//                     << std::endl;
-//         }
-//       },
-//       v.node);
-// }
+  PTPNEdge() = default;
+  PTPNEdge(const string& label, int weight, std::pair<int, int> times) : label(label), weight(weight), times(times) {}
 
-// 任务节点名称生成器
-struct TaskVertexsNames {
-  string entry, get_core, ready, get_lock, deal, drop_lock, unlock, exec, exit;
-
-  explicit TaskVertexsNames(const string &task_name) {
-    entry = task_name + "entry";
-    get_core = task_name + "get_core";
-    ready = task_name + "ready";
-    get_lock = task_name + "get_lock";
-    deal = task_name + "deal";
-    drop_lock = task_name + "drop_lock";
-    unlock = task_name + "unlocked";
-    exec = task_name + "exec";
-    exit = task_name + "exit";
-  }
 };
 
 class PriorityTPN {
@@ -127,18 +137,58 @@ public:
   explicit PriorityTPN(const PriorityTPNGraph &g) : graph(g) {}
   explicit PriorityTPN(PriorityTPNGraph &&g) : graph(std::move(g)) {}
 
-  // 访问内部图的引用
-  const PriorityTPNGraph &get_graph() const { return graph; }
-  PriorityTPNGraph &get_graph() { return graph; }
-  PriorityTPNGraph copy_graph() { return graph; }
+
+  for (auto [vi, vi_end] = vertices(ptpn); vi != vi_end; ++vi) {
+    vertex_ptpn new_vertex = add_vertex(ptpn[*vi], scg_ptpn);
+    vertex_map[*vi] = new_vertex;
+  }
+  
+  for (auto [ei, ei_end] = edges(ptpn); ei != ei_end; ++ei) {
+     add_edge(vertex_map[source(*ei, ptpn)],
+            vertex_map[target(*ei, ptpn)],
+            ptpn[*ei],
+            scg_ptpn);
+  }
+    
+  return std::make_unique<PTPN>(scg_ptpn);
+} 
+class PriorityTimePetriNet {
+  // cpu 对应的库所
+  vector<vertex_ptpn> cpus_place;
+  // 锁对应的库所
+  std::unordered_map<string, vertex_ptpn> locks_place;
+  // 每个节点对应的原型 Petri 网结构
+  std::unordered_map<string, vector<vertex_ptpn>> node_pn_map;
+  // 每个任务的开始和结束库所
+  std::map<string, pair<vertex_ptpn, vertex_ptpn>> node_start_end_map;
+  // 任务节点对应的优先级结构
+  std::unordered_map<string, vector<vector<vertex_ptpn>>> task_pn_map;
+
+public: // 图映射
+  // 初始化 Petri 网结构，决定网的表示形式
+  void init();
+  boost::dynamic_properties ptpn_dp;
+  PTPN ptpn;
+  // 周期函数的周期变迁ID
+  std::vector<std::size_t> period_transitions_id;
+
 
 public:
+
   // TDG_RAP 到优先级时间 Petri 网的主函数
   void transform_tdg_to_ptpn(TDG &tdg);
   // 验证Petri结构正确性
   bool verify_petri_net_structure();
   std::string save_ptpn_and_dot(const std::string &file_path);
 
+
+  void add_edge(vertex_ptpn u, vertex_ptpn v, PTPN& pn, const string& label, int weight, std::pair<int, int> times) {
+    boost::add_edge(u, v, PTPNEdge(label, weight, times), pn);
+  }
+
+  void add_edge(vertex_ptpn u, vertex_ptpn v, PTPN& pn) {
+    boost::add_edge(u, v, pn);
+  }
 private:
   // cpu 对应的库所
   vector<ptpn_v_desc> cpus_place;
@@ -150,6 +200,7 @@ private:
   std::map<string, pair<ptpn_v_desc, ptpn_v_desc>> node_start_end_map;
   // 任务节点对应的优先级结构
   std::unordered_map<string, vector<vector<ptpn_v_desc>>> task_pn_map;
+
 
 private:
   void transform_vertices(TDG &tdg);
@@ -194,8 +245,12 @@ private:
                            int core);
   void add_resources_and_bindings(TDG &tdg);
   void log_network_info();
-  // 创建处理器资源库所
+
+private:
+  bool is_safe_net = true;
+
   void add_cpu_resource(int nums);
+  void add_cpu_resource(int counts, int cores);
   // 创建锁资源库所
   void add_lock_resource(const set<string> &locks_name);
   // 任务绑定CPU资源
