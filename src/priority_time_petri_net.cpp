@@ -55,7 +55,6 @@ namespace ptpn
     trans.const_time = const_time;
     trans.handle = is_handle;
     trans.runtimes = runtimes;
-    trans.runtime = runtime;
     return boost::add_vertex(v, graph);
   }
 
@@ -580,7 +579,7 @@ namespace ptpn
 
     // 创建周期任务特有的随机触发结构
     string task_random_period = p_task.name + "random";
-    ptpn_v_desc random = add_place(graph, task_random_period, 1);
+    ptpn_v_desc random = add_place(graph, task_random_period, 1, 1);
     ptpn_v_desc fire =
         add_transition(graph, p_task.name + "fire", 255, 255,
                        p_task.period_time);
@@ -591,6 +590,7 @@ namespace ptpn
 
     // 添加周期任务特有的边
     add_edge(random, fire, graph);
+    add_edge(fire, random, graph);
     add_edge(fire, basic.entry, graph);
 
     // 处理锁资源
@@ -670,8 +670,8 @@ namespace ptpn
 
     auto period_time = make_pair(task_period_time, task_period_time);
     ptpn_v_desc task_timed =
-        add_transition(graph, transition_timed, 256, 255, period_time);
-    ptpn_v_desc task_deadline = add_place(graph, place_deadline, 0);
+        add_transition(graph, transition_timed, 255, 255, period_time);
+    ptpn_v_desc task_deadline = add_place(graph, place_deadline, 0, 1);
     // 下面两个变迁在255 处理器上, ok的优先级高于 out, 以表示到达周期后优先触发 ok
 
     ptpn_v_desc task_complete =
@@ -681,9 +681,9 @@ namespace ptpn
 
     ptpn_v_desc task_tend =
         add_transition(graph, transition_t_ending, 255, 255, {0, 0});
-    ptpn_v_desc task_t_end = add_place(graph, place_t_end, 0);
-    ptpn_v_desc task_ok = add_place(graph, place_ok, 0);
-    ptpn_v_desc task_timeout = add_place(graph, place_timeout, 0);
+    ptpn_v_desc task_t_end = add_place(graph, place_t_end, 0, 1);
+    ptpn_v_desc task_ok = add_place(graph, place_ok, 0, 1);
+    ptpn_v_desc task_timeout = add_place(graph, place_timeout, 0, 1);
 
     add_edge(end, task_tend, graph);
     add_edge(task_tend, task_t_end, graph);
@@ -893,7 +893,7 @@ namespace ptpn
           break;
         std::string gl = node_names.get_lock + locks[j] + to_string(node_index);
         ptpn_v_desc get_lock = add_transition(graph, gl, 256, core, {0, 0});
-        ptpn_v_desc deal = add_place(graph, node_names.deal + locks[j], 0);
+        ptpn_v_desc deal = add_place(graph, node_names.deal + locks[j], 0, 1);
 
         add_edge(node.back(), get_lock, graph);
         node.push_back(get_lock);
@@ -906,7 +906,7 @@ namespace ptpn
       {
         std::string dl = node_names.drop_lock + locks[k] + to_string(node_index);
         ptpn_v_desc drop_lock = add_transition(graph, dl, 256, core, times[k]);
-        ptpn_v_desc unlocked = add_place(graph, node_names.unlock + locks[k], 0);
+        ptpn_v_desc unlocked = add_place(graph, node_names.unlock + locks[k], 0, 1);
 
         add_edge(node.back(), drop_lock, graph);
         add_edge(drop_lock, unlocked, graph);

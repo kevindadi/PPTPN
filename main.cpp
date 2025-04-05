@@ -47,6 +47,7 @@ int main(int argc, char *argv[])
   tdg_rap.classify_priority();
   ptpn::PriorityTPN ptpn;
   ptpn.transform_tdg_to_ptpn(tdg_rap);
+  ptpn.save_ptpn_and_dot("ptpn.dot");
 
   // 根据命令行参数选择使用哪种状态类算法
   if (scg_type == "priority")

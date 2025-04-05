@@ -21,10 +21,8 @@ namespace ptpn
   {
     bool enable = false;
     bool handle = false;
-    bool handle_state = false;
     int priority = INT_MAX;
     int core = 0;
-    int runtime = 0;
     std::pair<int, int> runtimes = {0, 0};
     std::pair<int, int> const_time = {0, 0};
   };

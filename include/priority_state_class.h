@@ -305,6 +305,24 @@ namespace priority_scg
         // 计算状态类的哈希值（用于容器支持）
         std::size_t hash() const;
 
+        // 获取标记的字符串表示，用于调试
+        std::string get_marking_string() const
+        {
+            std::stringstream ss;
+            ss << "{";
+            bool first = true;
+            for (const auto &[place, tokens] : marking)
+            {
+                if (first)
+                    first = false;
+                else
+                    ss << ", ";
+                ss << "P" << place << ":" << tokens;
+            }
+            ss << "}";
+            return ss.str();
+        }
+
     private:
         Marking marking;                                         // 标记
         std::map<ptpn_v_desc, interval_type> enabled_runtimes;   // 使能变迁的运行时间
