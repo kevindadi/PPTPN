@@ -22,6 +22,7 @@ void print_usage(const po::options_description &desc)
 
 int main(int argc, char *argv[])
 {
+  spdlog::set_level(spdlog::level::info);
   int deadline;
   int num_cpus;
   int cores_per_cpu;

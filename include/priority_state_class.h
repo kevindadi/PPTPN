@@ -33,7 +33,7 @@ namespace priority_scg
         }
 
         // 检查区间是否有效
-        bool is_valid() const { return lower <= upper; }
+        bool is_valid() const { return lower <= upper && lower >= 0; }
 
         // 区间是否为空
         bool is_empty() const { return !is_valid(); }
