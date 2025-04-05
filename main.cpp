@@ -1,7 +1,7 @@
 #include "clap.h"
 #include "priority_time_petri_net.h"
 #include "priority_state_class.h"
-#include "differential_state_class.h"
+#include "priority_state_graph.h"
 #include <boost/program_options.hpp>
 #include <iostream>
 #include <spdlog/spdlog.h>
@@ -54,59 +54,12 @@ int main(int argc, char *argv[])
     std::cout << "使用优先级时间Petri网状态类算法..." << std::endl;
 
     // 使用优先级状态类分析器
-    priority_scg::PriorityStateClassAnalyzer priority_analyzer(ptpn.get_graph());
+    priority_scg::PriorityStateClassGraph priority_analyzer(ptpn.get_graph());
 
     priority_analyzer.generate_state_class_graph();
 
     // 导出状态类图到DOT文件
-    priority_analyzer.export_to_dot("priority_state_classes.dot");
-
-    // 检查是否有死锁状态
-    if (priority_analyzer.has_deadlock_states())
-    {
-      std::cout << "检测到死锁状态！" << std::endl;
-      auto deadlock_states = priority_analyzer.get_deadlock_states();
-      std::cout << "死锁状态数量: " << deadlock_states.size() << std::endl;
-    }
-    else
-    {
-      std::cout << "没有检测到死锁状态。" << std::endl;
-    }
-
-    // 计算最大执行时间
-    auto execution_time = priority_analyzer.calculate_max_execution_time();
-    std::cout << "最大执行时间区间: [" << execution_time.lower << ", "
-              << (execution_time.upper == INT_MAX ? "∞" : std::to_string(execution_time.upper))
-              << "]" << std::endl;
-  }
-  else if (scg_type == "differential")
-  {
-    std::cout << "使用差分边界矩阵状态类算法..." << std::endl;
-
-    // 使用差分边界矩阵状态类分析器
-    differential_scg::DifferentialStateClassAnalyzer differential_analyzer(ptpn.get_graph());
-    differential_analyzer.generate_state_class_graph();
-
-    // 导出状态类图到DOT文件
-    differential_analyzer.export_to_dot("differential_state_classes.dot");
-
-    // 检查是否有死锁状态
-    if (differential_analyzer.has_deadlock_states())
-    {
-      std::cout << "检测到死锁状态！" << std::endl;
-      auto deadlock_states = differential_analyzer.get_deadlock_states();
-      std::cout << "死锁状态数量: " << deadlock_states.size() << std::endl;
-    }
-    else
-    {
-      std::cout << "没有检测到死锁状态。" << std::endl;
-    }
-
-    // 计算最大执行时间
-    auto execution_time = differential_analyzer.calculate_max_execution_time();
-    std::cout << "最大执行时间区间: [" << execution_time.lower << ", "
-              << (std::isinf(execution_time.upper) ? "∞" : std::to_string(execution_time.upper))
-              << "]" << std::endl;
+    // priority_analyzer.export_to_dot("priority_state_classes.dot");
   }
 
   return 0;

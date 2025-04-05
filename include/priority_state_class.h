@@ -2,234 +2,464 @@
 #define PPTPN_INCLUDE_PRIORITY_STATE_CLASS_H
 
 #include "priority_time_petri_net.h"
-#include <boost/graph/adjacency_list.hpp>
-#include <boost/graph/breadth_first_search.hpp>
-#include <boost/graph/graph_traits.hpp>
-#include <boost/graph/graph_utility.hpp>
-#include <boost/graph/graphviz.hpp>
-#include <boost/multiprecision/cpp_int.hpp>
-#include <map>
-#include <memory>
-#include <set>
-#include <string>
-#include <unordered_map>
-#include <utility>
 #include <vector>
+#include <map>
+#include <limits>
+#include <algorithm>
+#include <string>
+#include <sstream>
+#include <stdexcept>
 
-using namespace boost;
-using namespace boost::multiprecision;
 using namespace ptpn;
 
 namespace priority_scg
 {
-    struct TimeInterval
+    // 时间区间模板类
+    template <typename T = int>
+    class TimeIntervalT
     {
-        int lower; // 下界
-        int upper; // 上界，如果是无穷大则使用INT_MAX表示
+    public:
+        T lower; // 下界
+        T upper; // 上界，如果是无穷大则使用类型的最大值表示
 
-        TimeInterval(int lower = 0, int upper = INT_MAX) : lower(lower), upper(upper) {}
+        // 构造函数
+        TimeIntervalT(T lower = T(0), T upper = std::numeric_limits<T>::max())
+            : lower(lower), upper(upper) {}
 
-        TimeInterval intersect(const TimeInterval &other) const
+        // 区间交集
+        TimeIntervalT<T> intersect(const TimeIntervalT<T> &other) const
         {
-            return TimeInterval(std::max(lower, other.lower), std::min(upper, other.upper));
+            return TimeIntervalT<T>(std::max(lower, other.lower), std::min(upper, other.upper));
         }
 
+        // 检查区间是否有效
         bool is_valid() const { return lower <= upper; }
 
-        bool operator==(const TimeInterval &other) const
+        // 区间是否为空
+        bool is_empty() const { return !is_valid(); }
+
+        // 检查区间是否包含某个值
+        bool contains(const T &value) const
+        {
+            return lower <= value && value <= upper;
+        }
+
+        // 区间位移（时间推移）
+        TimeIntervalT<T> shift(const T &offset) const
+        {
+            // 处理极限情况以避免溢出
+            T new_lower = (lower == std::numeric_limits<T>::min() && offset < 0) ? std::numeric_limits<T>::min() : lower + offset;
+
+            T new_upper = (upper == std::numeric_limits<T>::max() && offset > 0) ? std::numeric_limits<T>::max() : upper + offset;
+
+            return TimeIntervalT<T>(new_lower, new_upper);
+        }
+
+        // 相等比较
+        bool operator==(const TimeIntervalT<T> &other) const
         {
             return lower == other.lower && upper == other.upper;
         }
 
+        // 不等比较
+        bool operator!=(const TimeIntervalT<T> &other) const
+        {
+            return !(*this == other);
+        }
+
+        // 字符串表示
         std::string to_string() const
         {
-            return "[" + std::to_string(lower) + ", " + std::to_string(upper) + "]";
+            std::string upper_str = (upper == std::numeric_limits<T>::max()) ? "∞" : std::to_string(upper);
+            return "[" + std::to_string(lower) + ", " + upper_str + "]";
         }
     };
 
-    // 代表变迁的时间约束
-    struct TransitionTimeConstraint
-    {
-        ptpn_v_desc transition;     // 变迁标识符
-        TimeInterval time_interval; // 时间区间
-        int priority;               // 优先级
-        int cpu;                    // cpu
-
-        TransitionTimeConstraint(ptpn_v_desc t, TimeInterval interval, int prio, int c)
-            : transition(t), time_interval(interval), priority(prio), cpu(c) {}
-
-        bool operator==(const TransitionTimeConstraint &other) const
-        {
-            return transition == other.transition &&
-                   time_interval == other.time_interval &&
-                   priority == other.priority &&
-                   cpu == other.cpu;
-        }
-    };
+    // 使用int类型的时间区间作为默认类型
+    using TimeInterval = TimeIntervalT<int>;
 
     // 标记（Marking）表示Petri网中库所的token分布
     using Marking = std::map<ptpn_v_desc, int>; // 库所 -> token数量
 
     // 优先级时间 Petri 网的状态类
-    class PriorityStateClass
+    template <typename T = int>
+    class PriorityStateClassT
     {
     public:
-        struct PriorityFilterResult
+        using interval_type = TimeIntervalT<T>;
+
+        PriorityStateClassT() = default;
+        PriorityStateClassT(
+            const Marking &m,
+            const std::map<ptpn_v_desc, interval_type> &enabled_rts,
+            const std::map<ptpn_v_desc, interval_type> &suspended_rts)
+            : marking(m),
+              enabled_runtimes(enabled_rts),
+              suspended_runtimes(suspended_rts) {}
+
+        PriorityStateClassT(
+            const Marking &m,
+            const std::map<ptpn_v_desc, std::pair<T, T>> &enabled_rts,
+            const std::map<ptpn_v_desc, std::pair<T, T>> &suspended_rts)
+            : marking(m)
         {
-            std::vector<ptpn_v_desc> enabled_transitions;   // 保留的高优先级变迁
-            std::vector<ptpn_v_desc> suspended_transitions; // 被挂起的低优先级变迁
-        };
+            // 转换std::pair到TimeIntervalT
+            for (const auto &[t, rt] : enabled_rts)
+            {
+                enabled_runtimes[t] = interval_type(rt.first, rt.second);
+            }
 
-        PriorityStateClass() = default;
-        PriorityStateClass(const Marking &m, const std::vector<TransitionTimeConstraint> &ttc)
-            : marking(m), time_constraints(ttc) {}
+            for (const auto &[t, rt] : suspended_rts)
+            {
+                suspended_runtimes[t] = interval_type(rt.first, rt.second);
+            }
+        }
 
-        // 状态类的等价性判断
-        bool operator==(const PriorityStateClass &other) const;
+        const Marking &get_marking() const { return marking; }
 
-        // 获取状态类的字符串表示（用于输出和调试）
+        // 设置库所的token数量
+        void set_token(ptpn_v_desc place, int tokens)
+        {
+            if (tokens > 0)
+            {
+                marking[place] = tokens;
+            }
+            else
+            {
+                marking.erase(place); // 移除token数为0的库所
+            }
+        }
+
+        int get_token(ptpn_v_desc place) const
+        {
+            auto it = marking.find(place);
+            return (it != marking.end()) ? it->second : 0;
+        }
+
+        void add_tokens(ptpn_v_desc place, int tokens)
+        {
+            if (tokens != 0)
+            {
+                int new_tokens = get_token(place) + tokens;
+                set_token(place, new_tokens);
+            }
+        }
+
+        bool remove_tokens(ptpn_v_desc place, int tokens)
+        {
+            if (tokens <= 0)
+                return true;
+
+            int current = get_token(place);
+            if (current < tokens)
+                return false;
+
+            set_token(place, current - tokens);
+            return true;
+        }
+
+        bool has_enough_tokens(ptpn_v_desc place, int required) const
+        {
+            return get_token(place) >= required;
+        }
+
+        const std::map<ptpn_v_desc, interval_type> &get_enabled_runtimes() const
+        {
+            return enabled_runtimes;
+        }
+
+        void set_enabled_runtime(ptpn_v_desc transition, const interval_type &interval)
+        {
+            if (interval.is_valid())
+            {
+                enabled_runtimes[transition] = interval;
+                // 确保变迁不同时处于使能和挂起状态
+                suspended_runtimes.erase(transition);
+            }
+            else
+            {
+                enabled_runtimes.erase(transition);
+            }
+        }
+
+        interval_type get_enabled_runtime(ptpn_v_desc transition) const
+        {
+            auto it = enabled_runtimes.find(transition);
+            return (it != enabled_runtimes.end()) ? it->second : interval_type();
+        }
+
+        bool is_transition_enabled(ptpn_v_desc transition) const
+        {
+            return enabled_runtimes.find(transition) != enabled_runtimes.end();
+        }
+
+        std::vector<ptpn_v_desc> get_enabled_transitions() const
+        {
+            std::vector<ptpn_v_desc> result;
+            result.reserve(enabled_runtimes.size());
+
+            for (const auto &[trans, _] : enabled_runtimes)
+            {
+                result.push_back(trans);
+            }
+
+            return result;
+        }
+
+        const std::map<ptpn_v_desc, interval_type> &get_suspended_runtimes() const
+        {
+            return suspended_runtimes;
+        }
+
+        void set_suspended_runtime(ptpn_v_desc transition, const interval_type &interval)
+        {
+            if (interval.is_valid())
+            {
+                suspended_runtimes[transition] = interval;
+                // 确保变迁不同时处于使能和挂起状态
+                enabled_runtimes.erase(transition);
+            }
+            else
+            {
+                suspended_runtimes.erase(transition);
+            }
+        }
+
+        interval_type get_suspended_runtime(ptpn_v_desc transition) const
+        {
+            auto it = suspended_runtimes.find(transition);
+            return (it != suspended_runtimes.end()) ? it->second : interval_type();
+        }
+
+        bool is_transition_suspended(ptpn_v_desc transition) const
+        {
+            return suspended_runtimes.find(transition) != suspended_runtimes.end();
+        }
+
+        std::vector<ptpn_v_desc> get_suspended_transitions() const
+        {
+            std::vector<ptpn_v_desc> result;
+            result.reserve(suspended_runtimes.size());
+
+            for (const auto &[trans, _] : suspended_runtimes)
+            {
+                result.push_back(trans);
+            }
+
+            return result;
+        }
+
+        // 时间推移
+        void elapse_time(T time_units)
+        {
+            if (time_units <= 0)
+                return;
+
+            // 更新使能变迁的运行时间区间
+            for (auto &[trans, interval] : enabled_runtimes)
+            {
+                interval = interval.shift(-time_units); // 时间推移，区间下移
+            }
+
+            // 更新挂起变迁的运行时间区间
+            for (auto &[trans, interval] : suspended_runtimes)
+            {
+                interval = interval.shift(-time_units); // 时间推移，区间下移
+            }
+        }
+
+        bool is_valid() const
+        {
+            // 检查所有区间是否有效
+            for (const auto &[_, interval] : enabled_runtimes)
+            {
+                if (!interval.is_valid())
+                    return false;
+            }
+
+            for (const auto &[_, interval] : suspended_runtimes)
+            {
+                if (!interval.is_valid())
+                    return false;
+            }
+
+            for (const auto &[trans, _] : enabled_runtimes)
+            {
+                if (suspended_runtimes.find(trans) != suspended_runtimes.end())
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        bool operator==(const PriorityStateClassT<T> &other) const;
+        bool operator!=(const PriorityStateClassT<T> &other) const
+        {
+            return !(*this == other);
+        }
+
         std::string to_string() const;
 
-        // 获取标记的字符串表示（排除标记中所有小于等于零的值）
-        std::string marking_to_string() const;
-
-        // 获取当前标记中的所有可启用变迁
-        std::vector<ptpn_v_desc> get_enabled_transitions(const PriorityTPNGraph &graph) const;
-
-        // 考虑优先级规则过滤可启用的变迁
-        PriorityFilterResult filter_by_priority(
-            const std::vector<ptpn_v_desc> &enabled_transitions,
-            const PriorityTPNGraph &graph) const;
-
-        std::map<ptpn_v_desc, TimeInterval> suspended_transitions_clocks; // 挂起变迁的时钟信息
-
-        // 获取可调度变迁（基于时间约束能够触发的变迁）
-        std::vector<ptpn_v_desc> get_schedulable_transitions(
-            const std::vector<ptpn_v_desc> &enabled_transitions,
-            const PriorityTPNGraph &graph,
-            TimeInterval &common_interval) const;
-
-        // 计算后继状态类
-        std::shared_ptr<PriorityStateClass> compute_successor(
-            const PriorityTPNGraph &graph,
-            ptpn_v_desc fired_transition) const;
-
-        // 标记变迁为挂起状态
-        void mark_suspended(ptpn_v_desc transition, const TimeInterval &clock_time);
-
-        TimeInterval get_suspended_clock(ptpn_v_desc transition) const;
-        // 检查变迁是否被挂起
-        bool is_suspended(ptpn_v_desc transition) const;
-
-        // 获取时间约束
-        const std::vector<TransitionTimeConstraint> &get_time_constraints() const;
-
-        Marking marking;
-        std::vector<TransitionTimeConstraint> time_constraints; // 时间约束
+        // 计算状态类的哈希值（用于容器支持）
+        std::size_t hash() const;
 
     private:
-        std::set<ptpn_v_desc> suspended_transitions; // 挂起的变迁集合
+        Marking marking;                                         // 标记
+        std::map<ptpn_v_desc, interval_type> enabled_runtimes;   // 使能变迁的运行时间
+        std::map<ptpn_v_desc, interval_type> suspended_runtimes; // 挂起变迁的运行时间
     };
 
-    // 状态类图的顶点属性
-    struct SCGVertexProperties
+    // 使用int类型的状态类作为默认类型
+    using PriorityStateClass = PriorityStateClassT<int>;
+
+    template <typename T>
+    bool PriorityStateClassT<T>::operator==(const PriorityStateClassT<T> &other) const
     {
-        std::string id;
-        std::shared_ptr<PriorityStateClass> state;
-        std::string label;
-    };
+        if (marking.size() != other.marking.size())
+        {
+            return false;
+        }
 
-    // 状态类图的边属性
-    struct SCGEdgeProperties
+        for (const auto &p_m : marking)
+        {
+            if (p_m.second <= 0)
+            {
+                continue;
+            }
+
+            auto it = other.marking.find(p_m.first);
+            if (it == other.marking.end() || it->second != p_m.second)
+            {
+                return false;
+            }
+        }
+
+        if (enabled_runtimes.size() != other.enabled_runtimes.size())
+        {
+            return false;
+        }
+
+        for (const auto &[t, runtime] : enabled_runtimes)
+        {
+            auto it = other.enabled_runtimes.find(t);
+            if (it == other.enabled_runtimes.end() || it->second != runtime)
+            {
+                return false;
+            }
+        }
+
+        if (suspended_runtimes.size() != other.suspended_runtimes.size())
+        {
+            return false;
+        }
+
+        for (const auto &[t, runtime] : suspended_runtimes)
+        {
+            auto it = other.suspended_runtimes.find(t);
+            if (it == other.suspended_runtimes.end() || it->second != runtime)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    template <typename T>
+    std::string PriorityStateClassT<T>::to_string() const
     {
-        ptpn_v_desc transition;
-        std::string xlabel;
-        TimeInterval time_interval;
-    };
+        std::stringstream ss;
 
-    // 状态类图的属性
-    struct SCGProperties
+        // 输出标记
+        ss << "Marking: {";
+        bool first = true;
+        for (const auto &[place, tokens] : marking)
+        {
+            if (tokens <= 0)
+                continue; // 仅显示有token的库所
+
+            if (!first)
+            {
+                ss << ", ";
+            }
+            ss << "p" << place << ":" << tokens;
+            first = false;
+        }
+        ss << "}\n";
+
+        // 输出使能变迁的运行时间
+        ss << "Enabled runtimes: {";
+        first = true;
+        for (const auto &[t, runtime] : enabled_runtimes)
+        {
+            if (!first)
+            {
+                ss << ", ";
+            }
+            ss << "t" << t << ":" << runtime.to_string();
+            first = false;
+        }
+        ss << "}\n";
+
+        // 输出挂起变迁的运行时间
+        ss << "Suspended runtimes: {";
+        first = true;
+        for (const auto &[t, runtime] : suspended_runtimes)
+        {
+            if (!first)
+            {
+                ss << ", ";
+            }
+            ss << "t" << t << ":" << runtime.to_string();
+            first = false;
+        }
+        ss << "}";
+
+        return ss.str();
+    }
+
+    // 哈希计算
+    template <typename T>
+    std::size_t PriorityStateClassT<T>::hash() const
     {
-        std::string name;
-    };
+        std::size_t hash_value = 0;
 
-    // 状态类图定义
-    typedef boost::adjacency_list<
-        boost::vecS, boost::vecS, boost::directedS,
-        SCGVertexProperties, SCGEdgeProperties, SCGProperties>
-        StateClassGraph;
+        // Hash marking
+        for (const auto &[place, tokens] : marking)
+        {
+            if (tokens <= 0)
+                continue;
+            hash_value ^= std::hash<ptpn_v_desc>()(place) ^ std::hash<int>()(tokens);
+        }
 
-    typedef boost::graph_traits<StateClassGraph>::vertex_descriptor SCGVertex;
-    typedef boost::graph_traits<StateClassGraph>::edge_descriptor SCGEdge;
+        // Hash enabled runtimes
+        for (const auto &[trans, interval] : enabled_runtimes)
+        {
+            hash_value ^= std::hash<ptpn_v_desc>()(trans) ^
+                          std::hash<T>()(interval.lower) ^
+                          std::hash<T>()(interval.upper);
+        }
 
-    // 优先级时间 Petri 网的状态类图分析类
-    class PriorityStateClassAnalyzer
+        // Hash suspended runtimes
+        for (const auto &[trans, interval] : suspended_runtimes)
+        {
+            hash_value ^= std::hash<ptpn_v_desc>()(trans) ^
+                          std::hash<T>()(interval.lower) ^
+                          std::hash<T>()(interval.upper) ^ 0x12345678; // 与使能变迁区分
+        }
+
+        return hash_value;
+    }
+
+    template <typename T>
+    struct PriorityStateClassHash
     {
-    public:
-        PriorityStateClassAnalyzer(const PriorityTPNGraph &petri_net);
-
-        // 生成状态类图
-        void generate_state_class_graph();
-
-        void export_to_dot(const std::string &filename);
-
-        // 检查是否有死锁状态
-        bool has_deadlock_states() const;
-
-        // 获取死锁状态
-        std::vector<SCGVertex> get_deadlock_states() const;
-
-        // 计算最大执行时间
-        TimeInterval calculate_max_execution_time() const;
-
-        // 检查可达性
-        bool is_marking_reachable(const Marking &target_marking) const;
-
-        // 计算WCET
-        int calculate_wcet(ptpn_v_desc start_place, ptpn_v_desc end_place) const;
-
-        // 获取所有从开始库所到结束库所的路径
-        std::vector<std::vector<SCGVertex>> get_paths_between_places(
-            ptpn_v_desc start_place, ptpn_v_desc end_place) const;
-
-        // 获取状态类图
-        const StateClassGraph &get_graph() const { return graph; }
-
-    private:
-        PriorityTPNGraph petri_net; // 原始的优先级时间 Petri 网
-        StateClassGraph graph;      // 状态类图
-
-        // 计算初始状态类
-        std::shared_ptr<PriorityStateClass> compute_initial_state();
-
-        // 添加状态类到图中
-        SCGVertex add_state(const std::shared_ptr<PriorityStateClass> &state);
-
-        // 添加状态转换（边）到图中
-        SCGEdge add_edge(SCGVertex source, SCGVertex target,
-                         ptpn_v_desc transition, const TimeInterval &interval);
-
-        // 生成状态标签
-        std::string generate_state_label(const std::shared_ptr<PriorityStateClass> &state);
-
-        // 判断变迁是否可启用
-        bool is_transition_enabled(ptpn_v_desc transition, const Marking &marking);
-
-        // 更新标记（触发变迁后）
-        Marking update_marking(const Marking &current_marking, ptpn_v_desc transition);
-
-        // 更新时间约束（触发变迁后）
-        std::vector<TransitionTimeConstraint> update_time_constraints(
-            const std::vector<TransitionTimeConstraint> &current_constraints,
-            ptpn_v_desc fired_transition,
-            const TimeInterval &firing_interval,
-            const std::vector<ptpn_v_desc> &new_enabled_transitions);
-
-        // 计算路径的执行时间
-        int calculate_path_execution_time(const std::vector<SCGVertex> &path) const;
-
-        // 检查顶点是否包含指定的库所
-        bool vertex_contains_place(SCGVertex v, ptpn_v_desc place) const;
+        std::size_t operator()(const PriorityStateClassT<T> &state) const
+        {
+            return state.hash();
+        }
     };
 
 } // namespace priority_scg

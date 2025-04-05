@@ -9,9 +9,18 @@ if(POLICY CMP0167)
   cmake_policy(SET CMP0167 NEW)
 endif()
 
-# 设置 fmt 库的查找路径，优先使用 homebrew 的版本
-set(CMAKE_PREFIX_PATH "/opt/homebrew" ${CMAKE_PREFIX_PATH})
-set(fmt_DIR "/opt/homebrew/lib/cmake/fmt")
+if(APPLE)
+    # macOS下使用homebrew的路径
+    set(CMAKE_PREFIX_PATH "/opt/homebrew" ${CMAKE_PREFIX_PATH})
+    set(fmt_DIR "/opt/homebrew/lib/cmake/fmt")
+elseif(WIN32)
+    # Windows下使用vcpkg的路径
+    set(CMAKE_PREFIX_PATH "$ENV{VCPKG_ROOT}/installed/x64-windows" ${CMAKE_PREFIX_PATH})
+    set(fmt_DIR "$ENV{VCPKG_ROOT}/installed/x64-windows/share/fmt")
+else()
+    # Linux系统下的路径
+    set(fmt_DIR "/usr/lib/x86_64-linux-gnu/cmake/fmt")
+endif()
 
 # 查找所需的库
 find_package(fmt REQUIRED)
@@ -32,9 +41,8 @@ add_executable(PTPN main.cpp include/clap.h include/dag.h src/clap.cpp
         include/priority_time_petri_net.h
         src/priority_time_petri_net.cpp
         include/priority_state_class.h
-        src/priority_state_class.cpp
-        include/differential_state_class.h
-        src/differential_state_class.cpp
+        include/priority_state_graph.h
+        src/priority_state_graph.cpp
         include/owner_assert.h
         include/owner_error.h)
 target_link_libraries(PTPN PRIVATE 

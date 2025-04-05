@@ -5,13 +5,19 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Cmake Debug",
+            "name": "run time",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/PTPN",
             "args": [
+                "cpus",
+                "6",
+                "cores",
+                "1",
                 "--file",
-                "../test/label.dot"
+                "../example/label.dot",
+                "scg_type",
+                "priority"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
