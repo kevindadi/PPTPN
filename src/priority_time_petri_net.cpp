@@ -95,6 +95,392 @@ namespace ptpn
     return boost::filesystem::absolute(dot_filename).string();
   }
 
+  bool PriorityTPN::export_to_tina(const std::string &file_path)
+  {
+    try
+    {
+      boost::filesystem::path path(file_path);
+      boost::filesystem::path dir = path.parent_path();
+
+      if (!dir.empty() && !boost::filesystem::exists(dir))
+      {
+        petri_logger->error("目录不存在: {}", dir.string());
+        return false;
+      }
+
+      std::ofstream tina_file(file_path);
+      if (!tina_file)
+      {
+        petri_logger->error("无法打开文件: {}", file_path);
+        return false;
+      }
+
+      // 写入网络名称
+      tina_file << "net {PriorityTimePetriNet}\n\n";
+
+      // 写入所有库所
+      BOOST_FOREACH (ptpn_v_desc v, vertices(graph))
+      {
+        if (graph[v].is_place())
+        {
+          const Place &place = graph[v].as_place();
+          // Tina格式: pl <place> {:<label>} {(<marking>)} {<pinput> -> <poutput>}
+          tina_file << "pl " << graph[v].name << " : {" << graph[v].label << "} (" << place.token << ")";
+
+          // 获取输入变迁
+          std::vector<std::string> inputs;
+          BOOST_FOREACH (ptpn_v_desc in_v, boost::inv_adjacent_vertices(v, graph))
+          {
+            if (graph[in_v].is_transition())
+            {
+              inputs.push_back(graph[in_v].name);
+            }
+          }
+
+          // 获取输出变迁
+          std::vector<std::string> outputs;
+          BOOST_FOREACH (ptpn_v_desc out_v, boost::adjacent_vertices(v, graph))
+          {
+            if (graph[out_v].is_transition())
+            {
+              outputs.push_back(graph[out_v].name);
+            }
+          }
+
+          // 如果有输入和输出，添加到声明中
+          if (!inputs.empty() && !outputs.empty())
+          {
+            tina_file << " ";
+            for (size_t i = 0; i < inputs.size(); ++i)
+            {
+              tina_file << inputs[i];
+              if (i < inputs.size() - 1)
+                tina_file << " ";
+            }
+
+            tina_file << " -> ";
+
+            for (size_t i = 0; i < outputs.size(); ++i)
+            {
+              tina_file << outputs[i];
+              if (i < outputs.size() - 1)
+                tina_file << " ";
+            }
+          }
+
+          tina_file << "\n";
+        }
+      }
+
+      tina_file << "\n";
+
+      // 写入所有变迁
+      BOOST_FOREACH (ptpn_v_desc v, vertices(graph))
+      {
+        if (graph[v].is_transition())
+        {
+          const Transition &trans = graph[v].as_transition();
+          // Tina格式: tr <transition> {:<label>} {<interval>} {<tinput> -> <toutput>}
+          tina_file << "tr " << graph[v].name << " : {" << graph[v].label << "} ";
+
+          // 时间区间
+          if (trans.const_time.first == 0 && trans.const_time.second == 0)
+          {
+            tina_file << "[0,w["; // 默认时间区间
+          }
+          else
+          {
+            tina_file << "[" << trans.const_time.first << "," << trans.const_time.second << "]";
+          }
+
+          // 获取输入库所
+          std::vector<std::string> inputs;
+          BOOST_FOREACH (ptpn_v_desc in_v, boost::inv_adjacent_vertices(v, graph))
+          {
+            if (graph[in_v].is_place())
+            {
+              inputs.push_back(graph[in_v].name);
+            }
+          }
+
+          // 获取输出库所
+          std::vector<std::string> outputs;
+          BOOST_FOREACH (ptpn_v_desc out_v, boost::adjacent_vertices(v, graph))
+          {
+            if (graph[out_v].is_place())
+            {
+              outputs.push_back(graph[out_v].name);
+            }
+          }
+
+          // 如果有输入和输出，添加到声明中
+          if (!inputs.empty() && !outputs.empty())
+          {
+            tina_file << " ";
+            for (size_t i = 0; i < inputs.size(); ++i)
+            {
+              tina_file << inputs[i];
+              if (i < inputs.size() - 1)
+                tina_file << " ";
+            }
+
+            tina_file << " -> ";
+
+            for (size_t i = 0; i < outputs.size(); ++i)
+            {
+              tina_file << outputs[i];
+              if (i < outputs.size() - 1)
+                tina_file << " ";
+            }
+          }
+
+          tina_file << "\n";
+        }
+      }
+
+      // 添加优先级关系（如果有）
+      std::map<int, std::vector<std::string>> priority_groups;
+
+      // 按优先级分组所有变迁
+      BOOST_FOREACH (ptpn_v_desc v, vertices(graph))
+      {
+        if (graph[v].is_transition())
+        {
+          const Transition &trans = graph[v].as_transition();
+          if (trans.priority != INT_MAX) // 跳过未设置优先级的变迁
+          {
+            priority_groups[trans.priority].push_back(graph[v].name);
+          }
+        }
+      }
+
+      // 写入优先级关系（高优先级 > 低优先级）
+      std::vector<int> priorities;
+      for (const auto &pair : priority_groups)
+      {
+        priorities.push_back(pair.first);
+      }
+
+      // 按优先级排序
+      std::sort(priorities.begin(), priorities.end());
+
+      // 生成优先级规则
+      if (priorities.size() > 1)
+      {
+        tina_file << "\n# 优先级关系\n";
+        for (size_t i = 0; i < priorities.size() - 1; ++i)
+        {
+          for (size_t j = i + 1; j < priorities.size(); ++j)
+          {
+            // 低优先级数字大于高优先级数字，因此使用 ">"
+            tina_file << "pr ";
+
+            // 添加所有高优先级变迁
+            for (size_t h = 0; h < priority_groups[priorities[i]].size(); ++h)
+            {
+              tina_file << priority_groups[priorities[i]][h];
+              if (h < priority_groups[priorities[i]].size() - 1)
+                tina_file << " ";
+            }
+
+            tina_file << " > ";
+
+            // 添加所有低优先级变迁
+            for (size_t l = 0; l < priority_groups[priorities[j]].size(); ++l)
+            {
+              tina_file << priority_groups[priorities[j]][l];
+              if (l < priority_groups[priorities[j]].size() - 1)
+                tina_file << " ";
+            }
+
+            tina_file << "\n";
+          }
+        }
+      }
+
+      tina_file.close();
+      petri_logger->info("Petri网已导出为Tina格式: {}", file_path);
+      return true;
+    }
+    catch (const std::exception &e)
+    {
+      petri_logger->error("导出Tina文件时发生错误: {}", e.what());
+      return false;
+    }
+  }
+
+  bool PriorityTPN::export_to_romeo(const std::string &file_path)
+  {
+    try
+    {
+      boost::filesystem::path path(file_path);
+      boost::filesystem::path dir = path.parent_path();
+      
+      if (!dir.empty() && !boost::filesystem::exists(dir))
+      {
+        petri_logger->error("目录不存在: {}", dir.string());
+        return false;
+      }
+
+      std::ofstream romeo_file(file_path);
+      if (!romeo_file)
+      {
+        petri_logger->error("无法打开文件: {}", file_path);
+        return false;
+      }
+
+      // XML头部
+      romeo_file << "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n";
+      romeo_file << "<TPN name=\"" << boost::filesystem::absolute(path).string() << "\">\n";
+
+      // 写入所有库所
+      int place_id = 1;
+      std::map<ptpn_v_desc, int> place_id_map;
+      BOOST_FOREACH (ptpn_v_desc v, vertices(graph))
+      {
+        if (graph[v].is_place())
+        {
+          const Place &place = graph[v].as_place();
+          place_id_map[v] = place_id;
+          
+          romeo_file << "  <place id=\"" << place_id << "\" "
+                    << "identifier=\"" << graph[v].name << "\" "
+                    << "label=\"" << graph[v].label << "\" "
+                    << "initialMarking=\"" << place.token << "\" "
+                    << "eft=\"0\" lft=\"inf\">\n";
+          romeo_file << "      <graphics color=\"0\">\n";
+          romeo_file << "         <position x=\"" << (place_id * 120) << "\" y=\"121\"/>\n";
+          romeo_file << "         <deltaLabel deltax=\"32\" deltay=\"-11\"/>\n";
+          romeo_file << "      </graphics>\n";
+          romeo_file << "      <scheduling gamma=\"1\" omega=\"1\"/>\n";
+          romeo_file << "  </place>\n\n";
+          
+          place_id++;
+        }
+      }
+
+      // 写入所有变迁
+      int trans_id = 1;
+      std::map<ptpn_v_desc, int> trans_id_map;
+      BOOST_FOREACH (ptpn_v_desc v, vertices(graph))
+      {
+        if (graph[v].is_transition())
+        {
+          const Transition &trans = graph[v].as_transition();
+          trans_id_map[v] = trans_id;
+          
+          // 由于Romeo不支持同时设置优先级和时间，我们这里只保留时间信息
+          romeo_file << "  <transition id=\"" << trans_id << "\" "
+                    << "identifier=\"" << graph[v].name << "\" "
+                    << "label=\"" << graph[v].label << "\" ";
+          
+          if (trans.const_time.first == 0 && trans.const_time.second == 0)
+          {
+            romeo_file << "eft=\"0\" lft=\"0\" ";
+          }
+          else
+          {
+            romeo_file << "eft=\"" << trans.const_time.first << "\" "
+                      << "lft=\"" << trans.const_time.second << "\" ";
+          }
+          
+          romeo_file << "speed=\"1\" obs=\"1\" guard=\"\">\n";
+          romeo_file << "     <graphics color=\"0\">\n";
+          romeo_file << "        <position x=\"" << (trans_id * 120) << "\" y=\"181\"/>\n";
+          romeo_file << "        <deltaLabel deltax=\"34\" deltay=\"-16\"/>\n";
+          romeo_file << "        <deltaGuard deltax=\"20\" deltay=\"-20\"/>\n";
+          romeo_file << "        <deltaUpdate deltax=\"20\" deltay=\"10\"/>\n";
+          romeo_file << "        <deltaSpeed deltax=\"-20\" deltay=\"5\"/>\n";
+          romeo_file << "     </graphics>\n";
+          romeo_file << "     <update></update>\n";
+          romeo_file << "  </transition>\n\n";
+          
+          trans_id++;
+        }
+      }
+
+      // 写入所有弧
+      int arc_id = 1;
+      BOOST_FOREACH (ptpn_v_desc v, vertices(graph))
+      {
+        // 处理输出弧
+        BOOST_FOREACH (ptpn_v_desc out_v, boost::adjacent_vertices(v, graph))
+        {
+          if (graph[v].is_place() && graph[out_v].is_transition())
+          {
+            // 库所到变迁的弧
+            romeo_file << "  <arc place=\"" << place_id_map[v] << "\" "
+                      << "transition=\"" << trans_id_map[out_v] << "\" "
+                      << "type=\"PlaceTransition\" weight=\"1\">\n";
+            romeo_file << "    <nail xnail=\"0\" ynail=\"0\"/>\n";
+            romeo_file << "    <graphics  color=\"0\">\n";
+            romeo_file << "     </graphics>\n";
+            romeo_file << "  </arc>\n\n";
+          }
+          else if (graph[v].is_transition() && graph[out_v].is_place())
+          {
+            // 变迁到库所的弧
+            romeo_file << "  <arc place=\"" << place_id_map[out_v] << "\" "
+                      << "transition=\"" << trans_id_map[v] << "\" "
+                      << "type=\"TransitionPlace\" weight=\"1\">\n";
+            romeo_file << "     <nail xnail=\"0\" ynail=\"0\"/>\n";
+            romeo_file << "     <graphics  color=\"0\">\n";
+            romeo_file << "     </graphics>\n";
+            romeo_file << "  </arc>\n\n";
+          }
+        }
+
+        // 处理优先级关系，将其转换为抑制弧
+        if (graph[v].is_transition())
+        {
+          const Transition &trans = graph[v].as_transition();
+          BOOST_FOREACH (ptpn_v_desc other_v, vertices(graph))
+          {
+            if (graph[other_v].is_transition() && other_v != v)
+            {
+              const Transition &other_trans = graph[other_v].as_transition();
+              // 如果other_trans优先级更高，添加抑制弧
+              if (other_trans.priority < trans.priority)
+              {
+                // 为高优先级变迁添加一个虚拟的控制库所
+                romeo_file << "  <arc place=\"" << place_id_map[v] << "\" "
+                          << "transition=\"" << trans_id_map[other_v] << "\" "
+                          << "type=\"timedInhibitor\" weight=\"1\">\n";
+                romeo_file << "    <nail xnail=\"0\" ynail=\"0\"/>\n";
+                romeo_file << "    <graphics  color=\"0\">\n";
+                romeo_file << "     </graphics>\n";
+                romeo_file << "  </arc>\n\n";
+              }
+            }
+          }
+        }
+      }
+
+      // XML尾部
+      romeo_file << "  <declaration>// insert here your type definitions using C-like syntax\n\n\n"
+                << "// insert here your function definitions \n"
+                << "// using C-like syntax</declaration>\n\n"
+                << "  <initialization>// insert here the state variables declarations \n"
+                << "// and possibly some code to initialize them \n"
+                << "// using C-like syntax</initialization>\n\n"
+                << "  <preferences>\n"
+                << "      <colorPlace  c0=\"SkyBlue2\"  c1=\"#ffbebe\"  c2=\"cyan\"  c3=\"green\"  c4=\"yellow\"  c5=\"brown\" />\n"
+                << "      <colorTransition  c0=\"yellow\"  c1=\"gray\"  c2=\"cyan\"  c3=\"green\"  c4=\"SkyBlue2\"  c5=\"brown\" />\n"
+                << "      <colorArc  c0=\"black\"  c1=\"gray\"  c2=\"blue\"  c3=\"#beb760\"  c4=\"#be5c7e\"  c5=\"#46be90\" />\n"
+                << "  </preferences>\n"
+                << "</TPN>\n";
+
+      romeo_file.close();
+      petri_logger->info("Petri网已导出为Romeo格式: {}", file_path);
+      return true;
+    }
+    catch (const std::exception &e)
+    {
+      petri_logger->error("导出Romeo文件时发生错误: {}", e.what());
+      return false;
+    }
+  }
+
   void PriorityTPN::transform_tdg_to_ptpn(TDG &tdg)
   {
     try

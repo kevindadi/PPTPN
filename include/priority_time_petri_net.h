@@ -157,6 +157,10 @@ namespace ptpn
     // 验证Petri结构正确性
     bool verify_petri_net_structure();
     std::string save_ptpn_and_dot(const std::string &file_path);
+    // 导出为Tina .net格式
+    bool export_to_tina(const std::string &file_path);
+    // 导出为Romeo XML格式
+    bool export_to_romeo(const std::string &file_path);
 
   private:
     // cpu 对应的库所

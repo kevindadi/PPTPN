@@ -1,0 +1,13 @@
+digraph G {
+    A [label = "{A;97;1;[8,8]}";];
+    A -> B [xlabel = "19"; style = "";];
+    B [label = "{B;97;1;[5,5]}";];
+    B -> C [xlabel = "19"; style = "";];
+    C [label = "{C;97;2;[8,8]}";];
+    D [label = "{D;97;2;[8,8]}";];
+    D -> E [xlabel = "19"; style = "";];
+    E [label = "{E;97;2;[28,28]}";];
+    E -> C [xlabel = "19"; style = "";];
+    D -> F [xlabel = "50"; style = "dashed";];
+    F [label = "{F;97;1;[3,3]}";];
+}
