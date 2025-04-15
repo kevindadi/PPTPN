@@ -138,7 +138,7 @@ void TDG::parse_tdg()
     {
       //      auto source_name = tdg[source(e, tdg)].name;
       //      auto target_name = tdg[target(e, tdg)].name;
-      tdg_logger->debug("Edge: {}weight: {}", tdg[e].label, stoi(tdg[e].label));
+      tdg_logger->debug("Edge: {}", tdg[e].label);
     }
   }
 }

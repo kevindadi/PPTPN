@@ -315,7 +315,7 @@ namespace ptpn
     {
       boost::filesystem::path path(file_path);
       boost::filesystem::path dir = path.parent_path();
-      
+
       if (!dir.empty() && !boost::filesystem::exists(dir))
       {
         petri_logger->error("目录不存在: {}", dir.string());
@@ -342,19 +342,19 @@ namespace ptpn
         {
           const Place &place = graph[v].as_place();
           place_id_map[v] = place_id;
-          
+
           romeo_file << "  <place id=\"" << place_id << "\" "
-                    << "identifier=\"" << graph[v].name << "\" "
-                    << "label=\"" << graph[v].label << "\" "
-                    << "initialMarking=\"" << place.token << "\" "
-                    << "eft=\"0\" lft=\"inf\">\n";
+                     << "identifier=\"" << graph[v].name << "\" "
+                     << "label=\"" << graph[v].label << "\" "
+                     << "initialMarking=\"" << place.token << "\" "
+                     << "eft=\"0\" lft=\"inf\">\n";
           romeo_file << "      <graphics color=\"0\">\n";
           romeo_file << "         <position x=\"" << (place_id * 120) << "\" y=\"121\"/>\n";
           romeo_file << "         <deltaLabel deltax=\"32\" deltay=\"-11\"/>\n";
           romeo_file << "      </graphics>\n";
           romeo_file << "      <scheduling gamma=\"1\" omega=\"1\"/>\n";
           romeo_file << "  </place>\n\n";
-          
+
           place_id++;
         }
       }
@@ -368,12 +368,12 @@ namespace ptpn
         {
           const Transition &trans = graph[v].as_transition();
           trans_id_map[v] = trans_id;
-          
+
           // 由于Romeo不支持同时设置优先级和时间，我们这里只保留时间信息
           romeo_file << "  <transition id=\"" << trans_id << "\" "
-                    << "identifier=\"" << graph[v].name << "\" "
-                    << "label=\"" << graph[v].label << "\" ";
-          
+                     << "identifier=\"" << graph[v].name << "\" "
+                     << "label=\"" << graph[v].label << "\" ";
+
           if (trans.const_time.first == 0 && trans.const_time.second == 0)
           {
             romeo_file << "eft=\"0\" lft=\"0\" ";
@@ -381,9 +381,9 @@ namespace ptpn
           else
           {
             romeo_file << "eft=\"" << trans.const_time.first << "\" "
-                      << "lft=\"" << trans.const_time.second << "\" ";
+                       << "lft=\"" << trans.const_time.second << "\" ";
           }
-          
+
           romeo_file << "speed=\"1\" obs=\"1\" guard=\"\">\n";
           romeo_file << "     <graphics color=\"0\">\n";
           romeo_file << "        <position x=\"" << (trans_id * 120) << "\" y=\"181\"/>\n";
@@ -394,7 +394,7 @@ namespace ptpn
           romeo_file << "     </graphics>\n";
           romeo_file << "     <update></update>\n";
           romeo_file << "  </transition>\n\n";
-          
+
           trans_id++;
         }
       }
@@ -410,8 +410,8 @@ namespace ptpn
           {
             // 库所到变迁的弧
             romeo_file << "  <arc place=\"" << place_id_map[v] << "\" "
-                      << "transition=\"" << trans_id_map[out_v] << "\" "
-                      << "type=\"PlaceTransition\" weight=\"1\">\n";
+                       << "transition=\"" << trans_id_map[out_v] << "\" "
+                       << "type=\"PlaceTransition\" weight=\"1\">\n";
             romeo_file << "    <nail xnail=\"0\" ynail=\"0\"/>\n";
             romeo_file << "    <graphics  color=\"0\">\n";
             romeo_file << "     </graphics>\n";
@@ -421,8 +421,8 @@ namespace ptpn
           {
             // 变迁到库所的弧
             romeo_file << "  <arc place=\"" << place_id_map[out_v] << "\" "
-                      << "transition=\"" << trans_id_map[v] << "\" "
-                      << "type=\"TransitionPlace\" weight=\"1\">\n";
+                       << "transition=\"" << trans_id_map[v] << "\" "
+                       << "type=\"TransitionPlace\" weight=\"1\">\n";
             romeo_file << "     <nail xnail=\"0\" ynail=\"0\"/>\n";
             romeo_file << "     <graphics  color=\"0\">\n";
             romeo_file << "     </graphics>\n";
@@ -444,8 +444,8 @@ namespace ptpn
               {
                 // 为高优先级变迁添加一个虚拟的控制库所
                 romeo_file << "  <arc place=\"" << place_id_map[v] << "\" "
-                          << "transition=\"" << trans_id_map[other_v] << "\" "
-                          << "type=\"timedInhibitor\" weight=\"1\">\n";
+                           << "transition=\"" << trans_id_map[other_v] << "\" "
+                           << "type=\"timedInhibitor\" weight=\"1\">\n";
                 romeo_file << "    <nail xnail=\"0\" ynail=\"0\"/>\n";
                 romeo_file << "    <graphics  color=\"0\">\n";
                 romeo_file << "     </graphics>\n";
@@ -458,17 +458,17 @@ namespace ptpn
 
       // XML尾部
       romeo_file << "  <declaration>// insert here your type definitions using C-like syntax\n\n\n"
-                << "// insert here your function definitions \n"
-                << "// using C-like syntax</declaration>\n\n"
-                << "  <initialization>// insert here the state variables declarations \n"
-                << "// and possibly some code to initialize them \n"
-                << "// using C-like syntax</initialization>\n\n"
-                << "  <preferences>\n"
-                << "      <colorPlace  c0=\"SkyBlue2\"  c1=\"#ffbebe\"  c2=\"cyan\"  c3=\"green\"  c4=\"yellow\"  c5=\"brown\" />\n"
-                << "      <colorTransition  c0=\"yellow\"  c1=\"gray\"  c2=\"cyan\"  c3=\"green\"  c4=\"SkyBlue2\"  c5=\"brown\" />\n"
-                << "      <colorArc  c0=\"black\"  c1=\"gray\"  c2=\"blue\"  c3=\"#beb760\"  c4=\"#be5c7e\"  c5=\"#46be90\" />\n"
-                << "  </preferences>\n"
-                << "</TPN>\n";
+                 << "// insert here your function definitions \n"
+                 << "// using C-like syntax</declaration>\n\n"
+                 << "  <initialization>// insert here the state variables declarations \n"
+                 << "// and possibly some code to initialize them \n"
+                 << "// using C-like syntax</initialization>\n\n"
+                 << "  <preferences>\n"
+                 << "      <colorPlace  c0=\"SkyBlue2\"  c1=\"#ffbebe\"  c2=\"cyan\"  c3=\"green\"  c4=\"yellow\"  c5=\"brown\" />\n"
+                 << "      <colorTransition  c0=\"yellow\"  c1=\"gray\"  c2=\"cyan\"  c3=\"green\"  c4=\"SkyBlue2\"  c5=\"brown\" />\n"
+                 << "      <colorArc  c0=\"black\"  c1=\"gray\"  c2=\"blue\"  c3=\"#beb760\"  c4=\"#be5c7e\"  c5=\"#46be90\" />\n"
+                 << "  </preferences>\n"
+                 << "</TPN>\n";
 
       romeo_file.close();
       petri_logger->info("Petri网已导出为Romeo格式: {}", file_path);

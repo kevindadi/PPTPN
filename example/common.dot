@@ -4,7 +4,7 @@ digraph G {
     B [label = "{B;98;1;[5,5]}";];
     B -> C [xlabel = "19"; style = "";];
     C [label = "{C;99;2;[8,8]}";];
-    D [label = "{D;[50,50];97;2;[8,8]}";];
+    D [label = "{D;[10000,10000];97;2;[8,8]}";];
     D -> E [xlabel = "19"; style = "";];
     E [label = "{E;98;2;[28,28]}";];
     E -> C [xlabel = "19"; style = "";];
