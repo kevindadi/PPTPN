@@ -4,7 +4,6 @@
 #include "priority_time_petri_net.h"
 #include <boost/filesystem.hpp>
 #include <boost/property_map/property_map.hpp>
-#include <boost/property_map/transform_value_property_map.hpp>
 #include <fstream>
 #include <utility>
 #include <variant>
@@ -24,50 +23,49 @@ namespace ptpn
   static auto petri_logger = init_petri_logger();
 
   ptpn_v_desc add_place(PriorityTPNGraph &graph, const std::string &name,
-                        int token = 0, int capacity = 1)
+                        const int token = 0, const int capacity = 1)
   {
-    ptpn::Vertex v;
+    Vertex v;
     v.name = name;
     v.label = name; // 默认 label 与 name 相同
     v.shape = "circle";
-    v.node = ptpn::Place{};
-    auto &place = std::get<ptpn::Place>(v.node);
-    place.token = token;
-    place.capacity = capacity;
-    return boost::add_vertex(v, graph);
+    v.node = Place{};
+    auto &[p_token, p_capacity] = std::get<Place>(v.node);
+    p_token = token;
+    p_capacity = capacity;
+    return  add_vertex(v, graph);
   }
 
   ptpn_v_desc add_transition(PriorityTPNGraph &graph, const std::string &name,
-                             int priority = 255, int core = 255,
-                             std::pair<int, int> const_time = {0, 0},
-                             bool is_handle = false,
-                             std::pair<int, int> runtimes = {0, 0},
-                             int runtime = 0)
+                             const int priority = 255, const int core = 255,
+                             const std::pair<int, int> const_time = {0, 0},
+                             const bool is_handle = false,
+                             const std::pair<int, int> runtimes = {0, 0})
   {
-    ptpn::Vertex v;
+    Vertex v;
     v.name = name;
     v.label = name;
     v.shape = "box";
-    v.node = ptpn::Transition{};
-    auto &trans = std::get<ptpn::Transition>(v.node);
+    v.node = Transition{};
+    auto &trans = std::get<Transition>(v.node);
     trans.priority = priority;
     trans.core = core;
     trans.const_time = const_time;
     trans.handle = is_handle;
     trans.runtimes = runtimes;
-    return boost::add_vertex(v, graph);
+    return  add_vertex(v, graph);
   }
 
   std::string PriorityTPN::save_ptpn_and_dot(const std::string &file_path)
   {
-    boost::filesystem::path path(file_path);
-    if (!boost::filesystem::exists(path))
+     const boost::filesystem::path path(file_path);
+    if (! boost::filesystem::exists(path))
     {
       petri_logger->error("路径不存在!");
       return {};
     }
 
-    boost::filesystem::path dot_filename = path / "ptpn_graph.dot";
+     const boost::filesystem::path dot_filename = path / "ptpn_graph.dot";
     std::ofstream ofs(dot_filename.string());
     if (!ofs)
     {
@@ -77,32 +75,32 @@ namespace ptpn
 
     graph_dp.property("node_id", get(&Vertex::name, graph));
     graph_dp.property("label", get(&Vertex::label, graph));
-    // auto shape_map = boost::make_transform_value_property_map(
+    // auto shape_map =  make_transform_value_property_map(
     //     [&graph](ptpn_v_desc vd) -> std::string {
     //       return graph[vd].shape();
     //     },
-    //     boost::get(boost::vertex_index, graph));
+    //      get( vertex_index, graph));
     graph_dp.property("shape", get(&Vertex::shape, graph));
     graph_dp.property("label", get(&Edge::label, graph));
 
-    boost::ref_property_map<ptpn::PriorityTPN *, std::string> gname_pn(
-        get_property(graph, boost::graph_name));
+    ref_property_map<PriorityTPN *, std::string> gname_pn(
+        get_property(graph, graph_name));
     graph_dp.property("name", gname_pn);
 
-    boost::write_graphviz_dp(ofs, graph, graph_dp);
+    write_graphviz_dp(ofs, graph, graph_dp);
     ofs.close();
 
-    return boost::filesystem::absolute(dot_filename).string();
+    return  boost::filesystem::absolute(dot_filename).string();
   }
 
   bool PriorityTPN::export_to_tina(const std::string &file_path)
   {
     try
     {
-      boost::filesystem::path path(file_path);
-      boost::filesystem::path dir = path.parent_path();
+       boost::filesystem::path path(file_path);
+       boost::filesystem::path dir = path.parent_path();
 
-      if (!dir.empty() && !boost::filesystem::exists(dir))
+      if (!dir.empty() && ! boost::filesystem::exists(dir))
       {
         petri_logger->error("目录不存在: {}", dir.string());
         return false;
@@ -124,12 +122,12 @@ namespace ptpn
         if (graph[v].is_place())
         {
           const Place &place = graph[v].as_place();
-          // Tina格式: pl <place> {:<label>} {(<marking>)} {<pinput> -> <poutput>}
+          // Tina格式: pl <place> {:<label>} {(<marking>)} {<input> -> <output>}
           tina_file << "pl " << graph[v].name << " : {" << graph[v].label << "} (" << place.token << ")";
 
           // 获取输入变迁
           std::vector<std::string> inputs;
-          BOOST_FOREACH (ptpn_v_desc in_v, boost::inv_adjacent_vertices(v, graph))
+          BOOST_FOREACH (ptpn_v_desc in_v,  inv_adjacent_vertices(v, graph))
           {
             if (graph[in_v].is_transition())
             {
@@ -139,7 +137,7 @@ namespace ptpn
 
           // 获取输出变迁
           std::vector<std::string> outputs;
-          BOOST_FOREACH (ptpn_v_desc out_v, boost::adjacent_vertices(v, graph))
+          BOOST_FOREACH (ptpn_v_desc out_v,  adjacent_vertices(v, graph))
           {
             if (graph[out_v].is_transition())
             {
@@ -195,7 +193,7 @@ namespace ptpn
 
           // 获取输入库所
           std::vector<std::string> inputs;
-          BOOST_FOREACH (ptpn_v_desc in_v, boost::inv_adjacent_vertices(v, graph))
+          BOOST_FOREACH (ptpn_v_desc in_v,  inv_adjacent_vertices(v, graph))
           {
             if (graph[in_v].is_place())
             {
@@ -205,7 +203,7 @@ namespace ptpn
 
           // 获取输出库所
           std::vector<std::string> outputs;
-          BOOST_FOREACH (ptpn_v_desc out_v, boost::adjacent_vertices(v, graph))
+          BOOST_FOREACH (ptpn_v_desc out_v,  adjacent_vertices(v, graph))
           {
             if (graph[out_v].is_place())
             {
@@ -313,10 +311,10 @@ namespace ptpn
   {
     try
     {
-      boost::filesystem::path path(file_path);
-      boost::filesystem::path dir = path.parent_path();
+       boost::filesystem::path path(file_path);
+       boost::filesystem::path dir = path.parent_path();
 
-      if (!dir.empty() && !boost::filesystem::exists(dir))
+      if (!dir.empty() && ! boost::filesystem::exists(dir))
       {
         petri_logger->error("目录不存在: {}", dir.string());
         return false;
@@ -331,7 +329,7 @@ namespace ptpn
 
       // XML头部
       romeo_file << "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n";
-      romeo_file << "<TPN name=\"" << boost::filesystem::absolute(path).string() << "\">\n";
+      romeo_file << "<TPN name=\"" <<  boost::filesystem::absolute(path).string() << "\">\n";
 
       // 写入所有库所
       int place_id = 1;
@@ -376,7 +374,7 @@ namespace ptpn
 
           if (trans.const_time.first == 0 && trans.const_time.second == 0)
           {
-            romeo_file << "eft=\"0\" lft=\"0\" ";
+            romeo_file << R"(eft="0" lft="0" )";
           }
           else
           {
@@ -400,11 +398,10 @@ namespace ptpn
       }
 
       // 写入所有弧
-      int arc_id = 1;
       BOOST_FOREACH (ptpn_v_desc v, vertices(graph))
       {
         // 处理输出弧
-        BOOST_FOREACH (ptpn_v_desc out_v, boost::adjacent_vertices(v, graph))
+        BOOST_FOREACH (ptpn_v_desc out_v,  adjacent_vertices(v, graph))
         {
           if (graph[v].is_place() && graph[out_v].is_transition())
           {
@@ -627,8 +624,8 @@ namespace ptpn
       add_edge(source_node, target_node, Edge{.weight = 1}, graph);
       return;
     }
-    else if (target_name.substr(0, 4) == "Dist" ||
-             target_name.substr(0, 4) == "Wait")
+    if (target_name.substr(0, 4) == "Dist" ||
+        target_name.substr(0, 4) == "Wait")
     {
       add_edge(source_node, target_node, Edge{.weight = 1}, graph);
       return;
@@ -637,7 +634,7 @@ namespace ptpn
     // 添加中间变迁
     string trans_name = source_name + "_to_" + target_name;
     ptpn_v_desc middle_trans =
-        add_transition(graph, trans_name, 255, 255, {0, 0}, false, {0, 0}, 0);
+        add_transition(graph, trans_name, 255, 255, {0, 0}, false, {0, 0});
 
     add_edge(source_node, middle_trans, graph);
     add_edge(middle_trans, target_node, graph);
@@ -662,8 +659,8 @@ namespace ptpn
   void PriorityTPN::log_network_info()
   {
     petri_logger->info("Petri net statistics:");
-    petri_logger->info("- Places + Transitions: {}", boost::num_vertices(graph));
-    petri_logger->info("- Flows: {}", boost::num_edges(graph));
+    petri_logger->info("- Places + Transitions: {}",  num_vertices(graph));
+    petri_logger->info("- Flows: {}",  num_edges(graph));
   }
 
   /// 为锁资源创建库所
@@ -697,7 +694,7 @@ namespace ptpn
   }
 
   /// 根据任务类型绑定不同位置的 CPU
-  void PriorityTPN::task_bind_cpu_resource(vector<NodeType> &all_task)
+  void PriorityTPN::task_bind_cpu_resource(const vector<NodeType> &all_task)
   {
     for (const auto &task : all_task)
     {
@@ -888,17 +885,17 @@ namespace ptpn
   }
 
   // 处理锁资源的辅助函数
-  ptpn_v_desc PriorityTPN::handle_locks(const ptpn::TaskVertexsNames &names,
+  ptpn_v_desc PriorityTPN::handle_locks(const TaskVertexsNames &names,
                                         vector<ptpn_v_desc> &chain,
                                         const vector<string> &locks,
                                         const vector<pair<int, int>> &times,
-                                        int priority, int core)
+                                        const int priority, const int core)
   {
-    ptpn_v_desc last_lock_place;
-    ptpn_v_desc first_unlock_trans;
+    ptpn_v_desc last_lock_place = 0;
+    ptpn_v_desc first_unlock_trans = 0 ;
 
     // 获取ready库所（在chain中的倒数第三个位置）
-    ptpn_v_desc ready = chain[chain.size() - 3];
+    const ptpn_v_desc ready = chain[chain.size() - 3];
 
     for (size_t i = 0; i < locks.size(); i++)
     {
@@ -961,7 +958,7 @@ namespace ptpn
   pair<ptpn_v_desc, ptpn_v_desc>
   PriorityTPN::add_p_node_ptpn(PeriodicTask &p_task)
   {
-    ptpn::TaskVertexsNames names(p_task.name);
+    TaskVertexsNames names(p_task.name);
 
     // 创建周期任务特有的随机触发结构
     string task_random_period = p_task.name + "random";

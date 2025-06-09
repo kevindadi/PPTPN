@@ -52,8 +52,8 @@ namespace ptpn
     std::variant<Place, Transition> node;
 
     // 类型判别
-    bool is_place() const noexcept { return std::holds_alternative<Place>(node); }
-    bool is_transition() const noexcept
+    [[nodiscard]] bool is_place() const noexcept { return std::holds_alternative<Place>(node); }
+    [[nodiscard]] bool is_transition() const noexcept
     {
       return std::holds_alternative<Transition>(node);
     }
@@ -61,8 +61,8 @@ namespace ptpn
     // 类型转换
     Place &as_place() { return std::get<Place>(node); }
     Transition &as_transition() { return std::get<Transition>(node); }
-    const Place &as_place() const { return std::get<Place>(node); }
-    const Transition &as_transition() const { return std::get<Transition>(node); }
+    [[nodiscard]] const Place &as_place() const { return std::get<Place>(node); }
+    [[nodiscard]] const Transition &as_transition() const { return std::get<Transition>(node); }
 
     template <typename T>
     class VertexAccessor
@@ -87,17 +87,17 @@ namespace ptpn
     auto as_place_accessor() { return VertexAccessor<Place>(*this); }
     auto as_transition_accessor() { return VertexAccessor<Transition>(*this); }
 
-    inline VertexShape get_shape() const
+    [[nodiscard]] VertexShape get_shape() const
     {
-      return std::holds_alternative<Place>(node) ? VertexShape::Circle
-                                                 : VertexShape::Box;
+      return std::holds_alternative<Place>(node) ? Circle
+                                                 : Box;
     }
   };
 
-  typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS,
+  typedef adjacency_list<vecS, vecS, bidirectionalS,
                                 Vertex, Edge, TDG_RAP_P>
       PriorityTPNGraph;
-  typedef boost::graph_traits<PriorityTPNGraph>::vertex_descriptor ptpn_v_desc;
+  typedef graph_traits<PriorityTPNGraph>::vertex_descriptor ptpn_v_desc;
 
   // void process_vertex(const Vertex &v) {
   //   std::visit(
@@ -134,9 +134,8 @@ namespace ptpn
 
   class PriorityTPN
   {
-  private:
     PriorityTPNGraph graph;
-    boost::dynamic_properties graph_dp;
+    dynamic_properties graph_dp;
 
   public:
     PriorityTPN() = default;
@@ -144,14 +143,13 @@ namespace ptpn
     PriorityTPN(PriorityTPN &&) = default;
 
     explicit PriorityTPN(const PriorityTPNGraph &g) : graph(g) {}
-    explicit PriorityTPN(PriorityTPNGraph &&g) : graph(std::move(g)) {}
+    explicit PriorityTPN(PriorityTPNGraph &&g) : graph(g) {}
 
     // 访问内部图的引用
     const PriorityTPNGraph &get_graph() const { return graph; }
     PriorityTPNGraph &get_graph() { return graph; }
     PriorityTPNGraph copy_graph() { return graph; }
 
-  public:
     // TDG_RAP 到优先级时间 Petri 网的主函数
     void transform_tdg_to_ptpn(TDG &tdg);
     // 验证Petri结构正确性
@@ -174,7 +172,6 @@ namespace ptpn
     // 任务节点对应的优先级结构
     std::unordered_map<string, vector<vector<ptpn_v_desc>>> task_pn_map;
 
-  private:
     void transform_vertices(TDG &tdg);
     // 节点映射函数
     std::pair<ptpn_v_desc, ptpn_v_desc> add_node_ptpn(NodeType node_type);
@@ -202,8 +199,9 @@ namespace ptpn
     int node_index = 0;
 
     void transform_edges(TDG &tdg);
-    bool is_self_loop_edge(const string &source, const string &target);
-    bool is_dashed_edge(const string &edge);
+    static bool is_self_loop_edge(const string &source, const string &target);
+
+    static bool is_dashed_edge(const string &edge);
     void handle_self_loop_edge(TDG &tdg, TDG_RAP::edge_descriptor e,
                                const string &source_name);
 
@@ -222,7 +220,7 @@ namespace ptpn
     // 创建锁资源库所
     void add_lock_resource(const set<string> &locks_name);
     // 任务绑定CPU资源
-    void task_bind_cpu_resource(vector<NodeType> &all_task);
+    void task_bind_cpu_resource(const vector<NodeType> &all_task);
     // 任务绑定锁资源
     void task_bind_lock_resource(vector<NodeType> &all_task,
                                  std::map<string, vector<string>> &task_locks);
@@ -233,7 +231,7 @@ namespace ptpn
   ptpn_v_desc add_transition(PriorityTPNGraph &graph, const std::string &name,
                              int priority, int core,
                              std::pair<int, int> const_time, bool is_handle,
-                             std::pair<int, int> runtimes, int runtime);
+                             std::pair<int, int> runtimes);
 
   // 创建基本任务结构的辅助函数
   struct BasicTaskChains
@@ -242,14 +240,14 @@ namespace ptpn
     vector<ptpn_v_desc> task_pt_chain;
 
     BasicTaskChains(PriorityTPNGraph &graph, const TaskVertexsNames &names,
-                    int priority, int core, const pair<int, int> &exec_time)
+                    const int priority, const int core, const pair<int, int> &exec_time)
     {
       entry = add_place(graph, names.entry, 0, 1);
       get_core = add_transition(graph, names.get_core, priority, core, {0, 0},
-                                false, {0, 0}, 0);
+                                false, {0, 0});
       ready = add_place(graph, names.ready, 0, 1);
       exec = add_transition(graph, names.exec, priority, core, exec_time, false,
-                            {0, 0}, 0);
+                            {0, 0});
       exit = add_place(graph, names.exit, 0, 1);
 
       add_edge(entry, get_core, graph);
@@ -258,10 +256,6 @@ namespace ptpn
 
       task_pt_chain = {entry, get_core, ready};
     }
-  };
-
-  struct NewTaskChains
-  {
   };
 } // namespace ptpn
 

@@ -1,3 +1,14 @@
+#if defined(_WIN32)
+#include <windows.h>
+#include <psapi.h>
+#elif defined(__APPLE__)
+#include <mach/task.h>
+#include <mach/mach_init.h>
+#else
+#include <sys/resource.h>
+#include <unistd.h>
+#endif
+
 #include "clap.h"
 #include "priority_time_petri_net.h"
 #include "priority_state_class.h"
@@ -6,17 +17,37 @@
 #include <iostream>
 #include <spdlog/spdlog.h>
 #include <chrono>
-#include <sys/resource.h>
+#include <boost/interprocess/shared_memory_object.hpp>
+#include <boost/interprocess/mapped_region.hpp>
 
-namespace po = boost::program_options;
+using namespace std;
+namespace po = program_options;
 
 // 获取当前进程的内存使用情况（以KB为单位）
-size_t get_memory_usage()
-{
+size_t get_memory_usage() {
+#if defined(_WIN32)
+  PROCESS_MEMORY_COUNTERS pmc;
+  if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+    return pmc.WorkingSetSize / 1024; // 转换为KB
+  }
+  return 0;
+#elif defined(__APPLE__)
+  task_t task = mach_task_self();
+  struct task_basic_info t_info;
+  mach_msg_type_number_t t_info_count = TASK_BASIC_INFO_COUNT;
+  if (task_info(task, TASK_BASIC_INFO, (task_info_t)&t_info, &t_info_count) == KERN_SUCCESS) {
+    return t_info.resident_size / 1024; // 转换为KB
+  }
+  return 0;
+#else
   struct rusage usage;
-  getrusage(RUSAGE_SELF, &usage);
-  return usage.ru_maxrss;
+  if (getrusage(RUSAGE_SELF, &usage) == 0) {
+    return usage.ru_maxrss; // 在Linux上通常已经是KB
+  }
+  return 0;
+#endif
 }
+
 
 // 显示使用说明
 void print_usage(const po::options_description &desc)
@@ -43,7 +74,6 @@ int main(int argc, char *argv[])
   std::string scg_type;
   std::string tina_file_path;
   std::string romeo_file_path;
-  bool export_tina = false;
 
   po::options_description desc("选项");
   desc.add_options()("help", "显示帮助信息")("deadline", po::value<int>(&deadline)->default_value(0), "设置截止时间进行检查")("file", po::value<std::string>(&file_path)->default_value("dag.dot"), "指定Petri网的dot文件路径")("scg_type", po::value<std::string>(&scg_type)->default_value("original"), "状态类图算法类型:priority或 differential")("cpus", po::value<int>(&num_cpus)->required(), "CPU数量")("cores", po::value<int>(&cores_per_cpu)->required(), "每个CPU的核心数")("tina", po::value<std::string>(&tina_file_path)->implicit_value("ptpn.net"), "导出为Tina .net格式")("romeo", po::value<std::string>(&romeo_file_path)->implicit_value("ptpn.xml"), "导出为Romeo XML格式");

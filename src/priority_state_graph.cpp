@@ -22,7 +22,7 @@ namespace priority_scg
     PriorityStateClassGraph::PriorityStateClassGraph(const PriorityTPNGraph &petri_net)
         : petri_net(petri_net)
     {
-        graph[boost::graph_bundle].name = "优先级时间Petri网状态类图";
+        graph[graph_bundle].name = "优先级时间Petri网状态类图";
     }
 
     // 获取初始标记下的状态类
@@ -31,8 +31,8 @@ namespace priority_scg
         state_logger->debug("正在获取初始状态类...");
         Marking initial_marking;
 
-        boost::graph_traits<PriorityTPNGraph>::vertex_iterator vi, vi_end;
-        for (boost::tie(vi, vi_end) = boost::vertices(petri_net); vi != vi_end; ++vi)
+        graph_traits<PriorityTPNGraph>::vertex_iterator vi, vi_end;
+        for (boost::tie(vi, vi_end) = vertices(petri_net); vi != vi_end; ++vi)
         {
             const auto &vertex = petri_net[*vi];
             if (vertex.is_place())
@@ -52,15 +52,15 @@ namespace priority_scg
         std::map<ptpn_v_desc, TimeInterval> enabled_runtimes;
         std::vector<ptpn_v_desc> enabled_transitions;
 
-        for (boost::tie(vi, vi_end) = boost::vertices(petri_net); vi != vi_end; ++vi)
+        for (boost::tie(vi, vi_end) = vertices(petri_net); vi != vi_end; ++vi)
         {
             const auto &vertex = petri_net[*vi];
 
             if (vertex.is_transition())
             {
                 bool all_places_have_tokens = true;
-                boost::graph_traits<PriorityTPNGraph>::in_edge_iterator ei, ei_end;
-                for (boost::tie(ei, ei_end) = boost::in_edges(*vi, petri_net); ei != ei_end; ++ei)
+                graph_traits<PriorityTPNGraph>::in_edge_iterator ei, ei_end;
+                for (boost::tie(ei, ei_end) = in_edges(*vi, petri_net); ei != ei_end; ++ei)
                 {
                     const auto &edge = petri_net[*ei];
                     const auto &source = boost::source(*ei, petri_net);
@@ -110,8 +110,8 @@ namespace priority_scg
         const auto &suspended_runtimes = state.get_suspended_runtimes();
 
         // 首先，将所有库所的token清零，并重置所有变迁的状态
-        boost::graph_traits<PriorityTPNGraph>::vertex_iterator vi, vi_end;
-        for (boost::tie(vi, vi_end) = boost::vertices(petri_net); vi != vi_end; ++vi)
+        graph_traits<PriorityTPNGraph>::vertex_iterator vi, vi_end;
+        for (boost::tie(vi, vi_end) = vertices(petri_net); vi != vi_end; ++vi)
         {
             auto &vertex = petri_net[*vi];
             if (vertex.is_place())
@@ -146,7 +146,7 @@ namespace priority_scg
         for (const auto &[transition, interval] : enabled_runtimes)
         {
             auto &vertex = petri_net[transition];
-            // 注意这里使用单独的赋值，而不是整体赋值
+            // 注意这里使用单独赋值，而不是整体赋值
             vertex.as_transition().runtimes.first = interval.lower;
             vertex.as_transition().runtimes.second = interval.upper;
         }
@@ -154,7 +154,7 @@ namespace priority_scg
         for (const auto &[transition, interval] : suspended_runtimes)
         {
             auto &vertex = petri_net[transition];
-            // 注意这里使用单独的赋值，而不是整体赋值
+            // 注意这里使用单独赋值，而不是整体赋值
             vertex.as_transition().runtimes.first = interval.lower;
             vertex.as_transition().runtimes.second = interval.upper;
         }
@@ -179,7 +179,7 @@ namespace priority_scg
             {
                 const auto &transition = vertex.as_transition();
                 // 按core分组，每组中保存(变迁, 优先级)对
-                transitions_by_core[transition.core].push_back({t, transition.priority});
+                transitions_by_core[transition.core].emplace_back(t, transition.priority);
             }
         }
 
@@ -190,11 +190,11 @@ namespace priority_scg
         for (auto &[core, transitions] : transitions_by_core)
         {
             // 按优先级降序排序
-            std::sort(transitions.begin(), transitions.end(),
-                      [](const auto &a, const auto &b)
-                      {
-                          return a.second > b.second; // 优先级高的排前面
-                      });
+            ranges::sort(transitions,
+                         [](const auto &a, const auto &b)
+                         {
+                             return a.second > b.second; // 优先级高排前面
+                         });
 
             // 找出当前core组的最高优先级
             int highest_priority = transitions.front().second;
@@ -205,12 +205,9 @@ namespace priority_scg
                 if (priority == highest_priority)
                 {
                     filtered_transitions.push_back(t);
-                    const auto &vertex = petri_net[t];
                 }
                 else
                 {
-                    // 优先级较低的变迁不再处理
-                    const auto &vertex = petri_net[t];
                     break;
                 }
             }
@@ -226,29 +223,29 @@ namespace priority_scg
         // 如果变迁不是使能的，返回无效区间
         if (!state.is_transition_enabled(transition))
         {
-            return TimeInterval(1, 0); // 下界大于上界，表示无效区间
+            return TimeIntervalT<int>{1, 0}; // 下界大于上界，表示无效区间
         }
 
         // 获取变迁的静态时间约束和当前已运行时间
         const auto &vertex = petri_net[transition];
         const auto &transition_node = vertex.as_transition();
-        const auto &const_time = transition_node.const_time;
+        const auto &[fst, snd] = transition_node.const_time;
         const auto &runtime = state.get_enabled_runtime(transition);
 
         // 计算可发生时间区间：const_time - runtime
         // 下界 = max(0, const_time.first - runtime.second)
         // 上界 = const_time.second - runtime.first
-        int lower = std::max(0, const_time.first - runtime.upper);
-        int upper = const_time.second - runtime.lower;
+        int lower = std::max(0, fst - runtime.upper);
+        int upper = snd - runtime.lower;
 
         // 确保区间有效
         if (upper < lower)
         {
             state_logger->warn("变迁 {} 的可发生时间区间无效: [{},{}]", vertex.name, lower, upper);
-            return TimeInterval(1, 0); // 无效区间
+            return TimeIntervalT<int>{1, 0}; // 无效区间
         }
 
-        TimeInterval interval(lower, upper);
+        const TimeInterval interval(lower, upper);
         state_logger->debug("变迁 {} 的可发生时间区间: {}", vertex.name, interval.to_string());
         return interval;
     }
@@ -294,8 +291,8 @@ namespace priority_scg
         SCGVertex from, SCGVertex to, ptpn_v_desc transition, const TimeInterval &interval)
     {
         // 检查边是否已存在
-        boost::graph_traits<StateClassGraph>::out_edge_iterator ei, ei_end;
-        for (boost::tie(ei, ei_end) = boost::out_edges(from, graph); ei != ei_end; ++ei)
+        graph_traits<StateClassGraph>::out_edge_iterator ei, ei_end;
+        for (boost::tie(ei, ei_end) = out_edges(from, graph); ei != ei_end; ++ei)
         {
             if (boost::target(*ei, graph) == to && graph[*ei].transition == transition)
             {
@@ -334,9 +331,9 @@ namespace priority_scg
         reset_petri_net(state);
 
         std::vector<ptpn_v_desc> enabled_transitions;
-        boost::graph_traits<PriorityTPNGraph>::vertex_iterator vi, vi_end;
+        graph_traits<PriorityTPNGraph>::vertex_iterator vi, vi_end;
 
-        for (boost::tie(vi, vi_end) = boost::vertices(petri_net); vi != vi_end; ++vi)
+        for (boost::tie(vi, vi_end) = vertices(petri_net); vi != vi_end; ++vi)
         {
             auto &vertex = petri_net[*vi];
 
@@ -344,9 +341,9 @@ namespace priority_scg
             {
                 // 检查变迁的所有前置库所是否都有足够的token
                 bool is_enabled = true;
-                boost::graph_traits<PriorityTPNGraph>::in_edge_iterator ei, ei_end;
+                graph_traits<PriorityTPNGraph>::in_edge_iterator ei, ei_end;
 
-                for (boost::tie(ei, ei_end) = boost::in_edges(*vi, petri_net); ei != ei_end; ++ei)
+                for (boost::tie(ei, ei_end) = in_edges(*vi, petri_net); ei != ei_end; ++ei)
                 {
                     auto source = boost::source(*ei, petri_net);
                     const auto &edge = petri_net[*ei];
@@ -385,8 +382,8 @@ namespace priority_scg
         Marking new_marking = state.get_marking();
 
         // 移除输入库所的token
-        boost::graph_traits<PriorityTPNGraph>::in_edge_iterator ei, ei_end;
-        for (boost::tie(ei, ei_end) = boost::in_edges(transition, petri_net); ei != ei_end; ++ei)
+        graph_traits<PriorityTPNGraph>::in_edge_iterator ei, ei_end;
+        for (boost::tie(ei, ei_end) = in_edges(transition, petri_net); ei != ei_end; ++ei)
         {
             auto source = boost::source(*ei, petri_net);
             const auto &edge = petri_net[*ei];
@@ -408,8 +405,8 @@ namespace priority_scg
         }
 
         // 添加输出库所的token
-        boost::graph_traits<PriorityTPNGraph>::out_edge_iterator eo, eo_end;
-        for (boost::tie(eo, eo_end) = boost::out_edges(transition, petri_net); eo != eo_end; ++eo)
+        graph_traits<PriorityTPNGraph>::out_edge_iterator eo, eo_end;
+        for (boost::tie(eo, eo_end) = out_edges(transition, petri_net); eo != eo_end; ++eo)
         {
             auto target = boost::target(*eo, petri_net);
             const auto &edge = petri_net[*eo];
@@ -432,7 +429,7 @@ namespace priority_scg
         // 重置Petri网到新状态
         reset_petri_net(temp_state);
 
-        // 计算新的使能变迁
+        // 计算新使能变迁
         auto enabled_transitions = compute_enabled_transitions(temp_state);
         state_logger->debug("新状态下有 {} 个使能变迁", enabled_transitions.size());
         for (const auto &t : enabled_transitions)
@@ -504,7 +501,7 @@ namespace priority_scg
         {
             // 如果变迁在原状态中是使能的，但在新状态中不再使能且不是刚刚触发的变迁
             if (t != transition &&
-                std::find(filtered_transitions.begin(), filtered_transitions.end(), t) == filtered_transitions.end())
+                ranges::find(filtered_transitions, t) == filtered_transitions.end())
             {
                 const auto &vertex = petri_net[t];
                 const auto &transition_node = vertex.as_transition();
@@ -528,7 +525,7 @@ namespace priority_scg
         for (const auto &[t, interval] : state.get_suspended_runtimes())
         {
             // 如果这个挂起的变迁在新状态中仍未使能
-            if (std::find(filtered_transitions.begin(), filtered_transitions.end(), t) == filtered_transitions.end())
+            if (ranges::find(filtered_transitions, t) == filtered_transitions.end())
             {
                 // 继续保持挂起状态及其时间区间
                 new_suspended_runtimes[t] = interval;
@@ -539,15 +536,14 @@ namespace priority_scg
         }
 
         // 创建新状态类
-        return PriorityStateClass(new_marking, new_enabled_runtimes, new_suspended_runtimes);
+        return {new_marking, new_enabled_runtimes, new_suspended_runtimes};
     }
 
     SCGVertex PriorityStateClassGraph::find_state_vertex(const PriorityStateClass &state) const
     {
-        std::size_t state_hash = state.hash();
+        const std::size_t state_hash = state.hash();
 
-        auto it = state_vertex_map.find(state_hash);
-        if (it != state_vertex_map.end())
+        if (const auto it = state_vertex_map.find(state_hash); it != state_vertex_map.end())
         {
             if (*graph[it->second].state == state)
             {
@@ -556,7 +552,7 @@ namespace priority_scg
         }
 
         // 找不到状态，返回无效顶点
-        return boost::graph_traits<StateClassGraph>::null_vertex();
+        return graph_traits<StateClassGraph>::null_vertex();
     }
 
     // 计算公共调度区间
@@ -566,12 +562,12 @@ namespace priority_scg
         if (transition_intervals.empty())
         {
             state_logger->warn("没有变迁区间可计算，返回默认公共调度区间 [0, 0]");
-            return TimeInterval(0, 0);
+            return TimeIntervalT<int>{0, 0};
         }
 
         state_logger->debug("计算公共调度区间，共 {} 个变迁区间", transition_intervals.size());
 
-        // 存储所有可发生区间的下界和上界
+        // 存储所有可发生区间下界和上界
         std::vector<std::pair<int, int>> valid_intervals;
 
         // 收集所有有效的变迁区间
@@ -582,7 +578,7 @@ namespace priority_scg
             // 确保区间有效
             if (interval.is_valid())
             {
-                valid_intervals.push_back({interval.lower, interval.upper});
+                valid_intervals.emplace_back(interval.lower, interval.upper);
             }
             else
             {
@@ -593,14 +589,14 @@ namespace priority_scg
         if (valid_intervals.empty())
         {
             state_logger->warn("没有有效的变迁区间，返回默认公共调度区间 [0, 0]");
-            return TimeInterval(0, 0);
+            return TimeIntervalT<int>{0, 0};
         }
 
         // 对所有可发生区间按下界排序
-        std::sort(valid_intervals.begin(), valid_intervals.end());
+        ranges::sort(valid_intervals);
 
         // 最小下界和上界
-        int min_lower = valid_intervals[0].first;
+        const int min_lower = valid_intervals[0].first;
         int min_upper = valid_intervals[0].second;
 
         // 查找可发生区间的重叠部分
@@ -608,7 +604,7 @@ namespace priority_scg
         {
             if (lower > min_upper)
             {
-                // 如果当前区间的下界大于已有区间的上界，则没有重叠
+                // 如果当前区间下界大于已有区间上界，则没有重叠
                 // 只考虑第一个变迁的区间
                 break;
             }
@@ -618,7 +614,7 @@ namespace priority_scg
         }
 
         // 创建公共调度区间
-        TimeInterval common_interval(min_lower, min_upper);
+        const TimeInterval common_interval(min_lower, min_upper);
         state_logger->debug("计算得到的公共调度区间: {}", common_interval.to_string());
 
         return common_interval;
@@ -640,6 +636,8 @@ namespace priority_scg
             return;
         }
 
+        state_logger->debug(initial_state->to_string());
+
         SCGVertex initial_vertex = add_state(*initial_state);
 
         std::queue<SCGVertex> vertex_queue;
@@ -653,14 +651,14 @@ namespace priority_scg
             SCGVertex current_vertex = vertex_queue.front();
             vertex_queue.pop();
 
-            if (processed_vertices.find(current_vertex) != processed_vertices.end())
+            if (processed_vertices.contains(current_vertex))
             {
                 continue;
             }
 
             processed_vertices.insert(current_vertex);
             const PriorityStateClass &current_state = *graph[current_vertex].state;
-
+            state_logger->debug("当前状态类:{}", current_state.to_string());
             // 记录处理进度
             processed_states++;
             if (processed_states % 100 == 0)
@@ -733,11 +731,13 @@ namespace priority_scg
 
                 // 添加后继状态到图中
                 SCGVertex successor_vertex = add_state(successor_state);
+
+                state_logger->debug("后继状态类: {}", successor_state.to_string());
                 // 添加边
                 add_edge(current_vertex, successor_vertex, t, firing_interval);
 
                 // 检查状态是否需要加入队列
-                if (processed_vertices.find(successor_vertex) == processed_vertices.end())
+                if (!processed_vertices.contains(successor_vertex))
                 {
                     // 将新状态加入队列
                     vertex_queue.push(successor_vertex);
@@ -747,21 +747,22 @@ namespace priority_scg
                 {
                     state_logger->debug("后继状态 S{} 已处理，不再加入队列", successor_vertex);
                 }
+
             }
         }
 
         state_logger->info("状态类图生成完成，共 {} 个状态，{} 条边",
-                           boost::num_vertices(graph), boost::num_edges(graph));
+                           num_vertices(graph), num_edges(graph));
     }
 
     std::size_t PriorityStateClassGraph::get_vertex_count() const
     {
-        return boost::num_vertices(graph);
+        return num_vertices(graph);
     }
 
     std::size_t PriorityStateClassGraph::get_edge_count() const
     {
-        return boost::num_edges(graph);
+        return num_edges(graph);
     }
 
     bool PriorityStateClassGraph::save_to_dot(const std::string &filename) const
@@ -776,8 +777,8 @@ namespace priority_scg
             }
 
             // 写入DOT格式
-            boost::write_graphviz(dot_file, graph, [this](std::ostream &out, const SCGVertex &v)
-                                  { out << "[label=\"" << graph[v].label << "\", shape=\"box\"]"; }, [this](std::ostream &out, const SCGEdge &e)
+            write_graphviz(dot_file, graph, [this](std::ostream &out, const SCGVertex &v)
+                                  { out << "[label=\"" << graph[v].label << R"(", shape="box"])"; }, [this](std::ostream &out, const SCGEdge &e)
                                   { out << "[label=\"" << graph[e].xlabel << "\\n"
                                         << graph[e].time_interval.to_string() << "\"]"; }, [this](std::ostream &out)
                                   { out << "graph [rankdir=LR, fontname=\"SimSun\"];\n"
@@ -803,10 +804,10 @@ namespace priority_scg
 
         // 计算终止状态数量（出度为0的节点）
         int terminal_states = 0;
-        boost::graph_traits<StateClassGraph>::vertex_iterator vi, vi_end;
-        for (boost::tie(vi, vi_end) = boost::vertices(graph); vi != vi_end; ++vi)
+        graph_traits<StateClassGraph>::vertex_iterator vi, vi_end;
+        for (boost::tie(vi, vi_end) = vertices(graph); vi != vi_end; ++vi)
         {
-            if (boost::out_degree(*vi, graph) == 0)
+            if (out_degree(*vi, graph) == 0)
             {
                 terminal_states++;
             }
@@ -814,7 +815,7 @@ namespace priority_scg
 
         state_logger->info("  终止状态数量: {}", terminal_states);
 
-        bool has_deadlock_state = has_deadlock();
+        const bool has_deadlock_state = has_deadlock();
         state_logger->info("  是否存在死锁状态: {}", has_deadlock_state ? "是" : "否");
 
         int max_depth = get_max_depth();
@@ -824,10 +825,10 @@ namespace priority_scg
     bool PriorityStateClassGraph::has_deadlock() const
     {
         // 检查是否有出度为0且不是终止状态的节点
-        boost::graph_traits<StateClassGraph>::vertex_iterator vi, vi_end;
-        for (boost::tie(vi, vi_end) = boost::vertices(graph); vi != vi_end; ++vi)
+        graph_traits<StateClassGraph>::vertex_iterator vi, vi_end;
+        for (boost::tie(vi, vi_end) = vertices(graph); vi != vi_end; ++vi)
         {
-            if (boost::out_degree(*vi, graph) == 0)
+            if (out_degree(*vi, graph) == 0)
             {
                 const PriorityStateClass &state = *graph[*vi].state;
                 if (!state.get_enabled_runtimes().empty())
@@ -846,7 +847,7 @@ namespace priority_scg
     int PriorityStateClassGraph::get_max_depth() const
     {
         // 从初始节点（ID为S0）开始BFS
-        SCGVertex initial_vertex = 0; // 通常初始节点是第一个添加的
+        constexpr SCGVertex initial_vertex = 0; // 通常初始节点是第一个添加的
 
         std::unordered_map<SCGVertex, int> depths;
         depths[initial_vertex] = 0;
@@ -865,13 +866,13 @@ namespace priority_scg
             max_depth = std::max(max_depth, current_depth);
 
             // 访问所有后继节点
-            boost::graph_traits<StateClassGraph>::out_edge_iterator ei, ei_end;
-            for (boost::tie(ei, ei_end) = boost::out_edges(current, graph); ei != ei_end; ++ei)
+            graph_traits<StateClassGraph>::out_edge_iterator ei, ei_end;
+            for (boost::tie(ei, ei_end) = out_edges(current, graph); ei != ei_end; ++ei)
             {
                 SCGVertex target = boost::target(*ei, graph);
 
                 // 如果节点还未访问过，或者找到了更深的路径
-                if (depths.find(target) == depths.end() || depths[target] < current_depth + 1)
+                if (!depths.contains(target) || depths[target] < current_depth + 1)
                 {
                     depths[target] = current_depth + 1;
                     vertex_queue.push(target);

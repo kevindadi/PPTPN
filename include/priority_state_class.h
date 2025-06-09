@@ -2,13 +2,13 @@
 #define PPTPN_INCLUDE_PRIORITY_STATE_CLASS_H
 
 #include "priority_time_petri_net.h"
+#include <utility>
 #include <vector>
 #include <map>
 #include <limits>
 #include <algorithm>
 #include <string>
 #include <sstream>
-#include <stdexcept>
 
 using namespace ptpn;
 
@@ -23,20 +23,20 @@ namespace priority_scg
         T upper; // 上界，如果是无穷大则使用类型的最大值表示
 
         // 构造函数
-        TimeIntervalT(T lower = T(0), T upper = std::numeric_limits<T>::max())
+        explicit TimeIntervalT(T lower = T(0), T upper = std::numeric_limits<T>::max())
             : lower(lower), upper(upper) {}
 
-        // 区间交集
-        TimeIntervalT<T> intersect(const TimeIntervalT<T> &other) const
+        // 区间 交集
+        TimeIntervalT intersect(const TimeIntervalT &other) const
         {
-            return TimeIntervalT<T>(std::max(lower, other.lower), std::min(upper, other.upper));
+            return TimeIntervalT(std::max(lower, other.lower), std::min(upper, other.upper));
         }
 
         // 检查区间是否有效
-        bool is_valid() const { return lower <= upper && lower >= 0; }
+        [[nodiscard]] bool is_valid() const { return lower <= upper && lower >= 0; }
 
         // 区间是否为空
-        bool is_empty() const { return !is_valid(); }
+        [[nodiscard]] bool is_empty() const { return !is_valid(); }
 
         // 检查区间是否包含某个值
         bool contains(const T &value) const
@@ -44,33 +44,33 @@ namespace priority_scg
             return lower <= value && value <= upper;
         }
 
-        // 区间位移（时间推移）
-        TimeIntervalT<T> shift(const T &offset) const
+        // 区间 位移（时间推移）
+        TimeIntervalT shift(const T &offset) const
         {
             // 处理极限情况以避免溢出
-            T new_lower = (lower == std::numeric_limits<T>::min() && offset < 0) ? std::numeric_limits<T>::min() : lower + offset;
+            T new_lower = lower == std::numeric_limits<T>::min() && offset < 0 ? std::numeric_limits<T>::min() : lower + offset;
 
-            T new_upper = (upper == std::numeric_limits<T>::max() && offset > 0) ? std::numeric_limits<T>::max() : upper + offset;
+            T new_upper = upper == std::numeric_limits<T>::max() && offset > 0 ? std::numeric_limits<T>::max() : upper + offset;
 
-            return TimeIntervalT<T>(new_lower, new_upper);
+            return TimeIntervalT(new_lower, new_upper);
         }
 
         // 相等比较
-        bool operator==(const TimeIntervalT<T> &other) const
+        bool operator==(const TimeIntervalT &other) const
         {
             return lower == other.lower && upper == other.upper;
         }
 
         // 不等比较
-        bool operator!=(const TimeIntervalT<T> &other) const
+        bool operator!=(const TimeIntervalT &other) const
         {
             return !(*this == other);
         }
 
         // 字符串表示
-        std::string to_string() const
+        [[nodiscard]] std::string to_string() const
         {
-            std::string upper_str = (upper == std::numeric_limits<T>::max()) ? "∞" : std::to_string(upper);
+            std::string upper_str = upper == std::numeric_limits<T>::max() ? "∞" : std::to_string(upper);
             return "[" + std::to_string(lower) + ", " + upper_str + "]";
         }
     };
@@ -90,18 +90,18 @@ namespace priority_scg
 
         PriorityStateClassT() = default;
         PriorityStateClassT(
-            const Marking &m,
+            Marking m,
             const std::map<ptpn_v_desc, interval_type> &enabled_rts,
             const std::map<ptpn_v_desc, interval_type> &suspended_rts)
-            : marking(m),
+            : marking(std::move(m)),
               enabled_runtimes(enabled_rts),
               suspended_runtimes(suspended_rts) {}
 
         PriorityStateClassT(
-            const Marking &m,
+            Marking m,
             const std::map<ptpn_v_desc, std::pair<T, T>> &enabled_rts,
             const std::map<ptpn_v_desc, std::pair<T, T>> &suspended_rts)
-            : marking(m)
+            : marking(std::move(m))
         {
             // 转换std::pair到TimeIntervalT
             for (const auto &[t, rt] : enabled_rts)
@@ -115,10 +115,10 @@ namespace priority_scg
             }
         }
 
-        const Marking &get_marking() const { return marking; }
+        [[nodiscard]] const Marking &get_marking() const { return marking; }
 
         // 设置库所的token数量
-        void set_token(ptpn_v_desc place, int tokens)
+        void set_token(const ptpn_v_desc place, const int tokens)
         {
             if (tokens > 0)
             {
@@ -130,27 +130,27 @@ namespace priority_scg
             }
         }
 
-        int get_token(ptpn_v_desc place) const
+        [[nodiscard]] int get_token(const ptpn_v_desc place) const
         {
             auto it = marking.find(place);
-            return (it != marking.end()) ? it->second : 0;
+            return it != marking.end() ? it->second : 0;
         }
 
-        void add_tokens(ptpn_v_desc place, int tokens)
+        void add_tokens(const ptpn_v_desc place, const int tokens)
         {
             if (tokens != 0)
             {
-                int new_tokens = get_token(place) + tokens;
+                const int new_tokens = get_token(place) + tokens;
                 set_token(place, new_tokens);
             }
         }
 
-        bool remove_tokens(ptpn_v_desc place, int tokens)
+        bool remove_tokens(const ptpn_v_desc place, const int tokens)
         {
             if (tokens <= 0)
                 return true;
 
-            int current = get_token(place);
+            const int current = get_token(place);
             if (current < tokens)
                 return false;
 
@@ -158,7 +158,7 @@ namespace priority_scg
             return true;
         }
 
-        bool has_enough_tokens(ptpn_v_desc place, int required) const
+        [[nodiscard]] bool has_enough_tokens(const ptpn_v_desc place, const int required) const
         {
             return get_token(place) >= required;
         }
@@ -185,15 +185,15 @@ namespace priority_scg
         interval_type get_enabled_runtime(ptpn_v_desc transition) const
         {
             auto it = enabled_runtimes.find(transition);
-            return (it != enabled_runtimes.end()) ? it->second : interval_type();
+            return it != enabled_runtimes.end() ? it->second : interval_type();
         }
 
-        bool is_transition_enabled(ptpn_v_desc transition) const
+        [[nodiscard]] bool is_transition_enabled(ptpn_v_desc transition) const
         {
-            return enabled_runtimes.find(transition) != enabled_runtimes.end();
+            return enabled_runtimes.contains(transition) != enabled_runtimes.end();
         }
 
-        std::vector<ptpn_v_desc> get_enabled_transitions() const
+        [[nodiscard]] std::vector<ptpn_v_desc> get_enabled_transitions() const
         {
             std::vector<ptpn_v_desc> result;
             result.reserve(enabled_runtimes.size());
@@ -228,15 +228,15 @@ namespace priority_scg
         interval_type get_suspended_runtime(ptpn_v_desc transition) const
         {
             auto it = suspended_runtimes.find(transition);
-            return (it != suspended_runtimes.end()) ? it->second : interval_type();
+            return it != suspended_runtimes.end() ? it->second : interval_type();
         }
 
-        bool is_transition_suspended(ptpn_v_desc transition) const
+        [[nodiscard]] bool is_transition_suspended(ptpn_v_desc transition) const
         {
-            return suspended_runtimes.find(transition) != suspended_runtimes.end();
+            return suspended_runtimes.contains(transition);
         }
 
-        std::vector<ptpn_v_desc> get_suspended_transitions() const
+        [[nodiscard]] std::vector<ptpn_v_desc> get_suspended_transitions() const
         {
             std::vector<ptpn_v_desc> result;
             result.reserve(suspended_runtimes.size());
@@ -268,7 +268,7 @@ namespace priority_scg
             }
         }
 
-        bool is_valid() const
+        [[nodiscard]] bool is_valid() const
         {
             // 检查所有区间是否有效
             for (const auto &[_, interval] : enabled_runtimes)
@@ -285,7 +285,7 @@ namespace priority_scg
 
             for (const auto &[trans, _] : enabled_runtimes)
             {
-                if (suspended_runtimes.find(trans) != suspended_runtimes.end())
+                if (suspended_runtimes.contains(trans))
                 {
                     return false;
                 }
@@ -294,19 +294,19 @@ namespace priority_scg
             return true;
         }
 
-        bool operator==(const PriorityStateClassT<T> &other) const;
-        bool operator!=(const PriorityStateClassT<T> &other) const
+        bool operator==(const PriorityStateClassT &other) const;
+        bool operator!=(const PriorityStateClassT &other) const
         {
             return !(*this == other);
         }
 
-        std::string to_string() const;
+        [[nodiscard]] std::string to_string() const;
 
         // 计算状态类的哈希值（用于容器支持）
-        std::size_t hash() const;
+        [[nodiscard]] std::size_t hash() const;
 
         // 获取标记的字符串表示，用于调试
-        std::string get_marking_string() const
+        [[nodiscard]] std::string get_marking_string() const
         {
             std::stringstream ss;
             ss << "{";
@@ -330,25 +330,25 @@ namespace priority_scg
     };
 
     // 使用int类型的状态类作为默认类型
-    using PriorityStateClass = PriorityStateClassT<int>;
+    using PriorityStateClass = PriorityStateClassT<>;
 
     template <typename T>
-    bool PriorityStateClassT<T>::operator==(const PriorityStateClassT<T> &other) const
+    bool PriorityStateClassT<T>::operator==(const PriorityStateClassT &other) const
     {
         if (marking.size() != other.marking.size())
         {
             return false;
         }
 
-        for (const auto &p_m : marking)
+        for (const auto &[fst, snd] : marking)
         {
-            if (p_m.second <= 0)
+            if (snd <= 0)
             {
                 continue;
             }
 
-            auto it = other.marking.find(p_m.first);
-            if (it == other.marking.end() || it->second != p_m.second)
+            auto it = other.marking.find(fst);
+            if (it == other.marking.end() || it->second != snd)
             {
                 return false;
             }

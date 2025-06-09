@@ -2,11 +2,8 @@
 #define PPTPN_INCLUDE_PRIORITY_STATE_GRAPH_H
 
 #include "priority_state_class.h"
-#include <queue>
 #include <unordered_map>
-#include <unordered_set>
 #include <memory>
-#include <functional>
 
 namespace priority_scg
 {
@@ -29,25 +26,24 @@ namespace priority_scg
         std::string name;
     };
 
-    typedef boost::adjacency_list<
-        boost::vecS, boost::vecS, boost::directedS,
+    typedef adjacency_list<vecS, vecS, directedS,
         SCGVertexProperties, SCGEdgeProperties, SCGProperties>
         StateClassGraph;
 
-    typedef boost::graph_traits<StateClassGraph>::vertex_descriptor SCGVertex;
-    typedef boost::graph_traits<StateClassGraph>::edge_descriptor SCGEdge;
+    typedef graph_traits<StateClassGraph>::vertex_descriptor SCGVertex;
+    typedef graph_traits<StateClassGraph>::edge_descriptor SCGEdge;
 
     class PriorityStateClassGraph
     {
     public:
-        PriorityStateClassGraph(const PriorityTPNGraph &petri_net);
+        explicit PriorityStateClassGraph(const PriorityTPNGraph &petri_net);
 
         void generate_state_class_graph();
         std::shared_ptr<PriorityStateClass> get_initial_state_class();
 
-        const StateClassGraph &get_graph() const { return graph; }
-        std::size_t get_vertex_count() const;
-        std::size_t get_edge_count() const;
+        [[nodiscard]] const StateClassGraph &get_graph() const { return graph; }
+        [[nodiscard]] std::size_t get_vertex_count() const;
+        [[nodiscard]] std::size_t get_edge_count() const;
 
         bool save_to_dot(const std::string &filename) const;
         void print_graph_info() const;

@@ -1,5 +1,6 @@
 #include <string>
 #include <sstream>
+#include <unordered_map>
 
 class PriorityStateClass
 {
@@ -23,5 +24,5 @@ public:
 
 private:
     // Assuming marking is a map from place to tokens
-    std::map<int, int> marking;
+    std::unordered_map<int, int> marking;
 };
