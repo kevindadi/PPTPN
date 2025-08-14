@@ -3,6 +3,7 @@
 #include <boost/exception/all.hpp>
 #include <boost/static_assert.hpp>
 #include <regex>
+#include <utility>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
@@ -19,7 +20,7 @@ struct LabelParseException : virtual boost::exception, virtual std::exception
 {
   std::string label;
   LabelParseException() : label("") {} // 添加默认构造函数
-  explicit LabelParseException(const std::string &msg) : label(msg) {}
+  explicit LabelParseException(std::string msg) : label(std::move(msg)) {}
 
   const char *what() const noexcept override { return label.c_str(); }
 };

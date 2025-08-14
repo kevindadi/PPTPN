@@ -95,7 +95,7 @@ namespace ptpn
   };
 
   typedef adjacency_list<vecS, vecS, bidirectionalS,
-                                Vertex, Edge, TDG_RAP_P>
+                         Vertex, Edge, TDG_RAP_P>
       PriorityTPNGraph;
   typedef graph_traits<PriorityTPNGraph>::vertex_descriptor ptpn_v_desc;
 
@@ -155,6 +155,11 @@ namespace ptpn
     // 验证Petri结构正确性
     bool verify_petri_net_structure();
     std::string save_ptpn_and_dot(const std::string &file_path);
+
+    // 从 dot,json格式导入 Petri 网
+    void import_ptpn_from_dot(const std::string &file_path);
+    void import_ptpn_from_json(const std::string &file_path);
+
     // 导出为Tina .net格式
     bool export_to_tina(const std::string &file_path);
     // 导出为Romeo XML格式

@@ -33,7 +33,7 @@ namespace ptpn
     auto &[p_token, p_capacity] = std::get<Place>(v.node);
     p_token = token;
     p_capacity = capacity;
-    return  add_vertex(v, graph);
+    return add_vertex(v, graph);
   }
 
   ptpn_v_desc add_transition(PriorityTPNGraph &graph, const std::string &name,
@@ -53,19 +53,19 @@ namespace ptpn
     trans.const_time = const_time;
     trans.handle = is_handle;
     trans.runtimes = runtimes;
-    return  add_vertex(v, graph);
+    return add_vertex(v, graph);
   }
 
   std::string PriorityTPN::save_ptpn_and_dot(const std::string &file_path)
   {
-     const boost::filesystem::path path(file_path);
-    if (! boost::filesystem::exists(path))
+    const boost::filesystem::path path(file_path);
+    if (!boost::filesystem::exists(path))
     {
       petri_logger->error("路径不存在!");
       return {};
     }
 
-     const boost::filesystem::path dot_filename = path / "ptpn_graph.dot";
+    const boost::filesystem::path dot_filename = path / "ptpn_graph.dot";
     std::ofstream ofs(dot_filename.string());
     if (!ofs)
     {
@@ -90,17 +90,17 @@ namespace ptpn
     write_graphviz_dp(ofs, graph, graph_dp);
     ofs.close();
 
-    return  boost::filesystem::absolute(dot_filename).string();
+    return boost::filesystem::absolute(dot_filename).string();
   }
 
   bool PriorityTPN::export_to_tina(const std::string &file_path)
   {
     try
     {
-       boost::filesystem::path path(file_path);
-       boost::filesystem::path dir = path.parent_path();
+      boost::filesystem::path path(file_path);
+      boost::filesystem::path dir = path.parent_path();
 
-      if (!dir.empty() && ! boost::filesystem::exists(dir))
+      if (!dir.empty() && !boost::filesystem::exists(dir))
       {
         petri_logger->error("目录不存在: {}", dir.string());
         return false;
@@ -127,7 +127,7 @@ namespace ptpn
 
           // 获取输入变迁
           std::vector<std::string> inputs;
-          BOOST_FOREACH (ptpn_v_desc in_v,  inv_adjacent_vertices(v, graph))
+          BOOST_FOREACH (ptpn_v_desc in_v, inv_adjacent_vertices(v, graph))
           {
             if (graph[in_v].is_transition())
             {
@@ -137,7 +137,7 @@ namespace ptpn
 
           // 获取输出变迁
           std::vector<std::string> outputs;
-          BOOST_FOREACH (ptpn_v_desc out_v,  adjacent_vertices(v, graph))
+          BOOST_FOREACH (ptpn_v_desc out_v, adjacent_vertices(v, graph))
           {
             if (graph[out_v].is_transition())
             {
@@ -193,7 +193,7 @@ namespace ptpn
 
           // 获取输入库所
           std::vector<std::string> inputs;
-          BOOST_FOREACH (ptpn_v_desc in_v,  inv_adjacent_vertices(v, graph))
+          BOOST_FOREACH (ptpn_v_desc in_v, inv_adjacent_vertices(v, graph))
           {
             if (graph[in_v].is_place())
             {
@@ -203,7 +203,7 @@ namespace ptpn
 
           // 获取输出库所
           std::vector<std::string> outputs;
-          BOOST_FOREACH (ptpn_v_desc out_v,  adjacent_vertices(v, graph))
+          BOOST_FOREACH (ptpn_v_desc out_v, adjacent_vertices(v, graph))
           {
             if (graph[out_v].is_place())
             {
@@ -311,10 +311,10 @@ namespace ptpn
   {
     try
     {
-       boost::filesystem::path path(file_path);
-       boost::filesystem::path dir = path.parent_path();
+      boost::filesystem::path path(file_path);
+      boost::filesystem::path dir = path.parent_path();
 
-      if (!dir.empty() && ! boost::filesystem::exists(dir))
+      if (!dir.empty() && !boost::filesystem::exists(dir))
       {
         petri_logger->error("目录不存在: {}", dir.string());
         return false;
@@ -329,7 +329,7 @@ namespace ptpn
 
       // XML头部
       romeo_file << "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n";
-      romeo_file << "<TPN name=\"" <<  boost::filesystem::absolute(path).string() << "\">\n";
+      romeo_file << "<TPN name=\"" << boost::filesystem::absolute(path).string() << "\">\n";
 
       // 写入所有库所
       int place_id = 1;
@@ -401,7 +401,7 @@ namespace ptpn
       BOOST_FOREACH (ptpn_v_desc v, vertices(graph))
       {
         // 处理输出弧
-        BOOST_FOREACH (ptpn_v_desc out_v,  adjacent_vertices(v, graph))
+        BOOST_FOREACH (ptpn_v_desc out_v, adjacent_vertices(v, graph))
         {
           if (graph[v].is_place() && graph[out_v].is_transition())
           {
@@ -659,8 +659,8 @@ namespace ptpn
   void PriorityTPN::log_network_info()
   {
     petri_logger->info("Petri net statistics:");
-    petri_logger->info("- Places + Transitions: {}",  num_vertices(graph));
-    petri_logger->info("- Flows: {}",  num_edges(graph));
+    petri_logger->info("- Places + Transitions: {}", num_vertices(graph));
+    petri_logger->info("- Flows: {}", num_edges(graph));
   }
 
   /// 为锁资源创建库所
@@ -681,7 +681,7 @@ namespace ptpn
   }
 
   /// 为处理器资源创建库所
-  void PriorityTPN::add_cpu_resource(int cpus, int cores_per_cpu)
+  void PriorityTPN::add_cpu_resource(const int cpus, const int cores_per_cpu)
   {
     for (int i = 0; i < cpus; i++)
     {
@@ -892,7 +892,7 @@ namespace ptpn
                                         const int priority, const int core)
   {
     ptpn_v_desc last_lock_place = 0;
-    ptpn_v_desc first_unlock_trans = 0 ;
+    ptpn_v_desc first_unlock_trans = 0;
 
     // 获取ready库所（在chain中的倒数第三个位置）
     const ptpn_v_desc ready = chain[chain.size() - 3];
@@ -921,7 +921,7 @@ namespace ptpn
       last_lock_place = deal;
     }
 
-    ptpn_v_desc last_unlocked_place;
+    ptpn_v_desc last_unlocked_place = 0;
     // 释放锁
     for (int j = locks.size() - 1; j >= 0; j--)
     {
@@ -958,12 +958,12 @@ namespace ptpn
   pair<ptpn_v_desc, ptpn_v_desc>
   PriorityTPN::add_p_node_ptpn(PeriodicTask &p_task)
   {
-    TaskVertexsNames names(p_task.name);
+    const TaskVertexsNames names(p_task.name);
 
     // 创建周期任务特有的随机触发结构
-    string task_random_period = p_task.name + "random";
-    ptpn_v_desc random = add_place(graph, task_random_period, 1, 1);
-    ptpn_v_desc fire =
+    const string task_random_period = p_task.name + "random";
+    const ptpn_v_desc random = add_place(graph, task_random_period, 1, 1);
+    const ptpn_v_desc fire =
         add_transition(graph, p_task.name + "fire", 255, 255,
                        p_task.period_time);
 
@@ -1501,6 +1501,243 @@ namespace ptpn
     }
 
     return is_valid;
+  }
+
+  void PriorityTPN::import_ptpn_from_dot(const std::string &file_path)
+  {
+    try
+    {
+      petri_logger->info("开始从DOT文件导入Petri网: {}", file_path);
+      graph.clear();
+
+      std::ifstream dot_file(file_path);
+      if (!dot_file)
+      {
+        petri_logger->error("无法打开DOT文件: {}", file_path);
+        return;
+      }
+
+      PriorityTPNGraph dot_graph;
+      boost::dynamic_properties dp;
+      dp.property("node_id", boost::get(&Vertex::name, dot_graph));
+      dp.property("label", boost::get(&Vertex::label, dot_graph));
+      dp.property("shape", boost::get(&Vertex::shape, dot_graph));
+      dp.property("xlabel", boost::get(&Edge::label, dot_graph));
+
+      // 读取DOT文件到临时图
+      if (!boost::read_graphviz(dot_file, dot_graph, dp))
+      {
+        petri_logger->error("无法解析DOT文件: {}", file_path);
+        return;
+      }
+
+      // 解析节点
+      std::map<std::string, ptpn_v_desc> name_to_vertex;
+
+      for (auto [vi, vi_end] = boost::vertices(dot_graph); vi != vi_end; ++vi)
+      {
+        std::string node_name = dot_graph[*vi].name;
+        std::string node_label = dot_graph[*vi].label;
+
+        // 检查节点形状（通过label中的shape属性） TODO: 需要优化
+        bool is_place = false;
+        bool is_transition = false;
+
+        // 解析label属性
+        if (node_label.find("shape=circle") != std::string::npos ||
+            node_label.find("shape=\"circle\"") != std::string::npos)
+        {
+          is_place = true;
+        }
+        else if (node_label.find("shape=box") != std::string::npos ||
+                 node_label.find("shape=\"box\"") != std::string::npos)
+        {
+          is_transition = true;
+        }
+
+        // 如果没有明确的shape，尝试从label内容推断
+        if (!is_place && !is_transition)
+        {
+          if (node_label.find("token=") != std::string::npos)
+          {
+            is_place = true;
+          }
+          else if (node_label.find("time=") != std::string::npos ||
+                   node_label.find("priority=") != std::string::npos)
+          {
+            is_transition = true;
+          }
+        }
+
+        ptpn_v_desc vertex;
+
+        if (is_place)
+        {
+          // 解析库所属性
+          int token = 0;
+          int capacity = 1;
+
+          // 解析token和capacity
+          size_t token_pos = node_label.find("token=");
+          if (token_pos != std::string::npos)
+          {
+            size_t start = token_pos + 6;
+            size_t end = node_label.find(';', start);
+            if (end == std::string::npos)
+              end = node_label.find('"', start);
+            if (end == std::string::npos)
+              end = node_label.length();
+            token = std::stoi(node_label.substr(start, end - start));
+          }
+
+          size_t capacity_pos = node_label.find("capacity=");
+          if (capacity_pos != std::string::npos)
+          {
+            size_t start = capacity_pos + 9;
+            size_t end = node_label.find(';', start);
+            if (end == std::string::npos)
+              end = node_label.find('"', start);
+            if (end == std::string::npos)
+              end = node_label.length();
+            capacity = std::stoi(node_label.substr(start, end - start));
+          }
+
+          vertex = add_place(graph, node_name, token, capacity);
+          petri_logger->debug("添加库所: {} (token={}, capacity={})", node_name, token, capacity);
+        }
+        else if (is_transition)
+        {
+          // 解析变迁属性
+          int priority = 255;
+          int core = 255;
+          std::pair<int, int> const_time = {0, 0};
+          std::pair<int, int> runtimes = {0, 0};
+          bool is_handle = false;
+
+          // 解析time属性
+          size_t time_pos = node_label.find("time=");
+          if (time_pos != std::string::npos)
+          {
+            size_t start = time_pos + 5;
+            size_t end = node_label.find(';', start);
+            if (end == std::string::npos)
+              end = node_label.find('"', start);
+            if (end == std::string::npos)
+              end = node_label.length();
+
+            std::string time_str = node_label.substr(start, end - start);
+            // 解析[1,3]格式
+            if (time_str.find('[') != std::string::npos && time_str.find(']') != std::string::npos)
+            {
+              size_t lb_start = time_str.find('[') + 1;
+              size_t lb_end = time_str.find(',', lb_start);
+              size_t ub_start = lb_end + 1;
+              size_t ub_end = time_str.find(']', ub_start);
+
+              if (lb_end != std::string::npos && ub_end != std::string::npos)
+              {
+                const_time.first = std::stoi(time_str.substr(lb_start, lb_end - lb_start));
+                const_time.second = std::stoi(time_str.substr(ub_start, ub_end - ub_start));
+              }
+            }
+          }
+
+          // 解析priority属性
+          size_t priority_pos = node_label.find("priority=");
+          if (priority_pos != std::string::npos)
+          {
+            size_t start = priority_pos + 9;
+            size_t end = node_label.find(';', start);
+            if (end == std::string::npos)
+              end = node_label.find('"', start);
+            if (end == std::string::npos)
+              end = node_label.length();
+            priority = std::stoi(node_label.substr(start, end - start));
+          }
+
+          // 解析core属性
+          size_t core_pos = node_label.find("core=");
+          if (core_pos != std::string::npos)
+          {
+            size_t start = core_pos + 5;
+            size_t end = node_label.find(';', start);
+            if (end == std::string::npos)
+              end = node_label.find('"', start);
+            if (end == std::string::npos)
+              end = node_label.length();
+            core = std::stoi(node_label.substr(start, end - start));
+          }
+
+          vertex = add_transition(graph, node_name, priority, core, const_time, is_handle, runtimes);
+          petri_logger->debug("添加变迁: {} (priority={}, core={}, time=[{},{}])",
+                              node_name, priority, core, const_time.first, const_time.second);
+        }
+        else
+        {
+          petri_logger->warn("无法确定节点类型: {}", node_name);
+          continue;
+        }
+
+        name_to_vertex[node_name] = vertex;
+      }
+
+      // 解析边
+      for (auto [ei, ei_end] = boost::edges(dot_graph); ei != ei_end; ++ei)
+      {
+        std::string source_name = dot_graph[boost::source(*ei, dot_graph)].name;
+        std::string target_name = dot_graph[boost::target(*ei, dot_graph)].name;
+
+        auto source_it = name_to_vertex.find(source_name);
+        auto target_it = name_to_vertex.find(target_name);
+
+        if (source_it != name_to_vertex.end() && target_it != name_to_vertex.end())
+        {
+          // 解析边权重
+          int weight = 1;
+          std::string edge_label = dot_graph[*ei].label;
+
+          size_t weight_pos = edge_label.find("weight=");
+          if (weight_pos != std::string::npos)
+          {
+            size_t start = weight_pos + 7;
+            size_t end = edge_label.find(';', start);
+            if (end == std::string::npos)
+              end = edge_label.find('"', start);
+            if (end == std::string::npos)
+              end = edge_label.length();
+            weight = std::stoi(edge_label.substr(start, end - start));
+          }
+
+          // 添加边
+          auto edge = boost::add_edge(source_it->second, target_it->second, graph).first;
+          graph[edge].weight = weight;
+          graph[edge].label = edge_label;
+
+          petri_logger->debug("添加边: {} -> {} (weight={})", source_name, target_name, weight);
+        }
+        else
+        {
+          petri_logger->warn("边的端点不存在: {} -> {}", source_name, target_name);
+        }
+      }
+
+      petri_logger->info("成功从DOT文件导入Petri网,共 {} 个节点,{} 条边",
+                         boost::num_vertices(graph), boost::num_edges(graph));
+    }
+    catch (const std::exception &e)
+    {
+      petri_logger->error("导入DOT文件时发生错误: {}", e.what());
+    }
+  }
+
+  void PriorityTPN::import_ptpn_from_json(const std::string &file_path)
+  {
+    std::ifstream file(file_path);
+    std::string line;
+    while (std::getline(file, line))
+    {
+      std::cout << line << std::endl;
+    }
   }
 
 } // namespace ptpn

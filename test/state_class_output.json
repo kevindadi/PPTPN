@@ -1,0 +1,57 @@
+{
+  "graph": {
+    "name": "StateClassGraph",
+    "nodes": [
+      {
+        "id": "S0",
+        "markings": {
+          "P1": 1
+        },
+        "enabled_transitions": {
+          "T1": "[0, 0]"
+        },
+        "suspended_transitions": {
+
+        }
+      },
+      {
+        "id": "S1",
+        "markings": {
+          "P2": 1
+        },
+        "enabled_transitions": {
+          "T2": "[0, 0]"
+        },
+        "suspended_transitions": {
+
+        }
+      },
+      {
+        "id": "S2",
+        "markings": {
+          "P3": 1
+        },
+        "enabled_transitions": {
+
+        },
+        "suspended_transitions": {
+
+        }
+      }
+    ],
+    "edges": [
+      {
+        "source": "S0",
+        "target": "S1",
+        "transition": "T1",
+        "time_interval": "[1, 3]"
+      },
+      {
+        "source": "S1",
+        "target": "S2",
+        "transition": "T2",
+        "time_interval": "[2, 4]"
+      }
+    ]
+  }
+}

@@ -23,31 +23,34 @@
 using namespace std;
 namespace po = program_options;
 
-// 获取当前进程的内存使用情况（以KB为单位）
-size_t get_memory_usage() {
+// 获取当前进程的内存使用情况（以MB为单位）
+size_t get_memory_usage()
+{
 #if defined(_WIN32)
   PROCESS_MEMORY_COUNTERS pmc;
-  if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
-    return pmc.WorkingSetSize / 1024; // 转换为KB
+  if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc)))
+  {
+    return pmc.WorkingSetSize / 1024 / 1024;
   }
   return 0;
 #elif defined(__APPLE__)
   task_t task = mach_task_self();
   struct task_basic_info t_info;
   mach_msg_type_number_t t_info_count = TASK_BASIC_INFO_COUNT;
-  if (task_info(task, TASK_BASIC_INFO, (task_info_t)&t_info, &t_info_count) == KERN_SUCCESS) {
-    return t_info.resident_size / 1024; // 转换为KB
+  if (task_info(task, TASK_BASIC_INFO, (task_info_t)&t_info, &t_info_count) == KERN_SUCCESS)
+  {
+    return t_info.resident_size / 1024 / 1024;
   }
   return 0;
 #else
   struct rusage usage;
-  if (getrusage(RUSAGE_SELF, &usage) == 0) {
-    return usage.ru_maxrss; // 在Linux上通常已经是KB
+  if (getrusage(RUSAGE_SELF, &usage) == 0)
+  {
+    return usage.ru_maxrss / 1024;
   }
   return 0;
 #endif
 }
-
 
 // 显示使用说明
 void print_usage(const po::options_description &desc)
@@ -74,9 +77,10 @@ int main(int argc, char *argv[])
   std::string scg_type;
   std::string tina_file_path;
   std::string romeo_file_path;
+  size_t max_states = 100; // 截断的最大状态数
 
   po::options_description desc("选项");
-  desc.add_options()("help", "显示帮助信息")("deadline", po::value<int>(&deadline)->default_value(0), "设置截止时间进行检查")("file", po::value<std::string>(&file_path)->default_value("dag.dot"), "指定Petri网的dot文件路径")("scg_type", po::value<std::string>(&scg_type)->default_value("original"), "状态类图算法类型:priority或 differential")("cpus", po::value<int>(&num_cpus)->required(), "CPU数量")("cores", po::value<int>(&cores_per_cpu)->required(), "每个CPU的核心数")("tina", po::value<std::string>(&tina_file_path)->implicit_value("ptpn.net"), "导出为Tina .net格式")("romeo", po::value<std::string>(&romeo_file_path)->implicit_value("ptpn.xml"), "导出为Romeo XML格式");
+  desc.add_options()("help", "显示帮助信息")("deadline", po::value<int>(&deadline)->default_value(0), "设置截止时间进行检查")("file", po::value<std::string>(&file_path)->default_value("dag.dot"), "指定Petri网的dot文件路径")("scg_type", po::value<std::string>(&scg_type)->default_value("original"), "状态类图算法类型:priority或 differential")("cpus", po::value<int>(&num_cpus)->required(), "CPU数量")("cores", po::value<int>(&cores_per_cpu)->required(), "每个CPU的核心数")("max_states", po::value<size_t>(&max_states)->default_value(100), "状态类图生成的最大状态数限制")("import_dot", po::value<std::string>(), "从DOT文件导入Petri网")("tina", po::value<std::string>(&tina_file_path)->implicit_value("ptpn.net"), "导出为Tina .net格式")("romeo", po::value<std::string>(&romeo_file_path)->implicit_value("ptpn.xml"), "导出为Romeo XML格式");
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -88,7 +92,6 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  // 记录初始内存使用
   size_t initial_memory = get_memory_usage();
   auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -141,7 +144,7 @@ int main(int argc, char *argv[])
 
     // 使用优先级状态类分析器
     priority_scg::PriorityStateClassGraph priority_analyzer(ptpn.get_graph());
-    priority_analyzer.generate_state_class_graph();
+    priority_analyzer.generate_state_class_graph_with_limit(max_states);
 
     auto scg_end = std::chrono::high_resolution_clock::now();
     auto scg_duration = std::chrono::duration_cast<std::chrono::milliseconds>(scg_end - scg_start);
@@ -151,8 +154,16 @@ int main(int argc, char *argv[])
     std::cout << "  时间: " << scg_duration.count() << " 毫秒" << std::endl;
     std::cout << "  内存使用: " << scg_memory << " KB" << std::endl;
 
-    // 导出状态类图到DOT文件
-    // priority_analyzer.export_to_dot("priority_state_classes.dot");
+    if (!priority_analyzer.save_to_dot("priority_state_classes.dot"))
+    {
+      std::cerr << "保存DOT文件失败" << std::endl;
+    }
+    if (!priority_analyzer.save_to_json("priority_state_classes.json"))
+    {
+      std::cerr << "保存JSON文件失败" << std::endl;
+    }
+
+    priority_analyzer.print_graph_info();
   }
 
   // 输出总体统计信息

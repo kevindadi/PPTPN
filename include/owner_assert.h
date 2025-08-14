@@ -12,4 +12,4 @@
     }                                                                          \
   } while (0)
 
-#endif // PPTPN_INCLUDE_OWNER_ASSERT_H
+#endif

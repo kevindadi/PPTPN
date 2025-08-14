@@ -91,4 +91,4 @@ public:
   std::unordered_map<int, vector<string>> classify_priority();
 };
 
-#endif // PPTPN_GCONFIG_H
+#endif

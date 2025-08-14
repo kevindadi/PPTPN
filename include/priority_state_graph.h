@@ -39,18 +39,20 @@ namespace priority_scg
         explicit PriorityStateClassGraph(const PriorityTPNGraph &petri_net);
 
         void generate_state_class_graph();
+        void generate_state_class_graph_with_limit(size_t max_states = 100);
         std::shared_ptr<PriorityStateClass> get_initial_state_class();
 
         [[nodiscard]] const StateClassGraph &get_graph() const { return graph; }
         [[nodiscard]] std::size_t get_vertex_count() const;
         [[nodiscard]] std::size_t get_edge_count() const;
 
-        bool save_to_dot(const std::string &filename) const;
+        [[nodiscard]] bool save_to_dot(const std::string &filename) const;
+        [[nodiscard]] bool save_to_json(const std::string &filename) const;
         void print_graph_info() const;
-        bool has_deadlock() const;
+        [[nodiscard]] bool has_deadlock() const;
 
         // 获取可达性树的最大深度
-        int get_max_depth() const;
+        [[nodiscard]] int get_max_depth() const;
 
     private:
         SCGVertex add_state(const PriorityStateClass &state);
@@ -71,7 +73,7 @@ namespace priority_scg
         PriorityStateClass fire_transition(const PriorityStateClass &state, ptpn_v_desc transition, const TimeInterval &common_interval);
 
         // 找到状态在图中对应的顶点描述符
-        SCGVertex find_state_vertex(const PriorityStateClass &state) const;
+        [[nodiscard]] SCGVertex find_state_vertex(const PriorityStateClass &state) const;
 
         // 重置 Petri 网到指定的标记状态
         void reset_petri_net(const PriorityStateClass &state);
@@ -83,4 +85,4 @@ namespace priority_scg
 
 } // namespace priority_scg
 
-#endif // PPTPN_INCLUDE_PRIORITY_STATE_GRAPH_H
+#endif

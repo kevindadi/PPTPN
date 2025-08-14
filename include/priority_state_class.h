@@ -26,7 +26,7 @@ namespace priority_scg
         explicit TimeIntervalT(T lower = T(0), T upper = std::numeric_limits<T>::max())
             : lower(lower), upper(upper) {}
 
-        // 区间 交集
+        // TODO: 交集没有考虑全局时钟,尝试把等待时间设置为单数值
         TimeIntervalT intersect(const TimeIntervalT &other) const
         {
             return TimeIntervalT(std::max(lower, other.lower), std::min(upper, other.upper));
@@ -190,7 +190,7 @@ namespace priority_scg
 
         [[nodiscard]] bool is_transition_enabled(ptpn_v_desc transition) const
         {
-            return enabled_runtimes.contains(transition) != enabled_runtimes.end();
+            return enabled_runtimes.find(transition) != enabled_runtimes.end();
         }
 
         [[nodiscard]] std::vector<ptpn_v_desc> get_enabled_transitions() const
@@ -233,7 +233,7 @@ namespace priority_scg
 
         [[nodiscard]] bool is_transition_suspended(ptpn_v_desc transition) const
         {
-            return suspended_runtimes.contains(transition);
+            return suspended_runtimes.find(transition) != suspended_runtimes.end();
         }
 
         [[nodiscard]] std::vector<ptpn_v_desc> get_suspended_transitions() const
@@ -285,7 +285,7 @@ namespace priority_scg
 
             for (const auto &[trans, _] : enabled_runtimes)
             {
-                if (suspended_runtimes.contains(trans))
+                if (suspended_runtimes.find(trans) != suspended_runtimes.end())
                 {
                     return false;
                 }
@@ -447,7 +447,8 @@ namespace priority_scg
         // Hash marking
         for (const auto &[place, tokens] : marking)
         {
-            if (tokens <= 0)
+            BOOST_ASSERT(tokens >= 0);
+            if (tokens == 0)
                 continue;
             hash_value ^= std::hash<ptpn_v_desc>()(place) ^ std::hash<int>()(tokens);
         }

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 project(PTPN)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 
 # 设置CMP0167策略为NEW
 if(POLICY CMP0167)
@@ -51,3 +51,39 @@ target_link_libraries(PTPN PRIVATE
     Boost::system
     Eigen3::Eigen
     spdlog::spdlog)
+
+# 添加测试可执行文件
+add_executable(test_petri_import test/test_petri_import.cpp
+        include/priority_time_petri_net.h
+        src/priority_time_petri_net.cpp
+        include/clap.h
+        src/clap.cpp
+        include/owner_assert.h
+        include/owner_error.h)
+target_link_libraries(test_petri_import PRIVATE
+    Boost::graph 
+    Boost::filesystem
+    Boost::system
+    spdlog::spdlog)
+
+add_executable(test_state_class test/test_state_class.cpp
+        include/priority_time_petri_net.h
+        src/priority_time_petri_net.cpp
+        include/priority_state_class.h
+        include/priority_state_graph.h
+        src/priority_state_graph.cpp
+        include/clap.h
+        src/clap.cpp
+        include/owner_assert.h
+        include/owner_error.h)
+target_link_libraries(test_state_class PRIVATE
+    Boost::graph 
+    Boost::filesystem
+    Boost::system
+    spdlog::spdlog)
+
+enable_testing()
+
+# 添加测试
+add_test(NAME TestPetriImport COMMAND test_petri_import)
+add_test(NAME TestStateClass COMMAND test_state_class)
