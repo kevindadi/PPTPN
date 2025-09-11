@@ -54,6 +54,9 @@ namespace priority_scg
         // 获取可达性树的最大深度
         [[nodiscard]] int get_max_depth() const;
 
+        // 注意：WCRT/WCET分析和死锁检测功能已重构到独立的模块中
+        // 请使用 task_analysis 命名空间中的相关类
+
     private:
         SCGVertex add_state(const PriorityStateClass &state);
         SCGEdge add_edge(SCGVertex from, SCGVertex to, ptpn_v_desc transition, const TimeInterval &interval);
@@ -77,6 +80,7 @@ namespace priority_scg
 
         // 重置 Petri 网到指定的标记状态
         void reset_petri_net(const PriorityStateClass &state);
+
 
         PriorityTPNGraph petri_net;                                  // 原始的优先级时间 Petri 网
         StateClassGraph graph;                                       // 状态类图

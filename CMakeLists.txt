@@ -1,35 +1,19 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.1)
 project(PTPN)
 
 set(CMAKE_CXX_STANDARD 17)
-
-# 设置CMP0167策略为NEW
 if(POLICY CMP0167)
   cmake_policy(SET CMP0167 NEW)
 endif()
 
+# 设置架构为当前系统架构
 if(APPLE)
-    # macOS下使用homebrew的路径
-    set(CMAKE_PREFIX_PATH "/opt/homebrew" ${CMAKE_PREFIX_PATH})
-    set(fmt_DIR "/opt/homebrew/lib/cmake/fmt")
-elseif(WIN32)
-    # Windows下使用vcpkg的路径
-    set(CMAKE_TOOLCHAIN_FILE "F:/vcpkg/scripts/buildsystems/vcpkg.cmake")
-#    set(CMAKE_PREFIX_PATH "$ENV{VCPKG_ROOT}/installed/x64-windows" ${CMAKE_PREFIX_PATH})
-else()
-    # Linux系统下的路径
-    set(fmt_DIR "/usr/lib/x86_64-linux-gnu/cmake/fmt")
+    set(CMAKE_OSX_ARCHITECTURES "arm64")
+    set(CMAKE_SYSTEM_PROCESSOR "arm64")
 endif()
 
-# 查找所需的库
-#find_package(fmt CONFIG REQUIRED)
-find_package(Boost REQUIRED COMPONENTS graph program_options filesystem system)
-find_package(Eigen3 REQUIRED)
-find_package(spdlog REQUIRED)
-
-# 包含头文件目录
+find_package(Boost REQUIRED COMPONENTS graph program_options filesystem log log_setup thread date_time)
 include_directories(${BOOST_INCLUDE_DIR})
-include_directories(${EIGEN3_INCLUDE_DIR})
 
 include_directories(include)
 
@@ -43,16 +27,28 @@ add_executable(PTPN main.cpp include/clap.h include/dag.h src/clap.cpp
         include/priority_state_graph.h
         src/priority_state_graph.cpp
         include/owner_assert.h
-        include/owner_error.h)
+        include/owner_error.h
+        include/task_analysis_manager.h
+        src/task_analysis_manager.cpp
+        include/task_analysis_types.h
+        include/deadlock_detector.h
+        src/deadlock_detector.cpp
+        include/schedulability_analyzer.h
+        src/schedulability_analyzer.cpp
+        include/semantic_wcrt_calculator.h
+        src/semantic_wcrt_calculator.cpp
+        include/wcrt_calculator.h
+        src/static_wcrt_calculator.cpp
+        src/dynamic_wcrt_calculator.cpp)
 target_link_libraries(PTPN PRIVATE
     Boost::graph 
     Boost::program_options
     Boost::filesystem
-    Boost::system
-    Eigen3::Eigen
-    spdlog::spdlog)
+    Boost::log
+    Boost::log_setup
+    Boost::thread
+    Boost::date_time)
 
-# 添加测试可执行文件
 add_executable(test_petri_import test/test_petri_import.cpp
         include/priority_time_petri_net.h
         src/priority_time_petri_net.cpp
@@ -63,8 +59,10 @@ add_executable(test_petri_import test/test_petri_import.cpp
 target_link_libraries(test_petri_import PRIVATE
     Boost::graph 
     Boost::filesystem
-    Boost::system
-    spdlog::spdlog)
+    Boost::log
+    Boost::log_setup
+    Boost::thread
+    Boost::date_time)
 
 add_executable(test_state_class test/test_state_class.cpp
         include/priority_time_petri_net.h
@@ -79,11 +77,12 @@ add_executable(test_state_class test/test_state_class.cpp
 target_link_libraries(test_state_class PRIVATE
     Boost::graph 
     Boost::filesystem
-    Boost::system
-    spdlog::spdlog)
+    Boost::log
+    Boost::log_setup
+    Boost::thread
+    Boost::date_time)
 
 enable_testing()
 
-# 添加测试
 add_test(NAME TestPetriImport COMMAND test_petri_import)
 add_test(NAME TestStateClass COMMAND test_state_class)

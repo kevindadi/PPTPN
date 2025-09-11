@@ -4,24 +4,11 @@
 #include "priority_time_petri_net.h"
 #include <boost/filesystem.hpp>
 #include <boost/property_map/property_map.hpp>
-#include <fstream>
 #include <utility>
-#include <variant>
-#include <spdlog/spdlog.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
+#include <boost/log/trivial.hpp>
 
 namespace ptpn
 {
-  static std::shared_ptr<spdlog::logger> init_petri_logger()
-  {
-    auto logger = spdlog::stdout_color_mt("petri_net");
-    logger->set_pattern("[%^%l%$] [%^PETRI NET%$] %v");
-    logger->set_level(spdlog::level::debug);
-    return logger;
-  }
-
-  static auto petri_logger = init_petri_logger();
-
   ptpn_v_desc add_place(PriorityTPNGraph &graph, const std::string &name,
                         const int token = 0, const int capacity = 1)
   {
@@ -61,7 +48,7 @@ namespace ptpn
     const boost::filesystem::path path(file_path);
     if (!boost::filesystem::exists(path))
     {
-      petri_logger->error("路径不存在!");
+      BOOST_LOG_TRIVIAL(error) << "[PTPN] 路径不存在!";
       return {};
     }
 
@@ -69,7 +56,7 @@ namespace ptpn
     std::ofstream ofs(dot_filename.string());
     if (!ofs)
     {
-      petri_logger->error("无法打开dot 文件");
+      BOOST_LOG_TRIVIAL(error) << "[PTPN] 无法打开dot 文件";
       return {};
     }
 
@@ -102,14 +89,14 @@ namespace ptpn
 
       if (!dir.empty() && !boost::filesystem::exists(dir))
       {
-        petri_logger->error("目录不存在: {}", dir.string());
+        BOOST_LOG_TRIVIAL(error) << "[PTPN] 目录不存在: " << dir.string();
         return false;
       }
 
       std::ofstream tina_file(file_path);
       if (!tina_file)
       {
-        petri_logger->error("无法打开文件: {}", file_path);
+        BOOST_LOG_TRIVIAL(error) << "[PTPN] 无法打开文件: " << file_path;
         return false;
       }
 
@@ -297,12 +284,12 @@ namespace ptpn
       }
 
       tina_file.close();
-      petri_logger->info("Petri网已导出为Tina格式: {}", file_path);
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] Petri网已导出为Tina格式: " << file_path;
       return true;
     }
     catch (const std::exception &e)
     {
-      petri_logger->error("导出Tina文件时发生错误: {}", e.what());
+      BOOST_LOG_TRIVIAL(error) << "[PTPN] 导出Tina文件时发生错误: " << e.what();
       return false;
     }
   }
@@ -316,14 +303,14 @@ namespace ptpn
 
       if (!dir.empty() && !boost::filesystem::exists(dir))
       {
-        petri_logger->error("目录不存在: {}", dir.string());
+        BOOST_LOG_TRIVIAL(error) << "[PTPN] 目录不存在: " << dir.string();
         return false;
       }
 
       std::ofstream romeo_file(file_path);
       if (!romeo_file)
       {
-        petri_logger->error("无法打开文件: {}", file_path);
+        BOOST_LOG_TRIVIAL(error) << "[PTPN] 无法打开文件: " << file_path;
         return false;
       }
 
@@ -468,12 +455,12 @@ namespace ptpn
                  << "</TPN>\n";
 
       romeo_file.close();
-      petri_logger->info("Petri网已导出为Romeo格式: {}", file_path);
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] Petri网已导出为Romeo格式: " << file_path;
       return true;
     }
     catch (const std::exception &e)
     {
-      petri_logger->error("导出Romeo文件时发生错误: {}", e.what());
+      BOOST_LOG_TRIVIAL(error) << "[PTPN] 导出Romeo文件时发生错误: " << e.what();
       return false;
     }
   }
@@ -502,7 +489,7 @@ namespace ptpn
     }
     catch (const std::exception &e)
     {
-      petri_logger->error("Failed to transform TDG to PTPN: {}", e.what());
+      BOOST_LOG_TRIVIAL(error) << "[PTPN] Failed to transform TDG to PTPN: " << e.what();
       throw;
     }
 
@@ -514,7 +501,7 @@ namespace ptpn
     BOOST_FOREACH (TDG_RAP::vertex_descriptor v, vertices(tdg.tdg))
     {
       const string &vertex_name = tdg.tdg[v].name;
-      petri_logger->debug("Processing vertex: {}", vertex_name);
+          BOOST_LOG_TRIVIAL(debug) << "[PTPN] Processing vertex: " << vertex_name;
 
       try
       {
@@ -528,11 +515,11 @@ namespace ptpn
       }
       catch (const std::exception &e)
       {
-        petri_logger->error("Failed to transform vertex {}: {}", vertex_name, e.what());
+        BOOST_LOG_TRIVIAL(error) << "[PTPN] Failed to transform vertex " << vertex_name << ": " << e.what();
         throw;
       }
     }
-    petri_logger->info("Vertex transformation completed");
+    BOOST_LOG_TRIVIAL(info) << "[PTPN] Vertex transformation completed";
   }
 
   void PriorityTPN::transform_edges(TDG &tdg)
@@ -560,7 +547,7 @@ namespace ptpn
       }
       catch (const std::exception &e)
       {
-        petri_logger->error("Failed to transform edge: {}", e.what());
+        BOOST_LOG_TRIVIAL(error) << "[PTPN] Failed to transform edge: " << e.what();
         throw;
       }
     }
@@ -614,8 +601,8 @@ namespace ptpn
     ptpn_v_desc source_node = source_it->second.second;
     ptpn_v_desc target_node = target_it->second.first;
 
-    petri_logger->debug("source_name: {}", source_name);
-    petri_logger->debug("target_name: {}", target_name);
+    BOOST_LOG_TRIVIAL(debug) << "[PTPN] source_name: " << source_name;
+    BOOST_LOG_TRIVIAL(debug) << "[PTPN] target_name: " << target_name;
 
     // 如果链接的某个节点属于Dist，Sync则直接链接
     if (source_name.substr(0, 4) == "Dist" ||
@@ -638,7 +625,7 @@ namespace ptpn
 
     add_edge(source_node, middle_trans, graph);
     add_edge(middle_trans, target_node, graph);
-    petri_logger->debug("Added edge: {} -> {}", source_node, target_node);
+    BOOST_LOG_TRIVIAL(debug) << "[PTPN] Added edge: " << source_node << " -> " << target_node;
   }
 
   void PriorityTPN::add_resources_and_bindings(TDG &tdg)
@@ -658,9 +645,9 @@ namespace ptpn
 
   void PriorityTPN::log_network_info()
   {
-    petri_logger->info("Petri net statistics:");
-    petri_logger->info("- Places + Transitions: {}", num_vertices(graph));
-    petri_logger->info("- Flows: {}", num_edges(graph));
+    BOOST_LOG_TRIVIAL(info) << "[PTPN] Petri net statistics:";
+    BOOST_LOG_TRIVIAL(info) << "[PTPN] - Places + Transitions: " << num_vertices(graph);
+    BOOST_LOG_TRIVIAL(info) << "[PTPN] - Flows: " << num_edges(graph);
   }
 
   /// 为锁资源创建库所
@@ -668,7 +655,7 @@ namespace ptpn
   {
     if (locks_name.empty())
     {
-      petri_logger->info("TDG_RAP without locks!");
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] TDG_RAP without locks!";
       return;
     }
     for (const auto &lock_name : locks_name)
@@ -677,7 +664,7 @@ namespace ptpn
       ptpn_v_desc l = add_place(graph, lock_name, 1, 1);
       locks_place.insert(make_pair(lock_name, l));
     }
-    petri_logger->info("create lock resource!");
+    BOOST_LOG_TRIVIAL(info) << "[PTPN] create lock resource!";
   }
 
   /// 为处理器资源创建库所
@@ -690,7 +677,7 @@ namespace ptpn
       ptpn_v_desc c = add_place(graph, cpu_name, cores_per_cpu, cores_per_cpu);
       cpus_place.push_back(c);
     }
-    petri_logger->info("create core resource!");
+    BOOST_LOG_TRIVIAL(info) << "[PTPN] create core resource!";
   }
 
   /// 根据任务类型绑定不同位置的 CPU
@@ -741,7 +728,7 @@ namespace ptpn
         // 检查链长度是否满足最小要求
         if (task_pt_chain.size() < MIN_CHAIN_LENGTH)
         {
-          petri_logger->debug("Skip chain for {}: too short for locks", task_name);
+          BOOST_LOG_TRIVIAL(debug) << "[PTPN] Skip chain for " << task_name << ": too short for locks";
           continue;
         }
 
@@ -749,11 +736,11 @@ namespace ptpn
         auto task_locks_it = task_locks.find(task_name);
         if (task_locks_it == task_locks.end())
         {
-          petri_logger->warn("No locks found for task: {}", task_name);
+          BOOST_LOG_TRIVIAL(warning) << "[PTPN] No locks found for task: " << task_name;
           continue;
         }
         size_t lock_nums = task_locks_it->second.size();
-        petri_logger->debug("chains size for task : {} is: {}", task_name, task_pt_chain.size());
+        BOOST_LOG_TRIVIAL(debug) << "[PTPN] chains size for task : " << task_name << " is: " << task_pt_chain.size();
         // 为每个锁添加获取和释放边
         for (size_t i = 0; i < lock_nums; i++)
         {
@@ -779,11 +766,11 @@ namespace ptpn
             add_edge(lock, get_lock, graph);
             add_edge(drop_lock, lock, graph);
 
-            petri_logger->debug("Bound lock {} to task {}", lock_type, task_name);
+            BOOST_LOG_TRIVIAL(debug) << "[PTPN] Bound lock " << lock_type << " to task " << task_name;
           }
           catch (const std::exception &e)
           {
-            petri_logger->error("Failed to bind lock {} for task {}: {}", i, task_name, e.what());
+            BOOST_LOG_TRIVIAL(error) << "[PTPN] Failed to bind lock " << i << " for task " << task_name << ": " << e.what();
             throw;
           }
         }
@@ -817,12 +804,12 @@ namespace ptpn
       }
       catch (const std::exception &e)
       {
-        petri_logger->error("Failed to process task: {}", e.what());
+        BOOST_LOG_TRIVIAL(error) << "[PTPN] Failed to process task: " << e.what();
         throw;
       }
     }
 
-    petri_logger->info("Completed lock resource binding for all tasks");
+    BOOST_LOG_TRIVIAL(info) << "[PTPN] Completed lock resource binding for all tasks";
   }
 
   /// 映射规则主函数,包含不同类型,便于之后扩展
@@ -835,8 +822,8 @@ namespace ptpn
       PeriodicTask p_task = get<PeriodicTask>(node_type);
       auto result = add_p_node_ptpn(p_task);
       node_start_end_map.insert(make_pair(p_task.name, result));
-      petri_logger->info("{}'s petri net start node: {}", p_task.name, result.first);
-      petri_logger->info("{}'s petri net end node: {}", p_task.name, result.second);
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] " << p_task.name << "'s petri net start node: " << result.first;
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] " << p_task.name << "'s petri net end node: " << result.second;
       return result;
     }
     else if (holds_alternative<APeriodicTask>(node_type))
@@ -844,8 +831,8 @@ namespace ptpn
       APeriodicTask ap_task = get<APeriodicTask>(node_type);
       auto result = add_ap_node_ptpn(ap_task);
       node_start_end_map.insert(make_pair(ap_task.name, result));
-      petri_logger->info("{}'s petri net start node: {}", ap_task.name, result.first);
-      petri_logger->info("{}'s petri net end node: {}", ap_task.name, result.second);
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] " << ap_task.name << "'s petri net start node: " << result.first;
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] " << ap_task.name << "'s petri net end node: " << result.second;
       return result;
     }
     else if (holds_alternative<SyncTask>(node_type))
@@ -857,7 +844,7 @@ namespace ptpn
 
       node_index += 1;
       node_start_end_map.insert(make_pair(t_name, make_pair(result, result)));
-      petri_logger->info("{}: type: SYNC", t_name);
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] " << t_name << ": type: SYNC";
       return std::make_pair(result, result);
     }
     else if (holds_alternative<DistTask>(node_type))
@@ -868,7 +855,7 @@ namespace ptpn
                                           255, 255, make_pair(0, 0));
       node_index += 1;
       node_start_end_map.insert(make_pair(t_name, make_pair(result, result)));
-      petri_logger->info("{}: type: DIST", t_name);
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] " << t_name << ": type: DIST";
       return std::make_pair(result, result);
     }
     else
@@ -879,7 +866,7 @@ namespace ptpn
           add_place(graph, "Empty" + to_string(node_index), 0, 1);
       node_index += 1;
       node_start_end_map.insert(make_pair(t_name, make_pair(result, result)));
-      petri_logger->info("{}: type: EMPTY", t_name);
+            BOOST_LOG_TRIVIAL(info) << "[PTPN] " << t_name << ": type: EMPTY";
       return std::make_pair(result, result);
     }
   }
@@ -1126,7 +1113,7 @@ namespace ptpn
         // 检查链长度是否满足最小要求
         if (l_t_pn.size() < MIN_CHAIN_LENGTH)
         {
-          petri_logger->debug("Skip chain for {}: too short for locks", l_t_name);
+          BOOST_LOG_TRIVIAL(debug) << "[PTPN] Skip chain for " << l_t_name << ": too short for locks";
           return;
         }
         for (size_t i = 0; i < l_tc.locks.size(); i++)
@@ -1156,7 +1143,7 @@ namespace ptpn
     // 主循环
     for (const auto &[core_id, tasks] : core_task)
     {
-      petri_logger->debug("Processing core: {}", core_id);
+      BOOST_LOG_TRIVIAL(debug) << "[PTPN] Processing core: " << core_id;
 
       for (auto l_t = tasks.begin(); l_t != tasks.end() - 1; l_t++)
       {
@@ -1193,7 +1180,7 @@ namespace ptpn
                                    is_interrupt);
           }
 
-          petri_logger->debug("Priority {} : {} {}", l_t_name, l_tc.priority, h_t_name);
+            BOOST_LOG_TRIVIAL(debug) << "[PTPN] Priority " << l_t_name << " : " << l_tc.priority << " " << h_t_name;
         }
       }
     }
@@ -1347,7 +1334,7 @@ namespace ptpn
     }
     else
     {
-      petri_logger->error("unreachable!");
+      BOOST_LOG_TRIVIAL(error) << "[PTPN] unreachable!";
       return;
     }
 
@@ -1409,7 +1396,7 @@ namespace ptpn
           if (graph[pre].shape != "circle")
           {
             all_inputs_are_places = false;
-            petri_logger->error("变迁 {} 的前置节点 {} 不是库所", vertex.name, graph[pre].name);
+            BOOST_LOG_TRIVIAL(error) << "[PTPN] 变迁 " << vertex.name << " 的前置节点 " << graph[pre].name << " 不是库所";
           }
         }
 
@@ -1421,14 +1408,14 @@ namespace ptpn
           if (graph[suc].shape != "circle")
           {
             all_outputs_are_places = false;
-            petri_logger->error("变迁 {} 的后继节点 {} 不是库所", vertex.name, graph[suc].name);
+            BOOST_LOG_TRIVIAL(error) << "[PTPN] 变迁 " << vertex.name << " 的后继节点 " << graph[suc].name << " 不是库所";
           }
         }
 
         if (!has_input || !has_output)
         {
           is_valid = false;
-          petri_logger->error("变迁 {} 的前置或后继节点为空", vertex.name);
+          BOOST_LOG_TRIVIAL(error) << "[PTPN] 变迁 " << vertex.name << " 的前置或后继节点为空";
         }
 
         if (!all_inputs_are_places || !all_outputs_are_places)
@@ -1444,7 +1431,7 @@ namespace ptpn
               transition.const_time.second < transition.const_time.first)
           {
             is_valid = false;
-            petri_logger->error("变迁 {} 的时间约束无效: [{}, {}]", vertex.name, transition.const_time.first, transition.const_time.second);
+            BOOST_LOG_TRIVIAL(error) << "[PTPN] 变迁 " << vertex.name << " 的时间约束无效: [" << transition.const_time.first << ", " << transition.const_time.second << "]";
           }
         }
       }
@@ -1462,7 +1449,7 @@ namespace ptpn
           if (graph[pre].shape != "box")
           {
             all_inputs_are_transitions = false;
-            petri_logger->error("库所 {} 的前置节点 {} 不是变迁", vertex.name, graph[pre].name);
+            BOOST_LOG_TRIVIAL(error) << "[PTPN] 库所 " << vertex.name << " 的前置节点 " << graph[pre].name << " 不是变迁";
           }
         }
 
@@ -1473,7 +1460,7 @@ namespace ptpn
           if (graph[suc].shape != "box")
           {
             all_outputs_are_transitions = false;
-            petri_logger->error("库所 {} 的后继节点 {} 不是变迁", vertex.name, graph[suc].name);
+            BOOST_LOG_TRIVIAL(error) << "[PTPN] 库所 " << vertex.name << " 的后继节点 " << graph[suc].name << " 不是变迁";
           }
         }
 
@@ -1486,18 +1473,18 @@ namespace ptpn
         if (place.token < 0 || place.token > 1)
         {
           is_valid = false;
-          petri_logger->error("库所 {} 的token数量无效: {}", vertex.name, place.token);
+          BOOST_LOG_TRIVIAL(error) << "[PTPN] 库所 " << vertex.name << " 的token数量无效: " << place.token;
         }
       }
     }
 
     if (is_valid)
     {
-      petri_logger->info("Petri网结构验证通过");
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] Petri网结构验证通过";
     }
     else
     {
-      petri_logger->error("Petri网结构验证失败");
+      BOOST_LOG_TRIVIAL(error) << "[PTPN] Petri网结构验证失败";
     }
 
     return is_valid;
@@ -1507,13 +1494,13 @@ namespace ptpn
   {
     try
     {
-      petri_logger->info("开始从DOT文件导入Petri网: {}", file_path);
+          BOOST_LOG_TRIVIAL(info) << "[PTPN] 开始从DOT文件导入Petri网: " << file_path;
       graph.clear();
 
       std::ifstream dot_file(file_path);
       if (!dot_file)
       {
-        petri_logger->error("无法打开DOT文件: {}", file_path);
+        BOOST_LOG_TRIVIAL(error) << "[PTPN] 无法打开DOT文件: " << file_path;
         return;
       }
 
@@ -1527,7 +1514,7 @@ namespace ptpn
       // 读取DOT文件到临时图
       if (!boost::read_graphviz(dot_file, dot_graph, dp))
       {
-        petri_logger->error("无法解析DOT文件: {}", file_path);
+        BOOST_LOG_TRIVIAL(error) << "[PTPN] 无法解析DOT文件: " << file_path;
         return;
       }
 
@@ -1603,7 +1590,7 @@ namespace ptpn
           }
 
           vertex = add_place(graph, node_name, token, capacity);
-          petri_logger->debug("添加库所: {} (token={}, capacity={})", node_name, token, capacity);
+            BOOST_LOG_TRIVIAL(debug) << "[PTPN] 添加库所: " << node_name << " (token=" << token << ", capacity=" << capacity << ")";
         }
         else if (is_transition)
         {
@@ -1669,12 +1656,12 @@ namespace ptpn
           }
 
           vertex = add_transition(graph, node_name, priority, core, const_time, is_handle, runtimes);
-          petri_logger->debug("添加变迁: {} (priority={}, core={}, time=[{},{}])",
-                              node_name, priority, core, const_time.first, const_time.second);
+          BOOST_LOG_TRIVIAL(debug) << "[PTPN] 添加变迁: " << node_name << " (priority=" << priority << ", core=" << core << ", time=[" << const_time.first << "," << const_time.second << "])";
+                         
         }
         else
         {
-          petri_logger->warn("无法确定节点类型: {}", node_name);
+          BOOST_LOG_TRIVIAL(warning) << "[PTPN] 无法确定节点类型: " << node_name;
           continue;
         }
 
@@ -1713,20 +1700,20 @@ namespace ptpn
           graph[edge].weight = weight;
           graph[edge].label = edge_label;
 
-          petri_logger->debug("添加边: {} -> {} (weight={})", source_name, target_name, weight);
+          BOOST_LOG_TRIVIAL(debug) << "[PTPN] 添加边: " << source_name << " -> " << target_name << " (weight=" << weight << ")";
         }
         else
         {
-          petri_logger->warn("边的端点不存在: {} -> {}", source_name, target_name);
+          BOOST_LOG_TRIVIAL(warning) << "[PTPN] 边的端点不存在: " << source_name << " -> " << target_name;
         }
       }
 
-      petri_logger->info("成功从DOT文件导入Petri网,共 {} 个节点,{} 条边",
-                         boost::num_vertices(graph), boost::num_edges(graph));
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] 成功从DOT文件导入Petri网,共 " << boost::num_vertices(graph) << " 个节点," << boost::num_edges(graph) << " 条边";
+                    
     }
     catch (const std::exception &e)
     {
-      petri_logger->error("导入DOT文件时发生错误: {}", e.what());
+      BOOST_LOG_TRIVIAL(error) << "[PTPN] 导入DOT文件时发生错误: " << e.what();
     }
   }
 

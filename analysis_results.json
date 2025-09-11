@@ -1,0 +1,20 @@
+{
+  "analysis_config": {
+    "enable_wcrt_analysis": true,
+    "enable_wcet_analysis": true,
+    "enable_schedulability_check": true,
+    "enable_deadlock_detection": true,
+    "deadline": -1,
+    "max_analysis_depth": 100
+  },
+  "statistics": {
+    "total_tasks": 0,
+    "schedulable_tasks": 0,
+    "deadlock_tasks": 0,
+    "max_wcrt": 0,
+    "max_wcet": 0,
+    "analysis_time_ms": 1.00,
+    "schedulability_ratio": 0.0000,
+    "is_overall_schedulable": true
+  }
+}

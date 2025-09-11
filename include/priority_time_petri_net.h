@@ -1,8 +1,8 @@
 #ifndef PPTPN_INCLUDE_PRIORITY_TIME_PETRI_NET_H
 #define PPTPN_INCLUDE_PRIORITY_TIME_PETRI_NET_H
 
-#include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>
+#include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_utility.hpp>
 #include <boost/graph/graphviz.hpp>
 #include <variant>
