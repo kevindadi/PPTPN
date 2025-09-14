@@ -1,14 +1,13 @@
 #ifndef CLAP
 #define CLAP
 
-#include "dag.h"
-// #include "owner_error.h"
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>
-#include <boost/graph/graph_utility.hpp>
 #include <boost/graph/graphviz.hpp>
 #include <set>
 #include <vector>
+
+#include "dag.h"
 
 using namespace boost;
 

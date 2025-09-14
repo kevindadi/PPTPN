@@ -1,5 +1,6 @@
 #ifndef DAG_CONFIG
 #define DAG_CONFIG
+
 #include <string>
 #include <unordered_map>
 #include <variant>

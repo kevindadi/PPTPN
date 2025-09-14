@@ -95,23 +95,9 @@ namespace ptpn
   };
 
   typedef adjacency_list<vecS, vecS, bidirectionalS,
-                         Vertex, Edge, TDG_RAP_P>
+                         Vertex, Edge, boost::no_property>
       PriorityTPNGraph;
   typedef graph_traits<PriorityTPNGraph>::vertex_descriptor ptpn_v_desc;
-
-  // void process_vertex(const Vertex &v) {
-  //   std::visit(
-  //       [](auto &&arg) {
-  //         using T = std::decay_t<decltype(arg)>;
-  //         if constexpr (std::is_same_v<T, Place>) {
-  //           std::cout << "Place with token: " << arg.token << std::endl;
-  //         } else if constexpr (std::is_same_v<T, Transition>) {
-  //           std::cout << "Transition with priority: " << arg.priority
-  //                     << std::endl;
-  //         }
-  //       },
-  //       v.node);
-  // }
 
   // 任务节点名称生成器
   struct TaskVertexsNames
@@ -158,7 +144,8 @@ namespace ptpn
 
     // 从 dot,json格式导入 Petri 网
     void import_ptpn_from_dot(const std::string &file_path);
-    void import_ptpn_from_json(const std::string &file_path);
+
+    static void import_ptpn_from_json(const std::string &file_path);
 
     // 导出为Tina .net格式
     bool export_to_tina(const std::string &file_path);
@@ -210,7 +197,7 @@ namespace ptpn
     void handle_self_loop_edge(TDG &tdg, TDG_RAP::edge_descriptor e,
                                const string &source_name);
 
-    void handle_dashed_edge(const string &source_name, const string &target_name);
+    static void handle_dashed_edge(const string &source_name, const string &target_name);
     void handle_normal_edge(const string &source_name, const string &target_name);
 
     ptpn_v_desc handle_locks(const TaskVertexsNames &names,
@@ -219,7 +206,7 @@ namespace ptpn
                              const vector<pair<int, int>> &times, int priority,
                              int core);
     void add_resources_and_bindings(TDG &tdg);
-    void log_network_info();
+    void log_network_info() const;
     // 创建处理器资源库所
     void add_cpu_resource(int cpus, int cores_per_cpu);
     // 创建锁资源库所
@@ -227,7 +214,7 @@ namespace ptpn
     // 任务绑定CPU资源
     void task_bind_cpu_resource(const vector<NodeType> &all_task);
     // 任务绑定锁资源
-    void task_bind_lock_resource(vector<NodeType> &all_task,
+    void task_bind_lock_resource(const vector<NodeType> &all_task,
                                  std::map<string, vector<string>> &task_locks);
   };
 

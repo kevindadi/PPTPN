@@ -323,6 +323,39 @@ namespace priority_scg
             return ss.str();
         }
 
+        // 规范化状态类（移除无效区间，清理空标记）
+        void normalize()
+        {
+            // 清理标记中token为0的库所
+            for (auto it = marking.begin(); it != marking.end();) {
+                if (it->second <= 0) {
+                    it = marking.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+
+            // 规范化使能变迁的时间区间
+            for (auto it = enabled_runtimes.begin(); it != enabled_runtimes.end();) {
+                it->second = it->second.normalize();
+                if (!it->second.is_valid()) {
+                    it = enabled_runtimes.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+
+            // 规范化挂起变迁的时间区间
+            for (auto it = suspended_runtimes.begin(); it != suspended_runtimes.end();) {
+                it->second = it->second.normalize();
+                if (!it->second.is_valid()) {
+                    it = suspended_runtimes.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+
     private:
         Marking marking;                                         // 标记
         std::map<ptpn_v_desc, interval_type> enabled_runtimes;   // 使能变迁的运行时间
@@ -335,49 +368,40 @@ namespace priority_scg
     template <typename T>
     bool PriorityStateClassT<T>::operator==(const PriorityStateClassT &other) const
     {
-        if (marking.size() != other.marking.size())
-        {
+        // 1. 比较标记
+        if (marking.size() != other.marking.size()) {
             return false;
         }
 
-        for (const auto &[fst, snd] : marking)
-        {
-            if (snd <= 0)
-            {
-                continue;
-            }
+        for (const auto &[place, tokens] : marking) {
+            if (tokens <= 0) continue;
 
-            auto it = other.marking.find(fst);
-            if (it == other.marking.end() || it->second != snd)
-            {
+            auto it = other.marking.find(place);
+            if (it == other.marking.end() || it->second != tokens) {
                 return false;
             }
         }
 
-        if (enabled_runtimes.size() != other.enabled_runtimes.size())
-        {
+        // 2. 比较使能变迁运行时间
+        if (enabled_runtimes.size() != other.enabled_runtimes.size()) {
             return false;
         }
 
-        for (const auto &[t, runtime] : enabled_runtimes)
-        {
+        for (const auto &[t, runtime] : enabled_runtimes) {
             auto it = other.enabled_runtimes.find(t);
-            if (it == other.enabled_runtimes.end() || it->second != runtime)
-            {
+            if (it == other.enabled_runtimes.end() || !runtime.equals(it->second)) {
                 return false;
             }
         }
 
-        if (suspended_runtimes.size() != other.suspended_runtimes.size())
-        {
+        // 3. 比较挂起变迁运行时间
+        if (suspended_runtimes.size() != other.suspended_runtimes.size()) {
             return false;
         }
 
-        for (const auto &[t, runtime] : suspended_runtimes)
-        {
+        for (const auto &[t, runtime] : suspended_runtimes) {
             auto it = other.suspended_runtimes.find(t);
-            if (it == other.suspended_runtimes.end() || it->second != runtime)
-            {
+            if (it == other.suspended_runtimes.end() || !runtime.equals(it->second)) {
                 return false;
             }
         }

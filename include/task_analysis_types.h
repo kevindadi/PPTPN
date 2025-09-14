@@ -212,7 +212,7 @@ struct AnalysisConfig {
      * @brief 检查是否应该进行可调度性检查
      * @return 是否应该进行可调度性检查
      */
-    bool should_check_schedulability() const {
+    [[nodiscard]] bool should_check_schedulability() const {
         return enable_schedulability_check && deadline > 0;
     }
 };

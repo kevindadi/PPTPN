@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.10)
 project(PTPN)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -12,8 +12,17 @@ if(APPLE)
     set(CMAKE_SYSTEM_PROCESSOR "arm64")
 endif()
 
+set(BOOST_ROOT "/opt/homebrew/opt/boost")
+set(BOOST_DIR "/opt/homebrew/opt/boost")
+set(Boost_NO_SYSTEM_PATHS ON)
+set(BOOST_INCLUDEDIR "/opt/homebrew/opt/boost/include")
+set(BOOST_LIBRARYDIR "/opt/homebrew/opt/boost/lib")
+
 find_package(Boost REQUIRED COMPONENTS graph program_options filesystem log log_setup thread date_time)
-include_directories(${BOOST_INCLUDE_DIR})
+include_directories(${Boost_INCLUDE_DIRS})
+message(STATUS "Boost include dir: ${Boost_INCLUDE_DIRS}")
+message(STATUS "Boost library dir: ${Boost_LIBRARY_DIRS}")
+message(STATUS "Boost libraries: ${Boost_LIBRARIES}")
 
 include_directories(include)
 
@@ -26,8 +35,6 @@ add_executable(PTPN main.cpp include/clap.h include/dag.h src/clap.cpp
         include/priority_state_class.h
         include/priority_state_graph.h
         src/priority_state_graph.cpp
-        include/owner_assert.h
-        include/owner_error.h
         include/task_analysis_manager.h
         src/task_analysis_manager.cpp
         include/task_analysis_types.h
@@ -54,8 +61,7 @@ add_executable(test_petri_import test/test_petri_import.cpp
         src/priority_time_petri_net.cpp
         include/clap.h
         src/clap.cpp
-        include/owner_assert.h
-        include/owner_error.h)
+)
 target_link_libraries(test_petri_import PRIVATE
     Boost::graph 
     Boost::filesystem
@@ -72,8 +78,7 @@ add_executable(test_state_class test/test_state_class.cpp
         src/priority_state_graph.cpp
         include/clap.h
         src/clap.cpp
-        include/owner_assert.h
-        include/owner_error.h)
+)
 target_link_libraries(test_state_class PRIVATE
     Boost::graph 
     Boost::filesystem
