@@ -9,7 +9,7 @@
 struct LabelParseException : virtual boost::exception, virtual std::exception
 {
   std::string label;
-  LabelParseException() : label("") {} // 添加默认构造函数
+  LabelParseException() = default;
   explicit LabelParseException(std::string msg) : label(std::move(msg)) {}
 
   const char *what() const noexcept override { return label.c_str(); }
@@ -18,10 +18,9 @@ struct LabelParseException : virtual boost::exception, virtual std::exception
 struct TimeValueException : virtual LabelParseException
 {
   std::string time_values;
-  TimeValueException()
-      : LabelParseException(), time_values("") {} // 添加默认构造函数
-  explicit TimeValueException(const string &Msg, const std::string &msg)
-      : LabelParseException(Msg), time_values(msg) {}
+  TimeValueException() =  default;
+  explicit TimeValueException(const string &Msg, std::string msg)
+      : LabelParseException(Msg), time_values(std::move(msg)) {}
 
   const char *what() const noexcept override { return time_values.c_str(); }
 };
@@ -39,10 +38,10 @@ void TDG::parse_tdg()
   tdg_dp.property("xlabel", get(&DAGEdge::label, tdg));
   tdg_dp.property("style", get(&DAGEdge::style, tdg));
 
-  std::ifstream tdg_stream(tdg_file);
-  typename boost::property_map<TDG_RAP, boost::vertex_index_t>::type index =
-      get(boost::vertex_index, tdg);
-  if (read_graphviz(tdg_stream, tdg, tdg_dp))
+  // typename boost::property_map<TDG_RAP, boost::vertex_index_t>::type index =
+  //     get(boost::vertex_index, tdg);
+  if (std::ifstream tdg_stream(tdg_file);
+      read_graphviz(tdg_stream, tdg, tdg_dp))
   {
     BOOST_LOG_TRIVIAL(info) << "[TDG] Graph Name: " << get_property(tdg, boost::graph_name);
     // 遍历节点，确定节点类型
@@ -73,7 +72,7 @@ void TDG::parse_tdg()
       }
       if (holds_alternative<PeriodicTask>(node_type))
       {
-        PeriodicTask p_task = get<PeriodicTask>(node_type);
+        auto p_task = get<PeriodicTask>(node_type);
         string t_name = p_task.name;
         all_task.emplace_back(p_task);
         tasks_priority.insert(make_pair(t_name, p_task.priority));
@@ -83,7 +82,7 @@ void TDG::parse_tdg()
       }
       else if (holds_alternative<APeriodicTask>(node_type))
       {
-        APeriodicTask ap_task = get<APeriodicTask>(node_type);
+        auto ap_task = get<APeriodicTask>(node_type);
         string t_name = ap_task.name;
 
         all_task.emplace_back(ap_task);
@@ -94,7 +93,7 @@ void TDG::parse_tdg()
       }
       else if (holds_alternative<SyncTask>(node_type))
       {
-        SyncTask s_task = get<SyncTask>(node_type);
+        auto s_task = get<SyncTask>(node_type);
         string t_name = s_task.name;
         nodes_type.insert(make_pair(t_name, s_task));
         vertexes_type.insert(make_pair(t_name, TDGVertexType::SYNC));
@@ -102,7 +101,7 @@ void TDG::parse_tdg()
       }
       else if (holds_alternative<DistTask>(node_type))
       {
-        DistTask d_task = get<DistTask>(node_type);
+        auto d_task = get<DistTask>(node_type);
         string t_name = d_task.name;
 
         //              BOOST_STATIC_ASSERT_MSG(res > 0, "ID must be equal
@@ -113,16 +112,12 @@ void TDG::parse_tdg()
       }
       else
       {
-        EmptyTask e_task = get<EmptyTask>(node_type);
+        auto e_task = get<EmptyTask>(node_type);
         string t_name = e_task.name;
         nodes_type.insert(make_pair(t_name, e_task));
         vertexes_type.insert(make_pair(t_name, TDGVertexType::EMPTY));
         BOOST_LOG_TRIVIAL(info) << "[TDG] " << t_name << ": type: EMPTY";
       }
-      //            if (label.find("Wait") == std::string::npos) {
-      //              dag_task_name.push_back(label);
-      //            }
-      //            task_index.insert(std::make_pair(index[v], id));
     }
     // 遍历边，找到自环或回环，确定周期任务
     BOOST_FOREACH (TDG_RAP::edge_descriptor e, edges(tdg))
@@ -150,8 +145,7 @@ NodeType TDG::parse_vertex_label(const string &label)
   BOOST_LOG_TRIVIAL(info) << "[TDG] Parsing label: " << label;
   NodeType node_type;
   regex rgx("\\{(.*?)\\}");
-  smatch matches;
-  if (regex_search(label, matches, rgx))
+  if (smatch matches; regex_search(label, matches, rgx))
   {
     string content = matches[1].str();
     if (content.empty())
@@ -205,7 +199,7 @@ NodeType TDG::parse_vertex_label(const string &label)
     }
     catch (const TimeValueException &e)
     {
-      has_period = false;
+      BOOST_LOG_TRIVIAL(error) << "[TDG] parse period failed: " << e.what();
     }
 
     if (has_period)
@@ -213,8 +207,8 @@ NodeType TDG::parse_vertex_label(const string &label)
       // 处理周期性任务
       pair<int, int> task_period_time =
           make_pair(period_times[0], period_times[1]);
-      int task_priority = stoi(parts[2]);
-      int task_core = stoi(parts[3]);
+      // int task_priority = stoi(parts[2]);
+      // int task_core = stoi(parts[3]);
       vector<pair<int, int>> task_times;
       vector<int> time_values = parse_time_vec(parts[4]);
 
@@ -228,7 +222,7 @@ NodeType TDG::parse_vertex_label(const string &label)
       if (parts.size() >= 6)
       {
         is_lock = true;
-        string locks_name = parts[5];
+        const string& locks_name = parts[5];
         istringstream lock_stream(locks_name);
         string lock_token;
         while (getline(lock_stream, lock_token, ','))
@@ -257,7 +251,7 @@ NodeType TDG::parse_vertex_label(const string &label)
       }
 
       tasks_type.insert(make_pair(name, task_type));
-      return PeriodicTask{name, task_core, task_priority, task_times,
+      return PeriodicTask{name, stoi(parts[3]), stoi(parts[2]), task_times,
                           is_lock, task_locks, task_type, task_period_time};
     }
     else
@@ -269,8 +263,8 @@ NodeType TDG::parse_vertex_label(const string &label)
             "Insufficient parameters for aperiodic task: " + name));
       }
 
-      int task_priority = stoi(parts[1]);
-      int task_core = stoi(parts[2]);
+      // int task_priority = stoi(parts[1]);
+      // int task_core = stoi(parts[2]);
       vector<pair<int, int>> task_times;
       vector<int> time_values = parse_time_vec(parts[3]);
 
@@ -284,7 +278,7 @@ NodeType TDG::parse_vertex_label(const string &label)
       if (parts.size() >= 5)
       {
         is_lock = true;
-        string locks_name = parts[4];
+        const string& locks_name = parts[4];
         istringstream lock_stream(locks_name);
         string lock_token;
         while (getline(lock_stream, lock_token, ','))
@@ -303,28 +297,28 @@ NodeType TDG::parse_vertex_label(const string &label)
       }
 
       tasks_type.insert(make_pair(name, TaskType::NORMAL));
-      return APeriodicTask{name, task_core, task_priority,
+      return APeriodicTask{name, stoi(parts[2]), stoi(parts[1]),
                            task_times, is_lock, task_locks};
     }
   }
   BOOST_THROW_EXCEPTION(LabelParseException("Invalid label format: " + label));
 }
 
-vector<int> TDG::parse_time_vec(string times_string)
+vector<int> TDG::parse_time_vec(string times)
 {
-  if (times_string.empty())
+  if (times.empty())
   {
     BOOST_THROW_EXCEPTION(
         TimeValueException("Empty time string", "Time string cannot be empty"));
   }
   std::vector<int> values;
-  std::regex rgx(R"(\[(\d+),(\d+)\])");
-  std::smatch matches;
+  const std::regex rgx(R"(\[(\d+),(\d+)\])");
 
   try
   {
-    std::string::const_iterator start = times_string.begin();
-    std::string::const_iterator end = times_string.end();
+    std::smatch matches;
+    std::string::const_iterator start = times.begin();
+    std::string::const_iterator end = times.end();
 
     bool found_match = false;
     while (std::regex_search(start, end, matches, rgx))
@@ -348,12 +342,12 @@ vector<int> TDG::parse_time_vec(string times_string)
       {
         BOOST_THROW_EXCEPTION(TimeValueException(
             "Invalid number format",
-            "Failed to convert string to integer in: " + times_string));
+            "Failed to convert string to integer in: " + times));
       }
       catch (const std::out_of_range &)
       {
         BOOST_THROW_EXCEPTION(TimeValueException(
-            "Number out of range", "Number too large in: " + times_string));
+            "Number out of range", "Number too large in: " + times));
       }
 
       // 验证时间值的合理性
@@ -380,7 +374,7 @@ vector<int> TDG::parse_time_vec(string times_string)
       BOOST_THROW_EXCEPTION(TimeValueException(
           "No valid time ranges found",
           "Input string does not contain any valid time ranges: " +
-              times_string));
+              times));
     }
 
     // 检查结果向量的合理性
@@ -427,23 +421,25 @@ std::unordered_map<int, vector<string>> TDG::classify_priority()
     }
   }
   // 根据任务优先级排序
-  for (auto &tasks : core_task)
+  for (auto &[fst, snd] : core_task)
   {
-    std::sort(tasks.second.begin(), tasks.second.end(),
+    std::sort(snd.begin(), snd.end(),
               [&](const string &t1, const string &t2)
               {
                 return tasks_priority[t1] < tasks_priority[t2];
               });
   }
 
-  for (auto it = core_task.begin(); it != core_task.end(); ++it)
+  for (auto &[fst, snd] : core_task)
   {
-    BOOST_LOG_TRIVIAL(info) << "[TDG] Core: " << it->first;
-    for (auto task : it->second)
+    std::stringstream ss;
+    ss << "[TDG] Core: " << fst << " [ ";
+    for (const auto& task : snd)
     {
-      std::cout << task << " < ";
+      ss << task << " < ";
     }
-    std::cout << std::endl;
+    ss << " ]";
+    BOOST_LOG_TRIVIAL(info) << ss.str();
   }
 
   return core_task;

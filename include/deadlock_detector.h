@@ -153,9 +153,7 @@ private:
 };
 
 /**
- * @brief 死锁检测器工厂类
- * 
- * 使用工厂模式创建不同类型的死锁检测器
+ * @brief
  */
 class DeadlockDetectorFactory {
 public:

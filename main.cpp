@@ -23,6 +23,7 @@
 #include <boost/log/core.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/utility/setup/console.hpp>
+#include <boost/log/utility/setup/file.hpp>
 #include <boost/log/utility/setup/common_attributes.hpp>
 
 using namespace std;
@@ -37,10 +38,10 @@ size_t get_memory_usage() {
   }
   return 0;
 #elif defined(__APPLE__)
-  task_t task = mach_task_self();
-  struct task_basic_info t_info;
+  const task_t task = mach_task_self();
+  struct task_basic_info t_info{};
   mach_msg_type_number_t t_info_count = TASK_BASIC_INFO_COUNT;
-  if (task_info(task, TASK_BASIC_INFO, (task_info_t)&t_info, &t_info_count) ==
+  if (task_info(task, TASK_BASIC_INFO, reinterpret_cast<task_info_t>(&t_info), &t_info_count) ==
       KERN_SUCCESS) {
     return t_info.resident_size / 1024 / 1024;
   }
@@ -63,10 +64,9 @@ void print_usage(const po::options_description &desc) {
   std::cout << desc << std::endl;
   std::cout << "示例:" << std::endl;
   std::cout
-      << "  ./PPTPN --cpus 2 --cores 4 --file my_task.dot --scg_type priority"
+      << "  ./PPTPN --cpus 2 --cores 4 --file my_task.dot "
       << std::endl;
-  std::cout << "  ./PPTPN --cpus 1 --cores 2 --file simple.dot --scg_type "
-               "differential --deadline 100"
+  std::cout << "  ./PPTPN --cpus 1 --cores 2 --file simple.dot --deadline 100"
             << std::endl;
   std::cout
       << "  ./PPTPN --cpus 2 --cores 4 --file my_task.dot --tina my_petri.net"
@@ -77,11 +77,14 @@ void print_usage(const po::options_description &desc) {
 }
 
 int main(int argc, char *argv[]) {
-  // 初始化 Boost.Log：控制台输出与日志级别
-  boost::log::add_console_log(std::clog);
-  boost::log::add_common_attributes();
+  // boost::log::add_file_log(
+  //       boost::log::keywords::file_name = "logs/sample_%N.log",   // 日志文件名，自动编号
+  //       boost::log::keywords::rotation_size = 10 * 1024 * 1024,   // 10MB 分卷
+  //       boost::log::keywords::format = "[%TimeStamp%] [%Severity%] %Message%"
+  //   );;
+  // boost::log::add_common_attributes();
   boost::log::core::get()->set_filter(
-      boost::log::trivial::severity >= boost::log::trivial::info);
+      boost::log::trivial::severity >= boost::log::trivial::debug);
   int deadline;
   int num_cpus;
   int cores_per_cpu;
@@ -98,8 +101,6 @@ int main(int argc, char *argv[]) {
       "设置截止时间进行检查")(
       "file", po::value<std::string>(&file_path)->default_value("dag.dot"),
       "指定Petri网的dot文件路径")(
-      "scg_type", po::value<std::string>(&scg_type)->default_value("original"),
-      "状态类图算法类型:priority或 differential")(
       "cpus", po::value<int>(&num_cpus)->required(), "CPU数量")(
       "cores", po::value<int>(&cores_per_cpu)->required(), "每个CPU的核心数")(
       "max_states", po::value<size_t>(&max_states),
@@ -126,42 +127,54 @@ int main(int argc, char *argv[]) {
 
   // 解析TDG并生成Petri网
   auto tdg_start = std::chrono::high_resolution_clock::now();
+  BOOST_LOG_TRIVIAL(info) << "Starting TDG parsing for file: " << file_path;
   TDG tdg_rap(file_path, num_cpus, cores_per_cpu);
+  BOOST_LOG_TRIVIAL(info) << "TDG object created successfully";
+
   tdg_rap.parse_tdg();
+  BOOST_LOG_TRIVIAL(info) << "TDG parsing completed";
+
   tdg_rap.classify_priority();
+  BOOST_LOG_TRIVIAL(info) << "Priority classification completed";
+
   ptpn::PriorityTPN ptpn;
+  BOOST_LOG_TRIVIAL(info) << "PriorityTPN object created";
+
   ptpn.transform_tdg_to_ptpn(tdg_rap);
-  ptpn.save_ptpn_and_dot("ptpn.dot");
+  BOOST_LOG_TRIVIAL(info) << "TDG to PTPN transformation completed";
+
+  try {
+    ptpn.save_ptpn_and_dot("ptpn.dot");
+    BOOST_LOG_TRIVIAL(info) << "DOT文件保存成功";
+  } catch (const std::exception &e) {
+    BOOST_LOG_TRIVIAL(error) << "保存DOT文件时发生错误: " << e.what();
+  }
   auto tdg_end = std::chrono::high_resolution_clock::now();
   auto tdg_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
       tdg_end - tdg_start);
   size_t tdg_memory = get_memory_usage() - initial_memory;
 
-  std::cout << "\nPetri网生成统计:" << std::endl;
-  std::cout << "  时间: " << tdg_duration.count() << " 毫秒" << std::endl;
-  std::cout << "  内存使用: " << tdg_memory << " KB" << std::endl;
+  BOOST_LOG_TRIVIAL(info) << "\nPetri网生成统计:"<< "  时间: " << tdg_duration.count() << " 毫秒" << "  内存使用: " << tdg_memory << " KB";
 
   // 如果指定了tina选项，则导出为Tina格式
   if (vm.count("tina")) {
-    std::cout << "导出为Tina格式: " << tina_file_path << std::endl;
+    BOOST_LOG_TRIVIAL(info) << "导出为Tina格式: " << tina_file_path;
     if (!ptpn.export_to_tina(tina_file_path)) {
-      std::cerr << "导出Tina格式失败" << std::endl;
+      BOOST_LOG_TRIVIAL(error) << "导出Tina格式失败";
       return 1;
     }
   }
 
   // 如果指定了romeo选项，则导出为Romeo格式
   if (vm.count("romeo")) {
-    std::cout << "导出为Romeo格式: " << romeo_file_path << std::endl;
+    BOOST_LOG_TRIVIAL(info) << "导出为Romeo格式: " << romeo_file_path;
     if (!ptpn.export_to_romeo(romeo_file_path)) {
-      std::cerr << "导出Romeo格式失败" << std::endl;
+      BOOST_LOG_TRIVIAL(error) << "导出Romeo格式失败";
       return 1;
     }
   }
 
-  // 根据命令行参数选择使用哪种状态类算法
-  if (scg_type == "priority") {
-    std::cout << "\n使用优先级时间Petri网状态类算法..." << std::endl;
+    BOOST_LOG_TRIVIAL(info) << "\n使用优先级时间Petri网状态类算法...";
 
     // 记录状态类生成前的内存使用
     size_t scg_start_memory = get_memory_usage();
@@ -171,10 +184,10 @@ int main(int argc, char *argv[]) {
     priority_scg::PriorityStateClassGraph priority_analyzer(ptpn.get_graph());
     
     if (max_states == std::numeric_limits<size_t>::max()) {
-      std::cout << "状态类生成无限制..." << std::endl;
+      BOOST_LOG_TRIVIAL(info) << "状态类生成无限制...";
       priority_analyzer.generate_state_class_graph();
     } else {
-      std::cout << "状态类生成限制: " << max_states << " 个状态" << std::endl;
+      BOOST_LOG_TRIVIAL(info) << "状态类生成限制: " << max_states << " 个状态";
       priority_analyzer.generate_state_class_graph_with_limit(max_states);
     }
 
@@ -183,21 +196,19 @@ int main(int argc, char *argv[]) {
         scg_end - scg_start);
     size_t scg_memory = get_memory_usage() - scg_start_memory;
 
-    std::cout << "\n状态类生成统计:" << std::endl;
-    std::cout << "  时间: " << scg_duration.count() << " 毫秒" << std::endl;
-    std::cout << "  内存使用: " << scg_memory << " KB" << std::endl;
+    BOOST_LOG_TRIVIAL(info) << "\n状态类生成统计:"<< "  时间: " << scg_duration.count() << " 毫秒" << "  内存使用: " << scg_memory << " KB";
 
     if (!priority_analyzer.save_to_dot("priority_state_classes.dot")) {
-      std::cerr << "保存DOT文件失败" << std::endl;
+      BOOST_LOG_TRIVIAL(error) << "保存DOT文件失败";
     }
     if (!priority_analyzer.save_to_json("priority_state_classes.json")) {
-      std::cerr << "保存JSON文件失败" << std::endl;
+      BOOST_LOG_TRIVIAL(error) << "保存JSON文件失败";
     }
 
     priority_analyzer.print_graph_info();
     
     // 使用重构后的分析系统
-    std::cout << "\n开始任务分析..." << std::endl;
+    BOOST_LOG_TRIVIAL(info) << "\n开始任务分析...";
     auto analysis_start = std::chrono::high_resolution_clock::now();
     
     // 创建分析配置
@@ -221,14 +232,11 @@ int main(int argc, char *argv[]) {
     auto analysis_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
         analysis_end - analysis_start);
     
-    std::cout << "\n任务分析统计:" << std::endl;
-    std::cout << "  分析时间: " << analysis_duration.count() << " 毫秒" << std::endl;
-    std::cout << "  分析任务数: " << analysis_results.size() << std::endl;
+    BOOST_LOG_TRIVIAL(info)<< "\n任务分析统计:" << "  分析时间: " << analysis_duration.count() << " 毫秒" << "  分析任务数: " << analysis_results.size();
     
     // 生成分析报告
     auto report = manager->generate_analysis_report();
-    std::cout << "\n分析报告:" << std::endl;
-    std::cout << report << std::endl;
+    BOOST_LOG_TRIVIAL(info) << "\n分析报告:" << report;
     
     // 获取统计信息
     auto stats = manager->get_statistics();
@@ -243,7 +251,7 @@ int main(int argc, char *argv[]) {
     if (manager->save_results_to_file("analysis_results.json", "json")) {
       std::cout << "\n分析结果已保存到 analysis_results.json" << std::endl;
     }
-  }
+
 
   // 输出总体统计信息
   auto end_time = std::chrono::high_resolution_clock::now();

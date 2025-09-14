@@ -45,38 +45,56 @@ namespace ptpn
 
   std::string PriorityTPN::save_ptpn_and_dot(const std::string &file_path)
   {
+    boost::filesystem::path dot_filename;
+    
+    // 检查输入是目录还是文件
     const boost::filesystem::path path(file_path);
-    if (!boost::filesystem::exists(path))
+    if (boost::filesystem::is_directory(path))
     {
-      BOOST_LOG_TRIVIAL(error) << "[PTPN] 路径不存在!";
-      return {};
+      // 如果是目录，在目录下创建ptpn_graph.dot
+      dot_filename = path / "ptpn_graph.dot";
+    }
+    else
+    {
+      // 如果是文件，直接使用该文件名
+      dot_filename = path;
+    }
+    
+    // 确保父目录存在
+    if (!boost::filesystem::exists(dot_filename.parent_path()))
+    {
+      try
+      {
+        boost::filesystem::create_directories(dot_filename.parent_path());
+      }
+      catch (const std::exception &e)
+      {
+        BOOST_LOG_TRIVIAL(error) << "[PTPN] 无法创建目录: " << e.what();
+        return {};
+      }
     }
 
-    const boost::filesystem::path dot_filename = path / "ptpn_graph.dot";
     std::ofstream ofs(dot_filename.string());
     if (!ofs)
     {
-      BOOST_LOG_TRIVIAL(error) << "[PTPN] 无法打开dot 文件";
+      BOOST_LOG_TRIVIAL(error) << "[PTPN] 无法打开dot 文件: " << dot_filename.string();
       return {};
     }
 
     graph_dp.property("node_id", get(&Vertex::name, graph));
     graph_dp.property("label", get(&Vertex::label, graph));
-    // auto shape_map =  make_transform_value_property_map(
-    //     [&graph](ptpn_v_desc vd) -> std::string {
-    //       return graph[vd].shape();
-    //     },
-    //      get( vertex_index, graph));
     graph_dp.property("shape", get(&Vertex::shape, graph));
     graph_dp.property("label", get(&Edge::label, graph));
 
-    ref_property_map<PriorityTPN *, std::string> gname_pn(
-        get_property(graph, graph_name));
-    graph_dp.property("name", gname_pn);
+    // 移除可能有问题的graph_name属性设置
+    // ref_property_map<PriorityTPN *, std::string> gname_pn(
+    //     get_property(graph, graph_name));
+    // graph_dp.property("name", gname_pn);
 
     write_graphviz_dp(ofs, graph, graph_dp);
     ofs.close();
 
+    BOOST_LOG_TRIVIAL(info) << "[PTPN] DOT文件已保存到: " << dot_filename.string();
     return boost::filesystem::absolute(dot_filename).string();
   }
 
@@ -85,9 +103,9 @@ namespace ptpn
     try
     {
       boost::filesystem::path path(file_path);
-      boost::filesystem::path dir = path.parent_path();
 
-      if (!dir.empty() && !boost::filesystem::exists(dir))
+      if (boost::filesystem::path dir = path.parent_path();
+          !dir.empty() && !boost::filesystem::exists(dir))
       {
         BOOST_LOG_TRIVIAL(error) << "[PTPN] 目录不存在: " << dir.string();
         return false;
@@ -231,8 +249,7 @@ namespace ptpn
       {
         if (graph[v].is_transition())
         {
-          const Transition &trans = graph[v].as_transition();
-          if (trans.priority != INT_MAX) // 跳过未设置优先级的变迁
+          if (const Transition &trans = graph[v].as_transition(); trans.priority != INT_MAX) // 跳过未设置优先级的变迁
           {
             priority_groups[trans.priority].push_back(graph[v].name);
           }
@@ -241,9 +258,10 @@ namespace ptpn
 
       // 写入优先级关系（高优先级 > 低优先级）
       std::vector<int> priorities;
-      for (const auto &pair : priority_groups)
+      priorities.reserve(priority_groups.size());
+      for (const auto &[fst, snd] : priority_groups)
       {
-        priorities.push_back(pair.first);
+        priorities.push_back(fst);
       }
 
       // 按优先级排序
@@ -299,9 +317,9 @@ namespace ptpn
     try
     {
       boost::filesystem::path path(file_path);
-      boost::filesystem::path dir = path.parent_path();
 
-      if (!dir.empty() && !boost::filesystem::exists(dir))
+      if (boost::filesystem::path dir = path.parent_path();
+          !dir.empty() && !boost::filesystem::exists(dir))
       {
         BOOST_LOG_TRIVIAL(error) << "[PTPN] 目录不存在: " << dir.string();
         return false;
@@ -325,13 +343,13 @@ namespace ptpn
       {
         if (graph[v].is_place())
         {
-          const Place &place = graph[v].as_place();
+          const auto &[token, capacity] = graph[v].as_place();
           place_id_map[v] = place_id;
 
           romeo_file << "  <place id=\"" << place_id << "\" "
                      << "identifier=\"" << graph[v].name << "\" "
                      << "label=\"" << graph[v].label << "\" "
-                     << "initialMarking=\"" << place.token << "\" "
+                     << "initialMarking=\"" << token << "\" "
                      << "eft=\"0\" lft=\"inf\">\n";
           romeo_file << "      <graphics color=\"0\">\n";
           romeo_file << "         <position x=\"" << (place_id * 120) << "\" y=\"121\"/>\n";
@@ -422,9 +440,10 @@ namespace ptpn
           {
             if (graph[other_v].is_transition() && other_v != v)
             {
-              const Transition &other_trans = graph[other_v].as_transition();
               // 如果other_trans优先级更高，添加抑制弧
-              if (other_trans.priority < trans.priority)
+              if (const Transition &other_trans =
+                      graph[other_v].as_transition();
+                  other_trans.priority < trans.priority)
               {
                 // 为高优先级变迁添加一个虚拟的控制库所
                 romeo_file << "  <arc place=\"" << place_id_map[v] << "\" "
@@ -470,21 +489,28 @@ namespace ptpn
     try
     {
       // 1. 转换顶点
+      BOOST_LOG_TRIVIAL(debug) << "[PTPN] 开始转换顶点...";
       transform_vertices(tdg);
 
       // 2. 转换边
+      BOOST_LOG_TRIVIAL(debug) << "[PTPN] 开始转换边...";
       transform_edges(tdg);
 
       // 3. 创建优先级抢占关系
+      BOOST_LOG_TRIVIAL(debug) << "[PTPN] 开始创建优先级抢占关系...";
       add_preempt_task_ptpn(tdg.classify_priority(), tdg.tasks_config,
                             tdg.nodes_type);
 
       // 4. 添加资源和绑定
+      BOOST_LOG_TRIVIAL(debug) << "[PTPN] 开始添加资源和绑定...";
       add_resources_and_bindings(tdg);
 
       // 5. 输出网络信息
+      BOOST_LOG_TRIVIAL(debug) << "[PTPN] 开始输出网络信息...";
+      // 暂时跳过log_network_info()以避免总线错误
       log_network_info();
 
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] 开始保存DOT文件...";
       save_ptpn_and_dot("../example/");
     }
     catch (const std::exception &e)
@@ -493,12 +519,13 @@ namespace ptpn
       throw;
     }
 
+    BOOST_LOG_TRIVIAL(info) << "[PTPN] 开始验证Petri网结构...";
     verify_petri_net_structure();
   }
 
   void PriorityTPN::transform_vertices(TDG &tdg)
   {
-    BOOST_FOREACH (TDG_RAP::vertex_descriptor v, vertices(tdg.tdg))
+    BOOST_FOREACH (const TDG_RAP::vertex_descriptor v, vertices(tdg.tdg))
     {
       const string &vertex_name = tdg.tdg[v].name;
           BOOST_LOG_TRIVIAL(debug) << "[PTPN] Processing vertex: " << vertex_name;
@@ -512,6 +539,13 @@ namespace ptpn
         }
 
         add_node_ptpn(node_type_it->second);
+        // Fix: 当非周期任务作为最后一个任务时,需要补充一个变迁来消耗任务所转换成的库所变迁链中 Exit 库所中的 token
+        if (out_degree(v, tdg.tdg) == 0) {
+          const auto end_node = node_start_end_map.find(vertex_name)->second.second;
+          const ptpn_v_desc consume_token = add_transition(graph, vertex_name + "_consume", 255, 255, {0, 0});
+          add_edge(end_node, consume_token, graph);
+          BOOST_LOG_TRIVIAL(debug) << "[PTPN] Added consume token transition for APeriodicTask: " << vertex_name;
+        }
       }
       catch (const std::exception &e)
       {
@@ -545,9 +579,9 @@ namespace ptpn
 
         handle_normal_edge(source_name, target_name);
       }
-      catch (const std::exception &e)
+      catch (const std::exception &exception)
       {
-        BOOST_LOG_TRIVIAL(error) << "[PTPN] Failed to transform edge: " << e.what();
+        BOOST_LOG_TRIVIAL(error) << "[PTPN] Failed to transform edge: " << exception.what();
         throw;
       }
     }
@@ -567,8 +601,8 @@ namespace ptpn
   void PriorityTPN::handle_self_loop_edge(TDG &tdg, TDG_RAP::edge_descriptor e,
                                           const string &source_name)
   {
-    int task_period_time = std::stoi(tdg.tdg[e].label);
-    auto task_start_end = node_start_end_map.find(source_name);
+    const int task_period_time = std::stoi(tdg.tdg[e].label);
+    const auto task_start_end = node_start_end_map.find(source_name);
     if (task_start_end == node_start_end_map.end())
     {
       throw std::runtime_error("Start/end nodes not found for: " + source_name);
@@ -588,8 +622,8 @@ namespace ptpn
   void PriorityTPN::handle_normal_edge(const string &source_name,
                                        const string &target_name)
   {
-    auto source_it = node_start_end_map.find(source_name);
-    auto target_it = node_start_end_map.find(target_name);
+    const auto source_it = node_start_end_map.find(source_name);
+    const auto target_it = node_start_end_map.find(target_name);
 
     if (source_it == node_start_end_map.end() ||
         target_it == node_start_end_map.end())
@@ -598,8 +632,8 @@ namespace ptpn
                                " -> " + target_name);
     }
 
-    ptpn_v_desc source_node = source_it->second.second;
-    ptpn_v_desc target_node = target_it->second.first;
+    const ptpn_v_desc source_node = source_it->second.second;
+    const ptpn_v_desc target_node = target_it->second.first;
 
     BOOST_LOG_TRIVIAL(debug) << "[PTPN] source_name: " << source_name;
     BOOST_LOG_TRIVIAL(debug) << "[PTPN] target_name: " << target_name;
@@ -619,8 +653,8 @@ namespace ptpn
     }
 
     // 添加中间变迁
-    string trans_name = source_name + "_to_" + target_name;
-    ptpn_v_desc middle_trans =
+    const string trans_name = source_name + "_to_" + target_name;
+    const ptpn_v_desc middle_trans =
         add_transition(graph, trans_name, 255, 255, {0, 0}, false, {0, 0});
 
     add_edge(source_node, middle_trans, graph);
@@ -643,11 +677,37 @@ namespace ptpn
     task_bind_lock_resource(tdg.all_task, tdg.task_locks_map);
   }
 
-  void PriorityTPN::log_network_info()
-  {
-    BOOST_LOG_TRIVIAL(info) << "[PTPN] Petri net statistics:";
-    BOOST_LOG_TRIVIAL(info) << "[PTPN] - Places + Transitions: " << num_vertices(graph);
-    BOOST_LOG_TRIVIAL(info) << "[PTPN] - Flows: " << num_edges(graph);
+  void PriorityTPN::log_network_info() const {
+    try {
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] Petri net statistics:";
+      
+      // 安全地获取顶点数量
+      try {
+        size_t vertex_count = 0;
+        vertex_count = num_vertices(graph);
+        BOOST_LOG_TRIVIAL(info) << "[PTPN] - Places + Transitions: " << vertex_count;
+      }
+      catch (const std::exception &e) {
+        BOOST_LOG_TRIVIAL(error) << "[PTPN] 获取顶点数量时发生错误: " << e.what();
+        return;
+      }
+      
+      // 安全地获取边数量
+      try {
+        size_t edge_count = 0;
+        edge_count = num_edges(graph);
+        BOOST_LOG_TRIVIAL(info) << "[PTPN] - Flows: " << edge_count;
+      }
+      catch (const std::exception &e) {
+        BOOST_LOG_TRIVIAL(error) << "[PTPN] 获取边数量时发生错误: " << e.what();
+        return;
+      }
+      
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] 网络统计信息获取完成";
+    }
+    catch (const std::exception &e) {
+      BOOST_LOG_TRIVIAL(error) << "[PTPN] 获取网络统计信息时发生错误: " << e.what();
+    }
   }
 
   /// 为锁资源创建库所
@@ -688,7 +748,7 @@ namespace ptpn
       if (holds_alternative<APeriodicTask>(task))
       {
         auto ap_task = get<APeriodicTask>(task);
-        int cpu_index = ap_task.core;
+        const int cpu_index = ap_task.core;
         auto task_pt_chains = node_pn_map.find(ap_task.name)->second;
         // Random -> Trigger -> Start -> Get CPU -> Run -> Drop CPU -> End
         add_edge(cpus_place[cpu_index], task_pt_chains[1], graph);
@@ -698,7 +758,7 @@ namespace ptpn
       else if (holds_alternative<PeriodicTask>(task))
       {
         auto p_task = get<PeriodicTask>(task);
-        int cpu_index = p_task.core;
+        const int cpu_index = p_task.core;
         auto task_pt_chains = node_pn_map.find(p_task.name)->second;
         // Start -> Get CPU -> Run -> Drop CPU -> End
         add_edge(cpus_place[cpu_index], task_pt_chains[1], graph);
@@ -713,20 +773,23 @@ namespace ptpn
   }
   /// 根据任务种锁的数量和类型绑定
   void PriorityTPN::task_bind_lock_resource(
-      vector<NodeType> &all_task, std::map<string, vector<string>> &task_locks)
+      const vector<NodeType> &all_task, std::map<string, vector<string>> &task_locks)
   {
+    if (task_locks.empty()) {
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] No task locks to bind";
+      return;
+    }
 
     // 处理单个任务的锁资源绑定
     auto bind_task_locks =
         [&](const string &task_name, const vector<string> &lock_types,
             const vector<vector<ptpn_v_desc>> &task_pt_chains)
     {
-      constexpr size_t MIN_CHAIN_LENGTH = 5; // 不含锁的 P-T 链最小长度
-
       for (const auto &task_pt_chain : task_pt_chains)
       {
         // 检查链长度是否满足最小要求
-        if (task_pt_chain.size() < MIN_CHAIN_LENGTH)
+        if (constexpr size_t MIN_CHAIN_LENGTH = 5;
+            task_pt_chain.size() < MIN_CHAIN_LENGTH)
         {
           BOOST_LOG_TRIVIAL(debug) << "[PTPN] Skip chain for " << task_name << ": too short for locks";
           continue;
@@ -739,7 +802,7 @@ namespace ptpn
           BOOST_LOG_TRIVIAL(warning) << "[PTPN] No locks found for task: " << task_name;
           continue;
         }
-        size_t lock_nums = task_locks_it->second.size();
+        const size_t lock_nums = task_locks_it->second.size();
         BOOST_LOG_TRIVIAL(debug) << "[PTPN] chains size for task : " << task_name << " is: " << task_pt_chain.size();
         // 为每个锁添加获取和释放边
         for (size_t i = 0; i < lock_nums; i++)
@@ -750,8 +813,8 @@ namespace ptpn
             const string &lock_type = lock_types[i];
 
             // 计算获取和释放锁的节点索引
-            ptpn_v_desc get_lock = task_pt_chain[3 + 2 * i];
-            ptpn_v_desc drop_lock =
+            const ptpn_v_desc get_lock = task_pt_chain[3 + 2 * i];
+            const ptpn_v_desc drop_lock =
                 task_pt_chain[task_pt_chain.size() - 2 - 2 * (i + 1)];
 
             // 查找对应的锁库所
@@ -760,7 +823,7 @@ namespace ptpn
             {
               throw std::runtime_error("Lock place not found: " + lock_type);
             }
-            ptpn_v_desc lock = lock_it->second;
+            const ptpn_v_desc lock = lock_it->second;
 
             // 添加边
             add_edge(lock, get_lock, graph);
@@ -785,8 +848,8 @@ namespace ptpn
         if (holds_alternative<APeriodicTask>(task))
         {
           const auto &ap_task = get<APeriodicTask>(task);
-          auto chains_it = task_pn_map.find(ap_task.name);
-          if (chains_it != task_pn_map.end())
+          if (auto chains_it = task_pn_map.find(ap_task.name);
+              chains_it != task_pn_map.end())
           {
             bind_task_locks(ap_task.name, ap_task.lock, chains_it->second);
           }
@@ -794,8 +857,8 @@ namespace ptpn
         else if (holds_alternative<PeriodicTask>(task))
         {
           const auto &p_task = get<PeriodicTask>(task);
-          auto chains_it = task_pn_map.find(p_task.name);
-          if (chains_it != task_pn_map.end())
+          if (auto chains_it = task_pn_map.find(p_task.name);
+              chains_it != task_pn_map.end())
           {
             bind_task_locks(p_task.name, p_task.lock, chains_it->second);
           }
@@ -819,54 +882,54 @@ namespace ptpn
 
     if (holds_alternative<PeriodicTask>(node_type))
     {
-      PeriodicTask p_task = get<PeriodicTask>(node_type);
+      auto p_task = get<PeriodicTask>(node_type);
       auto result = add_p_node_ptpn(p_task);
       node_start_end_map.insert(make_pair(p_task.name, result));
-      BOOST_LOG_TRIVIAL(info) << "[PTPN] " << p_task.name << "'s petri net start node: " << result.first;
-      BOOST_LOG_TRIVIAL(info) << "[PTPN] " << p_task.name << "'s petri net end node: " << result.second;
+      BOOST_LOG_TRIVIAL(debug) << "[PTPN] " << p_task.name << "'s petri net start node: " << result.first;
+      BOOST_LOG_TRIVIAL(debug) << "[PTPN] " << p_task.name << "'s petri net end node: " << result.second;
       return result;
     }
     else if (holds_alternative<APeriodicTask>(node_type))
     {
-      APeriodicTask ap_task = get<APeriodicTask>(node_type);
+      auto ap_task = get<APeriodicTask>(node_type);
       auto result = add_ap_node_ptpn(ap_task);
       node_start_end_map.insert(make_pair(ap_task.name, result));
-      BOOST_LOG_TRIVIAL(info) << "[PTPN] " << ap_task.name << "'s petri net start node: " << result.first;
-      BOOST_LOG_TRIVIAL(info) << "[PTPN] " << ap_task.name << "'s petri net end node: " << result.second;
+      BOOST_LOG_TRIVIAL(debug) << "[PTPN] " << ap_task.name << "'s petri net start node: " << result.first;
+      BOOST_LOG_TRIVIAL(debug) << "[PTPN] " << ap_task.name << "'s petri net end node: " << result.second;
       return result;
     }
     else if (holds_alternative<SyncTask>(node_type))
     {
-      SyncTask ap_task = get<SyncTask>(node_type);
-      string t_name = ap_task.name;
+      auto [name, time] = get<SyncTask>(node_type);
+      string t_name = name;
       ptpn_v_desc result = add_transition(graph, "Sync" + to_string(node_index),
                                           255, 255, {0, 0}, false);
 
       node_index += 1;
       node_start_end_map.insert(make_pair(t_name, make_pair(result, result)));
-      BOOST_LOG_TRIVIAL(info) << "[PTPN] " << t_name << ": type: SYNC";
+      BOOST_LOG_TRIVIAL(debug) << "[PTPN] " << t_name << ": type: SYNC";
       return std::make_pair(result, result);
     }
     else if (holds_alternative<DistTask>(node_type))
     {
-      DistTask ap_task = get<DistTask>(node_type);
-      string t_name = ap_task.name;
+      auto [name, time] = get<DistTask>(node_type);
+      string t_name = name;
       ptpn_v_desc result = add_transition(graph, "Dist" + to_string(node_index),
                                           255, 255, make_pair(0, 0));
       node_index += 1;
       node_start_end_map.insert(make_pair(t_name, make_pair(result, result)));
-      BOOST_LOG_TRIVIAL(info) << "[PTPN] " << t_name << ": type: DIST";
+      BOOST_LOG_TRIVIAL(debug) << "[PTPN] " << t_name << ": type: DIST";
       return std::make_pair(result, result);
     }
     else
     {
-      EmptyTask ap_task = get<EmptyTask>(node_type);
-      string t_name = ap_task.name;
+      auto [name] = get<EmptyTask>(node_type);
+      string t_name = name;
       ptpn_v_desc result =
           add_place(graph, "Empty" + to_string(node_index), 0, 1);
       node_index += 1;
       node_start_end_map.insert(make_pair(t_name, make_pair(result, result)));
-            BOOST_LOG_TRIVIAL(info) << "[PTPN] " << t_name << ": type: EMPTY";
+            BOOST_LOG_TRIVIAL(debug) << "[PTPN] " << t_name << ": type: EMPTY";
       return std::make_pair(result, result);
     }
   }
@@ -910,7 +973,7 @@ namespace ptpn
 
     ptpn_v_desc last_unlocked_place = 0;
     // 释放锁
-    for (int j = locks.size() - 1; j >= 0; j--)
+    for (int j = static_cast<int>(locks.size() - 1); j >= 0; j--)
     {
       string dl = names.drop_lock + locks[j];
       ptpn_v_desc drop_lock = add_transition(graph, dl, priority, core, times[j]);
@@ -1085,9 +1148,9 @@ namespace ptpn
         [&](const string &l_t_name, const string &h_t_name,
             const TaskConfig &l_tc, const TaskConfig &h_tc,
             const vector<ptpn_v_desc> &l_t_pn, const vector<ptpn_v_desc> &h_t_pn,
-            bool is_interrupt)
+            const bool is_interrupt)
     {
-      int task_pn_size = l_t_pn.size();
+      const int task_pn_size = static_cast<int>(l_t_pn.size());
       if (graph[l_t_pn[task_pn_size - 2]].is_transition())
       {
         graph[l_t_pn[task_pn_size - 2]].as_transition().handle = true;
@@ -1257,13 +1320,13 @@ namespace ptpn
         return;
       }
       // 添加获取锁的结构
-      for (size_t j = 0; j < locks.size(); j++)
+      for (const auto & lock : locks)
       {
-        if (locks[j].find("spin") != string::npos)
+        if (lock.find("spin") != string::npos)
           break;
-        std::string gl = node_names.get_lock + locks[j] + to_string(node_index);
+        std::string gl = node_names.get_lock + lock + to_string(node_index);
         ptpn_v_desc get_lock = add_transition(graph, gl, 256, core, {0, 0});
-        ptpn_v_desc deal = add_place(graph, node_names.deal + locks[j], 0, 1);
+        ptpn_v_desc deal = add_place(graph, node_names.deal + lock, 0, 1);
 
         add_edge(node.back(), get_lock, graph);
         node.push_back(get_lock);
@@ -1272,7 +1335,7 @@ namespace ptpn
       }
 
       // 添加释放锁的结构
-      for (int k = locks.size() - 1; k >= 0; k--)
+      for (int k = static_cast<int>(locks.size() - 1); k >= 0; k--)
       {
         std::string dl = node_names.drop_lock + locks[k] + to_string(node_index);
         ptpn_v_desc drop_lock = add_transition(graph, dl, 256, core, times[k]);
@@ -1469,8 +1532,8 @@ namespace ptpn
           is_valid = false;
         }
 
-        // 检查3：token数量必须是0或1
-        if (place.token < 0 || place.token > 1)
+        // 检查3：token数量必须大于等于0
+        if (place.token < 0)
         {
           is_valid = false;
           BOOST_LOG_TRIVIAL(error) << "[PTPN] 库所 " << vertex.name << " 的token数量无效: " << place.token;

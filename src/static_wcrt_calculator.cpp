@@ -24,7 +24,7 @@ int StaticWCRTCalculator::calculate_wcrt(const std::string& task_name) {
         }
         
         // 计算从entry到exit的最长路径
-        int wcrt = compute_longest_path_time(
+        const int wcrt = compute_longest_path_time(
             path_info.entry_vertex,
             path_info.exit_vertex
         );
@@ -50,7 +50,7 @@ int StaticWCRTCalculator::calculate_wcet(const std::string& task_name) {
         }
         
         // 计算从ready到exit的最长路径
-        int wcet = compute_longest_path_time(
+        const int wcet = compute_longest_path_time(
             path_info.ready_vertex,
             path_info.exit_vertex
         );
