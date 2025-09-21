@@ -23,7 +23,6 @@
 #include <boost/log/core.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/utility/setup/console.hpp>
-#include <boost/log/utility/setup/file.hpp>
 #include <boost/log/utility/setup/common_attributes.hpp>
 
 using namespace std;
@@ -77,14 +76,11 @@ void print_usage(const po::options_description &desc) {
 }
 
 int main(int argc, char *argv[]) {
-  // boost::log::add_file_log(
-  //       boost::log::keywords::file_name = "logs/sample_%N.log",   // 日志文件名，自动编号
-  //       boost::log::keywords::rotation_size = 10 * 1024 * 1024,   // 10MB 分卷
-  //       boost::log::keywords::format = "[%TimeStamp%] [%Severity%] %Message%"
-  //   );;
-  // boost::log::add_common_attributes();
+  // 初始化 Boost.Log：控制台输出与日志级别
+  boost::log::add_console_log(std::clog);
+  boost::log::add_common_attributes();
   boost::log::core::get()->set_filter(
-      boost::log::trivial::severity >= boost::log::trivial::debug);
+      boost::log::trivial::severity >= boost::log::trivial::info);
   int deadline;
   int num_cpus;
   int cores_per_cpu;
@@ -143,12 +139,7 @@ int main(int argc, char *argv[]) {
   ptpn.transform_tdg_to_ptpn(tdg_rap);
   BOOST_LOG_TRIVIAL(info) << "TDG to PTPN transformation completed";
 
-  try {
-    ptpn.save_ptpn_and_dot("ptpn.dot");
-    BOOST_LOG_TRIVIAL(info) << "DOT文件保存成功";
-  } catch (const std::exception &e) {
-    BOOST_LOG_TRIVIAL(error) << "保存DOT文件时发生错误: " << e.what();
-  }
+  ptpn.save_ptpn_and_dot("ptpn.dot");
   auto tdg_end = std::chrono::high_resolution_clock::now();
   auto tdg_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
       tdg_end - tdg_start);

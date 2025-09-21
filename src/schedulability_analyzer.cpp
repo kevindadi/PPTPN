@@ -38,7 +38,7 @@ std::vector<TaskAnalysisResult> WCRTSchedulabilityAnalyzer::analyze_all_tasks(in
         // 实际实现中可能需要从Petri网中提取任务信息
         
         // 示例：假设有一些预定义的任务名称
-        std::vector<std::string> task_names = {"task1", "task2", "task3"}; // 这里需要实际实现
+        const std::vector<std::string> task_names = {"task1", "task2", "task3"}; // 这里需要实际实现
         
         for (const auto& task_name : task_names) {
             TaskAnalysisResult result = this->perform_task_analysis(task_name, deadline);

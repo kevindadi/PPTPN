@@ -48,8 +48,8 @@ namespace ptpn
     boost::filesystem::path dot_filename;
     
     // 检查输入是目录还是文件
-    const boost::filesystem::path path(file_path);
-    if (boost::filesystem::is_directory(path))
+    if (const boost::filesystem::path path(file_path);
+        boost::filesystem::is_directory(path))
     {
       // 如果是目录，在目录下创建ptpn_graph.dot
       dot_filename = path / "ptpn_graph.dot";
@@ -126,9 +126,9 @@ namespace ptpn
       {
         if (graph[v].is_place())
         {
-          const Place &place = graph[v].as_place();
+          const auto &[token, capacity] = graph[v].as_place();
           // Tina格式: pl <place> {:<label>} {(<marking>)} {<input> -> <output>}
-          tina_file << "pl " << graph[v].name << " : {" << graph[v].label << "} (" << place.token << ")";
+          tina_file << "pl " << graph[v].name << " : {" << graph[v].label << "} (" << token << ")";
 
           // 获取输入变迁
           std::vector<std::string> inputs;
@@ -489,26 +489,27 @@ namespace ptpn
     try
     {
       // 1. 转换顶点
-      BOOST_LOG_TRIVIAL(debug) << "[PTPN] 开始转换顶点...";
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] 开始转换顶点...";
       transform_vertices(tdg);
 
       // 2. 转换边
-      BOOST_LOG_TRIVIAL(debug) << "[PTPN] 开始转换边...";
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] 开始转换边...";
       transform_edges(tdg);
 
       // 3. 创建优先级抢占关系
-      BOOST_LOG_TRIVIAL(debug) << "[PTPN] 开始创建优先级抢占关系...";
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] 开始创建优先级抢占关系...";
       add_preempt_task_ptpn(tdg.classify_priority(), tdg.tasks_config,
                             tdg.nodes_type);
 
       // 4. 添加资源和绑定
-      BOOST_LOG_TRIVIAL(debug) << "[PTPN] 开始添加资源和绑定...";
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] 开始添加资源和绑定...";
       add_resources_and_bindings(tdg);
 
       // 5. 输出网络信息
-      BOOST_LOG_TRIVIAL(debug) << "[PTPN] 开始输出网络信息...";
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] 开始输出网络信息...";
       // 暂时跳过log_network_info()以避免总线错误
-      log_network_info();
+      // log_network_info();
+      BOOST_LOG_TRIVIAL(info) << "[PTPN] 跳过网络统计信息输出";
 
       BOOST_LOG_TRIVIAL(info) << "[PTPN] 开始保存DOT文件...";
       save_ptpn_and_dot("../example/");
@@ -601,8 +602,8 @@ namespace ptpn
   void PriorityTPN::handle_self_loop_edge(TDG &tdg, TDG_RAP::edge_descriptor e,
                                           const string &source_name)
   {
-    const int task_period_time = std::stoi(tdg.tdg[e].label);
-    const auto task_start_end = node_start_end_map.find(source_name);
+    int task_period_time = std::stoi(tdg.tdg[e].label);
+    auto task_start_end = node_start_end_map.find(source_name);
     if (task_start_end == node_start_end_map.end())
     {
       throw std::runtime_error("Start/end nodes not found for: " + source_name);
@@ -682,8 +683,8 @@ namespace ptpn
       BOOST_LOG_TRIVIAL(info) << "[PTPN] Petri net statistics:";
       
       // 安全地获取顶点数量
+      size_t vertex_count = 0;
       try {
-        size_t vertex_count = 0;
         vertex_count = num_vertices(graph);
         BOOST_LOG_TRIVIAL(info) << "[PTPN] - Places + Transitions: " << vertex_count;
       }
@@ -693,8 +694,8 @@ namespace ptpn
       }
       
       // 安全地获取边数量
+      size_t edge_count = 0;
       try {
-        size_t edge_count = 0;
         edge_count = num_edges(graph);
         BOOST_LOG_TRIVIAL(info) << "[PTPN] - Flows: " << edge_count;
       }
@@ -857,8 +858,8 @@ namespace ptpn
         else if (holds_alternative<PeriodicTask>(task))
         {
           const auto &p_task = get<PeriodicTask>(task);
-          if (auto chains_it = task_pn_map.find(p_task.name);
-              chains_it != task_pn_map.end())
+          auto chains_it = task_pn_map.find(p_task.name);
+          if (chains_it != task_pn_map.end())
           {
             bind_task_locks(p_task.name, p_task.lock, chains_it->second);
           }
@@ -1532,8 +1533,8 @@ namespace ptpn
           is_valid = false;
         }
 
-        // 检查3：token数量必须大于等于0
-        if (place.token < 0)
+        // 检查3：token数量必须是0或1
+        if (place.token < 0 || place.token > 1)
         {
           is_valid = false;
           BOOST_LOG_TRIVIAL(error) << "[PTPN] 库所 " << vertex.name << " 的token数量无效: " << place.token;
