@@ -95,7 +95,7 @@ namespace ptpn
   };
 
   typedef adjacency_list<vecS, vecS, bidirectionalS,
-                         Vertex, Edge, TDG_RAP_P>
+                         Vertex, Edge, boost::no_property>
       PriorityTPNGraph;
   typedef graph_traits<PriorityTPNGraph>::vertex_descriptor ptpn_v_desc;
 
