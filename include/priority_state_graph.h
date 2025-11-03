@@ -77,10 +77,11 @@ namespace priority_scg
         void reset_petri_net(const PriorityStateClass &state);
 
 
-        PriorityTPNGraph petri_net;                                  // 原始的优先级时间 Petri 网
-        StateClassGraph graph;                                       // 状态类图
+        PriorityTPNGraph petri_net;                                 
+        StateClassGraph graph;                                      
         // 使用状态对象作为key，避免哈希碰撞导致的状态丢失
         std::unordered_map<PriorityStateClass, SCGVertex, PriorityStateClassHash<int>> state_vertex_map;
+        Marking initial_marking;                                    
     };
 
 } // namespace priority_scg

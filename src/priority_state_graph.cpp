@@ -9,6 +9,15 @@ PriorityStateClassGraph::PriorityStateClassGraph(
     const PriorityTPNGraph &petri_net)
     : petri_net(petri_net) {
   graph[graph_bundle].name = "优先级时间Petri网状态类图";
+  
+  graph_traits<PriorityTPNGraph>::vertex_iterator vi, vi_end;
+  for (boost::tie(vi, vi_end) = vertices(petri_net); vi != vi_end; ++vi) {
+    if (const auto &vertex = petri_net[*vi]; vertex.is_place()) {
+      if (const auto &[token, capacity] = vertex.as_place(); token > 0) {
+        initial_marking[*vi] = token;
+      }
+    }
+  }
 }
 
 // 获取初始标记下的状态类
@@ -420,6 +429,71 @@ PriorityStateClassGraph::fire_transition(const PriorityStateClass &state,
       BOOST_LOG_TRIVIAL(debug) << "[STATE CLASS] 挂起的变迁 " << petri_net[t].name << " 保持挂起状态,时间区间: " << interval.to_string();
     }
   }
+
+  // // 状态归一化：如果 marking 回到初始状态，归一化所有时间窗口
+  // // 这是状态类算法的关键：避免时间窗口无限增长导致状态空间爆炸
+  // bool marking_matches_initial = (new_marking.size() == initial_marking.size());
+  // if (marking_matches_initial) {
+  //   for (const auto &[place, tokens] : new_marking) {
+  //     auto it = initial_marking.find(place);
+  //     if (it == initial_marking.end() || it->second != tokens) {
+  //       marking_matches_initial = false;
+  //       break;
+  //     }
+  //   }
+  //   if (marking_matches_initial) {
+  //     for (const auto &[place, tokens] : initial_marking) {
+  //       auto it = new_marking.find(place);
+  //       if (it == new_marking.end() || it->second != tokens) {
+  //         marking_matches_initial = false;
+  //         break;
+  //       }
+  //     }
+  //   }
+  // }
+  
+  // if (marking_matches_initial) {
+  //   BOOST_LOG_TRIVIAL(info) << "[STATE CLASS] 检测到标记回到初始状态，进行状态归一化";
+    
+  //   // 找到所有时间窗口的最小下界（用于归一化）
+  //   int min_offset = std::numeric_limits<int>::max();
+  //   for (const auto &[t, interval] : new_enabled_runtimes) {
+  //     if (interval.is_valid() && interval.lower < min_offset) {
+  //       min_offset = interval.lower;
+  //     }
+  //   }
+  //   for (const auto &[t, interval] : new_suspended_runtimes) {
+  //     if (interval.is_valid() && interval.lower < min_offset) {
+  //       min_offset = interval.lower;
+  //     }
+  //   }
+    
+  //   // 如果找到了有效的最小值，归一化所有时间窗口
+  //   if (min_offset != std::numeric_limits<int>::max() && min_offset > 0) {
+  //     BOOST_LOG_TRIVIAL(debug) << "[STATE CLASS] 归一化偏移量: " << min_offset;
+  //     for (auto &[t, interval] : new_enabled_runtimes) {
+  //       if (interval.is_valid()) {
+  //         TimeInterval normalized = interval.shift(-min_offset);
+  //         new_enabled_runtimes[t] = normalized;
+  //         BOOST_LOG_TRIVIAL(debug) << "[STATE CLASS] 归一化变迁 " << petri_net[t].name << " 的时间窗口: " << interval.to_string() << " -> " << normalized.to_string();
+  //       }
+  //     }
+  //     for (auto &[t, interval] : new_suspended_runtimes) {
+  //       if (interval.is_valid()) {
+  //         TimeInterval normalized = interval.shift(-min_offset);
+  //         new_suspended_runtimes[t] = normalized;
+  //         BOOST_LOG_TRIVIAL(debug) << "[STATE CLASS] 归一化挂起变迁 " << petri_net[t].name << " 的时间窗口: " << interval.to_string() << " -> " << normalized.to_string();
+  //       }
+  //     }
+  //   } else if (min_offset == std::numeric_limits<int>::max()) {
+  //     // 所有时间窗口都是无效的，重置为新使能的状态
+  //     BOOST_LOG_TRIVIAL(debug) << "[STATE CLASS] 所有时间窗口无效，重置为新使能状态";
+  //     for (auto &[t, interval] : new_enabled_runtimes) {
+  //       new_enabled_runtimes[t] = TimeInterval(0, 0);
+  //     }
+  //     new_suspended_runtimes.clear();
+  //   }
+  // }
 
   return {new_marking, new_enabled_runtimes, new_suspended_runtimes};
 }

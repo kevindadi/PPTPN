@@ -161,7 +161,6 @@ NodeType TDG::parse_vertex_label(const string &label)
       parts.push_back(token);
     }
 
-    // 检查是否至少包含名称
     if (parts.empty())
     {
       BOOST_THROW_EXCEPTION(LabelParseException("No task name found in label"));
@@ -199,7 +198,7 @@ NodeType TDG::parse_vertex_label(const string &label)
     }
     catch (const TimeValueException &e)
     {
-      BOOST_LOG_TRIVIAL(error) << "[TDG] parse period failed: " << e.what();
+      BOOST_LOG_TRIVIAL(error) << "[TDG] parse non-periodic task: ";
     }
 
     if (has_period)
