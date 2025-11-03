@@ -51,12 +51,12 @@ namespace ptpn
     if (const boost::filesystem::path path(file_path);
         boost::filesystem::is_directory(path))
     {
-      // 如果是目录，在目录下创建ptpn_graph.dot
+      // 如果是目录,在目录下创建ptpn_graph.dot
       dot_filename = path / "ptpn_graph.dot";
     }
     else
     {
-      // 如果是文件，直接使用该文件名
+      // 如果是文件,直接使用该文件名
       dot_filename = path;
     }
     
@@ -150,7 +150,7 @@ namespace ptpn
             }
           }
 
-          // 如果有输入和输出，添加到声明中
+          // 如果有输入和输出,添加到声明中
           if (!inputs.empty() && !outputs.empty())
           {
             tina_file << " ";
@@ -216,7 +216,7 @@ namespace ptpn
             }
           }
 
-          // 如果有输入和输出，添加到声明中
+          // 如果有输入和输出,添加到声明中
           if (!inputs.empty() && !outputs.empty())
           {
             tina_file << " ";
@@ -275,7 +275,7 @@ namespace ptpn
         {
           for (size_t j = i + 1; j < priorities.size(); ++j)
           {
-            // 低优先级数字大于高优先级数字，因此使用 ">"
+            // 低优先级数字大于高优先级数字,因此使用 ">"
             tina_file << "pr ";
 
             // 添加所有高优先级变迁
@@ -372,7 +372,7 @@ namespace ptpn
           const Transition &trans = graph[v].as_transition();
           trans_id_map[v] = trans_id;
 
-          // 由于Romeo不支持同时设置优先级和时间，我们这里只保留时间信息
+          // 由于Romeo不支持同时设置优先级和时间,我们这里只保留时间信息
           romeo_file << "  <transition id=\"" << trans_id << "\" "
                      << "identifier=\"" << graph[v].name << "\" "
                      << "label=\"" << graph[v].label << "\" ";
@@ -432,7 +432,7 @@ namespace ptpn
           }
         }
 
-        // 处理优先级关系，将其转换为抑制弧
+        // 处理优先级关系,将其转换为抑制弧
         if (graph[v].is_transition())
         {
           const Transition &trans = graph[v].as_transition();
@@ -440,7 +440,7 @@ namespace ptpn
           {
             if (graph[other_v].is_transition() && other_v != v)
             {
-              // 如果other_trans优先级更高，添加抑制弧
+              // 如果other_trans优先级更高,添加抑制弧
               if (const Transition &other_trans =
                       graph[other_v].as_transition();
                   other_trans.priority < trans.priority)
@@ -639,7 +639,7 @@ namespace ptpn
     BOOST_LOG_TRIVIAL(debug) << "[PTPN] source_name: " << source_name;
     BOOST_LOG_TRIVIAL(debug) << "[PTPN] target_name: " << target_name;
 
-    // 如果链接的某个节点属于Dist，Sync则直接链接
+    // 如果链接的某个节点属于Dist,Sync则直接链接
     if (source_name.substr(0, 4) == "Dist" ||
         source_name.substr(0, 4) == "Wait")
     {
@@ -955,7 +955,7 @@ namespace ptpn
       ptpn_v_desc get_lock = add_transition(graph, gl, priority, core, {0, 0});
       ptpn_v_desc deal = add_place(graph, names.deal + locks[i], 0);
 
-      // 如果是第一个锁，将ready库所与获取锁的变迁连接
+      // 如果是第一个锁,将ready库所与获取锁的变迁连接
       if (i == 0)
       {
         add_edge(ready, get_lock, graph);
@@ -1266,7 +1266,7 @@ namespace ptpn
     // 设置处理变迁标志
     graph[handle_t].as_transition().handle = true;
 
-    // 名字被占用，加index区分
+    // 名字被占用,加index区分
     struct TaskNodeNames
     {
       string get_core, ready, get_lock, deal, drop_lock, unlock, exec;
@@ -1446,7 +1446,7 @@ namespace ptpn
 
       if (vertex.shape == "box")
       { // 变迁
-        // 检查1：变迁的前后节点必须是库所且不能为空
+        // 检查1:变迁的前后节点必须是库所且不能为空
         bool has_input = false;
         bool has_output = false;
         bool all_inputs_are_places = true;
@@ -1487,7 +1487,7 @@ namespace ptpn
           is_valid = false;
         }
 
-        // 检查4：变迁时间约束的有效性
+        // 检查4:变迁时间约束的有效性
         if (vertex.is_transition())
         {
           auto transition = vertex.as_transition();
@@ -1502,7 +1502,7 @@ namespace ptpn
       else if (vertex.shape == "circle")
       { // 库所
         auto place = vertex.as_place();
-        // 检查2：库所的前后节点必须是变迁（但可以为空）
+        // 检查2:库所的前后节点必须是变迁（但可以为空）
         bool all_inputs_are_transitions = true;
         bool all_outputs_are_transitions = true;
 
@@ -1533,7 +1533,7 @@ namespace ptpn
           is_valid = false;
         }
 
-        // 检查3：token数量必须是0或1
+        // 检查3:token数量必须是0或1
         if (place.token < 0 || place.token > 1)
         {
           is_valid = false;
@@ -1606,7 +1606,7 @@ namespace ptpn
           is_transition = true;
         }
 
-        // 如果没有明确的shape，尝试从label内容推断
+        // 如果没有明确的shape,尝试从label内容推断
         if (!is_place && !is_transition)
         {
           if (node_label.find("token=") != std::string::npos)

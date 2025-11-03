@@ -34,10 +34,10 @@ std::vector<TaskAnalysisResult> WCRTSchedulabilityAnalyzer::analyze_all_tasks(in
     
     try {
         // 这里需要从某个地方获取所有任务名称
-        // 为了简化，我们假设可以从WCRT计算器中获取任务列表
+        // 为了简化,我们假设可以从WCRT计算器中获取任务列表
         // 实际实现中可能需要从Petri网中提取任务信息
         
-        // 示例：假设有一些预定义的任务名称
+        // 示例:假设有一些预定义的任务名称
         const std::vector<std::string> task_names = {"task1", "task2", "task3"}; // 这里需要实际实现
         
         for (const auto& task_name : task_names) {
@@ -46,7 +46,7 @@ std::vector<TaskAnalysisResult> WCRTSchedulabilityAnalyzer::analyze_all_tasks(in
             this->update_statistics(result);
         }
         
-        BOOST_LOG_TRIVIAL(info) << "[SCHEDULABILITY] 完成所有任务可调度性分析，共分析 " << results.size() << " 个任务";
+        BOOST_LOG_TRIVIAL(info) << "[SCHEDULABILITY] 完成所有任务可调度性分析,共分析 " << results.size() << " 个任务";
         
     } catch (const std::exception& e) {
         BOOST_LOG_TRIVIAL(error) << "[SCHEDULABILITY] 分析所有任务可调度性时出错: " << e.what();
@@ -108,26 +108,19 @@ bool RateMonotonicAnalyzer::analyze_schedulability(const std::string& task_name,
     
     try {
         TaskAnalysisResult result(task_name);
-        
-        // 计算响应时间
-        std::vector<std::string> higher_priority_tasks; // 这里需要实际实现获取更高优先级任务
+        std::vector<std::string> higher_priority_tasks;
         result.wcrt = calculate_response_time(task_name, higher_priority_tasks);
-        
-        // 计算WCET
         if (wcrt_calculator_) {
             result.wcet = wcrt_calculator_->calculate_wcet(task_name);
         }
         
-        // 检查死锁
         if (deadlock_detector_) {
             result.has_deadlock = deadlock_detector_->has_deadlock(task_name);
         }
         
-        // 判断可调度性
         result.schedulable = SchedulabilityAnalysisUtils::check_schedulability_constraint(result.wcrt, deadline)
                            && !result.has_deadlock;
         
-        // 构建分析信息
         std::stringstream info;
         info << "任务 " << task_name << " Rate Monotonic可调度性分析结果:\n";
         info << "  WCRT: " << result.wcrt << "\n";
@@ -138,7 +131,6 @@ bool RateMonotonicAnalyzer::analyze_schedulability(const std::string& task_name,
         
         result.analysis_info = info.str();
         
-        // 更新统计信息
         statistics_.update_statistics(result);
         
         return result.schedulable;
@@ -154,32 +146,26 @@ std::vector<TaskAnalysisResult> RateMonotonicAnalyzer::analyze_all_tasks(int dea
     
     BOOST_LOG_TRIVIAL(info) << "[RATE MONOTONIC] 开始使用Rate Monotonic分析所有任务";
     
-    // 获取所有任务并按优先级排序
-    std::vector<std::string> task_names = {"task1", "task2", "task3"}; // 这里需要实际实现
+    std::vector<std::string> task_names = {"task1", "task2", "task3"};
     std::vector<std::string> higher_priority_tasks;
     
     for (const auto& task_name : task_names) {
         TaskAnalysisResult result(task_name);
         
         try {
-            // 计算响应时间
             result.wcrt = calculate_response_time(task_name, higher_priority_tasks);
             
-            // 计算WCET
             if (wcrt_calculator_) {
                 result.wcet = wcrt_calculator_->calculate_wcet(task_name);
             }
             
-            // 检查死锁
             if (deadlock_detector_) {
                 result.has_deadlock = deadlock_detector_->has_deadlock(task_name);
             }
             
-            // 判断可调度性
             result.schedulable = SchedulabilityAnalysisUtils::check_schedulability_constraint(result.wcrt, deadline)
                                && !result.has_deadlock;
             
-            // 构建分析信息
             std::stringstream info;
             info << "任务 " << task_name << " Rate Monotonic分析结果:\n";
             info << "  WCRT: " << result.wcrt << "\n";
@@ -193,7 +179,6 @@ std::vector<TaskAnalysisResult> RateMonotonicAnalyzer::analyze_all_tasks(int dea
             results.push_back(result);
             statistics_.update_statistics(result);
             
-            // 将当前任务添加到更高优先级任务列表（用于下一个任务的分析）
             higher_priority_tasks.push_back(task_name);
             
         } catch (const std::exception& e) {
@@ -212,9 +197,6 @@ AnalysisStatistics RateMonotonicAnalyzer::get_statistics() const {
 
 int RateMonotonicAnalyzer::calculate_response_time(const std::string& task_name,
                                                   const std::vector<std::string>& higher_priority_tasks) const {
-    // 简化的Rate Monotonic响应时间计算
-    // 实际实现中需要更复杂的迭代算法
-    
     if (wcrt_calculator_) {
         return wcrt_calculator_->calculate_wcrt(task_name);
     }
@@ -223,12 +205,8 @@ int RateMonotonicAnalyzer::calculate_response_time(const std::string& task_name,
 }
 
 int RateMonotonicAnalyzer::get_task_priority(const std::string& task_name) const {
-    // 从Petri网中获取任务优先级
-    // 这里需要实际实现
-    return 100; // 默认优先级
+    return 100;
 }
-
-// SchedulabilityAnalyzerFactory 实现
 
 std::unique_ptr<ISchedulabilityAnalyzer> SchedulabilityAnalyzerFactory::create_wcrt_analyzer(
     std::unique_ptr<IWCRTCalculator> wcrt_calculator,
@@ -256,8 +234,6 @@ std::unique_ptr<ISchedulabilityAnalyzer> SchedulabilityAnalyzerFactory::create_a
             return nullptr;
     }
 }
-
-// SchedulabilityAnalysisUtils 实现
 
 std::string SchedulabilityAnalysisUtils::generate_schedulability_report(const std::vector<TaskAnalysisResult>& results,
                                                                        const AnalysisStatistics& statistics) {
@@ -291,7 +267,7 @@ double SchedulabilityAnalysisUtils::calculate_schedulability_margin(int wcrt, in
     }
     
     if (wcrt > deadline) {
-        return 0.0; // 不可调度
+        return 0.0;
     }
     
     return static_cast<double>(deadline - wcrt) / deadline;
@@ -299,7 +275,7 @@ double SchedulabilityAnalysisUtils::calculate_schedulability_margin(int wcrt, in
 
 int SchedulabilityAnalysisUtils::assess_schedulability_risk(const std::vector<TaskAnalysisResult>& results) {
     if (results.empty()) {
-        return 1; // 无风险
+        return 1;
     }
     
     int risk_level = 1;
@@ -318,7 +294,6 @@ int SchedulabilityAnalysisUtils::assess_schedulability_risk(const std::vector<Ta
     double unschedulable_ratio = static_cast<double>(unschedulable_count) / results.size();
     double deadlock_ratio = static_cast<double>(deadlock_count) / results.size();
     
-    // 根据不可调度率调整风险等级
     if (unschedulable_ratio > 0.5) {
         risk_level += 3;
     } else if (unschedulable_ratio > 0.2) {
@@ -327,14 +302,13 @@ int SchedulabilityAnalysisUtils::assess_schedulability_risk(const std::vector<Ta
         risk_level += 1;
     }
     
-    // 根据死锁率调整风险等级
     if (deadlock_ratio > 0.3) {
         risk_level += 2;
     } else if (deadlock_ratio > 0.0) {
         risk_level += 1;
     }
     
-    return std::min(risk_level, 5); // 最大风险等级为5
+    return std::min(risk_level, 5);
 }
 
 } // namespace task_analysis

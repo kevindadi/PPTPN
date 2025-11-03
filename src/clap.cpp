@@ -25,8 +25,8 @@ struct TimeValueException : virtual LabelParseException
   const char *what() const noexcept override { return time_values.c_str(); }
 };
 
-// 解析 DAG 文件，获取任务的名字，核心，优先级，锁和时间
-// 根据核心数量，取分配的最大核心数，锁根据名称分类
+// 解析 DAG 文件,获取任务的名字,核心,优先级,锁和时间
+// 根据核心数量,取分配的最大核心数,锁根据名称分类
 void TDG::parse_tdg()
 {
   boost::ref_property_map<TDG_RAP *, std::string> dag_name(
@@ -44,7 +44,7 @@ void TDG::parse_tdg()
       read_graphviz(tdg_stream, tdg, tdg_dp))
   {
     BOOST_LOG_TRIVIAL(info) << "[TDG] Graph Name: " << get_property(tdg, boost::graph_name);
-    // 遍历节点，确定节点类型
+    // 遍历节点,确定节点类型
     BOOST_FOREACH (TDG_RAP::vertex_descriptor v, vertices(tdg))
     {
       // TODO: id = label.name
@@ -119,7 +119,7 @@ void TDG::parse_tdg()
         BOOST_LOG_TRIVIAL(info) << "[TDG] " << t_name << ": type: EMPTY";
       }
     }
-    // 遍历边，找到自环或回环，确定周期任务
+    // 遍历边,找到自环或回环,确定周期任务
     BOOST_FOREACH (TDG_RAP::edge_descriptor e, edges(tdg))
     {
       //      auto source_name = tdg[source(e, tdg)].name;

@@ -16,7 +16,7 @@ int main()
     // 验证导入结果
     const auto &graph = petri_net.get_graph();
 
-    std::cout << "导入完成，图信息:" << std::endl;
+    std::cout << "导入完成,图信息:" << std::endl;
     std::cout << "  节点数量: " << boost::num_vertices(graph) << std::endl;
     std::cout << "  边数量: " << boost::num_edges(graph) << std::endl;
 

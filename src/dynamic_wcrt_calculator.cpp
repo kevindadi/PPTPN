@@ -103,7 +103,7 @@ int DynamicWCRTCalculator<priority_scg::StateClassGraph, priority_scg::SCGVertex
             }
         }
         
-        // 如果找到结束状态，更新最大时间
+        // 如果找到结束状态,更新最大时间
         if (has_end_node && has_start_node) {
             max_time = std::max(max_time, current_time);
         }

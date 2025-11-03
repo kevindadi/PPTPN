@@ -85,7 +85,7 @@ TaskPathInfo<ptpn::ptpn_v_desc> StaticWCRTCalculator::get_task_path_info(const s
 int StaticWCRTCalculator::compute_longest_path_time(ptpn::ptpn_v_desc source, ptpn::ptpn_v_desc target) const {
     BOOST_LOG_TRIVIAL(debug) << "[STATIC WCRT] 开始静态计算最长路径时间";
     
-    // 静态分析的核心思想：
+    // 静态分析的核心思想:
     // 1. 基于Petri网结构分析所有可能的执行路径
     // 2. 不考虑实际调度策略和资源竞争
     // 3. 使用变迁的const_time上界作为路径时间
@@ -95,7 +95,7 @@ int StaticWCRTCalculator::compute_longest_path_time(ptpn::ptpn_v_desc source, pt
     std::unordered_set<ptpn::ptpn_v_desc> visited;
     std::vector<ptpn::ptpn_v_desc> topo_order;
     
-    // 拓扑排序：找到从source到target的所有可能路径
+    // 拓扑排序:找到从source到target的所有可能路径
     std::function<void(ptpn::ptpn_v_desc)> dfs = [&](ptpn::ptpn_v_desc v) {
         if (visited.find(v) != visited.end()) return;
         visited.insert(v);
@@ -109,12 +109,9 @@ int StaticWCRTCalculator::compute_longest_path_time(ptpn::ptpn_v_desc source, pt
     };
     
     dfs(source);
-    std::reverse(topo_order.begin(), topo_order.end());
-    
-    // 初始化源顶点时间为0
+    std::reverse(topo_order.begin(), topo_order.end());     
     max_times[source] = 0;
     
-    // 动态规划：计算每条路径的总时间
     for (ptpn::ptpn_v_desc v : topo_order) {
         if (max_times.find(v) == max_times.end()) continue;
         
@@ -122,12 +119,10 @@ int StaticWCRTCalculator::compute_longest_path_time(ptpn::ptpn_v_desc source, pt
         for (boost::tie(ei, ei_end) = boost::out_edges(v, petri_net_); ei != ei_end; ++ei) {
             ptpn::ptpn_v_desc target_vertex = boost::target(*ei, petri_net_);
             
-            // 静态分析：使用变迁的const_time上界
-            // 这给出了理论上的最坏情况时间，不考虑实际调度
             int edge_time = 0;
             if (petri_net_[v].is_transition()) {
                 const auto &transition = petri_net_[v].as_transition();
-                edge_time = transition.const_time.second; // 使用上界作为最坏情况
+                edge_time = transition.const_time.second;
                 BOOST_LOG_TRIVIAL(debug) << "[STATIC WCRT] 变迁 " << petri_net_[v].name 
                                         << " 时间约束: " << edge_time;
             }
@@ -140,8 +135,8 @@ int StaticWCRTCalculator::compute_longest_path_time(ptpn::ptpn_v_desc source, pt
     }
     
     int result = max_times.find(target) != max_times.end() ? max_times[target] : -1;
-    BOOST_LOG_TRIVIAL(info) << "[STATIC WCRT] 静态计算完成，最长路径时间: " << result;
-    BOOST_LOG_TRIVIAL(info) << "[STATIC WCRT] 注意：这是理论上的上界，不考虑实际调度策略";
+    BOOST_LOG_TRIVIAL(info) << "[STATIC WCRT] 静态计算完成,最长路径时间: " << result;
+    BOOST_LOG_TRIVIAL(info) << "[STATIC WCRT] 注意:这是理论上的上界,不考虑实际调度策略";
     
     return result;
 }
@@ -159,8 +154,6 @@ ptpn::ptpn_v_desc StaticWCRTCalculator::find_task_node(const std::string& task_n
     return boost::graph_traits<ptpn::PriorityTPNGraph>::null_vertex();
 }
 
-// WCRTCalculatorFactory 实现
-
 std::unique_ptr<IWCRTCalculator> WCRTCalculatorFactory::create_static_calculator(
     const ptpn::PriorityTPNGraph& petri_net) {
     return std::make_unique<StaticWCRTCalculator>(petri_net);
@@ -172,8 +165,7 @@ std::string WCRTCalculatorFactory::compare_calculators(const ptpn::PriorityTPNGr
     
     comparison << "=== 计算器比较分析 ===" << std::endl;
     comparison << "任务: " << task_name << std::endl;
-    
-    // 静态计算器
+                                                                    
     auto static_calc = create_static_calculator(petri_net);
     int static_wcrt = static_calc->calculate_wcrt(task_name);
     int static_wcet = static_calc->calculate_wcet(task_name);
@@ -182,7 +174,7 @@ std::string WCRTCalculatorFactory::compare_calculators(const ptpn::PriorityTPNGr
     comparison << "  WCRT: " << static_wcrt << std::endl;
     comparison << "  WCET: " << static_wcet << std::endl;
     
-    comparison << "注意: 静态分析基于图论最长路径，可能找到不存在的路径" << std::endl;
+    comparison << "注意: 静态分析基于图论最长路径,可能找到不存在的路径" << std::endl;
     comparison << "建议: 使用语义分析器验证路径可达性" << std::endl;
     
     return comparison.str();

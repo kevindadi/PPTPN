@@ -15,7 +15,7 @@ namespace task_analysis {
 /**
  * @brief 基于Petri网语义的WCRT/WCET计算器
  * 
- * 这个计算器考虑了Petri网的发生语义，确保找到的路径在实际执行中是可达的
+ * 这个计算器考虑了Petri网的发生语义,确保找到的路径在实际执行中是可达的
  */
 class SemanticWCRTCalculator : public IWCRTCalculator {
 private:
@@ -32,14 +32,14 @@ public:
     /**
      * @brief 计算任务的WCRT
      * @param task_name 任务名称
-     * @return WCRT值，-1表示计算失败
+     * @return WCRT值,-1表示计算失败
      */
     int calculate_wcrt(const std::string& task_name) override;
     
     /**
      * @brief 计算任务的WCET
      * @param task_name 任务名称
-     * @return WCET值，-1表示计算失败
+     * @return WCET值,-1表示计算失败
      */
     int calculate_wcet(const std::string& task_name) override;
     
@@ -55,7 +55,7 @@ private:
      * @brief 基于语义的最长路径计算
      * @param source 源顶点
      * @param target 目标顶点
-     * @return 最长路径时间，-1表示无法到达
+     * @return 最长路径时间,-1表示无法到达
      */
     int compute_semantic_longest_path_time(ptpn::ptpn_v_desc source, ptpn::ptpn_v_desc target) const;
     
@@ -68,7 +68,7 @@ private:
     bool is_transition_enabled(ptpn::ptpn_v_desc transition, const priority_scg::Marking& marking) const;
     
     /**
-     * @brief 触发变迁，返回新的标记
+     * @brief 触发变迁,返回新的标记
      * @param transition 变迁顶点
      * @param marking 当前标记
      * @return 新的标记
@@ -95,7 +95,7 @@ private:
      * @brief 在Petri网中查找任务的关键节点
      * @param task_name 任务名称
      * @param node_type 节点类型后缀
-     * @return 节点描述符，如果未找到返回null_vertex
+     * @return 节点描述符,如果未找到返回null_vertex
      */
     ptpn::ptpn_v_desc find_task_node(const std::string& task_name, const std::string& node_type) const;
     

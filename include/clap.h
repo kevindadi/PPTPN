@@ -23,7 +23,7 @@ struct TaskConfig
   vector<string> locks;
 };
 
-// 节点类型的枚举，区别于结构体枚举，仅为后续区分, TASK包含周期任务和一般任务
+// 节点类型的枚举,区别于结构体枚举,仅为后续区分, TASK包含周期任务和一般任务
 enum TDGVertexType
 {
   TASK,
@@ -36,7 +36,7 @@ enum EdgeType
 {
 
 };
-// TDG结构体，包含DAG图中所有信息
+// TDG结构体,包含DAG图中所有信息
 class TDG
 {
 public:

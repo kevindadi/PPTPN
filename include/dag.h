@@ -31,7 +31,7 @@ inline std::unordered_map<TaskType, std::string> TaskTypeToString = {
     {TaskType::APERIOD, "APERIOD"},
     {TaskType::INTERRUPT, "INTERRUPT"}};
 
-// 非周期任务：普通任务
+// 非周期任务:普通任务
 struct APeriodicTask {
   string name;
   int core = 0;

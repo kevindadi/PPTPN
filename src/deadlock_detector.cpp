@@ -55,7 +55,7 @@ DeadlockAnalysisResult StateGraphDeadlockDetector<priority_scg::StateClassGraph,
             result.deadlock_cycles = build_deadlock_cycles(deadlock_states);
             
             if (result.deadlock_reason.empty()) {
-                result.deadlock_reason = "发现循环依赖，共涉及 " + std::to_string(deadlock_states.size()) + " 个状态";
+                result.deadlock_reason = "发现循环依赖,共涉及 " + std::to_string(deadlock_states.size()) + " 个状态";
             }
         }
         
@@ -276,7 +276,7 @@ bool PetriNetDeadlockDetector::is_transition_deadlock_prone(ptpn::ptpn_v_desc tr
 }
 
 // DeadlockDetectorFactory 实现
-// create_petri_net_detector 已在头文件中实现，无需重复定义
+// create_petri_net_detector 已在头文件中实现,无需重复定义
 
 // DeadlockAnalysisUtils 实现
 

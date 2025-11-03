@@ -75,11 +75,11 @@ TaskPathInfo<ptpn::ptpn_v_desc> SemanticWCRTCalculator::get_task_path_info(const
 int SemanticWCRTCalculator::compute_semantic_longest_path_time(ptpn::ptpn_v_desc source, ptpn::ptpn_v_desc target) const {
     BOOST_LOG_TRIVIAL(debug) << "[SEMANTIC WCRT] 开始语义最长路径计算";
     
-    // 语义分析的核心思想：
+    // 语义分析的核心思想:
     // 1. 考虑Petri网的发生语义
     // 2. 确保找到的路径在实际执行中是可达的
     // 3. 考虑token约束和变迁使能条件
-    // 4. 使用BFS找到所有可达路径，然后选择最长的
+    // 4. 使用BFS找到所有可达路径,然后选择最长的
     
     // 找到所有从source到target的可达路径
     auto reachable_paths = find_reachable_paths(source, target);
@@ -89,7 +89,7 @@ int SemanticWCRTCalculator::compute_semantic_longest_path_time(ptpn::ptpn_v_desc
         return -1;
     }
     
-    // 计算每条路径的时间，找到最长的
+    // 计算每条路径的时间,找到最长的
     int max_time = 0;
     for (const auto& [path, time] : reachable_paths) {
         max_time = std::max(max_time, time);
@@ -333,9 +333,9 @@ std::string EnhancedWCRTCalculatorFactory::compare_calculators(const ptpn::Prior
     }
     
     if (static_wcrt == semantic_wcrt && static_wcet == semantic_wcet) {
-        comparison << "  两种方法结果一致，说明图论路径在实际执行中是可达的" << std::endl;
+        comparison << "  两种方法结果一致,说明图论路径在实际执行中是可达的" << std::endl;
     } else {
-        comparison << "  两种方法结果不一致，说明存在语义约束" << std::endl;
+        comparison << "  两种方法结果不一致,说明存在语义约束" << std::endl;
     }
     
     return comparison.str();

@@ -20,7 +20,7 @@ namespace priority_scg
     {
     public:
         T lower; // 下界
-        T upper; // 上界，如果是无穷大则使用类型的最大值表示
+        T upper; // 上界,如果是无穷大则使用类型的最大值表示
 
         // 构造函数
         explicit TimeIntervalT(T lower = T(0), T upper = std::numeric_limits<T>::max())
@@ -32,22 +32,21 @@ namespace priority_scg
             return TimeIntervalT(std::max(lower, other.lower), std::min(upper, other.upper));
         }
 
-        // 检查区间是否有效
         [[nodiscard]] bool is_valid() const { return lower <= upper && lower >= 0; }
-
-        // 区间是否为空
         [[nodiscard]] bool is_empty() const { return !is_valid(); }
+        [[nodiscard]] bool equals(const TimeIntervalT &other) const
+        {
+            return lower == other.lower && upper == other.upper;
+        }
 
-        // 检查区间是否包含某个值
+
         bool contains(const T &value) const
         {
             return lower <= value && value <= upper;
         }
 
-        // 区间 位移（时间推移）
         TimeIntervalT shift(const T &offset) const
         {
-            // 处理极限情况以避免溢出
             T new_lower = lower == std::numeric_limits<T>::min() && offset < 0 ? std::numeric_limits<T>::min() : lower + offset;
 
             T new_upper = upper == std::numeric_limits<T>::max() && offset > 0 ? std::numeric_limits<T>::max() : upper + offset;
@@ -55,19 +54,16 @@ namespace priority_scg
             return TimeIntervalT(new_lower, new_upper);
         }
 
-        // 相等比较
         bool operator==(const TimeIntervalT &other) const
         {
             return lower == other.lower && upper == other.upper;
         }
 
-        // 不等比较
         bool operator!=(const TimeIntervalT &other) const
         {
             return !(*this == other);
         }
 
-        // 字符串表示
         [[nodiscard]] std::string to_string() const
         {
             std::string upper_str = upper == std::numeric_limits<T>::max() ? "∞" : std::to_string(upper);
@@ -75,13 +71,10 @@ namespace priority_scg
         }
     };
 
-    // 使用int类型的时间区间作为默认类型
     using TimeInterval = TimeIntervalT<int>;
 
-    // 标记（Marking）表示Petri网中库所的token分布
-    using Marking = std::map<ptpn_v_desc, int>; // 库所 -> token数量
+    using Marking = std::map<ptpn_v_desc, int>;
 
-    // 优先级时间 Petri 网的状态类
     template <typename T = int>
     class PriorityStateClassT
     {
@@ -103,7 +96,6 @@ namespace priority_scg
             const std::map<ptpn_v_desc, std::pair<T, T>> &suspended_rts)
             : marking(std::move(m))
         {
-            // 转换std::pair到TimeIntervalT
             for (const auto &[t, rt] : enabled_rts)
             {
                 enabled_runtimes[t] = interval_type(rt.first, rt.second);
@@ -117,7 +109,6 @@ namespace priority_scg
 
         [[nodiscard]] const Marking &get_marking() const { return marking; }
 
-        // 设置库所的token数量
         void set_token(const ptpn_v_desc place, const int tokens)
         {
             if (tokens > 0)
@@ -126,7 +117,7 @@ namespace priority_scg
             }
             else
             {
-                marking.erase(place); // 移除token数为0的库所
+                marking.erase(place);
             }
         }
 
@@ -173,7 +164,6 @@ namespace priority_scg
             if (interval.is_valid())
             {
                 enabled_runtimes[transition] = interval;
-                // 确保变迁不同时处于使能和挂起状态
                 suspended_runtimes.erase(transition);
             }
             else
@@ -216,7 +206,6 @@ namespace priority_scg
             if (interval.is_valid())
             {
                 suspended_runtimes[transition] = interval;
-                // 确保变迁不同时处于使能和挂起状态
                 enabled_runtimes.erase(transition);
             }
             else
@@ -249,28 +238,24 @@ namespace priority_scg
             return result;
         }
 
-        // 时间推移
         void elapse_time(T time_units)
         {
             if (time_units <= 0)
                 return;
 
-            // 更新使能变迁的运行时间区间
             for (auto &[trans, interval] : enabled_runtimes)
             {
-                interval = interval.shift(-time_units); // 时间推移，区间下移
+                interval = interval.shift(-time_units);
             }
 
-            // 更新挂起变迁的运行时间区间
             for (auto &[trans, interval] : suspended_runtimes)
             {
-                interval = interval.shift(-time_units); // 时间推移，区间下移
+                interval = interval.shift(-time_units);
             }
         }
 
         [[nodiscard]] bool is_valid() const
         {
-            // 检查所有区间是否有效
             for (const auto &[_, interval] : enabled_runtimes)
             {
                 if (!interval.is_valid())
@@ -301,11 +286,7 @@ namespace priority_scg
         }
 
         [[nodiscard]] std::string to_string() const;
-
-        // 计算状态类的哈希值（用于容器支持）
         [[nodiscard]] std::size_t hash() const;
-
-        // 获取标记的字符串表示，用于调试
         [[nodiscard]] std::string get_marking_string() const
         {
             std::stringstream ss;
@@ -323,10 +304,8 @@ namespace priority_scg
             return ss.str();
         }
 
-        // 规范化状态类（移除无效区间，清理空标记）
         void normalize()
         {
-            // 清理标记中token为0的库所
             for (auto it = marking.begin(); it != marking.end();) {
                 if (it->second <= 0) {
                     it = marking.erase(it);
@@ -335,7 +314,6 @@ namespace priority_scg
                 }
             }
 
-            // 规范化使能变迁的时间区间
             for (auto it = enabled_runtimes.begin(); it != enabled_runtimes.end();) {
                 it->second = it->second.normalize();
                 if (!it->second.is_valid()) {
@@ -345,7 +323,6 @@ namespace priority_scg
                 }
             }
 
-            // 规范化挂起变迁的时间区间
             for (auto it = suspended_runtimes.begin(); it != suspended_runtimes.end();) {
                 it->second = it->second.normalize();
                 if (!it->second.is_valid()) {
@@ -357,18 +334,16 @@ namespace priority_scg
         }
 
     private:
-        Marking marking;                                         // 标记
-        std::map<ptpn_v_desc, interval_type> enabled_runtimes;   // 使能变迁的运行时间
-        std::map<ptpn_v_desc, interval_type> suspended_runtimes; // 挂起变迁的运行时间
+        Marking marking;
+        std::map<ptpn_v_desc, interval_type> enabled_runtimes;
+        std::map<ptpn_v_desc, interval_type> suspended_runtimes;
     };
 
-    // 使用int类型的状态类作为默认类型
     using PriorityStateClass = PriorityStateClassT<>;
 
     template <typename T>
     bool PriorityStateClassT<T>::operator==(const PriorityStateClassT &other) const
     {
-        // 1. 比较标记
         if (marking.size() != other.marking.size()) {
             return false;
         }
@@ -382,7 +357,6 @@ namespace priority_scg
             }
         }
 
-        // 2. 比较使能变迁运行时间
         if (enabled_runtimes.size() != other.enabled_runtimes.size()) {
             return false;
         }
@@ -394,7 +368,6 @@ namespace priority_scg
             }
         }
 
-        // 3. 比较挂起变迁运行时间
         if (suspended_runtimes.size() != other.suspended_runtimes.size()) {
             return false;
         }
@@ -414,13 +387,12 @@ namespace priority_scg
     {
         std::stringstream ss;
 
-        // 输出标记
         ss << "Marking: {";
         bool first = true;
         for (const auto &[place, tokens] : marking)
         {
             if (tokens <= 0)
-                continue; // 仅显示有token的库所
+                continue;
 
             if (!first)
             {
@@ -431,7 +403,6 @@ namespace priority_scg
         }
         ss << "}\n";
 
-        // 输出使能变迁的运行时间
         ss << "Enabled runtimes: {";
         first = true;
         for (const auto &[t, runtime] : enabled_runtimes)
@@ -445,7 +416,6 @@ namespace priority_scg
         }
         ss << "}\n";
 
-        // 输出挂起变迁的运行时间
         ss << "Suspended runtimes: {";
         first = true;
         for (const auto &[t, runtime] : suspended_runtimes)
@@ -462,35 +432,53 @@ namespace priority_scg
         return ss.str();
     }
 
-    // 哈希计算
     template <typename T>
     std::size_t PriorityStateClassT<T>::hash() const
     {
+        // 使用类似 boost::hash_combine 的方法，避免 XOR 导致的碰撞
+        // hash_combine: seed ^= hash(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
         std::size_t hash_value = 0;
+        const std::size_t prime = 0x9e3779b9;
 
-        // Hash marking
+        auto hash_combine = [&](std::size_t v) {
+            hash_value ^= v + prime + (hash_value << 6) + (hash_value >> 2);
+        };
+
+        // 处理 marking（区分标记：用质数 0x517cc1b7）
+        hash_combine(0x517cc1b7 * marking.size());
         for (const auto &[place, tokens] : marking)
         {
             BOOST_ASSERT(tokens >= 0);
             if (tokens == 0)
                 continue;
-            hash_value ^= std::hash<ptpn_v_desc>()(place) ^ std::hash<int>()(tokens);
+            std::size_t place_hash = std::hash<ptpn_v_desc>()(place);
+            std::size_t token_hash = std::hash<int>()(tokens);
+            hash_combine(place_hash);
+            hash_combine(token_hash);
         }
 
-        // Hash enabled runtimes
+        // 处理 enabled_runtimes（区分标记：用质数 0x5d5c8e11）
+        hash_combine(0x5d5c8e11 * enabled_runtimes.size());
         for (const auto &[trans, interval] : enabled_runtimes)
         {
-            hash_value ^= std::hash<ptpn_v_desc>()(trans) ^
-                          std::hash<T>()(interval.lower) ^
-                          std::hash<T>()(interval.upper);
+            std::size_t trans_hash = std::hash<ptpn_v_desc>()(trans);
+            std::size_t lower_hash = std::hash<T>()(interval.lower);
+            std::size_t upper_hash = std::hash<T>()(interval.upper);
+            hash_combine(trans_hash);
+            hash_combine(lower_hash);
+            hash_combine(upper_hash);
         }
 
-        // Hash suspended runtimes
+        // 处理 suspended_runtimes（区分标记：用质数 0x7a3d2a1f）
+        hash_combine(0x7a3d2a1f * suspended_runtimes.size());
         for (const auto &[trans, interval] : suspended_runtimes)
         {
-            hash_value ^= std::hash<ptpn_v_desc>()(trans) ^
-                          std::hash<T>()(interval.lower) ^
-                          std::hash<T>()(interval.upper) ^ 0x12345678; // 与使能变迁区分
+            std::size_t trans_hash = std::hash<ptpn_v_desc>()(trans);
+            std::size_t lower_hash = std::hash<T>()(interval.lower);
+            std::size_t upper_hash = std::hash<T>()(interval.upper);
+            hash_combine(trans_hash);
+            hash_combine(lower_hash);
+            hash_combine(upper_hash);
         }
 
         return hash_value;

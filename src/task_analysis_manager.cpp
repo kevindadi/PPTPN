@@ -45,7 +45,7 @@ std::vector<TaskAnalysisResult> TaskAnalysisManager::perform_complete_analysis()
     auto start_time = std::chrono::high_resolution_clock::now();
     
     if (!validate_components()) {
-        BOOST_LOG_TRIVIAL(error) << "[ANALYSIS MANAGER] 组件验证失败，无法执行分析";
+        BOOST_LOG_TRIVIAL(error) << "[ANALYSIS MANAGER] 组件验证失败,无法执行分析";
         return {};
     }
     
@@ -70,7 +70,7 @@ std::vector<TaskAnalysisResult> TaskAnalysisManager::perform_complete_analysis()
         auto end_time = std::chrono::high_resolution_clock::now();
         update_analysis_time(start_time, end_time);
         
-        BOOST_LOG_TRIVIAL(info) << "[ANALYSIS MANAGER] 完整任务分析完成，共分析 " << results.size() << " 个任务";
+        BOOST_LOG_TRIVIAL(info) << "[ANALYSIS MANAGER] 完整任务分析完成,共分析 " << results.size() << " 个任务";
         
     } catch (const std::exception& e) {
         BOOST_LOG_TRIVIAL(error) << "[ANALYSIS MANAGER] 执行完整分析时出错: " << e.what();
@@ -83,7 +83,7 @@ TaskAnalysisResult TaskAnalysisManager::analyze_single_task(const std::string& t
     BOOST_LOG_TRIVIAL(info) << "[ANALYSIS MANAGER] 开始分析单个任务: " << task_name;
     
     if (!validate_components()) {
-        BOOST_LOG_TRIVIAL(error) << "[ANALYSIS MANAGER] 组件验证失败，无法执行分析";
+        BOOST_LOG_TRIVIAL(error) << "[ANALYSIS MANAGER] 组件验证失败,无法执行分析";
         return TaskAnalysisResult(task_name);
     }
     
@@ -136,7 +136,7 @@ DeadlockAnalysisResult TaskAnalysisManager::perform_deadlock_analysis() {
     BOOST_LOG_TRIVIAL(info) << "[ANALYSIS MANAGER] 开始死锁分析";
     
     if (!deadlock_detector_) {
-        BOOST_LOG_TRIVIAL(warning) << "[ANALYSIS MANAGER] 死锁检测器未设置，跳过死锁分析";
+        BOOST_LOG_TRIVIAL(warning) << "[ANALYSIS MANAGER] 死锁检测器未设置,跳过死锁分析";
         return DeadlockAnalysisResult{};
     }
     
@@ -159,14 +159,14 @@ std::vector<TaskAnalysisResult> TaskAnalysisManager::perform_schedulability_anal
     BOOST_LOG_TRIVIAL(info) << "[ANALYSIS MANAGER] 开始可调度性分析";
     
     if (!schedulability_analyzer_) {
-        BOOST_LOG_TRIVIAL(warning) << "[ANALYSIS MANAGER] 可调度性分析器未设置，跳过可调度性分析";
+        BOOST_LOG_TRIVIAL(warning) << "[ANALYSIS MANAGER] 可调度性分析器未设置,跳过可调度性分析";
         return {};
     }
     
     try {
         int deadline = config_.should_check_schedulability() ? config_.deadline : -1;
         auto results = schedulability_analyzer_->analyze_all_tasks(deadline);
-        BOOST_LOG_TRIVIAL(info) << "[ANALYSIS MANAGER] 可调度性分析完成，共分析 " << results.size() << " 个任务";
+        BOOST_LOG_TRIVIAL(info) << "[ANALYSIS MANAGER] 可调度性分析完成,共分析 " << results.size() << " 个任务";
         return results;
         
     } catch (const std::exception& e) {

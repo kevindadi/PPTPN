@@ -19,14 +19,14 @@ public:
     /**
      * @brief 计算任务的WCRT
      * @param task_name 任务名称
-     * @return WCRT值，-1表示计算失败
+     * @return WCRT值,-1表示计算失败
      */
     virtual int calculate_wcrt(const std::string& task_name) = 0;
     
     /**
      * @brief 计算任务的WCET
      * @param task_name 任务名称
-     * @return WCET值，-1表示计算失败
+     * @return WCET值,-1表示计算失败
      */
     virtual int calculate_wcet(const std::string& task_name) = 0;
     
@@ -58,14 +58,14 @@ public:
     /**
      * @brief 计算任务的WCRT
      * @param task_name 任务名称
-     * @return WCRT值，-1表示计算失败
+     * @return WCRT值,-1表示计算失败
      */
     int calculate_wcrt(const std::string& task_name) override;
     
     /**
      * @brief 计算任务的WCET
      * @param task_name 任务名称
-     * @return WCET值，-1表示计算失败
+     * @return WCET值,-1表示计算失败
      */
     int calculate_wcet(const std::string& task_name) override;
     
@@ -81,7 +81,7 @@ private:
      * @brief 计算从源顶点到目标顶点的最长路径时间
      * @param source 源顶点
      * @param target 目标顶点
-     * @return 最长路径时间，-1表示无法到达
+     * @return 最长路径时间,-1表示无法到达
      */
     int compute_longest_path_time(ptpn::ptpn_v_desc source, ptpn::ptpn_v_desc target) const;
     
@@ -89,7 +89,7 @@ private:
      * @brief 在Petri网中查找任务的关键节点
      * @param task_name 任务名称
      * @param node_type 节点类型后缀
-     * @return 节点描述符，如果未找到返回null_vertex
+     * @return 节点描述符,如果未找到返回null_vertex
      */
     ptpn::ptpn_v_desc find_task_node(const std::string& task_name, const std::string& node_type) const;
 };
@@ -118,14 +118,14 @@ public:
     /**
      * @brief 计算任务的WCRT
      * @param task_name 任务名称
-     * @return WCRT值，-1表示计算失败
+     * @return WCRT值,-1表示计算失败
      */
     int calculate_wcrt(const std::string& task_name) override;
     
     /**
      * @brief 计算任务的WCET
      * @param task_name 任务名称
-     * @return WCET值，-1表示计算失败
+     * @return WCET值,-1表示计算失败
      */
     int calculate_wcet(const std::string& task_name) override;
     

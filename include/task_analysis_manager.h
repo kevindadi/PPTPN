@@ -161,9 +161,7 @@ private:
 };
 
 /**
- * @brief 任务分析管理器工厂类
- * 
- * 使用工厂模式创建预配置的分析管理器
+ * @brief 任务分析管理器工厂类  
  */
 class TaskAnalysisManagerFactory {
 public:

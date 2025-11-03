@@ -65,7 +65,7 @@ void print_usage(const po::options_description &desc) {
   std::cout
       << "  ./PPTPN --cpus 2 --cores 4 --file my_task.dot "
       << std::endl;
-  std::cout << "  ./PPTPN --cpus 1 --cores 2 --file simple.dot --deadline 100"
+  std::cout << "  ./PPTPN --cpus 1 --cores 2 --file simple.dot"
             << std::endl;
   std::cout
       << "  ./PPTPN --cpus 2 --cores 4 --file my_task.dot --tina my_petri.net"
@@ -76,11 +76,10 @@ void print_usage(const po::options_description &desc) {
 }
 
 int main(int argc, char *argv[]) {
-  // 初始化 Boost.Log：控制台输出与日志级别
   boost::log::add_console_log(std::clog);
   boost::log::add_common_attributes();
   boost::log::core::get()->set_filter(
-      boost::log::trivial::severity >= boost::log::trivial::info);
+      boost::log::trivial::severity >= boost::log::trivial::warning);
   int deadline;
   int num_cpus;
   int cores_per_cpu;
@@ -111,12 +110,12 @@ int main(int argc, char *argv[]) {
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
-  po::notify(vm);
-
+  
   if (vm.count("help")) {
     print_usage(desc);
-    return 1;
+    return 0;
   }
+  po::notify(vm);
 
   size_t initial_memory = get_memory_usage();
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -147,7 +146,7 @@ int main(int argc, char *argv[]) {
 
   BOOST_LOG_TRIVIAL(info) << "\nPetri网生成统计:"<< "  时间: " << tdg_duration.count() << " 毫秒" << "  内存使用: " << tdg_memory << " KB";
 
-  // 如果指定了tina选项，则导出为Tina格式
+  // 如果指定了tina选项,则导出为Tina格式
   if (vm.count("tina")) {
     BOOST_LOG_TRIVIAL(info) << "导出为Tina格式: " << tina_file_path;
     if (!ptpn.export_to_tina(tina_file_path)) {
@@ -156,7 +155,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  // 如果指定了romeo选项，则导出为Romeo格式
+  // 如果指定了romeo选项,则导出为Romeo格式
   if (vm.count("romeo")) {
     BOOST_LOG_TRIVIAL(info) << "导出为Romeo格式: " << romeo_file_path;
     if (!ptpn.export_to_romeo(romeo_file_path)) {
@@ -198,53 +197,45 @@ int main(int argc, char *argv[]) {
 
     priority_analyzer.print_graph_info();
     
-    // 使用重构后的分析系统
-    BOOST_LOG_TRIVIAL(info) << "\n开始任务分析...";
-    auto analysis_start = std::chrono::high_resolution_clock::now();
+    // BOOST_LOG_TRIVIAL(info) << "\n开始任务分析...";
+    // auto analysis_start = std::chrono::high_resolution_clock::now();
     
-    // 创建分析配置
-    task_analysis::AnalysisConfig config;
-    config.enable_wcrt_analysis = true;
-    config.enable_wcet_analysis = true;
-    config.enable_schedulability_check = true;
-    config.enable_deadlock_detection = true;
-    config.deadline = deadline > 0 ? deadline : -1;
-    config.max_analysis_depth = max_states;
-    config.verbose_output = true;
+    // task_analysis::AnalysisConfig config;
+    // config.enable_wcrt_analysis = true;
+    // config.enable_wcet_analysis = true;
+    // config.enable_schedulability_check = true;
+    // config.enable_deadlock_detection = true;
+    // config.deadline = deadline > 0 ? deadline : -1;
+    // config.max_analysis_depth = max_states;
+    // config.verbose_output = true;
     
-    // 创建分析管理器（使用状态类图的高级版本）
-    auto manager = task_analysis::TaskAnalysisManagerFactory::create_advanced_manager(
-        ptpn.get_graph(), priority_analyzer.get_graph(), config);
+    // auto manager = task_analysis::TaskAnalysisManagerFactory::create_advanced_manager(
+    //     ptpn.get_graph(), priority_analyzer.get_graph(), config);
     
-    // 执行完整分析
-    auto analysis_results = manager->perform_complete_analysis();
+    // auto analysis_results = manager->perform_complete_analysis();
     
-    auto analysis_end = std::chrono::high_resolution_clock::now();
-    auto analysis_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-        analysis_end - analysis_start);
+    // auto analysis_end = std::chrono::high_resolution_clock::now();
+    // auto analysis_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+    //     analysis_end - analysis_start);
     
-    BOOST_LOG_TRIVIAL(info)<< "\n任务分析统计:" << "  分析时间: " << analysis_duration.count() << " 毫秒" << "  分析任务数: " << analysis_results.size();
+    // BOOST_LOG_TRIVIAL(info)<< "\n任务分析统计:" << "  分析时间: " << analysis_duration.count() << " 毫秒" << "  分析任务数: " << analysis_results.size();
     
-    // 生成分析报告
-    auto report = manager->generate_analysis_report();
-    BOOST_LOG_TRIVIAL(info) << "\n分析报告:" << report;
+    // auto report = manager->generate_analysis_report();
+    // BOOST_LOG_TRIVIAL(info) << "\n分析报告:" << report;
     
-    // 获取统计信息
-    auto stats = manager->get_statistics();
-    std::cout << "\n详细统计:" << std::endl;
-    std::cout << "  可调度任务数: " << stats.schedulable_tasks << "/" << stats.total_tasks << std::endl;
-    std::cout << "  包含死锁的任务数: " << stats.deadlock_tasks << std::endl;
-    std::cout << "  最大WCRT: " << stats.max_wcrt << std::endl;
-    std::cout << "  最大WCET: " << stats.max_wcet << std::endl;
-    std::cout << "  整体可调度性: " << (stats.is_overall_schedulable() ? "可调度" : "不可调度") << std::endl;
+    // auto stats = manager->get_statistics();
+    // std::cout << "\n详细统计:" << std::endl;
+    // std::cout << "  可调度任务数: " << stats.schedulable_tasks << "/" << stats.total_tasks << std::endl;
+    // std::cout << "  包含死锁的任务数: " << stats.deadlock_tasks << std::endl;
+    // std::cout << "  最大WCRT: " << stats.max_wcrt << std::endl;
+    // std::cout << "  最大WCET: " << stats.max_wcet << std::endl;
+    // std::cout << "  整体可调度性: " << (stats.is_overall_schedulable() ? "可调度" : "不可调度") << std::endl;
     
-    // 保存分析结果
-    if (manager->save_results_to_file("analysis_results.json", "json")) {
-      std::cout << "\n分析结果已保存到 analysis_results.json" << std::endl;
-    }
+    // if (manager->save_results_to_file("analysis_results.json", "json")) {
+    //   std::cout << "\n分析结果已保存到 analysis_results.json" << std::endl;
+    // }
 
 
-  // 输出总体统计信息
   auto end_time = std::chrono::high_resolution_clock::now();
   auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
       end_time - start_time);
