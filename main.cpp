@@ -10,9 +10,9 @@
 #endif
 
 #include "clap.h"
-#include "priority_state_graph.h"
 #include "priority_time_petri_net.h"
-#include "task_analysis_manager.h"
+#include "matrix_ptpn.h"
+#include "state_class_graph.h"
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <boost/program_options.hpp>
@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
   boost::log::add_console_log(std::clog);
   boost::log::add_common_attributes();
   boost::log::core::get()->set_filter(
-      boost::log::trivial::severity >= boost::log::trivial::warning);
+      boost::log::trivial::severity >= boost::log::trivial::info);
   int deadline;
   int num_cpus;
   int cores_per_cpu;
@@ -120,7 +120,6 @@ int main(int argc, char *argv[]) {
   size_t initial_memory = get_memory_usage();
   auto start_time = std::chrono::high_resolution_clock::now();
 
-  // 解析TDG并生成Petri网
   auto tdg_start = std::chrono::high_resolution_clock::now();
   BOOST_LOG_TRIVIAL(info) << "Starting TDG parsing for file: " << file_path;
   TDG tdg_rap(file_path, num_cpus, cores_per_cpu);
@@ -146,7 +145,13 @@ int main(int argc, char *argv[]) {
 
   BOOST_LOG_TRIVIAL(info) << "\nPetri网生成统计:"<< "  时间: " << tdg_duration.count() << " 毫秒" << "  内存使用: " << tdg_memory << " KB";
 
-  // 如果指定了tina选项,则导出为Tina格式
+  BOOST_LOG_TRIVIAL(info) << "\n转换为矩阵形式的 PTPN...";
+  matrix_ptpn::MatrixPTPN matrix_ptpn;
+  matrix_ptpn.transform_tdg_to_matrix_ptpn(tdg_rap);
+  BOOST_LOG_TRIVIAL(info) << "矩阵形式 PTPN 转换完成";
+  BOOST_LOG_TRIVIAL(info) << "  库所数: " << matrix_ptpn.num_places();
+  BOOST_LOG_TRIVIAL(info) << "  变迁数: " << matrix_ptpn.num_transitions();
+    
   if (vm.count("tina")) {
     BOOST_LOG_TRIVIAL(info) << "导出为Tina格式: " << tina_file_path;
     if (!ptpn.export_to_tina(tina_file_path)) {
@@ -165,20 +170,28 @@ int main(int argc, char *argv[]) {
   }
 
     BOOST_LOG_TRIVIAL(info) << "\n使用优先级时间Petri网状态类算法...";
-
-    // 记录状态类生成前的内存使用
     size_t scg_start_memory = get_memory_usage();
     auto scg_start = std::chrono::high_resolution_clock::now();
-
-    // 使用优先级状态类分析器
-    priority_scg::PriorityStateClassGraph priority_analyzer(ptpn.get_graph());
+    state_class::StateClassReachabilityGraph scg(matrix_ptpn);
+    BOOST_LOG_TRIVIAL(info) << "开始构建状态类可达图（最大状态数: " << max_states << ")...";
     
-    if (max_states == std::numeric_limits<size_t>::max()) {
-      BOOST_LOG_TRIVIAL(info) << "状态类生成无限制...";
-      priority_analyzer.generate_state_class_graph();
-    } else {
-      BOOST_LOG_TRIVIAL(info) << "状态类生成限制: " << max_states << " 个状态";
-      priority_analyzer.generate_state_class_graph_with_limit(max_states);
+    size_t num_states = scg.build(max_states);
+    BOOST_LOG_TRIVIAL(info) << "状态类可达图构建完成";
+    
+    const auto& stats = scg.get_statistics();
+    BOOST_LOG_TRIVIAL(info) << "  生成状态数: " << stats.total_states;
+    BOOST_LOG_TRIVIAL(info) << "  状态转移数: " << stats.total_transitions;
+    BOOST_LOG_TRIVIAL(info) << "  使能变迁计数: " << stats.enabled_transitions_count;
+    BOOST_LOG_TRIVIAL(info) << "  剪枝状态数: " << stats.pruned_states_count;
+    
+    std::string scg_dot_file = "state_class_graph.dot";
+    if (scg.save_to_dot(scg_dot_file)) {
+        BOOST_LOG_TRIVIAL(info) << "状态类图已导出到: " << scg_dot_file;
+    }
+    
+    std::string scg_json_file = "state_class_graph.json";
+    if (scg.save_to_json(scg_json_file)) {
+        BOOST_LOG_TRIVIAL(info) << "状态类图已导出到: " << scg_json_file;
     }
 
     auto scg_end = std::chrono::high_resolution_clock::now();
@@ -187,15 +200,6 @@ int main(int argc, char *argv[]) {
     size_t scg_memory = get_memory_usage() - scg_start_memory;
 
     BOOST_LOG_TRIVIAL(info) << "\n状态类生成统计:"<< "  时间: " << scg_duration.count() << " 毫秒" << "  内存使用: " << scg_memory << " KB";
-
-    if (!priority_analyzer.save_to_dot("priority_state_classes.dot")) {
-      BOOST_LOG_TRIVIAL(error) << "保存DOT文件失败";
-    }
-    if (!priority_analyzer.save_to_json("priority_state_classes.json")) {
-      BOOST_LOG_TRIVIAL(error) << "保存JSON文件失败";
-    }
-
-    priority_analyzer.print_graph_info();
     
     // BOOST_LOG_TRIVIAL(info) << "\n开始任务分析...";
     // auto analysis_start = std::chrono::high_resolution_clock::now();

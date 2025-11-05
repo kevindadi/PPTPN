@@ -6,7 +6,6 @@ if(POLICY CMP0167)
   cmake_policy(SET CMP0167 NEW)
 endif()
 
-# 设置架构为当前系统架构
 if(APPLE)
     set(CMAKE_OSX_ARCHITECTURES "arm64")
     set(CMAKE_SYSTEM_PROCESSOR "arm64")
@@ -32,21 +31,13 @@ include_directories(include)
 add_executable(PTPN main.cpp include/clap.h include/dag.h src/clap.cpp
         include/priority_time_petri_net.h
         src/priority_time_petri_net.cpp
-        include/priority_state_class.h
-        include/priority_state_graph.h
-        src/priority_state_graph.cpp
-        include/task_analysis_manager.h
-        src/task_analysis_manager.cpp
-        include/task_analysis_types.h
-        include/deadlock_detector.h
-        src/deadlock_detector.cpp
-        include/schedulability_analyzer.h
-        src/schedulability_analyzer.cpp
-        include/semantic_wcrt_calculator.h
-        src/semantic_wcrt_calculator.cpp
-        include/wcrt_calculator.h
-        src/static_wcrt_calculator.cpp
-        src/dynamic_wcrt_calculator.cpp)
+        include/matrix_ptpn.h
+        src/matrix_ptpn.cpp
+        include/state_class.h
+        src/state_class.cpp
+        include/state_class_graph.h
+        src/state_class_graph.cpp)
+        
 target_link_libraries(PTPN PRIVATE
     Boost::graph 
     Boost::program_options
@@ -56,13 +47,11 @@ target_link_libraries(PTPN PRIVATE
     Boost::thread
     Boost::date_time)
 
-add_executable(test_petri_import test/test_petri_import.cpp
-        include/priority_time_petri_net.h
-        src/priority_time_petri_net.cpp
-        include/clap.h
-        src/clap.cpp
+
+add_executable(matrix_ptpn_example test/matrix_ptpn_example.cpp
+        include/matrix_ptpn.h
 )
-target_link_libraries(test_petri_import PRIVATE
+target_link_libraries(matrix_ptpn_example PRIVATE
     Boost::graph 
     Boost::filesystem
     Boost::log
@@ -70,16 +59,37 @@ target_link_libraries(test_petri_import PRIVATE
     Boost::thread
     Boost::date_time)
 
-add_executable(test_state_class test/test_state_class.cpp
+add_executable(test_matrix_conversion test/test_matrix_conversion.cpp
+        include/matrix_ptpn.h
+        src/matrix_ptpn.cpp
+        include/graph_ptpn.h
+        src/graph_ptpn.cpp
         include/priority_time_petri_net.h
         src/priority_time_petri_net.cpp
-        include/priority_state_class.h
-        include/priority_state_graph.h
-        src/priority_state_graph.cpp
         include/clap.h
         src/clap.cpp
+        include/dag.h
 )
-target_link_libraries(test_state_class PRIVATE
+target_link_libraries(test_matrix_conversion PRIVATE
+    Boost::graph 
+    Boost::filesystem
+    Boost::log
+    Boost::log_setup
+    Boost::thread
+    Boost::date_time)
+
+add_executable(test_state_class_example test/test_state_class_example.cpp
+        include/state_class.h
+        src/state_class.cpp
+        include/state_class_graph.h
+        src/state_class_graph.cpp
+        include/matrix_ptpn.h
+        src/matrix_ptpn.cpp
+        include/clap.h
+        src/clap.cpp
+        include/dag.h
+)
+target_link_libraries(test_state_class_example PRIVATE
     Boost::graph 
     Boost::filesystem
     Boost::log
@@ -89,5 +99,6 @@ target_link_libraries(test_state_class PRIVATE
 
 enable_testing()
 
-add_test(NAME TestPetriImport COMMAND test_petri_import)
-add_test(NAME TestStateClass COMMAND test_state_class)
+add_test(NAME TestMatrixPTPNExample COMMAND matrix_ptpn_example)
+add_test(NAME TestMatrixConversion COMMAND test_matrix_conversion)
+add_test(NAME TestStateClassExample COMMAND test_state_class_example)

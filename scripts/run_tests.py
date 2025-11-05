@@ -100,7 +100,7 @@ def modify_exec_windows(dot_text: str, mode: str, value=None):
         new_exec = process_exec_window(execw)
         return "{" + ";".join([task, prio, core, new_exec]) + "}"
     
-    # 先处理周期任务，再处理常规任务
+    # 先处理周期任务,再处理常规任务
     result = PERIODIC_TASK_REGEX.sub(repl_periodic, dot_text)
     result = REGULAR_TASK_REGEX.sub(repl_regular, result)
     return result
