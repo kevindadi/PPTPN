@@ -21,9 +21,9 @@ EX_MULTI = os.path.join(EXAMPLE_DIR, "multi_cores")
 EX_DIFF = os.path.join(EXAMPLE_DIR, "diff_exec")
 
 
-# 匹配周期任务：{任务名;[周期下界,周期上界];优先级;核心;[执行时间下界,执行时间上界]}
+# 匹配周期任务:{任务名;[周期下界,周期上界];优先级;核心;[执行时间下界,执行时间上界]}
 PERIODIC_TASK_REGEX = re.compile(r"\{([^;]+);(\[[^\]]+\]);([^;]+);([^;]+);(\[[^\]]+\])\}")
-# 匹配常规任务：{任务名;优先级;核心;[执行时间下界,执行时间上界]}
+# 匹配常规任务:{任务名;优先级;核心;[执行时间下界,执行时间上界]}
 REGULAR_TASK_REGEX = re.compile(r"\{([^;]+);([^;]+);([^;]+);(\[[^\]]+\])\}")
 
 
@@ -46,7 +46,7 @@ def write_text(path: str, content: str) -> None:
 
 def modify_exec_windows(dot_text: str, mode: str, value=None):
     """
-    修改 DOT 文件中所有任务的执行时间窗口（支持周期任务和常规任务）
+    修改 DOT 文件中所有任务的执行时间窗口(支持周期任务和常规任务)
     mode:
       - fixed_upper: 将 [a,b] -> [b,b]
       - fixed_lower: 将 [a,b] -> [a,a]
@@ -88,13 +88,13 @@ def modify_exec_windows(dot_text: str, mode: str, value=None):
             new_exec = execw
         return new_exec
     
-    # 处理周期任务（5个属性）
+    # 处理周期任务(5个属性)
     def repl_periodic(m: re.Match):
         task, period, prio, core, execw = m.groups()
         new_exec = process_exec_window(execw)
         return "{" + ";".join([task, period, prio, core, new_exec]) + "}"
     
-    # 处理常规任务（4个属性）
+    # 处理常规任务(4个属性)
     def repl_regular(m: re.Match):
         task, prio, core, execw = m.groups()
         new_exec = process_exec_window(execw)
@@ -129,7 +129,7 @@ def run_case(dot_path: str, cpus: int, cores: int, max_states: int = None, tag: 
 
 def suite_fixed_time(max_states: int = None):
     text = read_text(COMMON_DOT)
-    # 生成三种固定方式（统一使用 modify_exec_windows）
+    # 生成三种固定方式(统一使用 modify_exec_windows)
     upper_text = modify_exec_windows(text, mode="fixed_upper")  # [a,b] -> [b,b]
     lower_text = modify_exec_windows(text, mode="fixed_lower")  # [a,b] -> [a,a]
     mid_text = modify_exec_windows(text, mode="fixed_mid")      # [a,b] -> [m,m], m=round((a+b)/2)

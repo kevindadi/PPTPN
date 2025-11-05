@@ -29,10 +29,10 @@ include_directories(include)
 #add_compile_definitions(FMT_SHARED)
 
 add_executable(PTPN main.cpp include/clap.h include/dag.h src/clap.cpp
-        include/priority_time_petri_net.h
-        src/priority_time_petri_net.cpp
         include/matrix_ptpn.h
         src/matrix_ptpn.cpp
+        include/graph_ptpn.h
+        src/graph_ptpn.cpp
         include/state_class.h
         src/state_class.cpp
         include/state_class_graph.h
@@ -64,8 +64,6 @@ add_executable(test_matrix_conversion test/test_matrix_conversion.cpp
         src/matrix_ptpn.cpp
         include/graph_ptpn.h
         src/graph_ptpn.cpp
-        include/priority_time_petri_net.h
-        src/priority_time_petri_net.cpp
         include/clap.h
         src/clap.cpp
         include/dag.h

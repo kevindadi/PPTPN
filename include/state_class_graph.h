@@ -67,11 +67,32 @@ private:
     std::pair<int, int> get_transition_time_bounds(const StateClass& state, 
                                                     size_t trans_idx) const;
     
+    // 新算法方法
+    std::vector<size_t> select_per_core(const std::set<size_t>& enabled) const;
+    
+    void apply_preemption(const std::vector<size_t>& chosen, StateClass& state) const;
+    
+    bool maximal_time_elapse(StateClass& state, double& dt) const;
+    
+    std::tuple<bool, StateClass, double> fire_with_dbm(size_t trans_idx, 
+                                                       const StateClass& from_state);
+    
+    void compute_enabled_and_clocks(StateClass& state);
+    
+    // 旧方法（保留用于兼容）
     std::pair<DBM, DBM> time_advance(const StateClass& state) const;
     
     bool is_suspended(size_t trans_idx, const std::vector<size_t>& enabled) const;
     
     bool check_dbm_time_intersection(const DBM& z1, size_t trans_idx) const;
+    
+    /**
+     * 限制DBM以反映变迁的触发时间窗口
+     * @param z DBM
+     * @param trans_idx 变迁索引
+     * @return 限制后的DBM
+     */
+    DBM restrict_for_firing(const DBM& z, size_t trans_idx) const;
     
     double compute_firing_time(const DBM& z1_up, size_t trans_idx) const;
     

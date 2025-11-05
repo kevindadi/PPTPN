@@ -12,19 +12,19 @@ using namespace state_class;
 /**
  * 创建一个包含可挂起和不可挂起变迁的复杂 PTPN 示例
  * 
- * 示例网络：
+ * 示例网络:
  * - P0 (初始有1个token) -> T0(不可挂起) -> P1 -> T1(可挂起) -> P2
  * - P0 -> T2(不可挂起) -> P3 -> T3(可挂起) -> P4
  * - P2 和 P4 都连接到 T4(不可挂起) -> P5
  * 
- * 变迁说明：
+ * 变迁说明:
  * - T0: [2, 5], 优先级 1, 核心 0, 不可挂起 -> 使用 Z1
  * - T1: [1, 4], 优先级 2, 核心 0, 可挂起 -> 使用 Z2
  * - T2: [1, 3], 优先级 1, 核心 1, 不可挂起 -> 使用 Z1
  * - T3: [2, 6], 优先级 2, 核心 1, 可挂起 -> 使用 Z2
  * - T4: [1, 2], 优先级 1, 核心 0, 不可挂起 -> 使用 Z1
  * 
- * 预期状态序列：
+ * 预期状态序列:
  * 初始状态: M=[1,0,0,0,0,0]
  * T0触发后: M=[0,1,0,0,0,0] 或 T2触发后: M=[0,0,0,1,0,0]
  * T1触发后: M=[0,0,1,0,0,0] 或 T3触发后: M=[0,0,0,0,1,0]
@@ -40,35 +40,35 @@ void create_complex_ptpn(MatrixPTPN& ptpn) {
     size_t p5 = ptpn.add_place("P5");
     
     // 添加变迁
-    // T0: 不可挂起变迁，核心 0
+    // T0: 不可挂起变迁,核心 0
     size_t t0 = ptpn.add_transition("T0", 
                                      TimeInterval(2, 5),  // [2, 5]
                                      1,                   // 优先级 1
                                      0,                   // 核心 0
                                      false);              // 不可挂起 -> Z1
     
-    // T1: 可挂起变迁，核心 0
+    // T1: 可挂起变迁,核心 0
     size_t t1 = ptpn.add_transition("T1",
                                      TimeInterval(1, 4),  // [1, 4]
                                      2,                   // 优先级 2
                                      0,                   // 核心 0
                                      true);               // 可挂起 -> Z2
     
-    // T2: 不可挂起变迁，核心 1
+    // T2: 不可挂起变迁,核心 1
     size_t t2 = ptpn.add_transition("T2",
                                      TimeInterval(1, 3),  // [1, 3]
                                      1,                   // 优先级 1
                                      1,                   // 核心 1
                                      false);              // 不可挂起 -> Z1
     
-    // T3: 可挂起变迁，核心 1
+    // T3: 可挂起变迁,核心 1
     size_t t3 = ptpn.add_transition("T3",
                                      TimeInterval(2, 6),  // [2, 6]
                                      2,                   // 优先级 2
                                      1,                   // 核心 1
                                      true);               // 可挂起 -> Z2
     
-    // T4: 不可挂起变迁，核心 0
+    // T4: 不可挂起变迁,核心 0
     size_t t4 = ptpn.add_transition("T4",
                                      TimeInterval(1, 2),  // [1, 2]
                                      1,                   // 优先级 1
@@ -100,7 +100,7 @@ void create_complex_ptpn(MatrixPTPN& ptpn) {
 }
 
 /**
- * 打印状态类信息（包含 Z1 和 Z2 信息）
+ * 打印状态类信息(包含 Z1 和 Z2 信息)
  */
 void print_state_class(const StateClass& state, size_t index) {
     std::cout << "State " << index << " (ID=" << state.state_id << "):\n";
@@ -120,7 +120,7 @@ void print_state_class(const StateClass& state, size_t index) {
 }
 
 /**
- * 验证状态类生成的正确性（包含可挂起和不可挂起变迁的验证）
+ * 验证状态类生成的正确性(包含可挂起和不可挂起变迁的验证)
  */
 bool verify_state_classes(const StateClassGraph& graph, 
                          const StateClassVertex& initial_vertex) {
@@ -145,14 +145,14 @@ bool verify_state_classes(const StateClassGraph& graph,
     // 验证初始状态
     const StateClass& initial = boost::get(boost::vertex_name, graph, initial_vertex);
     if (initial.marking.size() != 6) {
-        std::cerr << "错误: 初始状态标识向量大小不正确！期望 6，实际 " 
+        std::cerr << "错误: 初始状态标识向量大小不正确！期望 6,实际 " 
                   << initial.marking.size() << "\n";
         return false;
     }
     
     if (initial.marking[0] != 1 || initial.marking[1] != 0 || initial.marking[2] != 0 ||
         initial.marking[3] != 0 || initial.marking[4] != 0 || initial.marking[5] != 0) {
-        std::cerr << "错误: 初始状态标识不正确！期望 [1,0,0,0,0,0]，实际 [";
+        std::cerr << "错误: 初始状态标识不正确！期望 [1,0,0,0,0,0],实际 [";
         for (size_t i = 0; i < initial.marking.size(); ++i) {
             if (i > 0) std::cerr << ",";
             std::cerr << initial.marking[i];
@@ -230,7 +230,7 @@ bool verify_state_classes(const StateClassGraph& graph,
             }
             if (m[0] == 0 && m[1] == 0 && m[2] == 1 && m[3] == 0 && m[4] == 0 && m[5] == 0) {
                 found_m001000 = true;
-                std::cout << "✓ 找到预期状态 [0,0,1,0,0,0] (T1 触发后，路径1)\n";
+                std::cout << "✓ 找到预期状态 [0,0,1,0,0,0] (T1 触发后,路径1)\n";
             }
             if (m[0] == 0 && m[1] == 0 && m[2] == 0 && m[3] == 1 && m[4] == 0 && m[5] == 0) {
                 found_m000100 = true;
@@ -238,11 +238,11 @@ bool verify_state_classes(const StateClassGraph& graph,
             }
             if (m[0] == 0 && m[1] == 0 && m[2] == 0 && m[3] == 0 && m[4] == 1 && m[5] == 0) {
                 found_m000010 = true;
-                std::cout << "✓ 找到预期状态 [0,0,0,0,1,0] (T3 触发后，路径2)\n";
+                std::cout << "✓ 找到预期状态 [0,0,0,0,1,0] (T3 触发后,路径2)\n";
             }
             if (m[0] == 0 && m[1] == 0 && m[2] == 0 && m[3] == 0 && m[4] == 0 && m[5] == 1) {
                 found_m000001 = true;
-                std::cout << "✓ 找到预期状态 [0,0,0,0,0,1] (T4 触发后，最终状态)\n";
+                std::cout << "✓ 找到预期状态 [0,0,0,0,0,1] (T4 触发后,最终状态)\n";
             }
         }
     }
@@ -289,10 +289,10 @@ bool verify_state_classes(const StateClassGraph& graph,
 int main() {
     std::cout << "========================================\n";
     std::cout << "状态类生成正确性验证示例\n";
-    std::cout << "（包含可挂起和不可挂起变迁）\n";
+    std::cout << "(包含可挂起和不可挂起变迁)\n";
     std::cout << "========================================\n\n";
     
-    // 创建复杂的 PTPN（包含可挂起和不可挂起变迁）
+    // 创建复杂的 PTPN(包含可挂起和不可挂起变迁)
     MatrixPTPN ptpn;
     create_complex_ptpn(ptpn);
     
@@ -345,12 +345,12 @@ int main() {
     
     std::cout << "\n========================================\n";
     if (success) {
-        std::cout << "✓ 验证通过！状态类生成正确。\n";
+        std::cout << "✓ 验证通过！状态类生成正确.\n";
         std::cout << "  - Z1 (不可挂起变迁约束) 和 Z2 (可挂起变迁约束) 正确分离\n";
         std::cout << "  - 状态转移符合预期\n";
         return 0;
     } else {
-        std::cout << "✗ 验证失败！请检查状态类生成逻辑。\n";
+        std::cout << "✗ 验证失败！请检查状态类生成逻辑.\n";
         return 1;
     }
 }

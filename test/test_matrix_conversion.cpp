@@ -1,6 +1,5 @@
 #include "matrix_ptpn.h"
 #include "graph_ptpn.h"
-#include "priority_time_petri_net.h"
 #include "clap.h"
 #include <iostream>
 #include <boost/log/trivial.hpp>
@@ -160,7 +159,7 @@ int main(int argc, char* argv[]) {
         }
         std::cout << std::endl;
         
-        // std::cout << "[步骤 9] 测试导出功能（使用graph_ptpn模块）..." << std::endl;
+        // std::cout << "[步骤 9] 测试导出功能(使用graph_ptpn模块)..." << std::endl;
         // GraphPTPN graph_ptpn(matrix_net);
         // std::string output_dot = "test_matrix_output.dot";
         // if (graph_ptpn.save_to_dot(output_dot)) {
@@ -170,7 +169,7 @@ int main(int argc, char* argv[]) {
         // }
         // std::cout << std::endl;
         
-        // std::cout << "[步骤 10] 对比测试：转换为 Boost Graph 形式..." << std::endl;
+        // std::cout << "[步骤 10] 对比测试:转换为 Boost Graph 形式..." << std::endl;
         // PriorityTPN boost_net;
         // boost_net.transform_tdg_to_ptpn(tdg);
         // std::cout << "  Boost Graph形式转换完成" << std::endl;

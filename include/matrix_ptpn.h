@@ -31,7 +31,7 @@ constexpr int INF = std::numeric_limits<int>::max();
 // 时间区间结构体
 struct TimeInterval {
     int earliest;  // α(t),最早可触发时间
-    int latest;    // β(t),最晚可触发时间（可为 INF）
+    int latest;    // β(t),最晚可触发时间(可为 INF)
 
     TimeInterval(int e = 0, int l = INF) : earliest(e), latest(l) {
         if (earliest < 0) {
@@ -67,7 +67,7 @@ struct TimeInterval {
 struct Place {
     std::string id;      // 位置 ID
     std::string name;    // 位置名称
-    int capacity;        // 容量（可选,默认为 1）
+    int capacity;        // 容量(可选,默认为 1)
 
     Place(const std::string& id = "", const std::string& name = "", int cap = 1)
         : id(id), name(name), capacity(cap) {}
@@ -78,7 +78,7 @@ struct Transition {
     std::string id;                  // 变迁 ID
     std::string name;                // 变迁名称
     TimeInterval time_interval;      // I(t) = [α(t), β(t)]
-    int priority;                    // π(t),优先级（数值越小优先级越高）
+    int priority;                    // π(t),优先级(数值越小优先级越高)
     int core;                        // 分配的 CPU 核心 ID
     bool suspendable;                // 是否可挂起
 
@@ -92,7 +92,7 @@ struct Transition {
           priority(priority), core(core), suspendable(suspendable) {}
 };
 
-// 标识向量类型：M[p] 表示位置 p 的 token 数量
+// 标识向量类型:M[p] 表示位置 p 的 token 数量
 using Marking = std::vector<int>;
 
 // 优先级时间 Petri 网
@@ -303,7 +303,7 @@ public:
         return filtered;
     }
 
-    // 按核心和优先级过滤使能变迁（先按核心分组,再在每个核心内按优先级过滤）
+    // 按核心和优先级过滤使能变迁(先按核心分组,再在每个核心内按优先级过滤)
     [[nodiscard]] std::vector<size_t> filter_by_core_and_priority(const std::vector<size_t>& enabled_transitions) const {
         if (enabled_transitions.empty()) {
             return {};
@@ -361,7 +361,6 @@ public:
     void transform_tdg_to_matrix_ptpn(TDG& tdg);
         
 private:
-    // TDG 转换相关的辅助函数（实现放在 cpp 中,使用完整类型）
     void transform_vertices_from_tdg(TDG& tdg);
     void transform_edges_from_tdg(TDG& tdg);
     std::pair<size_t, size_t> add_node_matrix(const NodeType& node_type);
@@ -388,11 +387,11 @@ private:
     void handle_normal_edge_matrix(const std::string& source_name, const std::string& target_name);
 
 private:
-    std::vector<Place> places;                              // P：位置集合
-    std::vector<Transition> transitions;                    // T：变迁集合
-    std::vector<std::vector<int>> Pre;                      // Pre：|P|×|T| 输入矩阵
-    std::vector<std::vector<int>> Post;                     // Post：|T|×|P| 输出矩阵
-    Marking M0;                                             // M0：初始标识向量
+    std::vector<Place> places;                              // P:位置集合
+    std::vector<Transition> transitions;                    // T:变迁集合
+    std::vector<std::vector<int>> Pre;                      // Pre:|P|×|T| 输入矩阵
+    std::vector<std::vector<int>> Post;                     // Post:|T|×|P| 输出矩阵
+    Marking M0;                                             // M0:初始标识向量
     
     // TDG 转换相关的私有成员
     std::map<std::string, std::pair<size_t, size_t>> node_start_end_map;  // 节点名称 -> (开始节点索引, 结束节点索引)

@@ -218,10 +218,10 @@ void MatrixPTPN::task_bind_cpu_resource_matrix(const vector<NodeType>& all_task)
             auto ap_task = std::get<APeriodicTask>(task);
             const int cpu_index = ap_task.core;
             auto task_pt_chains = node_pn_map.find(ap_task.name)->second;
-            // Period -> Trigger -> Start -> Get CPU -> Run -> Drop CPU -> End
+            // Entry -> Get CPU -> Ready -> Exec -> Exit
             if (task_pt_chains.size() >= 2) {
                 set_pre_arc(cpus_place[cpu_index], task_pt_chains[1], 1);
-                if (task_pt_chains.size() >= 2) {
+                if (task_pt_chains.size() >= 5) {
                     set_post_arc(task_pt_chains[task_pt_chains.size() - 2], cpus_place[cpu_index], 1);
                 }
             }
@@ -229,10 +229,10 @@ void MatrixPTPN::task_bind_cpu_resource_matrix(const vector<NodeType>& all_task)
             auto p_task = std::get<PeriodicTask>(task);
             const int cpu_index = p_task.core;
             auto task_pt_chains = node_pn_map.find(p_task.name)->second;
-            // Start -> Get CPU -> Run -> Drop CPU -> End
+            // Period -> Trigger -> Entry -> Get CPU -> Ready -> Exec -> Exit
             if (task_pt_chains.size() >= 2) {
                 set_pre_arc(cpus_place[cpu_index], task_pt_chains[1], 1);
-                if (task_pt_chains.size() >= 2) {
+                if (task_pt_chains.size() >= 5) {
                     set_post_arc(task_pt_chains[task_pt_chains.size() - 2], cpus_place[cpu_index], 1);
                 }
             }
@@ -302,7 +302,7 @@ void MatrixPTPN::bind_task_locks_matrix(const string& task_name,
             }
             const size_t lock = lock_it->second;
             
-            // 添加边（假设 get_lock 和 drop_lock 是变迁索引）
+            // 添加边(假设 get_lock 和 drop_lock 是变迁索引)
             if (get_lock < transitions.size()) {
                 set_pre_arc(lock, get_lock, 1);
             }
@@ -364,8 +364,6 @@ bool MatrixPTPN::verify_structure() const {
     return is_valid;
 }
 
-// ==================== TDG 节点转换函数 ====================
-
 std::pair<size_t, size_t> MatrixPTPN::add_node_matrix(const NodeType& node_type) {
     if (holds_alternative<PeriodicTask>(node_type)) {
         auto p_task = get<PeriodicTask>(node_type);
@@ -376,12 +374,12 @@ std::pair<size_t, size_t> MatrixPTPN::add_node_matrix(const NodeType& node_type)
     } else if (holds_alternative<SyncTask>(node_type)) {
         auto [name, time] = get<SyncTask>(node_type);
         TimeInterval interval(0, 0);
-        size_t sync_trans = add_transition("Sync" + std::to_string(node_index++), interval, INT_MAX, 0, false);
+        size_t sync_trans = add_transition("Sync" + std::to_string(node_index++), interval, 411, 411, false);
         return std::make_pair(sync_trans, sync_trans);
     } else if (holds_alternative<DistTask>(node_type)) {
         auto [name, time] = get<DistTask>(node_type);
         TimeInterval interval(0, 0);
-        size_t dist_trans = add_transition("Dist" + std::to_string(node_index++), interval, INT_MAX, 0, false);
+        size_t dist_trans = add_transition("Dist" + std::to_string(node_index++), interval, 411, 411, false);
         return std::make_pair(dist_trans, dist_trans);
     } else {
         auto [name] = get<EmptyTask>(node_type);
@@ -396,14 +394,14 @@ std::pair<size_t, size_t> MatrixPTPN::add_p_node_matrix(PeriodicTask& p_task) {
     TimeInterval get_core_interval(0, 0);
     size_t get_core = add_transition(p_task.name + "get_core", get_core_interval, p_task.priority, p_task.core, false);
     size_t ready = add_place(p_task.name + "ready", 1);
-    TimeInterval exec_interval(p_task.time.back().first, p_task.time.back().second);
+    TimeInterval exec_interval(p_task.time.front().first, p_task.time.front().second);
     size_t exec = add_transition(p_task.name + "exec", exec_interval, p_task.priority, p_task.core, false);
     size_t exit = add_place(p_task.name + "exit", 1);
     
     // 创建周期触发结构 Period -> Trigger -> Entry
     size_t random = add_place(p_task.name + "random", 1);
     TimeInterval fire_interval(p_task.period_time.first, p_task.period_time.second);
-    size_t fire = add_transition(p_task.name + "fire", fire_interval, INT_MAX, 0, false);
+    size_t fire = add_transition(p_task.name + "fire", fire_interval, 411, 411, false);
     
     set_initial_marking(random, 1);
     
@@ -426,7 +424,7 @@ std::pair<size_t, size_t> MatrixPTPN::add_ap_node_matrix(APeriodicTask& ap_task)
     TimeInterval get_core_interval(0, 0);
     size_t get_core = add_transition(ap_task.name + "get_core", get_core_interval, ap_task.priority, ap_task.core, false);
     size_t ready = add_place(ap_task.name + "ready", 1);
-    TimeInterval exec_interval(ap_task.time.back().first, ap_task.time.back().second);
+    TimeInterval exec_interval(ap_task.time.front().first, ap_task.time.front().second);
     size_t exec = add_transition(ap_task.name + "exec", exec_interval, ap_task.priority, ap_task.core, false);
     size_t exit = add_place(ap_task.name + "exit", 1);
     
@@ -449,10 +447,10 @@ void MatrixPTPN::add_monitor_matrix(const std::string& task_name, int task_perio
     size_t t_end = add_place(task_name + "end", 1);
     
     TimeInterval timed_interval(task_period_time, task_period_time);
-    size_t timed = add_transition(task_name + "timed", timed_interval, INT_MAX, 0, false);
-    size_t ending = add_transition(task_name + "ending", TimeInterval(0, 0), INT_MAX, 0, false);
-    size_t complete = add_transition(task_name + "complete", TimeInterval(0, 0), INT_MAX, 0, false);
-    size_t tout = add_transition(task_name + "out", TimeInterval(0, 0), INT_MAX, 0, false);
+    size_t timed = add_transition(task_name + "timed", timed_interval, 411, 411, false);
+    size_t ending = add_transition(task_name + "ending", TimeInterval(0, 0), 411, 411, false);
+    size_t complete = add_transition(task_name + "complete", TimeInterval(0, 0), 411, 411, false);
+    size_t tout = add_transition(task_name + "out", TimeInterval(0, 0), 411, 411, false);
     
     set_post_arc(ending, t_end, 1);
     set_pre_arc(t_end, complete, 1);
@@ -483,8 +481,8 @@ void MatrixPTPN::add_preempt_task_matrix(const std::unordered_map<int, std::vect
                                       const TaskConfig& l_tc, const TaskConfig& h_tc,
                                       const std::vector<size_t>& l_t_pn, const std::vector<size_t>& h_t_pn,
                                       bool is_interrupt) {
-        // 任务链结构：entry(place) -> get_core(trans) -> ready(place) -> exec(trans) -> exit(place)
-        // 索引：0:entry, 1:get_core, 2:ready, 3:exec, 4:exit
+        // 任务链结构:entry(place) -> get_core(trans) -> ready(place) -> exec(trans) -> exit(place)
+        // 索引:0:entry, 1:get_core, 2:ready, 3:exec, 4:exit
         
         if (l_t_pn.size() < 5 || h_t_pn.size() < 5) {
             BOOST_LOG_TRIVIAL(warning) << "[MATRIX_PTPN] 任务链长度不足,跳过抢占: " << l_t_name << " <- " << h_t_name;
@@ -497,17 +495,18 @@ void MatrixPTPN::add_preempt_task_matrix(const std::unordered_map<int, std::vect
             transitions[l_exec].suspendable = true;
         }
         
-        size_t l_preempt_place = l_t_pn[2];  // ready库所（发生抢占的位置）
-        size_t l_handle_trans = l_t_pn[3];   // exec变迁（可挂起的变迁）
+        size_t l_entry = l_t_pn[0];          // 低优先级任务的entry库所
+        size_t l_preempt_place = l_t_pn[2];  // ready库所(发生抢占的位置)
+        size_t l_handle_trans = l_t_pn[3];   // exec变迁(可挂起的变迁)
         size_t h_entry = h_t_pn[0];           // 高优先级任务的entry库所
         size_t h_ready = h_t_pn[2];           // 高优先级任务的ready库所
         size_t h_exit = h_t_pn[4];            // 高优先级任务的exit库所
         
         if (is_interrupt) {
-            // 中断任务抢占：需要重新建立变迁t1,库所p1,变迁t2,建立entry->t1->p1->t2->end的路径
+            // 中断任务抢占:需要重新建立变迁t1,库所p1,变迁t2,建立entry->t1->p1->t2->end的路径
             BOOST_LOG_TRIVIAL(debug) << "[MATRIX_PTPN] 中断任务抢占: " << h_t_name << " 抢占 " << l_t_name;
             
-            // 创建抢占路径：entry -> t1 -> p1 -> t2 -> exit
+            // 创建抢占路径:entry -> t1 -> p1 -> t2 -> exit
             std::string preempt_t1_name = h_t_name + "_preempt_t1_" + std::to_string(node_index);
             std::string preempt_p1_name = h_t_name + "_preempt_p1_" + std::to_string(node_index);
             std::string preempt_t2_name = h_t_name + "_preempt_t2_" + std::to_string(node_index);
@@ -520,7 +519,7 @@ void MatrixPTPN::add_preempt_task_matrix(const std::unordered_map<int, std::vect
             TimeInterval t2_interval = transitions[h_t_pn[3]].time_interval;
             size_t t2 = add_transition(preempt_t2_name, t2_interval, h_tc.priority, h_tc.core, false);
             
-            // 建立边：entry -> t1 -> p1 -> t2 -> exit
+            // 建立边:entry -> t1 -> p1 -> t2 -> exit
             set_pre_arc(h_entry, t1, 1);
             set_pre_arc(l_preempt_place, t1, 1);  // 从低优先级任务的ready库所获取token
             set_post_arc(t1, p1, 1);
@@ -530,7 +529,7 @@ void MatrixPTPN::add_preempt_task_matrix(const std::unordered_map<int, std::vect
             
             node_index++;
         } else {
-            // 正常任务抢占：从高优先级任务的entry -> preempt变迁 -> ready
+            // 正常任务抢占:从高优先级任务的entry -> preempt变迁 -> ready
             // 表示CPU资源在低优先级任务那里
             BOOST_LOG_TRIVIAL(debug) << "[MATRIX_PTPN] 正常任务抢占: " << h_t_name << " 抢占 " << l_t_name;
             
@@ -538,20 +537,20 @@ void MatrixPTPN::add_preempt_task_matrix(const std::unordered_map<int, std::vect
             TimeInterval preempt_interval(0, 0);
             size_t preempt_trans = add_transition(preempt_name, preempt_interval, h_tc.priority, h_tc.core, false);
             
-            // 建立抢占路径：entry -> preempt -> ready
+            // 建立抢占路径:entry -> preempt -> ready
             // entry -> preempt
             set_pre_arc(h_entry, preempt_trans, 1);
-            // preempt需要从低优先级任务的ready库所获取token（表示CPU资源在低优先级任务那里）
+            // preempt需要从低优先级任务的ready库所获取token(表示CPU资源在低优先级任务那里)
             set_pre_arc(l_preempt_place, preempt_trans, 1);
             // preempt -> ready
             set_post_arc(preempt_trans, h_ready, 1);
-            // preempt -> 低优先级任务的ready（返回token）
-            set_post_arc(preempt_trans, l_preempt_place, 1);
+            // preempt -> 低优先级任务的ready(返回token)
+            set_post_arc(preempt_trans, l_entry, 1);
             
             node_index++;
         }
         
-        // 处理锁相关的抢占（如果有锁）
+        // 处理锁相关的抢占(如果有锁)
         if (!l_tc.locks.empty()) {
             constexpr size_t MIN_CHAIN_LENGTH = 9;
             if (l_t_pn.size() < MIN_CHAIN_LENGTH) {
@@ -572,7 +571,6 @@ void MatrixPTPN::add_preempt_task_matrix(const std::unordered_map<int, std::vect
                 size_t lock_preempt_place = l_t_pn[idx - 1];
                 
                 if (is_interrupt) {
-                    // 中断任务抢占锁
                     std::string lock_preempt_t1_name = h_t_name + "_lock_preempt_t1_" + std::to_string(node_index);
                     std::string lock_preempt_p1_name = h_t_name + "_lock_preempt_p1_" + std::to_string(node_index);
                     std::string lock_preempt_t2_name = h_t_name + "_lock_preempt_t2_" + std::to_string(node_index);
@@ -608,11 +606,11 @@ void MatrixPTPN::add_preempt_task_matrix(const std::unordered_map<int, std::vect
         }
     };
     
-    // 主循环：按核心分组,高优先级任务抢占低优先级
+    // 主循环:按核心分组,高优先级任务抢占低优先级
     for (const auto& [core_id, tasks] : core_task) {
         BOOST_LOG_TRIVIAL(debug) << "[MATRIX_PTPN] 处理核心 " << core_id << " 的抢占关系";
         
-        // 任务列表已经按优先级排序（从低到高）
+        // 任务列表已经按优先级排序(从低到高)
         for (size_t i = 0; i < tasks.size(); ++i) {
             for (size_t j = i + 1; j < tasks.size(); ++j) {
                 const std::string& l_t_name = tasks[i];
@@ -653,7 +651,7 @@ void MatrixPTPN::add_preempt_task_matrix(const std::unordered_map<int, std::vect
                     is_interrupt = (p_task.task_type == TaskType::INTERRUPT);
                 }
                 
-                // 处理低优先级任务的所有实例（对于周期任务可能有多个实例）
+                // 处理低优先级任务的所有实例(对于周期任务可能有多个实例)
                 for (const auto& l_t_pn : {l_t_pns_it->second}) {
                     handle_task_preemption(l_t_name, h_t_name, l_tc, h_tc, l_t_pn, h_t_pn, is_interrupt);
                 }
