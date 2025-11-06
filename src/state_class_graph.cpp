@@ -5,34 +5,108 @@
 #include <set>
 #include <fstream>
 #include <iomanip>
+#include <sstream>
 #include <boost/log/trivial.hpp>
 
 namespace state_class {
 
+std::string StateClassReachabilityGraph::format_marking(const std::vector<int>& marking) {
+    std::string result = "[";
+    for (size_t i = 0; i < marking.size(); ++i) {
+        result += std::to_string(marking[i]);
+        if (i < marking.size() - 1) {
+            result += ", ";
+        }
+    }
+    result += "]";
+    return result;
+}
+
+std::string StateClassReachabilityGraph::format_transitions(const std::set<size_t>& trans_indices, bool detailed) const {
+    if (trans_indices.empty()) {
+        return "(无)";
+    }
+    
+    std::string result;
+    bool first = true;
+    for (size_t t : trans_indices) {
+        if (!first) {
+            result += ", ";
+        }
+        first = false;
+        
+        if (detailed && t < ptpn_.num_transitions()) {
+            const auto& trans = ptpn_.get_transition(t);
+            result += "T" + std::to_string(t) + "(" + trans.name;
+            result += ", 优先级=" + std::to_string(trans.priority);
+            result += ", 核心=" + std::to_string(trans.core);
+            result += trans.suspendable ? ", 可挂起" : "";
+            result += ")";
+        } else {
+            result += "T" + std::to_string(t);
+        }
+    }
+    return result;
+}
+
+std::string StateClassReachabilityGraph::format_places(const std::vector<int>& marking) const {
+    std::string result = "[";
+    bool first = true;
+    for (size_t i = 0; i < marking.size(); ++i) {
+        if (!first) {
+            result += ", ";
+        }
+        first = false;
+        
+        if (i < ptpn_.num_places()) {
+            const auto& place = ptpn_.get_place(i);
+            result += "P" + std::to_string(i) + "(" + place.name + ")=" + std::to_string(marking[i]);
+        } else {
+            result += "P" + std::to_string(i) + "=" + std::to_string(marking[i]);
+        }
+    }
+    result += "]";
+    return result;
+}
+
+void StateClassReachabilityGraph::log_state_class_details(const StateClass& state, const std::string& prefix) const {
+    BOOST_LOG_TRIVIAL(debug) << prefix << "========== 状态类详情: ID=" << state.state_id << " ==========";
+    BOOST_LOG_TRIVIAL(debug) << prefix << "库所信息: " << format_places(state.marking);
+    BOOST_LOG_TRIVIAL(debug) << prefix << "使能变迁: " << format_transitions(state.enabled);
+    if (!state.suspended.empty()) {
+        BOOST_LOG_TRIVIAL(debug) << prefix << "挂起变迁: " << format_transitions(state.suspended);
+    }
+    BOOST_LOG_TRIVIAL(debug) << prefix << "累计时间: " << state.cumulative_time;
+    
+    BOOST_LOG_TRIVIAL(debug) << prefix << "Z1 (不可挂起变迁):";
+    std::string z1_str = state.Z1.to_string();
+    std::istringstream z1_stream(z1_str);
+    std::string z1_line;
+    while (std::getline(z1_stream, z1_line)) {
+        BOOST_LOG_TRIVIAL(debug) << prefix << "  " << z1_line;
+    }
+    
+    BOOST_LOG_TRIVIAL(debug) << prefix << "Z2 (可挂起变迁):";
+    std::string z2_str = state.Z2.to_string();
+    std::istringstream z2_stream(z2_str);
+    std::string z2_line;
+    while (std::getline(z2_stream, z2_line)) {
+        BOOST_LOG_TRIVIAL(debug) << prefix << "  " << z2_line;
+    }
+    
+    BOOST_LOG_TRIVIAL(debug) << prefix << "==========================================";
+}
+
 StateClassReachabilityGraph::StateClassReachabilityGraph(const matrix_ptpn::MatrixPTPN& ptpn)
-    : ptpn_(ptpn), next_state_id_(0) {
+    : ptpn_(ptpn), next_state_id_(0), pruning_enabled_(false) {
 }
 
 size_t StateClassReachabilityGraph::build(size_t max_states) {
     stats_ = Statistics();
     state_to_vertex_.clear();
     
-    // 1) 初态 s0
     StateClass s0 = create_initial_state_class();
     StateClass canonical_s0 = canonicalize(s0);
-    
-    BOOST_LOG_TRIVIAL(info) << "[STATE_CLASS] 初始状态创建完成:";
-    BOOST_LOG_TRIVIAL(info) << "  标识: ";
-    std::string marking_str = "";
-    for (size_t i = 0; i < s0.marking.size(); ++i) {
-        marking_str += std::to_string(s0.marking[i]);
-        if (i < s0.marking.size() - 1) {
-            marking_str += ", ";
-        }
-    }
-    BOOST_LOG_TRIVIAL(info) << "[" << marking_str << "]";
-    BOOST_LOG_TRIVIAL(info) << "  使能变迁数量: " << s0.enabled.size();
-    BOOST_LOG_TRIVIAL(info) << "  挂起变迁数量: " << s0.suspended.size();
     
     StateClassVertex s0_vertex = find_or_add_vertex(s0);
     initial_vertex_ = s0_vertex;
@@ -52,24 +126,8 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
         
         StateClassVertex u = find_or_add_vertex(cur);
         
-        BOOST_LOG_TRIVIAL(debug) << "[STATE_CLASS] ===== 迭代 " << iteration 
-                                  << ", 状态ID: " << cur.state_id << " =====";
-        BOOST_LOG_TRIVIAL(debug) << "  标识: ";
-        marking_str = "";
-        for (size_t i = 0; i < cur.marking.size(); ++i) {
-            marking_str += std::to_string(cur.marking[i]);
-            if (i < cur.marking.size() - 1) {
-                marking_str += ", ";
-            }
-        }
-        BOOST_LOG_TRIVIAL(debug) << "[" << marking_str << "]";
-        BOOST_LOG_TRIVIAL(debug) << "  使能变迁: ";
-        std::string enabled_str = "";
-        for (size_t t : cur.enabled) {
-            enabled_str += "T" + std::to_string(t) + " ";
-        }
-        BOOST_LOG_TRIVIAL(debug) << enabled_str;
-        
+        log_state_class_details(cur, "[状态 " + std::to_string(cur.state_id) + "] ");
+       
         // 2.1 每个核心内挑选"最高优先级"候选
         std::vector<size_t> chosen = select_per_core(cur.enabled);
         stats_.enabled_transitions_count += chosen.size();
@@ -84,11 +142,13 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
             BOOST_LOG_TRIVIAL(debug) << "  执行最大化时间推进: dt = " << dt;
         }
         
-        // 检查 DBM 是否为空
-        if (scheduled.Z1.is_empty()) {
+        // 检查 DBM 是否为空（仅在启用剪枝时跳过）
+        if (pruning_enabled_ && scheduled.Z1.is_empty()) {
             BOOST_LOG_TRIVIAL(debug) << "  [剪枝] Z1为空,跳过此状态";
             stats_.pruned_states_count++;
             continue;
+        } else if (!pruning_enabled_ && scheduled.Z1.is_empty()) {
+            BOOST_LOG_TRIVIAL(debug) << "  [警告] Z1为空,但剪枝已禁用,继续处理";
         }
         
         // 2.4 对每个被选中的变迁尝试发生（跨核可产生多条出边）
@@ -97,12 +157,17 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
             auto [ok, nxt, tau] = fire_with_dbm(t, scheduled);
             
             if (!ok) {
-                BOOST_LOG_TRIVIAL(debug) << "  T" << t << ": 触发失败";
-                stats_.pruned_states_count++;
-                continue;
+                if (pruning_enabled_) {
+                    BOOST_LOG_TRIVIAL(debug) << "  " << format_transitions({t}, false) << ": 触发失败";
+                    stats_.pruned_states_count++;
+                    continue;
+                } else {
+                    BOOST_LOG_TRIVIAL(debug) << "  " << format_transitions({t}, false) << ": 触发失败 [警告] 剪枝已禁用,继续处理此变迁";
+                    continue;
+                }
             }
             
-            BOOST_LOG_TRIVIAL(debug) << "  T" << t << " -> 后继状态: ID=" << nxt.state_id;
+            BOOST_LOG_TRIVIAL(debug) << "  " << format_transitions({t}, false) << " -> 后继状态: ID=" << nxt.state_id;
             
             // 2.5 去重/包含剪枝
             auto key = std::make_tuple(nxt.marking, nxt.Z1, nxt.Z2);
@@ -119,6 +184,8 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
                 uniq[key] = v;
                 stats_.total_states++;
                 BOOST_LOG_TRIVIAL(debug) << "  [新状态] 添加到图和队列";
+                // 输出新状态的详细信息
+                log_state_class_details(nxt, "[新状态 " + std::to_string(nxt.state_id) + "] ");
             }
             
             // 2.6 添加出边，边上记录 (t, τ)；τ 为触发时的累计时间戳
@@ -155,28 +222,15 @@ StateClass StateClassReachabilityGraph::create_initial_state_class() {
     // 使用新的方法计算使能和时钟
     compute_enabled_and_clocks(initial);
     
+    // 输出初始状态的详细信息
+    log_state_class_details(initial, "[初始状态] ");
+    
     BOOST_LOG_TRIVIAL(debug) << "[STATE_CLASS] 创建初始状态:";
-    BOOST_LOG_TRIVIAL(debug) << "  标识: ";
-    std::string marking_str = "";
-    for (size_t i = 0; i < initial.marking.size(); ++i) {
-        marking_str += std::to_string(initial.marking[i]);
-        if (i < initial.marking.size() - 1) {
-            marking_str += ", ";
-        }
+    BOOST_LOG_TRIVIAL(debug) << "  标识: " << format_marking(initial.marking);
+    BOOST_LOG_TRIVIAL(debug) << "  使能变迁: " << format_transitions(initial.enabled);
+    if (!initial.suspended.empty()) {
+        BOOST_LOG_TRIVIAL(debug) << "  挂起变迁: " << format_transitions(initial.suspended);
     }
-    BOOST_LOG_TRIVIAL(debug) << "[" << marking_str << "]";
-    BOOST_LOG_TRIVIAL(debug) << "  使能变迁: ";
-    std::string enabled_str = "";
-    for (size_t t : initial.enabled) {
-        enabled_str += "T" + std::to_string(t) + " ";
-    }
-    BOOST_LOG_TRIVIAL(debug) << enabled_str;
-    BOOST_LOG_TRIVIAL(debug) << "  挂起变迁: ";
-    std::string suspended_str = "";
-    for (size_t t : initial.suspended) {
-        suspended_str += "T" + std::to_string(t) + " ";
-    }
-    BOOST_LOG_TRIVIAL(debug) << suspended_str;
     
     return initial;
 }
@@ -250,7 +304,7 @@ std::pair<DBM, DBM> StateClassReachabilityGraph::time_advance(const StateClass& 
         // 检查时钟是否被冻结(挂起状态)
         // Check if clock is frozen (suspended state)
         if (z1_up.is_frozen(i)) {
-            BOOST_LOG_TRIVIAL(debug) << "    时钟" << i << "(T" << trans_idx << "): 被冻结,不参与时间推进";
+            BOOST_LOG_TRIVIAL(debug) << "    时钟" << i << "(" << format_transitions({trans_idx}, false) << "): 被冻结,不参与时间推进";
             continue;  // 冻结时钟不参与时间推进
         }
         
@@ -263,7 +317,7 @@ std::pair<DBM, DBM> StateClassReachabilityGraph::time_advance(const StateClass& 
         // 如果是最精确时间约束且不可挂起,不能放宽上界(必须精确触发)
         // If exact time constraint and non-suspendable, cannot relax upper bound (must fire exactly)
         if (is_exact_time && !transition.suspendable) {
-            BOOST_LOG_TRIVIAL(debug) << "    时钟" << i << "(T" << trans_idx << "): 精确时间约束,不放宽上界";
+            BOOST_LOG_TRIVIAL(debug) << "    时钟" << i << "(" << format_transitions({trans_idx}, false) << "): 精确时间约束,不放宽上界";
             continue;  // 保持精确约束,不进行时间推进
         }
         
@@ -275,8 +329,7 @@ std::pair<DBM, DBM> StateClassReachabilityGraph::time_advance(const StateClass& 
             // Relax upper bound constraint, allow time advance
             z1_up.set_constraint(i, 0, INF_TIME);
             relaxed_count++;
-            BOOST_LOG_TRIVIAL(debug) << "    时钟" << i << "(T" << trans_idx << "): 放宽上界 " 
-                                      << current_upper << " -> INF";
+            BOOST_LOG_TRIVIAL(debug) << "    时钟" << i << "(" << format_transitions({trans_idx}, false) << "): 放宽上界 " << current_upper << " -> INF";
         }
     }
     
@@ -284,17 +337,13 @@ std::pair<DBM, DBM> StateClassReachabilityGraph::time_advance(const StateClass& 
     
     // 对于 Z2:可挂起变迁在时间推进时不受限制
     // Z2 的约束保持不变(因为可挂起变迁可以被暂停)
-    // For Z2: suspendable transitions are not restricted during time advance
-    // Z2 constraints remain unchanged (because suspendable transitions can be paused)
-    
+
     // 计算 Z1 与不变量的交集
-    // Compute intersection of Z1 with invariants
     if (invariants.size() > 0 && z1_up.size() == invariants.size()) {
         z1_up = z1_up.intersection(invariants);
     }
     
     // 最小化 DBM
-    // Minimize DBM
     z1_up.minimize();
     z2_up.minimize();
     
@@ -305,12 +354,10 @@ bool StateClassReachabilityGraph::is_suspended(size_t trans_idx,
                                                const std::vector<size_t>& enabled) const {
     const auto& transition = ptpn_.get_transition(trans_idx);
     
-    // 只有可挂起变迁才能被挂起
     if (!transition.suspendable) {
         return false;
     }
     
-    // 检查同一核心上是否有更高优先级的不可挂起变迁使能
     int trans_core = transition.core;
     int trans_priority = transition.priority;
     
@@ -318,11 +365,9 @@ bool StateClassReachabilityGraph::is_suspended(size_t trans_idx,
         if (other_t == trans_idx) continue;
         
         const auto& other_trans = ptpn_.get_transition(other_t);
-        
-        // 同一核心,不可挂起,且优先级更高(数值更小)
-        if (other_trans.core == trans_core && 
-            !other_trans.suspendable && 
-            other_trans.priority < trans_priority) {
+            if (other_trans.core == trans_core && 
+                !other_trans.suspendable &&
+                other_trans.priority > trans_priority) {
             return true;  // 被挂起
         }
     }
@@ -346,15 +391,13 @@ bool StateClassReachabilityGraph::check_dbm_time_intersection(const DBM& z1,
                INF_TIME : transition.time_interval.latest;
     
     // 使用restrict_for_firing检查交集
-    // Use restrict_for_firing to check intersection
     DBM restricted = restrict_for_firing(z1, trans_idx);
     return !restricted.is_empty();
 }
 
 DBM StateClassReachabilityGraph::restrict_for_firing(const DBM& z, size_t trans_idx) const {
     // 限制DBM以反映变迁的触发时间窗口 [α, β]
-    // Restrict DBM to reflect transition's firing time window [α, β]
-    
+ 
     const auto& transition = ptpn_.get_transition(trans_idx);
     int alpha = transition.time_interval.earliest;
     int beta = transition.time_interval.latest == matrix_ptpn::INF ? 
@@ -402,10 +445,8 @@ StateClass StateClassReachabilityGraph::canonicalize(const StateClass& state) co
 
 void StateClassReachabilityGraph::recompute_suspension(StateClass& state) const {
     // 重新计算所有变迁的挂起/恢复状态
-    // Recompute suspension/resume status for all transitions
-    
+  
     // 1. 找出所有使能的变迁
-    // Find all enabled transitions
     std::set<size_t> enabled;
     for (size_t t = 0; t < ptpn_.num_transitions(); ++t) {
         if (matrix_ptpn::MatrixPTPN::is_enabled(state.marking, ptpn_, t)) {
@@ -416,7 +457,6 @@ void StateClassReachabilityGraph::recompute_suspension(StateClass& state) const 
     state.enabled = enabled;
     
     // 2. 检查每个使能变迁的挂起状态
-    // Check suspension status for each enabled transition
     std::set<size_t> suspended;
     std::vector<size_t> enabled_vec(enabled.begin(), enabled.end());
     
@@ -425,9 +465,8 @@ void StateClassReachabilityGraph::recompute_suspension(StateClass& state) const 
             suspended.insert(t);
             
             // 如果变迁从非挂起变为挂起,冻结时钟(从Z1移动到Z2)
-            // If transition changes from non-suspended to suspended, freeze clock (move from Z1 to Z2)
             if (state.suspended.find(t) == state.suspended.end()) {
-                BOOST_LOG_TRIVIAL(debug) << "    T" << t << ": 变为挂起状态,冻结时钟";
+                BOOST_LOG_TRIVIAL(debug) << "    " << format_transitions({t}, false) << ": 变为挂起状态,冻结时钟";
                 size_t clock_idx = t + 1;
                 state.Z1.copy_clock_constraints(clock_idx, state.Z2);
                 state.Z1.freeze_clock(clock_idx);
@@ -435,9 +474,8 @@ void StateClassReachabilityGraph::recompute_suspension(StateClass& state) const 
             }
         } else {
             // 如果变迁从挂起变为非挂起,解冻时钟(从Z2移回Z1)
-            // If transition changes from suspended to non-suspended, unfreeze clock (move from Z2 back to Z1)
             if (state.suspended.find(t) != state.suspended.end()) {
-                BOOST_LOG_TRIVIAL(debug) << "    T" << t << ": 变为非挂起状态,解冻时钟";
+                BOOST_LOG_TRIVIAL(debug) << "    " << format_transitions({t}, false) << ": 变为非挂起状态,解冻时钟";
                 size_t clock_idx = t + 1;
                 state.Z2.copy_clock_constraints(clock_idx, state.Z1);
                 state.Z1.unfreeze_clock(clock_idx);
@@ -449,7 +487,6 @@ void StateClassReachabilityGraph::recompute_suspension(StateClass& state) const 
     state.suspended = suspended;
     
     // 3. 更新DBM约束
-    // Update DBM constraints
     const_cast<StateClassReachabilityGraph*>(this)->update_dbm_constraints(state);
 }
 
@@ -463,29 +500,16 @@ DBM StateClassReachabilityGraph::get_invariants_for(const std::vector<int>& mark
 StateClass StateClassReachabilityGraph::fire_transition(const StateClass& state, 
                                                          size_t trans_idx, 
                                                          double firing_time) {
-    BOOST_LOG_TRIVIAL(debug) << "    触发变迁 T" << trans_idx << " @时间 " << firing_time;
+    BOOST_LOG_TRIVIAL(debug) << "    触发变迁 " << format_transitions({trans_idx}, false) << " @时间 " << firing_time;
     
     StateClass new_state = state;
     
     // 更新标识
     new_state.marking = matrix_ptpn::MatrixPTPN::fire(state.marking, ptpn_, trans_idx);
     
-    BOOST_LOG_TRIVIAL(debug) << "      标识变化: ";
-    std::string marking_str = "";
-    for (size_t i = 0; i < state.marking.size(); ++i) {
-        marking_str += std::to_string(state.marking[i]);
-        if (i < state.marking.size() - 1) {
-            marking_str += ", ";
-        }
-    }
-    std::string new_marking_str = "";
-    for (size_t i = 0; i < new_state.marking.size(); ++i) {
-        new_marking_str += std::to_string(new_state.marking[i]);
-        if (i < new_state.marking.size() - 1) {
-            new_marking_str += ", ";
-        }
-    }
-    BOOST_LOG_TRIVIAL(debug) << "[" << marking_str << "] -> [" << new_marking_str << "]";
+    BOOST_LOG_TRIVIAL(debug) << "      标识变化: " 
+                              << format_marking(state.marking) << " -> " 
+                              << format_marking(new_state.marking);
 
     
     // 更新时间:累积时间应该是当前状态时间 + 触发时间
@@ -532,8 +556,7 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
     size_t cleared_count = 0;
     size_t initialized_count = 0;
     
-    // 先清除所有不再使能的变迁的约束(重置时钟)
-    // First, clear constraints for transitions that are no longer enabled (reset clocks)
+    // 先清除所有不再使能的变迁的约束(重置时钟) 
     for (size_t t = 0; t < num_transitions; ++t) {
         bool is_enabled = false;
         for (size_t e : enabled) {
@@ -545,10 +568,8 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
         
         if (!is_enabled) {
             // 变迁不再使能,重置时钟并清除约束
-            // Transition is no longer enabled, reset clock and clear constraints
             size_t clock_idx = t + 1;
             
-            // 检查时钟是否存在于DBM中
             if (clock_idx < state.Z1.size()) {
                 state.Z1.reset_clock(clock_idx);
                 cleared_count++;
@@ -557,7 +578,7 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
                 state.Z2.reset_clock(clock_idx);
             }
             
-            // 移除冻结状态
+            // 移除冻结状态 
             state.Z1.unfreeze_clock(clock_idx);
             state.Z2.unfreeze_clock(clock_idx);
         }
@@ -568,13 +589,11 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
     }
     
     // 为每个使能变迁设置时间约束
-    // Set time constraints for each enabled transition
     for (size_t trans_idx : enabled) {
         const auto& transition = ptpn_.get_transition(trans_idx);
         size_t clock_idx = trans_idx + 1;  
         
         // 检查时钟是否刚刚被重置(值为0,且约束为初始状态)
-        // Check if clock was just reset (value is 0, constraints are initial state)
         bool clock_just_reset = false;
         bool clock_exists = false;
         
@@ -601,10 +620,9 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
         }
         
         // 如果时钟不存在或刚刚被重置(新使能),设置初始约束
-        // If clock doesn't exist or was just reset (newly enabled), set initial constraints
         if (!clock_exists || clock_just_reset) {
             initialized_count++;
-            BOOST_LOG_TRIVIAL(debug) << "    初始化T" << trans_idx << "的时钟约束: ["
+            BOOST_LOG_TRIVIAL(debug) << "    初始化" << format_transitions({trans_idx}, false) << "的时钟约束: ["
                                       << transition.time_interval.earliest << ", "
                                       << (transition.time_interval.latest == matrix_ptpn::INF ? 
                                           std::string("∞") : std::to_string(transition.time_interval.latest))
@@ -655,8 +673,6 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
         BOOST_LOG_TRIVIAL(debug) << "    初始化了 " << initialized_count << " 个新使能变迁的时钟约束";
     }
     
-    // 最小化 DBM
-    // Minimize DBM
     state.Z1.minimize();
     state.Z2.minimize();
 }
@@ -664,6 +680,7 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
 bool StateClassReachabilityGraph::should_prune(const StateClass& state, 
                                                const std::set<StateClass>& visited) const {
     if (state.Z1.is_empty() || state.Z2.is_empty()) {
+        BOOST_LOG_TRIVIAL(info) << "    状态 " << state.state_id << " 被剪枝,因为 Z1 或 Z2 为空";
         return true;
     }
     
@@ -818,9 +835,9 @@ std::vector<size_t> StateClassReachabilityGraph::select_per_core(const std::set<
         int core = transition.core;
         int priority = transition.priority;
         
-        // 如果该核心还没有候选，或者当前变迁优先级更高（数值更小）
+        // 如果该核心还没有候选，或者当前变迁优先级更高（数值更大）
         if (best_per_core.find(core) == best_per_core.end() || 
-            priority < ptpn_.get_transition(best_per_core[core]).priority) {
+            priority > ptpn_.get_transition(best_per_core[core]).priority) {
             best_per_core[core] = t;
         }
     }
@@ -830,10 +847,7 @@ std::vector<size_t> StateClassReachabilityGraph::select_per_core(const std::set<
         chosen.push_back(trans_idx);
     }
     
-    BOOST_LOG_TRIVIAL(debug) << "  每核心最高优先级候选(" << chosen.size() << "): ";
-    for (size_t t : chosen) {
-        BOOST_LOG_TRIVIAL(debug) << "T" << t << " ";
-    }
+    BOOST_LOG_TRIVIAL(debug) << "  每核心最高优先级候选(" << chosen.size() << "): " << format_transitions(std::set<size_t>(chosen.begin(), chosen.end()), false);
     
     return chosen;
 }
@@ -857,9 +871,9 @@ void StateClassReachabilityGraph::apply_preemption(const std::vector<size_t>& ch
         for (size_t t : chosen) {
             const auto& transition_t = ptpn_.get_transition(t);
             
-            // 同核且更高优先级（数值更小）
+            // 同核且更高优先级（数值更大）
             if (transition_t.core == transition_u.core && 
-                transition_t.priority < transition_u.priority) {
+                transition_t.priority > transition_u.priority) {
                 
                 state.suspended.insert(u);
                 
@@ -871,7 +885,7 @@ void StateClassReachabilityGraph::apply_preemption(const std::vector<size_t>& ch
                     state.Z2.freeze_clock(clock_idx);
                 }
                 
-                BOOST_LOG_TRIVIAL(debug) << "    T" << u << ": 被T" << t << "抢占,冻结时钟";
+                BOOST_LOG_TRIVIAL(debug) << "    " << format_transitions({u}, false) << ": 被" << format_transitions({t}, false) << "抢占,冻结时钟";
                 break;
             }
         }
@@ -947,9 +961,17 @@ std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_dbm(
     // 1) 触发窗口一致性检查
     DBM zcheck = restrict_for_firing(targetZ, trans_idx);
     
-    if (zcheck.is_empty() || !zcheck.is_consistent()) {
-        BOOST_LOG_TRIVIAL(debug) << "    T" << trans_idx << ": 触发窗口检查失败";
-        return {false, StateClass(), 0.0};
+    // 仅在启用剪枝时检查并提前返回
+    if (pruning_enabled_) {
+        if (zcheck.is_empty() || !zcheck.is_consistent()) {
+            BOOST_LOG_TRIVIAL(debug) << "    " << format_transitions({trans_idx}, false) << ": 触发窗口检查失败";
+            return {false, StateClass(), 0.0};
+        }
+    } else {
+        // 剪枝禁用时，即使检查失败也继续处理，但记录警告
+        if (zcheck.is_empty() || !zcheck.is_consistent()) {
+            BOOST_LOG_TRIVIAL(debug) << "    " << format_transitions({trans_idx}, false) << ": 触发窗口检查失败,但剪枝已禁用,继续处理";
+        }
     }
     
     // 2) 推进到触发边界
@@ -974,7 +996,7 @@ std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_dbm(
     to.marking = matrix_ptpn::MatrixPTPN::fire(to.marking, ptpn_, trans_idx);
     
     if (to.marking.empty()) {
-        BOOST_LOG_TRIVIAL(debug) << "    T" << trans_idx << ": 触发后标识为空";
+        BOOST_LOG_TRIVIAL(debug) << "    " << format_transitions({trans_idx}, false) << ": 触发后标识为空";
         return {false, StateClass(), 0.0};
     }
     
@@ -994,7 +1016,7 @@ std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_dbm(
     // 5) 重新计算使能与时钟窗口
     compute_enabled_and_clocks(to);
     
-    BOOST_LOG_TRIVIAL(debug) << "    T" << trans_idx << ": 成功触发, fire_time = " << fire_time;
+    BOOST_LOG_TRIVIAL(debug) << "    " << format_transitions({trans_idx}, false) << ": 成功触发, fire_time = " << fire_time;
     
     return {true, to, fire_time};
 }

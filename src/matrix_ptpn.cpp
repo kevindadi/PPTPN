@@ -62,7 +62,7 @@ void MatrixPTPN::transform_vertices_from_tdg(TDG& tdg) {
             if (out_degree(v, tdg.tdg) == 0) {
                 if (holds_alternative<APeriodicTask>(node_type_it->second)) {
                     TimeInterval interval(0, 0);
-                    size_t consume_trans = add_transition(vertex_name + "_consume", interval, INT_MAX, 0, false);
+                    size_t consume_trans = add_transition(vertex_name + "_consume", interval, 411, 411, false);
                     // consume 变迁应该从 exit 库所消耗 token
                     set_pre_arc(end_idx, consume_trans, 1);
                     // consume 变迁不产生新的 token,所以不需要 post_arc
@@ -145,7 +145,7 @@ void MatrixPTPN::handle_normal_edge_matrix(const string& source_name, const stri
     if (source_name.substr(0, 4) == "Dist" || source_name.substr(0, 4) == "Wait") {
         if (source_node < places.size()) {
             TimeInterval interval(0, 0);
-            size_t middle_trans = add_transition(source_name + "_to_" + target_name, interval, INT_MAX, 0, false);
+            size_t middle_trans = add_transition(source_name + "_to_" + target_name, interval, 411, 411, false);
             set_pre_arc(source_node, middle_trans, 1);
             set_post_arc(middle_trans, target_node, 1);
         }
@@ -154,7 +154,7 @@ void MatrixPTPN::handle_normal_edge_matrix(const string& source_name, const stri
     if (target_name.substr(0, 4) == "Dist" || target_name.substr(0, 4) == "Wait") {
         if (source_node < places.size()) {
             TimeInterval interval(0, 0);
-            size_t middle_trans = add_transition(source_name + "_to_" + target_name, interval, INT_MAX, 0, false);
+            size_t middle_trans = add_transition(source_name + "_to_" + target_name, interval, 411, 411, false);
             set_pre_arc(source_node, middle_trans, 1);
             set_post_arc(middle_trans, target_node, 1);
         }
@@ -163,7 +163,7 @@ void MatrixPTPN::handle_normal_edge_matrix(const string& source_name, const stri
     
     const string trans_name = source_name + "_to_" + target_name;
     TimeInterval interval(0, 0);
-    size_t middle_trans = add_transition(trans_name, interval, INT_MAX, 0, false);
+    size_t middle_trans = add_transition(trans_name, interval, 411, 411, false);
     
     if (source_node < places.size() && target_node < places.size()) {
         set_pre_arc(source_node, middle_trans, 1);

@@ -29,6 +29,9 @@ class StateClassReachabilityGraph {
 public:
     explicit StateClassReachabilityGraph(const matrix_ptpn::MatrixPTPN& ptpn);
     
+    void set_pruning_enabled(bool enabled) { pruning_enabled_ = enabled; }
+    [[nodiscard]] bool is_pruning_enabled() const { return pruning_enabled_; }
+    
     size_t build(size_t max_states = std::numeric_limits<size_t>::max());
     
     [[nodiscard]] const StateClassGraph& get_graph() const { return graph_; }
@@ -112,8 +115,18 @@ private:
     
     StateClassVertex find_or_add_vertex(const StateClass& state);
     
+    static std::string format_marking(const std::vector<int>& marking); 
+    std::string format_transitions(const std::set<size_t>& trans_indices, bool detailed = true) const;
+    
+    // 辅助函数：格式化库所信息（带名称）
+    std::string format_places(const std::vector<int>& marking) const;
+    
+    // 辅助函数：详细输出状态类信息
+    void log_state_class_details(const StateClass& state, const std::string& prefix = "") const;
+    
     std::map<StateClass, StateClassVertex> state_to_vertex_;
     size_t next_state_id_;
+    bool pruning_enabled_ = false;  // 是否启用剪枝，默认false
 };
 
 } // namespace state_class

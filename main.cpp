@@ -152,6 +152,8 @@ int main(int argc, char* argv[]) {
   BOOST_LOG_TRIVIAL(info) << "  库所数: " << matrix_ptpn.num_places();
   BOOST_LOG_TRIVIAL(info) << "  变迁数: " << matrix_ptpn.num_transitions();
 
+  std::cout << matrix_ptpn.to_string();
+
   std::string matrix_ptpn_dot_file = "matrix_ptpn.dot";
   graph_ptpn::GraphPTPN graph_ptpn(matrix_ptpn);
   if (graph_ptpn.save_to_dot(matrix_ptpn_dot_file)) {

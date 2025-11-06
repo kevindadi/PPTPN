@@ -190,7 +190,7 @@ struct StateClass {
     
     size_t state_id;                       // 状态唯一 ID
     double cumulative_time;                // 累积时间
-    std::set<size_t> enabled;             // 当前使能的变迁集合
+    std::set<size_t> enabled;              // 当前使能的变迁集合
     std::set<size_t> suspended;            // 当前被挂起的变迁集合
     
     StateClass() : state_id(0), cumulative_time(0.0) {}
@@ -201,34 +201,16 @@ struct StateClass {
     StateClass(const std::vector<int>& m, const DBM& z1, const DBM& z2)
         : marking(m), Z1(z1), Z2(z2), state_id(0), cumulative_time(0.0) {}
     
-    /**
-     * 复制构造
-     */
     StateClass(const StateClass& other) = default;
-    
-    /**
-     * 赋值操作
-     */
     StateClass& operator=(const StateClass& other) = default;
     
     bool operator==(const StateClass& other) const;
     bool operator<(const StateClass& other) const;
-    
-    /**
-     * 复制状态类
-     */
+
     [[nodiscard]] StateClass copy() const;
-    
-    /**
-     * 转换为字符串表示 
-     */
     [[nodiscard]] std::string to_string() const;
 };
 
-/**
- * 状态转移边结构
- * 表示从一个状态类到另一个状态类的转移
- */
 struct TransitionEdge {
     int transition_id;             // 变迁 ID
     double firing_time;            // 变迁触发时间

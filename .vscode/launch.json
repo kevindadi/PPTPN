@@ -12,9 +12,7 @@
                 "--cores",
                 "1",
                 "--file",
-                "${workspaceFolder}/example/label.dot",
-                "--scg_type",
-                "priority"
+                "${workspaceFolder}/example/common.dot",
             ],
             "cwd": "${workspaceFolder}"
         },
