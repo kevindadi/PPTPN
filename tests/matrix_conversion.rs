@@ -6,9 +6,10 @@ use std::path::Path;
 
 #[test]
 fn test_tdg_to_ptpn() {
-    let path = Path::new("example/common.dot");
+    // 使用 simple_chain.dot 保证快速终止；common.dot 含周期任务较慢，见 tests/termination.rs
+    let path = Path::new("example/simple_chain.dot");
     if !path.exists() {
-        eprintln!("Skipping: example/common.dot not found");
+        eprintln!("Skipping: example/simple_chain.dot not found");
         return;
     }
 

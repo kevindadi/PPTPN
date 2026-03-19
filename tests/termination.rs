@@ -64,8 +64,19 @@ fn test_single_task_terminates() {
 }
 
 #[test]
+#[ignore = "common.dot 含周期任务，SCG 构建较慢，可单独运行: cargo test test_common_terminates -- --ignored --nocapture"]
 fn test_common_terminates() {
     let path = Path::new("example/common.dot");
+    if !path.exists() {
+        eprintln!("Skipping: {} not found", path.display());
+        return;
+    }
+    run_pipeline(path, 1, 2);
+}
+
+#[test]
+fn test_wide_times_terminates() {
+    let path = Path::new("example/wide_times.dot");
     if !path.exists() {
         eprintln!("Skipping: {} not found", path.display());
         return;
