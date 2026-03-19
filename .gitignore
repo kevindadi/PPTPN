@@ -1,9 +1,14 @@
-/build
-/.vscode
-/UUtils
-/UDBM
-/local
-/.idea
-/.cache
-/logs
+.cache
+.cursor
+.vscode
 
+# Rust
+target/
+
+# Build artifacts
+build/
+*.dot
+*.json
+!example/**/*.dot
+
+.DS_Store
