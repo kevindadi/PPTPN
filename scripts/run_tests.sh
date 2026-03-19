@@ -28,8 +28,8 @@ cargo bench --no-run
 echo ""
 
 # 4. 运行主程序
-echo ">>> 4. 运行主程序 (example/common.dot, cpus=1, cores=2, max-states=100)"
-cargo run --release -- --file example/common.dot --cpus 1 --cores 2 --max-states 100
+echo ">>> 4. 运行主程序 (内置示例)"
+cargo run --release -- --example
 echo ""
 
 # 5. 可选: 完整 benchmark

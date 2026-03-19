@@ -3,12 +3,14 @@
 //! 解析 TDG 格式的 DOT 文件，提取节点和边的信息
 
 use crate::error::{PtpnError, TdgParseError};
-use crate::tdg::task_types::{AperiodicTask, DistTask, EmptyTask, NodeType, PeriodicTask, SyncTask, TaskType};
+use crate::tdg::task_types::{
+    AperiodicTask, DistTask, EmptyTask, NodeType, PeriodicTask, SyncTask, TaskType,
+};
 use regex::Regex;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use tracing::{debug, info};
+use tracing::info;
 
 /// 解析时间区间字符串 [a,b] 为 (a, b)
 pub fn parse_time_vec(times: &str) -> Result<Vec<i32>, TdgParseError> {
@@ -94,15 +96,9 @@ pub fn parse_vertex_label(node_id: &str, label: &str) -> Result<NodeType, TdgPar
     // 特殊节点处理
     if parts.len() <= 2 {
         if name.starts_with("Wait") {
-            return Ok(NodeType::Sync(SyncTask {
-                name,
-                time: (0, 0),
-            }));
+            return Ok(NodeType::Sync(SyncTask { name, time: (0, 0) }));
         } else if name.starts_with("Dist") {
-            return Ok(NodeType::Dist(DistTask {
-                name,
-                time: (0, 0),
-            }));
+            return Ok(NodeType::Dist(DistTask { name, time: (0, 0) }));
         } else if name.starts_with("Empty") {
             return Ok(NodeType::Empty(EmptyTask { name }));
         }
@@ -361,18 +357,18 @@ pub fn parse_dot_content(
                     }
                 }
             }
-            tdg.edges.push((
-                source,
-                target,
-                EdgeInfo { label, style },
-            ));
+            tdg.edges.push((source, target, EdgeInfo { label, style }));
         }
 
         // 解析边 (无属性)
         if let Some(caps) = edge_simple_re.captures(line) {
             let source = caps[1].to_string();
             let target = caps[2].to_string();
-            if !tdg.edges.iter().any(|(s, t, _)| s == &source && t == &target) {
+            if !tdg
+                .edges
+                .iter()
+                .any(|(s, t, _)| s == &source && t == &target)
+            {
                 tdg.edges.push((
                     source,
                     target,
@@ -400,29 +396,12 @@ pub fn classify_priority(tdg: &mut Tdg) -> HashMap<i32, Vec<String>> {
 
     for node_type in &tdg.all_task {
         let (name, core, priority, times) = match node_type {
-            NodeType::Periodic(t) => {
-                (
-                    t.name.clone(),
-                    t.core,
-                    t.priority,
-                    t.time.clone(),
-                )
-            }
-            NodeType::Aperiodic(t) => {
-                (
-                    t.name.clone(),
-                    t.core,
-                    t.priority,
-                    t.time.clone(),
-                )
-            }
+            NodeType::Periodic(t) => (t.name.clone(), t.core, t.priority, t.time.clone()),
+            NodeType::Aperiodic(t) => (t.name.clone(), t.core, t.priority, t.time.clone()),
             _ => continue,
         };
 
-        core_task
-            .entry(core)
-            .or_default()
-            .push(name.clone());
+        core_task.entry(core).or_default().push(name.clone());
 
         tdg.tasks_config.insert(
             name,

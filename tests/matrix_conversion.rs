@@ -1,10 +1,11 @@
-//! TDG 到矩阵 PTPN 转换测试
+//! TDG 到 PTPN 转换测试
 
-use ptpn::{parse_dot_file, MatrixPTPN};
+use priority::{parse_dot_file, tdg_to_ptpn};
+use ptpn::scg;
 use std::path::Path;
 
 #[test]
-fn test_matrix_conversion() {
+fn test_tdg_to_ptpn() {
     let path = Path::new("example/common.dot");
     if !path.exists() {
         eprintln!("Skipping: example/common.dot not found");
@@ -12,10 +13,11 @@ fn test_matrix_conversion() {
     }
 
     let mut tdg = parse_dot_file(path, 1, 2).unwrap();
-    let mut matrix = MatrixPTPN::new();
-    matrix.transform_tdg_to_matrix_ptpn(&mut tdg);
+    let ptpn = tdg_to_ptpn(&mut tdg);
 
-    assert!(matrix.num_places() > 0);
-    assert!(matrix.num_transitions() > 0);
-    assert_eq!(matrix.get_marking().len(), matrix.num_places());
+    assert!(ptpn.p1.len() + ptpn.p2.len() > 0);
+    assert!(ptpn.t1.len() + ptpn.t2.len() > 0);
+
+    let scg = scg::build_scg(&ptpn);
+    assert!(scg.classes.len() > 0);
 }

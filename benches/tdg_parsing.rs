@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use ptpn::parse_dot_file;
+use priority::parse_dot_file;
 use std::path::Path;
 
 fn bench_tdg_parse(c: &mut Criterion) {

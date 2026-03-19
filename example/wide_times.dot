@@ -1,0 +1,5 @@
+digraph G {
+    A [label = "{A;99;0;[2,5]}"];
+    B [label = "{B;98;0;[1,4]}"];
+    A -> B [style = ""];
+}

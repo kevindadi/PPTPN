@@ -1,42 +1,32 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use ptpn::{parse_dot_file, MatrixPTPN, StateClassReachabilityGraph};
+use priority::{parse_dot_file, tdg_to_ptpn};
+use ptpn::examples::three_task;
+use ptpn::scg;
 use std::path::Path;
 
-fn bench_state_class_small(c: &mut Criterion) {
-    let path = Path::new("example/common.dot");
-    if !path.exists() {
-        eprintln!("Skipping benchmark: example/common.dot not found");
-        return;
-    }
-    let mut tdg = parse_dot_file(path, 1, 2).unwrap();
-    let mut matrix = MatrixPTPN::new();
-    matrix.transform_tdg_to_matrix_ptpn(&mut tdg);
-
-    c.bench_function("state_class_build_small", |b| {
+fn bench_three_task_scg(c: &mut Criterion) {
+    c.bench_function("state_class_build_three_task", |b| {
         b.iter(|| {
-            let mut scg = StateClassReachabilityGraph::new(matrix.clone());
-            scg.build(black_box(100));
+            let ptpn = three_task::build_three_task_ptpn();
+            scg::build_scg(black_box(&ptpn));
         });
     });
 }
 
-fn bench_state_class_medium(c: &mut Criterion) {
+fn bench_tdg_scg(c: &mut Criterion) {
     let path = Path::new("example/common.dot");
     if !path.exists() {
-        eprintln!("Skipping benchmark: example/common.dot not found");
         return;
     }
     let mut tdg = parse_dot_file(path, 1, 2).unwrap();
-    let mut matrix = MatrixPTPN::new();
-    matrix.transform_tdg_to_matrix_ptpn(&mut tdg);
+    let ptpn = tdg_to_ptpn(&mut tdg);
 
-    c.bench_function("state_class_build_medium", |b| {
+    c.bench_function("state_class_build_tdg", |b| {
         b.iter(|| {
-            let mut scg = StateClassReachabilityGraph::new(matrix.clone());
-            scg.build(black_box(1000));
+            scg::build_scg(black_box(&ptpn));
         });
     });
 }
 
-criterion_group!(benches, bench_state_class_small, bench_state_class_medium);
+criterion_group!(benches, bench_three_task_scg, bench_tdg_scg);
 criterion_main!(benches);

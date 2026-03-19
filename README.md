@@ -1,6 +1,6 @@
 # 优先级时间 Petri 网 (P-PTPN)
 
-基于 Rust 实现的优先级时间 Petri 网分析与状态类生成工具。支持 TDG (Task Dependency Graph) 解析、矩阵/图形式 PTPN、DBM 时间约束、状态类可达图 BFS 探索。
+基于 [R-PTPN](https://github.com/kevindadi/R-PTPN) 库的优先级时间 Petri 网分析工具。支持 TDG (Task Dependency Graph) DOT 解析、状态类图 (SCG) 构建、WCET/WCRT 分析、死锁检测。
 
 ## 依赖
 
@@ -15,17 +15,11 @@ cargo build --release
 ## 使用
 
 ```bash
-# 基本用法
-./target/release/ptpn --file example/common.dot --cpus 1 --cores 2
+# 使用内置 three_task 示例
+./target/release/priority --example
 
-# 限制最大状态数
-./target/release/ptpn --file example/common.dot --cpus 1 --cores 2 --max-states 100
-
-# 指定输出路径
-./target/release/ptpn --file example/common.dot --cpus 1 --cores 2 \
-  --output-ptpn matrix_ptpn.dot \
-  --output-scg state_class_graph.dot \
-  --output-scg-json state_class_graph.json
+# 从 TDG DOT 文件解析
+./target/release/priority --file example/common.dot --cpus 1 --cores 2
 ```
 
 ## 测试
@@ -46,32 +40,14 @@ cargo bench
 ./scripts/run_tests.sh
 ```
 
-执行: 构建 → 单元测试 → Benchmark 编译 → 主程序运行。
-
-设置 `RUN_BENCH=1` 可额外执行完整 benchmark:
-
-```bash
-RUN_BENCH=1 ./scripts/run_tests.sh
-```
-
 ## 日志
 
 通过 `RUST_LOG` 控制日志级别:
 
 ```bash
-RUST_LOG=ptpn=debug ./target/release/ptpn --file example/common.dot --cpus 1 --cores 2
+RUST_LOG=priority=debug ./target/release/priority --example
 ```
-
-## 输出
-
-- `matrix_ptpn.dot` - 矩阵形式 PTPN 的 DOT 图
-- `state_class_graph.dot` - 状态类可达图 (DOT)
-- `state_class_graph.json` - 状态类可达图 (JSON)
 
 ## 设计文档
 
 参见 [docs/DESIGN.md](docs/DESIGN.md)。
-
-## 算法参考
-
-参见 [STATE_CLASS_ALGORITHM.md](STATE_CLASS_ALGORITHM.md)。

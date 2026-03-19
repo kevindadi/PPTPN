@@ -1,25 +1,33 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use ptpn::{matrix_to_graph, parse_dot_file, save_to_dot, MatrixPTPN, StateClassReachabilityGraph};
+use priority::{parse_dot_file, tdg_to_ptpn};
+use ptpn::examples::three_task;
+use ptpn::scg;
 use std::path::Path;
 
-fn bench_full_pipeline(c: &mut Criterion) {
-    let path = Path::new("example/common.dot");
-    if !path.exists() {
-        eprintln!("Skipping benchmark: example/common.dot not found");
-        return;
-    }
-    c.bench_function("full_pipeline", |b| {
+fn bench_full_pipeline_example(c: &mut Criterion) {
+    c.bench_function("full_pipeline_three_task", |b| {
         b.iter(|| {
-            let mut tdg = parse_dot_file(black_box(path), 1, 2).unwrap();
-            let mut matrix = MatrixPTPN::new();
-            matrix.transform_tdg_to_matrix_ptpn(&mut tdg);
-            let graph = matrix_to_graph(&matrix);
-            let _ = save_to_dot(&graph, "/tmp/ptpn_bench.dot");
-            let mut scg = StateClassReachabilityGraph::new(matrix);
-            scg.build(1000);
+            let ptpn = three_task::build_three_task_ptpn();
+            let scg = scg::build_scg(&ptpn);
+            black_box(&scg);
         });
     });
 }
 
-criterion_group!(benches, bench_full_pipeline);
+fn bench_full_pipeline_tdg(c: &mut Criterion) {
+    let path = Path::new("example/common.dot");
+    if !path.exists() {
+        return;
+    }
+    c.bench_function("full_pipeline_tdg", |b| {
+        b.iter(|| {
+            let mut tdg = parse_dot_file(black_box(path), 1, 2).unwrap();
+            let ptpn = tdg_to_ptpn(&mut tdg);
+            let scg = scg::build_scg(&ptpn);
+            black_box(&scg);
+        });
+    });
+}
+
+criterion_group!(benches, bench_full_pipeline_example, bench_full_pipeline_tdg);
 criterion_main!(benches);

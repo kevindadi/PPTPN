@@ -12,3 +12,4 @@ build/
 !example/**/*.dot
 
 .DS_Store
+Cargo.lock

@@ -1,0 +1,10 @@
+digraph G {
+    A [label = "{A;99;0;[1,2]}"];
+    B [label = "{B;98;0;[1,2]}"];
+    C [label = "{C;98;1;[1,2]}"];
+    D [label = "{D;97;0;[1,2]}"];
+    A -> B [style = ""];
+    A -> C [style = ""];
+    B -> D [style = ""];
+    C -> D [style = ""];
+}

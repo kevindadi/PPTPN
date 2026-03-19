@@ -1,14 +1,15 @@
 [package]
-name = "ptpn"
+name = "priority"
 version = "0.1.0"
 edition = "2021"
-description = "优先级时间 Petri 网 (Priority-Time Petri Net) 分析与状态类生成"
+description = "优先级时间 Petri 网 (Priority-Time Petri Net) 分析 - 基于 R-PTPN"
 license = "MIT"
 authors = ["PTPN Contributors"]
-repository = ""
 
 [dependencies]
-petgraph = "0.6"
+# R-PTPN: 优先级时间 Petri 网核心库
+ptpn = { git = "https://github.com/kevindadi/R-PTPN" }
+
 thiserror = "1.0"
 anyhow = "1.0"
 tracing = "0.1"

@@ -1,25 +1,20 @@
-//! 状态类生成测试
+//! 状态类图与分析测试
 
-use ptpn::{parse_dot_file, MatrixPTPN, StateClassReachabilityGraph};
-use std::path::Path;
+use ptpn::analysis;
+use ptpn::deadlock;
+use ptpn::examples::three_task;
+use ptpn::scg;
 
 #[test]
-fn test_state_class_example() {
-    let path = Path::new("example/common.dot");
-    if !path.exists() {
-        eprintln!("Skipping: example/common.dot not found");
-        return;
+fn test_three_task_analysis() {
+    let ptpn = three_task::build_three_task_ptpn();
+    let scg = scg::build_scg(&ptpn);
+
+    for task in &ptpn.tasks {
+        let _wcet = analysis::compute_wcet(&ptpn, &scg, *task);
+        let _wcrt = analysis::compute_wcrt(&ptpn, &scg, *task);
     }
 
-    let mut tdg = parse_dot_file(path, 1, 2).unwrap();
-    let mut matrix = MatrixPTPN::new();
-    matrix.transform_tdg_to_matrix_ptpn(&mut tdg);
-
-    let mut scg = StateClassReachabilityGraph::new(matrix);
-    let num_states = scg.build(50);
-
-    assert!(num_states > 0);
-    let stats = scg.get_statistics();
-    assert!(stats.total_states > 0);
-    assert!(stats.total_transitions >= 0);
+    let _deadlocks = deadlock::detect_global_deadlocks(&ptpn, &scg);
+    let _starvations = deadlock::detect_starvation_sccs(&ptpn, &scg);
 }

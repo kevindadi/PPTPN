@@ -1,20 +1,19 @@
 # PTPN 设计文档
 
-## 1. 模块划分
+## 1. 架构
+
+本项目基于 [R-PTPN](https://github.com/kevindadi/R-PTPN) 库，提供 TDG 解析与转换层。
 
 ```
-ptpn/
-├── error.rs        # 错误类型 (thiserror)
-├── tdg/            # TDG 解析
-│   ├── dot_parser.rs
-│   └── task_types.rs
-├── ptpn/           # PTPN 核心
-│   ├── matrix.rs   # 矩阵形式
-│   ├── graph.rs    # 图形式 (petgraph)
-│   └── time_interval.rs
-├── dbm.rs          # DBM 差分界矩阵
-├── state_class.rs  # 状态类
-└── reachability.rs # 状态类可达图
+priority/
+├── src/
+│   ├── main.rs       # CLI 入口
+│   ├── lib.rs        # 库根
+│   ├── error.rs      # 错误类型
+│   ├── tdg/          # TDG DOT 解析
+│   │   ├── dot_parser.rs
+│   │   └── task_types.rs
+│   └── converter.rs  # TDG -> R-PTPN PTPN 转换
 ```
 
 ## 2. 数据流
@@ -23,64 +22,39 @@ ptpn/
 flowchart LR
     subgraph input [输入]
         DOT[DOT 文件]
+        Example[内置示例]
     end
     
-    subgraph rust [Rust 模块]
+    subgraph priority [Priority]
         TDG[tdg::parse_dot_file]
-        Matrix[ptpn::MatrixPTPN]
-        Graph[ptpn::matrix_to_graph]
-        SCG[reachability::StateClassReachabilityGraph]
+        Conv[converter::tdg_to_ptpn]
     end
     
-    subgraph output [输出]
-        PTPN_DOT[matrix_ptpn.dot]
-        SCG_DOT[state_class_graph.dot]
-        SCG_JSON[state_class_graph.json]
+    subgraph rptpn [R-PTPN]
+        PTPN[ptpn::model::PTPN]
+        SCG[ptpn::scg::build_scg]
+        Analysis[analysis, deadlock]
     end
     
     DOT --> TDG
-    TDG --> Matrix
-    Matrix --> Graph
-    Matrix --> SCG
-    Graph --> PTPN_DOT
-    SCG --> SCG_DOT
-    SCG --> SCG_JSON
+    TDG --> Conv
+    Example --> PTPN
+    Conv --> PTPN
+    PTPN --> SCG
+    SCG --> Analysis
 ```
 
-## 3. 核心数据结构
+## 3. R-PTPN 库
 
-### 3.1 TDG
+- **PTPN**: 11 元组 (p1, p2, t1, t2, f, m0, si, tasks, tak, req, pri)
+- **SCG**: 状态类图，含 classes 和 edges
+- **analysis**: compute_wcet, compute_wcrt
+- **deadlock**: detect_global_deadlocks, detect_starvation_sccs
 
-- `Tdg`: 解析后的任务依赖图，含 `nodes_type`, `edges`, `all_task` 等
-- `NodeType`: `Periodic` | `Aperiodic` | `Dist` | `Sync` | `Empty`
+## 4. TDG 转换
 
-### 3.2 MatrixPTPN
-
-- `Place`: id, name, capacity
-- `Transition`: id, name, time_interval, priority, core, suspendable
-- `Pre`: |P|×|T|, `Post`: |T|×|P|, `m0`: 初始标识
-
-### 3.3 DBM
-
-- `Dbm`: matrix (差分界), frozen_clocks
-- 操作: add_clock, elapse_time, restrict_for_firing, minimize (Floyd-Warshall)
-
-### 3.4 StateClass
-
-- marking, z1, z2 (双 DBM), enabled, suspended, cumulative_time
-
-### 3.5 可达图
-
-- `StableDiGraph<StateClass, TransitionEdge>` (petgraph)
-- BFS 探索: select_per_core → apply_preemption → maximal_time_elapse → fire_with_dbm
-
-## 4. petgraph 使用
-
-- **PtpnGraph**: `DiGraph<(String, Vertex), Edge>` 用于 PTPN 可视化
-- **StateClassReachabilityGraph**: `StableDiGraph<StateClass, TransitionEdge>` 用于状态类图
-- `StableDiGraph` 保证节点/边删除后索引稳定，适合 BFS 中动态添加
-
-## 5. 错误与日志
-
-- **错误**: `thiserror` 定义 `TdgParseError`, `PtpnErrorKind`, `DbmError`, `ReachabilityError`
-- **日志**: `tracing` + `tracing-subscriber`，支持 `RUST_LOG=ptpn=debug`
+`converter::tdg_to_ptpn` 将 TDG 任务图转换为 R-PTPN 的 PTPN 格式：
+- 每个任务: entry -> get_core -> ready -> exec -> exit
+- 周期任务: period -> fire -> entry
+- 资源: cpu (p2)
+- 边: 任务间依赖
