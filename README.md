@@ -2,11 +2,13 @@
 
 基于 [R-PTPN](https://github.com/kevindadi/R-PTPN) 库的优先级时间 Petri 网分析工具。支持 TDG (Task Dependency Graph) DOT 解析、状态类图 (SCG) 构建、WCET/WCRT 分析、死锁检测。
 
-## 依赖
+## ⚙️ 依赖
 
 - Rust 1.70+
 
-## 安装
+## 📦 安装
+
+使用 `vcpkg` 安装依赖：
 
 ```bash
 cargo build --release
