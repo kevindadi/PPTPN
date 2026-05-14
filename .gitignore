@@ -1,9 +1,5 @@
-/build
-/.vscode
-/UUtils
-/UDBM
-/local
-/.idea
-/.cache
-/logs
+.vscode
+.cache
+
+build
 
