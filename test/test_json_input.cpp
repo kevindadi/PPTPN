@@ -12,8 +12,6 @@ using namespace std;
 void setup_logging() {
   boost::log::add_console_log(std::clog);
   boost::log::add_common_attributes();
-  boost::log::core::get()->set_filter(
-      boost::log::trivial::severity >= boost::log::trivial::debug);
 }
 
 bool test_valid_json_parsing() {

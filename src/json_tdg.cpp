@@ -2,9 +2,9 @@
 
 #include <boost/log/trivial.hpp>
 #include <fstream>
+#include <set>
 #include <sstream>
 
-#include "nlohmann/json.hpp"
 
 using json = nlohmann::json;
 
@@ -305,7 +305,7 @@ NodeType JsonNode::to_node_type() const {
     task.core = core;
     task.time = time;
     task.period_time = period;
-    task.locks = locks;
+    task.lock = locks;
     task.task_type = TaskType::PERIOD;
     return task;
   } else if (type == "aperiodic") {
@@ -314,19 +314,23 @@ NodeType JsonNode::to_node_type() const {
     task.priority = priority;
     task.core = core;
     task.time = time;
-    task.locks = locks;
+    task.lock = locks;
     task.task_type = TaskType::NORMAL;
     task.is_lock = !locks.empty();
     return task;
   } else if (type == "fork") {
     ForkTask task;
     task.name = id;
-    task.time = time;
+    if (!time.empty()) {
+      task.time = time[0];  // ForkTask has single pair time
+    }
     return task;
   } else if (type == "join") {
     JoinTask task;
     task.name = id;
-    task.time = time;
+    if (!time.empty()) {
+      task.time = time[0];  // JoinTask has single pair time
+    }
     return task;
   } else {
     EmptyTask task;
@@ -351,11 +355,11 @@ std::string node_to_dot_label(const NodeType& node) {
     }
     oss << "]";
     // Locks
-    if (!task.locks.empty()) {
+    if (!task.lock.empty()) {
       oss << ";";
-      for (size_t i = 0; i < task.locks.size(); ++i) {
+      for (size_t i = 0; i < task.lock.size(); ++i) {
         if (i > 0) oss << ",";
-        oss << task.locks[i];
+        oss << task.lock[i];
       }
     } else {
       oss << ";[3,3]";  // Default lock for compatibility
@@ -373,11 +377,11 @@ std::string node_to_dot_label(const NodeType& node) {
     }
     oss << "]";
     // Locks
-    if (!task.locks.empty()) {
+    if (!task.lock.empty()) {
       oss << ";";
-      for (size_t i = 0; i < task.locks.size(); ++i) {
+      for (size_t i = 0; i < task.lock.size(); ++i) {
         if (i > 0) oss << ",";
-        oss << task.locks[i];
+        oss << task.lock[i];
       }
     }
     oss << "}";

@@ -1,8 +1,10 @@
 #include "clap.h"
+#include "json_tdg.h"
 
 #include <boost/exception/all.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/static_assert.hpp>
+#include <fstream>
 #include <regex>
 #include <utility>
 
@@ -78,21 +80,21 @@ void TDG::parse_tdg() {
         vertexes_type.insert(make_pair(t_name, TDGVertexType::TASK));
         BOOST_LOG_TRIVIAL(info) << "[TDG] " << t_name << ": "
                                 << TaskTypeToString[ap_task.task_type];
-      } else if (holds_alternative<SyncTask>(node_type)) {
-        auto s_task = get<SyncTask>(node_type);
+      } else if (holds_alternative<JoinTask>(node_type)) {
+        auto s_task = get<JoinTask>(node_type);
         string t_name = s_task.name;
         nodes_type.insert(make_pair(t_name, s_task));
-        vertexes_type.insert(make_pair(t_name, TDGVertexType::SYNC));
-        BOOST_LOG_TRIVIAL(info) << "[TDG] " << t_name << ": type: SYNC";
-      } else if (holds_alternative<DistTask>(node_type)) {
-        auto d_task = get<DistTask>(node_type);
+        vertexes_type.insert(make_pair(t_name, TDGVertexType::JOIN));
+        BOOST_LOG_TRIVIAL(info) << "[TDG] " << t_name << ": type: JOIN";
+      } else if (holds_alternative<ForkTask>(node_type)) {
+        auto d_task = get<ForkTask>(node_type);
         string t_name = d_task.name;
 
         //              BOOST_STATIC_ASSERT_MSG(res > 0, "ID must be equal
         //              label.0");
         nodes_type.insert(make_pair(t_name, d_task));
-        vertexes_type.insert(make_pair(t_name, TDGVertexType::DIST));
-        BOOST_LOG_TRIVIAL(info) << "[TDG] " << t_name << ": type: DIST";
+        vertexes_type.insert(make_pair(t_name, TDGVertexType::FORK));
+        BOOST_LOG_TRIVIAL(info) << "[TDG] " << t_name << ": type: FORK";
       } else {
         auto e_task = get<EmptyTask>(node_type);
         string t_name = e_task.name;
@@ -148,9 +150,9 @@ NodeType TDG::parse_vertex_label(const string &label) {
     // 首先处理特殊节点
     if (parts.size() <= 2) {
       if (name.substr(0, 4) == "Wait") {
-        return SyncTask{name};
+        return JoinTask{name};
       } else if (name.substr(0, 4) == "Dist") {
-        return DistTask{name};
+        return ForkTask{name};
       } else if (name.substr(0, 5) == "Empty") {
         return EmptyTask{name};
       }
@@ -359,4 +361,255 @@ std::unordered_map<int, vector<string>> TDG::classify_priority() {
   }
 
   return core_task;
+}
+
+// 静态方法:检测输入文件格式
+InputFormat TDG::detect_format(const std::string& file_path) {
+  if (file_path.length() > 5) {
+    std::string extension = file_path.substr(file_path.length() - 5);
+    if (extension == ".json") {
+      return InputFormat::JSON;
+    } else if (extension == ".dot") {
+      return InputFormat::DOT;
+    }
+  }
+
+  // 尝试通过内容检测
+  std::ifstream file(file_path);
+  if (file.is_open()) {
+    std::string first_line;
+    if (std::getline(file, first_line)) {
+      // JSON 通常以 { 开始
+      if (first_line.find('"') != std::string::npos &&
+          first_line.find("nodes") != std::string::npos) {
+        return InputFormat::JSON;
+      }
+    }
+  }
+  return InputFormat::DOT;
+}
+
+// JSON 文件解析入口
+void TDG::parse_json(const std::string& json_file) {
+  BOOST_LOG_TRIVIAL(info) << "[TDG] Starting JSON parsing: " << json_file;
+
+  json_tdg::JsonTDGParser parser;
+  auto result = parser.parse_file(json_file);
+
+  if (!result.success) {
+    BOOST_LOG_TRIVIAL(error) << "[TDG] JSON parsing failed: " << result.error_message;
+    BOOST_THROW_EXCEPTION(LabelParseException("JSON parsing failed: " + result.error_message));
+    return;
+  }
+
+  // 记录配置
+  num_cpus = parser.get_num_cpus();
+  cores_per_cpu = parser.get_cores_per_cpu();
+  tdg_file = json_file;
+
+  BOOST_LOG_TRIVIAL(info) << "[TDG] Configuration: " << num_cpus << " CPUs, "
+                           << cores_per_cpu << " cores per CPU";
+
+  // 转换节点
+  for (const auto& json_node : parser.get_nodes()) {
+    std::string id = json_node.id;
+    NodeType node_type = json_node.to_node_type();
+
+    if (std::holds_alternative<PeriodicTask>(node_type)) {
+      const auto& task = std::get<PeriodicTask>(node_type);
+      all_task.emplace_back(node_type);
+      tasks_priority.insert({task.name, task.priority});
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::TASK});
+      tasks_type.insert({task.name, TaskType::PERIOD});
+
+      // 记录锁
+      for (const auto& lock : task.lock) {
+        lock_set.insert(lock);
+        task_locks_map[task.name].push_back(lock);
+      }
+
+      BOOST_LOG_TRIVIAL(info) << "[TDG] Node '" << task.name << "' -> periodic "
+                               << "(priority=" << task.priority
+                               << ", core=" << task.core << ")";
+
+    } else if (std::holds_alternative<APeriodicTask>(node_type)) {
+      const auto& task = std::get<APeriodicTask>(node_type);
+      all_task.emplace_back(node_type);
+      tasks_priority.insert({task.name, task.priority});
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::TASK});
+      tasks_type.insert({task.name, TaskType::NORMAL});
+
+      // 记录锁
+      for (const auto& lock : task.lock) {
+        lock_set.insert(lock);
+        task_locks_map[task.name].push_back(lock);
+      }
+
+      BOOST_LOG_TRIVIAL(info) << "[TDG] Node '" << task.name << "' -> aperiodic "
+                               << "(priority=" << task.priority
+                               << ", core=" << task.core << ")";
+
+    } else if (std::holds_alternative<ForkTask>(node_type)) {
+      const auto& task = std::get<ForkTask>(node_type);
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::FORK});
+      BOOST_LOG_TRIVIAL(info) << "[TDG] Node '" << task.name << "' -> fork";
+
+    } else if (std::holds_alternative<JoinTask>(node_type)) {
+      const auto& task = std::get<JoinTask>(node_type);
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::JOIN});
+      BOOST_LOG_TRIVIAL(info) << "[TDG] Node '" << task.name << "' -> join";
+
+    } else if (std::holds_alternative<EmptyTask>(node_type)) {
+      const auto& task = std::get<EmptyTask>(node_type);
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::EMPTY});
+      BOOST_LOG_TRIVIAL(info) << "[TDG] Node '" << task.name << "' -> empty";
+    }
+  }
+
+  // 转换边
+  for (const auto& edge : parser.get_edges()) {
+    tdg_edges.emplace_back(edge.source, edge.target, edge.label, edge.style);
+    BOOST_LOG_TRIVIAL(debug) << "[TDG] Edge: " << edge.source << " -> " << edge.target
+                              << " (style=" << edge.style << ")";
+  }
+
+  BOOST_LOG_TRIVIAL(info) << "[TDG] JSON parsing completed: "
+                           << nodes_type.size() << " nodes, " << tdg_edges.size()
+                           << " edges";
+}
+
+// 从 JSON 字符串解析
+void TDG::parse_json_string(const std::string& json_content) {
+  BOOST_LOG_TRIVIAL(info) << "[TDG] Parsing JSON string ("
+                           << json_content.size() << " characters)";
+
+  json_tdg::JsonTDGParser parser;
+  auto result = parser.parse_string(json_content);
+
+  if (!result.success) {
+    BOOST_LOG_TRIVIAL(error) << "[TDG] JSON parsing failed: " << result.error_message;
+    BOOST_THROW_EXCEPTION(LabelParseException("JSON parsing failed: " + result.error_message));
+    return;
+  }
+
+  // 更新配置
+  num_cpus = parser.get_num_cpus();
+  cores_per_cpu = parser.get_cores_per_cpu();
+
+  // 转换节点 (与 parse_json 相同逻辑)
+  for (const auto& json_node : parser.get_nodes()) {
+    std::string id = json_node.id;
+    NodeType node_type = json_node.to_node_type();
+
+    if (std::holds_alternative<PeriodicTask>(node_type)) {
+      const auto& task = std::get<PeriodicTask>(node_type);
+      all_task.emplace_back(node_type);
+      tasks_priority.insert({task.name, task.priority});
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::TASK});
+      tasks_type.insert({task.name, TaskType::PERIOD});
+
+      for (const auto& lock : task.lock) {
+        lock_set.insert(lock);
+        task_locks_map[task.name].push_back(lock);
+      }
+
+    } else if (std::holds_alternative<APeriodicTask>(node_type)) {
+      const auto& task = std::get<APeriodicTask>(node_type);
+      all_task.emplace_back(node_type);
+      tasks_priority.insert({task.name, task.priority});
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::TASK});
+      tasks_type.insert({task.name, TaskType::NORMAL});
+
+      for (const auto& lock : task.lock) {
+        lock_set.insert(lock);
+        task_locks_map[task.name].push_back(lock);
+      }
+
+    } else if (std::holds_alternative<ForkTask>(node_type)) {
+      const auto& task = std::get<ForkTask>(node_type);
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::FORK});
+
+    } else if (std::holds_alternative<JoinTask>(node_type)) {
+      const auto& task = std::get<JoinTask>(node_type);
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::JOIN});
+
+    } else if (std::holds_alternative<EmptyTask>(node_type)) {
+      const auto& task = std::get<EmptyTask>(node_type);
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::EMPTY});
+    }
+  }
+
+  // 转换边
+  for (const auto& edge : parser.get_edges()) {
+    tdg_edges.emplace_back(edge.source, edge.target, edge.label, edge.style);
+  }
+
+  BOOST_LOG_TRIVIAL(info) << "[TDG] JSON string parsing completed: "
+                           << nodes_type.size() << " nodes, " << tdg_edges.size()
+                           << " edges";
+}
+
+// 导出为 DOT 格式字符串
+std::string TDG::to_dot_string() const {
+  std::ostringstream oss;
+
+  oss << "digraph G {\n";
+
+  // 导出节点
+  for (const auto& [name, node] : nodes_type) {
+    oss << "    " << name << " [label = \"" << json_tdg::node_to_dot_label(node)
+        << "\";];\n";
+  }
+
+  // 导出边
+  for (const auto& edge : tdg_edges) {
+    std::string source, target, label, style;
+    std::tie(source, target, label, style) = edge;
+
+    oss << "    " << source << " -> " << target;
+    if (!label.empty() || !style.empty()) {
+      oss << " [";
+      if (!label.empty()) {
+        oss << "xlabel = \"" << label << "\"";
+      }
+      if (!style.empty()) {
+        if (!label.empty()) oss << "; ";
+        oss << "style = \"" << style << "\"";
+      }
+      oss << ";]";
+    }
+    oss << ";\n";
+  }
+
+  oss << "}\n";
+  return oss.str();
+}
+
+// 导出到 DOT 文件
+void TDG::export_to_dot(const std::string& output_path) {
+  BOOST_LOG_TRIVIAL(info) << "[DOT] Exporting to: " << output_path;
+
+  std::ofstream file(output_path);
+  if (!file.is_open()) {
+    BOOST_LOG_TRIVIAL(error) << "[DOT] Failed to create file: " << output_path;
+    return;
+  }
+
+  std::string dot_content = to_dot_string();
+  file << dot_content;
+  file.close();
+
+  BOOST_LOG_TRIVIAL(info) << "[DOT] Exported " << nodes_type.size()
+                           << " nodes, " << tdg_edges.size() << " edges to "
+                           << output_path;
 }
