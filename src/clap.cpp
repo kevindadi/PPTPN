@@ -4,6 +4,7 @@
 #include <boost/exception/all.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/static_assert.hpp>
+#include <algorithm>
 #include <fstream>
 #include <regex>
 #include <utility>
@@ -365,11 +366,18 @@ std::unordered_map<int, vector<string>> TDG::classify_priority() {
 
 // 静态方法:检测输入文件格式
 InputFormat TDG::detect_format(const std::string& file_path) {
-  if (file_path.length() > 5) {
-    std::string extension = file_path.substr(file_path.length() - 5);
-    if (extension == ".json") {
+  size_t len = file_path.length();
+  if (len >= 5) {
+    std::string ext = file_path.substr(len - 5);
+    for (char& c : ext) c = std::tolower((unsigned char)c);
+    if (ext == ".json") {
       return InputFormat::JSON;
-    } else if (extension == ".dot") {
+    }
+  }
+  if (len >= 4) {
+    std::string ext = file_path.substr(len - 4);
+    for (char& c : ext) c = std::tolower((unsigned char)c);
+    if (ext == ".dot") {
       return InputFormat::DOT;
     }
   }
@@ -485,23 +493,18 @@ void TDG::parse_json(const std::string& json_file) {
 
 // 从 JSON 字符串解析
 void TDG::parse_json_string(const std::string& json_content) {
-  BOOST_LOG_TRIVIAL(info) << "[TDG] Parsing JSON string ("
-                           << json_content.size() << " characters)";
-
   json_tdg::JsonTDGParser parser;
   auto result = parser.parse_string(json_content);
 
   if (!result.success) {
-    BOOST_LOG_TRIVIAL(error) << "[TDG] JSON parsing failed: " << result.error_message;
-    BOOST_THROW_EXCEPTION(LabelParseException("JSON parsing failed: " + result.error_message));
-    return;
+    throw std::runtime_error("JSON parsing failed: " + result.error_message);
   }
 
   // 更新配置
   num_cpus = parser.get_num_cpus();
   cores_per_cpu = parser.get_cores_per_cpu();
 
-  // 转换节点 (与 parse_json 相同逻辑)
+  // 转换节点
   for (const auto& json_node : parser.get_nodes()) {
     std::string id = json_node.id;
     NodeType node_type = json_node.to_node_type();
@@ -553,10 +556,6 @@ void TDG::parse_json_string(const std::string& json_content) {
   for (const auto& edge : parser.get_edges()) {
     tdg_edges.emplace_back(edge.source, edge.target, edge.label, edge.style);
   }
-
-  BOOST_LOG_TRIVIAL(info) << "[TDG] JSON string parsing completed: "
-                           << nodes_type.size() << " nodes, " << tdg_edges.size()
-                           << " edges";
 }
 
 // 导出为 DOT 格式字符串

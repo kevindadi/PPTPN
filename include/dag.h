@@ -65,17 +65,19 @@ enum class TaskCategory {
 // FORK node: represents a branching point in the task graph
 struct ForkTask {
   string name;
-  std::pair<int, int> time;
+  std::pair<int, int> time = std::make_pair(0, 0);
   static constexpr TaskCategory category() { return TaskCategory::CONTROL; }
-  ForkTask() : time(std::make_pair(0, 0)) {}
+  ForkTask() = default;
+  ForkTask(const string& n) : name(n) {}
 };
 
 // JOIN node: represents a synchronization point in the task graph
 struct JoinTask {
   string name;
-  std::pair<int, int> time;
+  std::pair<int, int> time = std::make_pair(0, 0);
   static constexpr TaskCategory category() { return TaskCategory::CONTROL; }
-  JoinTask() : time(std::make_pair(0, 0)) {}
+  JoinTask() = default;
+  JoinTask(const string& n) : name(n) {}
 };
 
 // Backward compatibility typedefs

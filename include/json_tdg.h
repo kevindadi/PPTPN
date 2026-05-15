@@ -5,10 +5,10 @@
 #include <vector>
 #include <map>
 #include <variant>
-#include <optional>
 
 #include "dag.h"
-#include "nlohmann/json.hpp"
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
 
 namespace json_tdg {
 
@@ -20,11 +20,11 @@ struct JsonParseResult {
 
 struct JsonNode {
   std::string id;
-  std::string type;  // "periodic", "aperiodic", "fork", "join", "empty"
+  std::string type;
   int priority = 100;
   int core = 0;
-  std::vector<std::pair<int, int>> time;  // WCET intervals
-  std::pair<int, int> period = {0, 0};   // For periodic tasks only
+  std::vector<std::pair<int, int>> time;
+  std::pair<int, int> period = {0, 0};
   std::vector<std::string> locks;
 
   NodeType to_node_type() const;
@@ -33,8 +33,8 @@ struct JsonNode {
 struct JsonEdge {
   std::string source;
   std::string target;
-  std::string label;  // Edge delay/cost
-  std::string style;  // "solid", "dashed", "ddd"
+  std::string label;
+  std::string style;
 };
 
 struct JsonGraph {
@@ -67,11 +67,8 @@ class JsonTDGParser {
   std::string to_dot_string() const;
 
  private:
-  void parse_graph_object(const nlohmann::json& graph_obj);
-  void parse_configuration_object(const nlohmann::json& config);
-  void parse_nodes_array(const nlohmann::json& nodes_array);
-  void parse_edges_array(const nlohmann::json& edges_array);
-  JsonNode parse_node_object(const nlohmann::json& node_obj);
+  void parse_node(const boost::property_tree::ptree& node);
+  void parse_edge(const boost::property_tree::ptree& edge);
 
   JsonGraph graph_;
   std::string original_json_;
