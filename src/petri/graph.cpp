@@ -1,15 +1,13 @@
-#include "graph_ptpn.h"
+#include "petri/graph.h"
 
 #include <boost/filesystem.hpp>
 #include <boost/graph/graphviz.hpp>
-#include <boost/log/trivial.hpp>
 #include <boost/property_map/property_map.hpp>
-#include <climits>
 #include <fstream>
 #include <limits>
-#include <map>
+#include <spdlog/spdlog.h>
 
-namespace graph_ptpn {
+namespace graph {
 
 using namespace boost;
 
@@ -43,15 +41,14 @@ static VertexDesc add_transition(Graph& graph, const std::string& name,
   return boost::add_vertex(v, graph);
 }
 
-GraphPTPN::GraphPTPN(const matrix_ptpn::MatrixPTPN& matrix_ptpn) {
+GraphPTPN::GraphPTPN(const petri::MatrixPTPN& matrix_ptpn) {
   convert_matrix_to_graph(matrix_ptpn);
 }
 
 void GraphPTPN::convert_matrix_to_graph(
-    const matrix_ptpn::MatrixPTPN& matrix_ptpn) {
+    const petri::MatrixPTPN& matrix_ptpn) {
   try {
-    BOOST_LOG_TRIVIAL(info)
-        << "[GRAPH_PTPN] 开始将矩阵形式转换为Boost Graph形式...";
+    spdlog::info("[GRAPH] Converting matrix to Boost Graph...");
 
     graph.clear();
     std::map<size_t, VertexDesc> place_to_vertex;
@@ -59,19 +56,17 @@ void GraphPTPN::convert_matrix_to_graph(
 
     const auto& marking = matrix_ptpn.get_marking();
 
-    // 添加库所
     for (size_t p = 0; p < matrix_ptpn.num_places(); ++p) {
       const auto& place = matrix_ptpn.get_place(p);
       VertexDesc v = add_place(graph, place.name, marking[p], place.capacity);
       place_to_vertex[p] = v;
     }
 
-    // 添加变迁
     for (size_t t = 0; t < matrix_ptpn.num_transitions(); ++t) {
       const auto& trans = matrix_ptpn.get_transition(t);
       std::pair<int, int> const_time(
           trans.time_interval.earliest,
-          trans.time_interval.latest == matrix_ptpn::INF
+          trans.time_interval.latest == petri::INF
               ? std::numeric_limits<int>::max()
               : trans.time_interval.latest);
       VertexDesc v = add_transition(graph, trans.name, trans.priority,
@@ -79,7 +74,6 @@ void GraphPTPN::convert_matrix_to_graph(
       transition_to_vertex[t] = v;
     }
 
-    // 添加Pre弧（库所到变迁）
     const auto& Pre = matrix_ptpn.get_pre_matrix();
     for (size_t p = 0; p < Pre.size(); ++p) {
       for (size_t t = 0; t < Pre[p].size(); ++t) {
@@ -95,7 +89,6 @@ void GraphPTPN::convert_matrix_to_graph(
       }
     }
 
-    // 添加Post弧（变迁到库所）
     const auto& Post = matrix_ptpn.get_post_matrix();
     for (size_t t = 0; t < Post.size(); ++t) {
       for (size_t p = 0; p < Post[t].size(); ++p) {
@@ -111,10 +104,9 @@ void GraphPTPN::convert_matrix_to_graph(
       }
     }
 
-    BOOST_LOG_TRIVIAL(info) << "[GRAPH_PTPN] 转换完成: " << num_vertices(graph)
-                            << " 个节点, " << num_edges(graph) << " 条边";
+    spdlog::info("[GRAPH] Conversion complete: {} vertices, {} edges", num_vertices(graph), num_edges(graph));
   } catch (const std::exception& e) {
-    BOOST_LOG_TRIVIAL(error) << "[GRAPH_PTPN] 转换失败: " << e.what();
+    spdlog::error("[GRAPH] Conversion failed: {}", e.what());
     throw;
   }
 }
@@ -123,7 +115,6 @@ bool GraphPTPN::save_to_dot(const std::string& file_path) const {
   try {
     boost::filesystem::path dot_filename(file_path);
 
-    // 确保父目录存在
     if (!dot_filename.parent_path().empty() &&
         !boost::filesystem::exists(dot_filename.parent_path())) {
       boost::filesystem::create_directories(dot_filename.parent_path());
@@ -131,8 +122,7 @@ bool GraphPTPN::save_to_dot(const std::string& file_path) const {
 
     std::ofstream ofs(dot_filename.string());
     if (!ofs) {
-      BOOST_LOG_TRIVIAL(error)
-          << "[GRAPH_PTPN] 无法打开DOT文件: " << dot_filename.string();
+      spdlog::error("[GRAPH] Cannot open DOT file: {}", dot_filename.string());
       return false;
     }
 
@@ -143,18 +133,16 @@ bool GraphPTPN::save_to_dot(const std::string& file_path) const {
     dp.property("shape", boost::get(&Vertex::shape, g));
     dp.property("label", boost::get(&Edge::label, g));
 
-    // 写入DOT格式
     write_graphviz_dp(ofs, g, dp);
     ofs.close();
 
     std::string saved_path = boost::filesystem::absolute(dot_filename).string();
-    BOOST_LOG_TRIVIAL(info) << "[GRAPH_PTPN] DOT文件已保存到: " << saved_path;
+    spdlog::info("[GRAPH] DOT file saved to: {}", saved_path);
     return true;
   } catch (const std::exception& e) {
-    BOOST_LOG_TRIVIAL(error)
-        << "[GRAPH_PTPN] 保存DOT文件时发生错误: " << e.what();
+    spdlog::error("[GRAPH] Error saving DOT file: {}", e.what());
     return false;
   }
 }
 
-}  // namespace graph_ptpn
+}  // namespace graph
