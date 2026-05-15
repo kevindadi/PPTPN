@@ -16,7 +16,7 @@ static void error(const std::string& msg) {
   spdlog::error("[PETRI] {}", msg);
 }
 
-void MatrixPTPN::transform_tdg_to_matrix_ptpn(TDG& tdg) {
+void MatrixPTPN::transform_tdg_to_matrix_ptpn(TDGData& tdg) {
   try {
     info("[PETRI] Starting TDG to Matrix PTPN transformation...");
 
@@ -45,7 +45,7 @@ void MatrixPTPN::transform_tdg_to_matrix_ptpn(TDG& tdg) {
   }
 }
 
-void MatrixPTPN::transform_vertices_from_tdg(TDG& tdg) {
+void MatrixPTPN::transform_vertices_from_tdg(TDGData& tdg) {
   for (const auto& [vertex_name, node_type] : tdg.nodes_type) {
     spdlog::debug("[PETRI] Processing vertex: {}", vertex_name);
 
@@ -79,7 +79,7 @@ void MatrixPTPN::transform_vertices_from_tdg(TDG& tdg) {
   info("[PETRI] Vertex transformation completed");
 }
 
-void MatrixPTPN::transform_edges_from_tdg(TDG& tdg) {
+void MatrixPTPN::transform_edges_from_tdg(TDGData& tdg) {
   for (const auto& edge : tdg.tdg_edges) {
     try {
       std::string source_name, target_name, label, style;
@@ -183,7 +183,7 @@ void MatrixPTPN::handle_normal_edge_matrix(const std::string& source_name,
   spdlog::debug("[PETRI] Added edge: {} -> {}", source_name, target_name);
 }
 
-void MatrixPTPN::add_resources_and_bindings_matrix(TDG& tdg) {
+void MatrixPTPN::add_resources_and_bindings_matrix(TDGData& tdg) {
   add_cpu_resource_matrix(tdg.num_cpus, tdg.cores_per_cpu);
   add_lock_resource_matrix(tdg.lock_set);
   task_bind_cpu_resource_matrix(tdg.all_task);
@@ -679,7 +679,7 @@ void MatrixPTPN::add_preempt_task_matrix(
   info("[PETRI] Preemption tasks added");
 }
 
-std::unordered_map<int, std::vector<std::string>> TDG::classify_priority() {
+std::unordered_map<int, std::vector<std::string>> TDGData::classify_priority() {
   std::unordered_map<int, std::vector<std::string>> core_task;
 
   for (const auto& task : all_task) {

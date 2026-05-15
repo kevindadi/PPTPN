@@ -13,6 +13,8 @@
 #include <variant>
 #include <vector>
 
+#include "../types.h"
+
 namespace petri {
 
 constexpr int INF = std::numeric_limits<int>::max();
@@ -81,22 +83,10 @@ struct Transition {
 
 using Marking = std::vector<int>;
 
-using NodeType = std::variant<struct PeriodicTask, struct APeriodicTask,
-                             struct ForkTask, struct JoinTask, struct EmptyTask>;
-
-enum class TDGVertexType { TASK, FORK, JOIN, EMPTY };
-
-struct TaskConfig {
-  int core;
-  int priority;
-  std::vector<std::pair<int, int>> times;
-  std::vector<std::string> locks;
-};
-
-class TDG {
+class TDGData {
  public:
-  TDG() = default;
-  TDG(int num_cpus, int cores_per_cpu)
+  TDGData() = default;
+  TDGData(int num_cpus, int cores_per_cpu)
       : num_cpus(num_cpus), cores_per_cpu(cores_per_cpu) {}
 
   int num_cpus = 1;
@@ -113,47 +103,6 @@ class TDG {
   std::vector<std::tuple<std::string, std::string, std::string, std::string>> tdg_edges;
 
   std::unordered_map<int, std::vector<std::string>> classify_priority();
-};
-
-enum class TaskType { NORMAL, PERIOD, APERIOD, INTERRUPT };
-
-struct APeriodicTask {
-  std::string name;
-  int core = 0;
-  int priority = 100;
-  std::vector<std::pair<int, int>> time;
-  bool is_lock = false;
-  std::vector<std::string> lock;
-  TaskType task_type = TaskType::NORMAL;
-};
-
-struct PeriodicTask {
-  std::string name;
-  int core = 0;
-  int priority = 100;
-  std::vector<std::pair<int, int>> time;
-  bool is_lock = false;
-  std::vector<std::string> lock;
-  TaskType task_type = TaskType::PERIOD;
-  std::pair<int, int> period_time = {0, 0};
-};
-
-struct ForkTask {
-  std::string name;
-  std::pair<int, int> time = std::make_pair(0, 0);
-  ForkTask() = default;
-  ForkTask(const std::string& n) : name(n) {}
-};
-
-struct JoinTask {
-  std::string name;
-  std::pair<int, int> time = std::make_pair(0, 0);
-  JoinTask() = default;
-  JoinTask(const std::string& n) : name(n) {}
-};
-
-struct EmptyTask {
-  std::string name;
 };
 
 class MatrixPTPN {
@@ -287,6 +236,50 @@ class MatrixPTPN {
 
   void fire_transition(size_t trans_idx) { M0 = fire(M0, *this, trans_idx); }
 
+  [[nodiscard]] std::string to_string() const {
+    std::ostringstream oss;
+    oss << "=== Matrix PTPN ===\n";
+    oss << "Places (" << places.size() << "):\n";
+    for (size_t i = 0; i < places.size(); ++i) {
+      oss << "  P" << i << ": " << places[i].name << " [capacity="
+          << (places[i].capacity == INF ? "∞"
+                                        : std::to_string(places[i].capacity))
+          << ", tokens=" << M0[i] << "]\n";
+    }
+
+    oss << "\nTransitions (" << transitions.size() << "):\n";
+    for (size_t i = 0; i < transitions.size(); ++i) {
+      oss << "  T" << i << ": " << transitions[i].name
+          << " [time=" << transitions[i].time_interval.to_string()
+          << ", priority=" << transitions[i].priority
+          << ", core=" << transitions[i].core
+          << ", suspendable=" << (transitions[i].suspendable ? "yes" : "no")
+          << "]\n";
+    }
+
+    oss << "\nPre Matrix (" << Pre.size() << "x"
+        << (Pre.empty() ? 0 : Pre[0].size()) << "):\n";
+    for (size_t p = 0; p < Pre.size(); ++p) {
+      oss << "  P" << p << ": ";
+      for (size_t t = 0; t < Pre[p].size(); ++t) {
+        oss << Pre[p][t] << " ";
+      }
+      oss << "\n";
+    }
+
+    oss << "\nPost Matrix (" << Post.size() << "x"
+        << (Post.empty() ? 0 : Post[0].size()) << "):\n";
+    for (size_t t = 0; t < Post.size(); ++t) {
+      oss << "  T" << t << ": ";
+      for (size_t p = 0; p < Post[t].size(); ++p) {
+        oss << Post[t][p] << " ";
+      }
+      oss << "\n";
+    }
+
+    return oss.str();
+  }
+
   [[nodiscard]] std::vector<size_t> get_enabled_transitions() const {
     std::vector<size_t> enabled;
     for (size_t t = 0; t < transitions.size(); ++t) {
@@ -372,11 +365,11 @@ class MatrixPTPN {
   }
 
   [[nodiscard]] bool verify_structure() const;
-  void transform_tdg_to_matrix_ptpn(TDG& tdg);
+  void transform_tdg_to_matrix_ptpn(TDGData& tdg);
 
  private:
-  void transform_vertices_from_tdg(TDG& tdg);
-  void transform_edges_from_tdg(TDG& tdg);
+  void transform_vertices_from_tdg(TDGData& tdg);
+  void transform_edges_from_tdg(TDGData& tdg);
   std::pair<size_t, size_t> add_node_matrix(const NodeType& node_type);
   std::pair<size_t, size_t> add_p_node_matrix(PeriodicTask& p_task);
   std::pair<size_t, size_t> add_ap_node_matrix(APeriodicTask& ap_task);
@@ -386,7 +379,7 @@ class MatrixPTPN {
       const std::unordered_map<int, std::vector<std::string>>& core_task,
       const std::unordered_map<std::string, TaskConfig>& tc,
       const std::unordered_map<std::string, NodeType>& nodes_type);
-  void add_resources_and_bindings_matrix(TDG& tdg);
+  void add_resources_and_bindings_matrix(TDGData& tdg);
   void add_cpu_resource_matrix(int cpus, int cores_per_cpu);
   void add_lock_resource_matrix(const std::set<std::string>& locks_name);
   void task_bind_cpu_resource_matrix(const std::vector<NodeType>& all_task);

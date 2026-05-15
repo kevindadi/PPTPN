@@ -14,89 +14,11 @@
 
 #include <nlohmann/json.hpp>
 
+#include "../types.h"
+
 namespace tdg {
 
-// ===== Task Types (from dag.h) =====
-enum TaskType {
-  NORMAL,
-  PERIOD,
-  APERIOD,
-  INTERRUPT,
-};
-
-inline std::unordered_map<TaskType, std::string> TaskTypeToString = {
-    {TaskType::NORMAL, "NORMAL"},
-    {TaskType::PERIOD, "PERIOD"},
-    {TaskType::APERIOD, "APERIOD"},
-    {TaskType::INTERRUPT, "INTERRUPT"}};
-
-// Non-periodic task (normal task)
-struct APeriodicTask {
-  std::string name;
-  int core = 0;
-  int priority = 100;
-  std::vector<std::pair<int, int>> time;
-  bool is_lock = false;
-  std::vector<std::string> lock;
-  TaskType task_type = TaskType::NORMAL;
-};
-
-// Periodic task, sporadic task, interrupt task
-struct PeriodicTask {
-  std::string name;
-  int core = 0;
-  int priority = 100;
-  std::vector<std::pair<int, int>> time;
-  bool is_lock = false;
-  std::vector<std::string> lock;
-  TaskType task_type = TaskType::PERIOD;
-  std::pair<int, int> period_time = {0, 0};
-};
-
-// Task category for logical grouping
-enum class TaskCategory {
-  EXECUTABLE,
-  CONTROL,
-  MARKER
-};
-
-// FORK node: represents a branching point in the task graph
-struct ForkTask {
-  std::string name;
-  std::pair<int, int> time = std::make_pair(0, 0);
-  static constexpr TaskCategory category() { return TaskCategory::CONTROL; }
-  ForkTask() = default;
-  ForkTask(const std::string& n) : name(n) {}
-};
-
-// JOIN node: represents a synchronization point in the task graph
-struct JoinTask {
-  std::string name;
-  std::pair<int, int> time = std::make_pair(0, 0);
-  static constexpr TaskCategory category() { return TaskCategory::CONTROL; }
-  JoinTask() = default;
-  JoinTask(const std::string& n) : name(n) {}
-};
-
-// Backward compatibility typedefs
-using DistTask = ForkTask;
-using SyncTask = JoinTask;
-
-struct EmptyTask {
-  std::string name;
-};
-
-using NodeType = std::variant<PeriodicTask, APeriodicTask, DistTask, SyncTask, EmptyTask>;
-
-// ===== TDG Class (from clap.h) =====
-enum TDGVertexType { TASK, FORK, JOIN, EMPTY };
-
-struct TaskConfig {
-  int core;
-  int priority;
-  std::vector<std::pair<int, int>> times;
-  std::vector<std::string> locks;
-};
+// Forward declarations for TDG class
 
 class TDG {
  public:

@@ -23,6 +23,7 @@
 #include "analysis/state.h"
 
 using namespace std;
+using namespace tdg;
 
 size_t get_memory_usage() {
 #if defined(_WIN32)
@@ -107,9 +108,21 @@ int main(int argc, char* argv[]) {
                parser.get_num_cpus(), parser.get_cores_per_cpu());
 
   // Create TDG
-  TDG tdg(parser.get_num_cpus(), parser.get_cores_per_cpu());
+  tdg::TDG tdg(parser.get_num_cpus(), parser.get_cores_per_cpu());
   tdg.parse_json(input_file);
-  tdg.classify_priority();
+
+  // Extract data for PTPN transformation
+  petri::TDGData tdg_data(tdg.num_cpus, tdg.cores_per_cpu);
+  tdg_data.all_task = tdg.all_task;
+  tdg_data.tasks_priority = tdg.tasks_priority;
+  tdg_data.vertexes_type = tdg.vertexes_type;
+  tdg_data.nodes_type = tdg.nodes_type;
+  tdg_data.tasks_type = tdg.tasks_type;
+  tdg_data.lock_set = tdg.lock_set;
+  tdg_data.task_locks_map = tdg.task_locks_map;
+  tdg_data.tasks_config = tdg.tasks_config;
+  tdg_data.tdg_edges = tdg.tdg_edges;
+  tdg_data.classify_priority();
 
   // Optional: Export DOT for verification
   if (export_dot) {
@@ -132,7 +145,7 @@ int main(int argc, char* argv[]) {
   // Transform to Matrix PTPN
   spdlog::info("\n[PTPN] Converting to Matrix PTPN...");
   petri::MatrixPTPN matrix_ptpn;
-  matrix_ptpn.transform_tdg_to_matrix_ptpn(tdg);
+  matrix_ptpn.transform_tdg_to_matrix_ptpn(tdg_data);
   spdlog::info("[PTPN] Matrix PTPN conversion completed");
   spdlog::info("  Places: {}", matrix_ptpn.num_places());
   spdlog::info("  Transitions: {}", matrix_ptpn.num_transitions());

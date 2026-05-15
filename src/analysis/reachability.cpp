@@ -1088,8 +1088,8 @@ bool StateClassReachabilityGraph::save_to_dot(
 
     out << "\n";
 
-    typedef boost::graph_traits<SCGraph>::edge_iterator SCVIterator;
-    SCVIterator ei, ei_end;
+    typedef boost::graph_traits<SCGraph>::edge_iterator SCEIterator;
+    SCEIterator ei, ei_end;
     for (std::tie(ei, ei_end) = boost::edges(graph_); ei != ei_end; ++ei) {
       SCVertex src = boost::source(*ei, graph_);
       SCVertex tgt = boost::target(*ei, graph_);
@@ -1146,8 +1146,8 @@ bool StateClassReachabilityGraph::save_to_json(
     out << "\n  ],\n";
     out << "  \"transitions\": [\n";
 
-    typedef boost::graph_traits<SCGraph>::edge_iterator SCVIterator;
-    SCVIterator ei, ei_end;
+    typedef boost::graph_traits<SCGraph>::edge_iterator SCEIterator;
+    SCEIterator ei, ei_end;
     bool first_trans = true;
     for (std::tie(ei, ei_end) = boost::edges(graph_); ei != ei_end; ++ei) {
       SCVertex src = boost::source(*ei, graph_);

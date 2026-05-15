@@ -55,7 +55,7 @@ TEST_F(JsonParserTest, NodeTypeConversion) {
 
   NodeType node_type = node.to_node_type();
 
-  EXPECT_TRUE(std::holds_alternative<PeriodicTask>(node_type));
+  EXPECT_TRUE(std::holds_alternative<::PeriodicTask>(node_type));
 }
 
 TEST_F(JsonParserTest, DotExport) {

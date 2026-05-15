@@ -4,6 +4,7 @@
 #include <set>
 
 using json = nlohmann::json;
+using namespace tdg;
 
 // ===== TDG Implementation (from clap.cpp) =====
 void tdg::TDG::parse_json(const std::string& json_file) {
@@ -135,7 +136,7 @@ void tdg::TDG::parse_json_string(const std::string& json_content) {
     } else if (std::holds_alternative<JoinTask>(node_type)) {
       const auto& task = std::get<JoinTask>(node_type);
       nodes_type.insert({task.name, node_type});
-      vertexes_type.insert({task.name, TDGVertexType::JOIN);
+      vertexes_type.insert({task.name, TDGVertexType::JOIN});
 
     } else if (std::holds_alternative<EmptyTask>(node_type)) {
       const auto& task = std::get<EmptyTask>(node_type);
