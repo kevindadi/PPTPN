@@ -57,14 +57,14 @@ typedef boost::graph_traits<Graph>::vertex_descriptor VertexDesc;
 
 class GraphPTPN {
  public:
-  explicit GraphPTPN(const petri::MatrixPTPN& matrix_ptpn);
+  explicit GraphPTPN(const petri::PTPN& ptpn);
 
   bool save_to_dot(const std::string& file_path) const;
 
   const Graph& get_graph() const { return graph; }
 
  private:
-  void convert_matrix_to_graph(const petri::MatrixPTPN& matrix_ptpn);
+  void convert_matrix_to_graph(const petri::PTPN& ptpn);
 
   Graph graph;
 };

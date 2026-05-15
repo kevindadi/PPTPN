@@ -17,13 +17,14 @@
 #include <iostream>
 #include <limits>
 
+#include "json/json.h"
 #include "tdg/tdg.h"
 #include "petri/petri.h"
 #include "petri/graph.h"
+#include "tdg2pn/tdg2pn.h"
 #include "analysis/state.h"
 
 using namespace std;
-using namespace tdg;
 
 size_t get_memory_usage() {
 #if defined(_WIN32)
@@ -77,9 +78,9 @@ int main(int argc, char* argv[]) {
 
   // Parse JSON
   auto tdg_start = chrono::high_resolution_clock::now();
-  spdlog::info("[TDG] Starting JSON parsing: {}", input_file);
+  spdlog::info("[JSON] Starting JSON parsing: {}", input_file);
 
-  tdg::JsonTDGParser parser;
+  json::Parser parser;
   auto parse_result = parser.parse_file(input_file);
 
   if (!parse_result.success) {
@@ -111,19 +112,6 @@ int main(int argc, char* argv[]) {
   tdg::TDG tdg(parser.get_num_cpus(), parser.get_cores_per_cpu());
   tdg.parse_json(input_file);
 
-  // Extract data for PTPN transformation
-  petri::TDGData tdg_data(tdg.num_cpus, tdg.cores_per_cpu);
-  tdg_data.all_task = tdg.all_task;
-  tdg_data.tasks_priority = tdg.tasks_priority;
-  tdg_data.vertexes_type = tdg.vertexes_type;
-  tdg_data.nodes_type = tdg.nodes_type;
-  tdg_data.tasks_type = tdg.tasks_type;
-  tdg_data.lock_set = tdg.lock_set;
-  tdg_data.task_locks_map = tdg.task_locks_map;
-  tdg_data.tasks_config = tdg.tasks_config;
-  tdg_data.tdg_edges = tdg.tdg_edges;
-  tdg_data.classify_priority();
-
   // Optional: Export DOT for verification
   if (export_dot) {
     string dot_path = input_file;
@@ -142,66 +130,44 @@ int main(int argc, char* argv[]) {
 
   spdlog::info("\n[STATS] TDG Parsing: {} ms, {} KB", tdg_duration.count(), tdg_memory);
 
-  // Transform to Matrix PTPN
-  spdlog::info("\n[PTPN] Converting to Matrix PTPN...");
-  petri::MatrixPTPN matrix_ptpn;
-  matrix_ptpn.transform_tdg_to_matrix_ptpn(tdg_data);
-  spdlog::info("[PTPN] Matrix PTPN conversion completed");
-  spdlog::info("  Places: {}", matrix_ptpn.num_places());
-  spdlog::info("  Transitions: {}", matrix_ptpn.num_transitions());
+  // Transform to PTPN
+  spdlog::info("\n[PTPN] Converting to PTPN...");
+  petri::PTPN ptpn;
+  converter::TDG2PN::transform(tdg, ptpn);
+  spdlog::info("[PTPN] PTPN conversion completed");
+  spdlog::info("  Places: {}", ptpn.num_places());
+  spdlog::info("  Transitions: {}", ptpn.num_transitions());
 
-  cout << matrix_ptpn.to_string();
+  cout << ptpn.to_string();
 
-  string matrix_ptpn_dot_file = "matrix_ptpn.dot";
-  graph::GraphPTPN graph_ptpn(matrix_ptpn);
-  if (graph_ptpn.save_to_dot(matrix_ptpn_dot_file)) {
-    spdlog::info("[OUTPUT] Matrix PTPN saved to: {}", matrix_ptpn_dot_file);
+  string ptpn_dot_file = "ptpn.dot";
+  graph::GraphPTPN graph_ptpn(ptpn);
+  if (graph_ptpn.save_to_dot(ptpn_dot_file)) {
+    spdlog::info("[OUTPUT] PTPN saved to: {}", ptpn_dot_file);
   } else {
-    spdlog::warn("[OUTPUT] Failed to save Matrix PTPN");
+    spdlog::warn("[OUTPUT] Failed to save PTPN");
   }
 
-  // Build State Class Reachability Graph
-  spdlog::info("\n[SCG] Building State Class Reachability Graph...");
-  size_t scg_start_memory = get_memory_usage();
-  auto scg_start = chrono::high_resolution_clock::now();
-  state_class::StateClassReachabilityGraph scg(matrix_ptpn);
-  spdlog::info("[SCG] Starting build (max_states={})...", max_states);
+  auto ptpn_end = chrono::high_resolution_clock::now();
+  auto ptpn_duration = chrono::duration_cast<chrono::milliseconds>(ptpn_end - tdg_end);
+  size_t ptpn_memory = get_memory_usage() - tdg_memory;
 
-  size_t num_states = scg.build(max_states);
-  spdlog::info("[SCG] Build completed");
+  spdlog::info("\n[STATS] PTPN Conversion: {} ms, {} KB", ptpn_duration.count(), ptpn_memory);
 
-  const auto& stats = scg.get_statistics();
-  spdlog::info("  Total states: {}", stats.total_states);
-  spdlog::info("  Total transitions: {}", stats.total_transitions);
-  spdlog::info("  Enabled transitions: {}", stats.enabled_transitions_count);
-  spdlog::info("  Pruned states: {}", stats.pruned_states_count);
-
-  string scg_dot_file = "state_class_graph.dot";
-  if (scg.save_to_dot(scg_dot_file)) {
-    spdlog::info("[OUTPUT] State class graph (DOT) saved to: {}", scg_dot_file);
+  // Optional: Export to other formats
+  if (!tina_file.empty()) {
+    spdlog::info("[OUTPUT] Tina export not implemented");
   }
 
-  string scg_json_file = "state_class_graph.json";
-  if (scg.save_to_json(scg_json_file)) {
-    spdlog::info("[OUTPUT] State class graph (JSON) saved to: {}", scg_json_file);
+  if (!romeo_file.empty()) {
+    spdlog::info("[OUTPUT] Romeo export not implemented");
   }
 
-  auto scg_end = chrono::high_resolution_clock::now();
-  auto scg_duration = chrono::duration_cast<chrono::milliseconds>(scg_end - scg_start);
-  size_t scg_memory = get_memory_usage() - scg_start_memory;
-
-  spdlog::info("\n[STATS] State Class Generation: {} ms, {} KB", scg_duration.count(), scg_memory);
-
-  // Final statistics
   auto end_time = chrono::high_resolution_clock::now();
   auto total_duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
   size_t total_memory = get_memory_usage() - initial_memory;
 
-  cout << "\n========================================" << endl;
-  cout << "Total Statistics:" << endl;
-  cout << "  Total time: " << total_duration.count() << " ms" << endl;
-  cout << "  Total memory: " << total_memory << " KB" << endl;
-  cout << "========================================" << endl;
+  spdlog::info("\n[STATS] Total: {} ms, {} KB", total_duration.count(), total_memory);
 
   return 0;
 }

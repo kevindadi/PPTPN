@@ -10,10 +10,9 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
-#include <variant>
 #include <vector>
 
-#include "../types.h"
+#include "../types/types.h"
 
 namespace petri {
 
@@ -83,31 +82,9 @@ struct Transition {
 
 using Marking = std::vector<int>;
 
-class TDGData {
+class PTPN {
  public:
-  TDGData() = default;
-  TDGData(int num_cpus, int cores_per_cpu)
-      : num_cpus(num_cpus), cores_per_cpu(cores_per_cpu) {}
-
-  int num_cpus = 1;
-  int cores_per_cpu = 1;
-
-  std::vector<NodeType> all_task;
-  std::unordered_map<std::string, int> tasks_priority;
-  std::unordered_map<std::string, TDGVertexType> vertexes_type;
-  std::unordered_map<std::string, NodeType> nodes_type;
-  std::unordered_map<std::string, TaskType> tasks_type;
-  std::set<std::string> lock_set;
-  std::map<std::string, std::vector<std::string>> task_locks_map;
-  std::unordered_map<std::string, TaskConfig> tasks_config;
-  std::vector<std::tuple<std::string, std::string, std::string, std::string>> tdg_edges;
-
-  std::unordered_map<int, std::vector<std::string>> classify_priority();
-};
-
-class MatrixPTPN {
- public:
-  MatrixPTPN() = default;
+  PTPN() = default;
 
   size_t add_place(const std::string& name, int capacity = 1) {
     places.emplace_back(std::to_string(places.size()), name, capacity);
@@ -188,7 +165,7 @@ class MatrixPTPN {
     return Post;
   }
 
-  static bool is_enabled(const Marking& M, const MatrixPTPN& net,
+  static bool is_enabled(const Marking& M, const PTPN& net,
                          size_t trans_idx) {
     if (trans_idx >= net.transitions.size()) {
       throw std::out_of_range("Invalid transition index");
@@ -211,7 +188,7 @@ class MatrixPTPN {
     return is_enabled(M0, *this, trans_idx);
   }
 
-  static Marking fire(const Marking& M, const MatrixPTPN& net,
+  static Marking fire(const Marking& M, const PTPN& net,
                       size_t trans_idx) {
     if (!is_enabled(M, net, trans_idx)) {
       throw std::runtime_error("Transition is not enabled");
@@ -238,7 +215,7 @@ class MatrixPTPN {
 
   [[nodiscard]] std::string to_string() const {
     std::ostringstream oss;
-    oss << "=== Matrix PTPN ===\n";
+    oss << "=== PTPN ===\n";
     oss << "Places (" << places.size() << "):\n";
     for (size_t i = 0; i < places.size(); ++i) {
       oss << "  P" << i << ": " << places[i].name << " [capacity="
@@ -365,39 +342,6 @@ class MatrixPTPN {
   }
 
   [[nodiscard]] bool verify_structure() const;
-  void transform_tdg_to_matrix_ptpn(TDGData& tdg);
-
- private:
-  void transform_vertices_from_tdg(TDGData& tdg);
-  void transform_edges_from_tdg(TDGData& tdg);
-  std::pair<size_t, size_t> add_node_matrix(const NodeType& node_type);
-  std::pair<size_t, size_t> add_p_node_matrix(PeriodicTask& p_task);
-  std::pair<size_t, size_t> add_ap_node_matrix(APeriodicTask& ap_task);
-  void add_monitor_matrix(const std::string& task_name, int task_period_time,
-                          size_t start, size_t end);
-  void add_preempt_task_matrix(
-      const std::unordered_map<int, std::vector<std::string>>& core_task,
-      const std::unordered_map<std::string, TaskConfig>& tc,
-      const std::unordered_map<std::string, NodeType>& nodes_type);
-  void add_resources_and_bindings_matrix(TDGData& tdg);
-  void add_cpu_resource_matrix(int cpus, int cores_per_cpu);
-  void add_lock_resource_matrix(const std::set<std::string>& locks_name);
-  void task_bind_cpu_resource_matrix(const std::vector<NodeType>& all_task);
-  void task_bind_lock_resource_matrix(
-      const std::vector<NodeType>& all_task,
-      std::map<std::string, std::vector<std::string>>& task_locks);
-  void bind_task_locks_matrix(
-      const std::string& task_name, const std::vector<std::string>& lock_types,
-      const std::vector<size_t>& task_pt_chain,
-      std::map<std::string, std::vector<std::string>>& task_locks);
-  bool is_self_loop_edge(const std::string& source, const std::string& target);
-  bool is_dashed_edge(const std::string& edge);
-  void handle_self_loop_edge_matrix(const std::string& label,
-                                    const std::string& source_name);
-  void handle_dashed_edge_matrix(const std::string& source_name,
-                                 const std::string& target_name);
-  void handle_normal_edge_matrix(const std::string& source_name,
-                                 const std::string& target_name);
 
   std::vector<Place> places;
   std::vector<Transition> transitions;
@@ -405,8 +349,7 @@ class MatrixPTPN {
   std::vector<std::vector<int>> Post;
   Marking M0;
 
-  std::map<std::string, std::pair<size_t, size_t>>
-      node_start_end_map;
+  std::map<std::string, std::pair<size_t, size_t>> node_start_end_map;
   std::unordered_map<std::string, std::vector<size_t>> node_pn_map;
   std::vector<size_t> cpus_place;
   std::unordered_map<std::string, size_t> locks_place;
