@@ -1,5 +1,6 @@
 #include "state_class.h"
 
+#include <spdlog/spdlog.h>
 #include <algorithm>
 #include <iomanip>
 #include <sstream>

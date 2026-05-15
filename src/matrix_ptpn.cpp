@@ -13,23 +13,23 @@ namespace matrix_ptpn {
 
 void MatrixPTPN::transform_tdg_to_matrix_ptpn(TDG& tdg) {
   try {
-    spdlog::info("[MATRIX_PTPN] 开始从 TDG 转换到矩阵形式 PTPN...");
+    info("[MATRIX_PTPN] 开始从 TDG 转换到矩阵形式 PTPN...");
 
     // 1. 转换顶点
-    spdlog::info("[MATRIX_PTPN] 开始转换顶点...");
+    info("[MATRIX_PTPN] 开始转换顶点...");
     transform_vertices_from_tdg(tdg);
 
     // 2. 转换边
-    spdlog::info("[MATRIX_PTPN] 开始转换边...");
+    info("[MATRIX_PTPN] 开始转换边...");
     transform_edges_from_tdg(tdg);
 
     // 3. 创建优先级抢占关系
-    spdlog::info("[MATRIX_PTPN] 开始创建优先级抢占关系...");
+    info("[MATRIX_PTPN] 开始创建优先级抢占关系...");
     add_preempt_task_matrix(tdg.classify_priority(), tdg.tasks_config,
                             tdg.nodes_type);
 
     // 4. 添加资源和绑定
-    spdlog::info("[MATRIX_PTPN] 开始添加资源和绑定...");
+    info("[MATRIX_PTPN] 开始添加资源和绑定...");
     add_resources_and_bindings_matrix(tdg);
 
     spdlog::info("[MATRIX_PTPN] TDG 转换完成,共 ") << places.size()
@@ -37,7 +37,7 @@ void MatrixPTPN::transform_tdg_to_matrix_ptpn(TDG& tdg) {
 
     // 验证结构
     if (!verify_structure()) {
-      spdlog::warn << "[MATRIX_PTPN] 结构验证失败,但继续执行";
+      warn("[MATRIX_PTPN] 结构验证失败,但继续执行");
     }
   } catch (const std::exception& e) {
     spdlog::error
@@ -83,7 +83,7 @@ void MatrixPTPN::transform_vertices_from_tdg(TDG& tdg) {
       throw;
     }
   }
-  spdlog::info("[MATRIX_PTPN] Vertex transformation completed");
+  info("[MATRIX_PTPN] Vertex transformation completed");
 }
 
 // 转换边
@@ -218,13 +218,13 @@ void MatrixPTPN::add_cpu_resource_matrix(int cpus, int cores_per_cpu) {
     cpus_place.push_back(c);
     set_initial_marking(c, cores_per_cpu);
   }
-  spdlog::info("[MATRIX_PTPN] create core resource!");
+  info("[MATRIX_PTPN] create core resource!");
 }
 
 // 添加锁资源库所
 void MatrixPTPN::add_lock_resource_matrix(const set<string>& locks_name) {
   if (locks_name.empty()) {
-    spdlog::info("[MATRIX_PTPN] TDG_RAP without locks!");
+    info("[MATRIX_PTPN] TDG_RAP without locks!");
     return;
   }
   for (const auto& lock_name : locks_name) {
@@ -232,7 +232,7 @@ void MatrixPTPN::add_lock_resource_matrix(const set<string>& locks_name) {
     locks_place.insert(make_pair(lock_name, l));
     set_initial_marking(l, 1);
   }
-  spdlog::info("[MATRIX_PTPN] create lock resource!");
+  info("[MATRIX_PTPN] create lock resource!");
 }
 
 // 任务绑定CPU资源
@@ -272,7 +272,7 @@ void MatrixPTPN::task_bind_lock_resource_matrix(
     const vector<NodeType>& all_task,
     std::map<string, vector<string>>& task_locks) {
   if (task_locks.empty()) {
-    spdlog::info("[MATRIX_PTPN] No task locks to bind");
+    info("[MATRIX_PTPN] No task locks to bind");
     return;
   }
 
@@ -300,7 +300,7 @@ void MatrixPTPN::task_bind_lock_resource_matrix(
     }
   }
 
-  spdlog::info("[MATRIX_PTPN] Completed lock resource binding for all tasks");
+  info("[MATRIX_PTPN] Completed lock resource binding for all tasks");
 }
 
 void MatrixPTPN::bind_task_locks_matrix(
@@ -384,7 +384,7 @@ bool MatrixPTPN::verify_structure() const {
 
   // 检查标识维度
   if (M0.size() != places.size()) {
-    spdlog::error << "[MATRIX_PTPN] 初始标识维度与库所数量不一致";
+    error("[MATRIX_PTPN] 初始标识维度与库所数量不一致");
     is_valid = false;
   }
 
@@ -398,7 +398,7 @@ bool MatrixPTPN::verify_structure() const {
   }
 
   if (is_valid) {
-    spdlog::info("[MATRIX_PTPN] 结构验证通过");
+    info("[MATRIX_PTPN] 结构验证通过");
   }
 
   return is_valid;
@@ -533,7 +533,7 @@ void MatrixPTPN::add_preempt_task_matrix(
     const std::unordered_map<int, std::vector<std::string>>& core_task,
     const std::unordered_map<std::string, TaskConfig>& tc,
     const std::unordered_map<std::string, NodeType>& nodes_type) {
-  spdlog::info("[MATRIX_PTPN] 开始添加抢占任务...");
+  info("[MATRIX_PTPN] 开始添加抢占任务...");
 
   // 处理单个任务的抢占
   auto handle_task_preemption =
@@ -756,7 +756,7 @@ void MatrixPTPN::add_preempt_task_matrix(
     }
   }
 
-  spdlog::info("[MATRIX_PTPN] 抢占任务添加完成");
+  info("[MATRIX_PTPN] 抢占任务添加完成");
 }
 
 }  // namespace matrix_ptpn

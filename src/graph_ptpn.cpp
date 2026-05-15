@@ -49,7 +49,7 @@ GraphPTPN::GraphPTPN(const matrix_ptpn::MatrixPTPN& matrix_ptpn) {
 void GraphPTPN::convert_matrix_to_graph(
     const matrix_ptpn::MatrixPTPN& matrix_ptpn) {
   try {
-    spdlog::info("[GRAPH_PTPN] 开始将矩阵形式转换为Boost Graph形式...");
+    info("[GRAPH_PTPN] 开始将矩阵形式转换为Boost Graph形式...");
 
     graph.clear();
     std::map<size_t, VertexDesc> place_to_vertex;
@@ -109,10 +109,9 @@ void GraphPTPN::convert_matrix_to_graph(
       }
     }
 
-    spdlog::info("[GRAPH_PTPN] 转换完成: ") << num_vertices(graph)
-                            << " 个节点, " << num_edges(graph) << " 条边";
+    spdlog::info("[GRAPH_PTPN] 转换完成: {} 个节点, {} 条边", num_vertices(graph), num_edges(graph));
   } catch (const std::exception& e) {
-    spdlog::error << "[GRAPH_PTPN] 转换失败: " << e.what();
+    spdlog::error("[GRAPH_PTPN] 转换失败: {}", e.what());
     throw;
   }
 }
@@ -146,11 +145,10 @@ bool GraphPTPN::save_to_dot(const std::string& file_path) const {
     ofs.close();
 
     std::string saved_path = boost::filesystem::absolute(dot_filename).string();
-    spdlog::info("[GRAPH_PTPN] DOT文件已保存到: ") << saved_path;
+    spdlog::info("[GRAPH_PTPN] DOT文件已保存到: {}", saved_path);
     return true;
   } catch (const std::exception& e) {
-    spdlog::error
-        << "[GRAPH_PTPN] 保存DOT文件时发生错误: " << e.what();
+    spdlog::error("[GRAPH_PTPN] 保存DOT文件时发生错误: {}", e.what());
     return false;
   }
 }

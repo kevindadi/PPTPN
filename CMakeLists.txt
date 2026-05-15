@@ -25,7 +25,7 @@ FetchContent_Declare(json
 )
 FetchContent_MakeAvailable(json)
 
-find_package(Boost REQUIRED COMPONENTS graph program_options filesystem log log_setup thread date_time)
+find_package(Boost REQUIRED COMPONENTS graph program_options filesystem thread date_time)
 find_package(spdlog REQUIRED)
 find_package(fmt REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
@@ -54,8 +54,6 @@ target_link_libraries(PTPN PRIVATE
     Boost::graph
     Boost::program_options
     Boost::filesystem
-    Boost::log
-    Boost::log_setup
     Boost::thread
     Boost::date_time
     nlohmann_json::nlohmann_json
@@ -73,8 +71,6 @@ add_executable(test_json_input test/test_json_input.cpp
         src/clap.cpp)
 target_link_libraries(test_json_input PRIVATE
     Boost::graph
-    Boost::log
-    Boost::log_setup
     nlohmann_json::nlohmann_json
     spdlog::spdlog)
 add_test(NAME TestJsonInput COMMAND test_json_input)

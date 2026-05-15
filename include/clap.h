@@ -1,5 +1,5 @@
-#ifndef CLAP
-#define CLAP
+#ifndef DOT_TDG_H
+#define DOT_TDG_H
 
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>

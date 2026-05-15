@@ -156,11 +156,11 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
 
     // 检查 DBM 是否为空（仅在启用剪枝时跳过）
     if (pruning_enabled_ && scheduled.Z1.is_empty()) {
-      spdlog::debug << "  [剪枝] Z1为空,跳过此状态";
+      debug("  [剪枝] Z1为空,跳过此状态");
       stats_.pruned_states_count++;
       continue;
     } else if (!pruning_enabled_ && scheduled.Z1.is_empty()) {
-      spdlog::debug << "  [警告] Z1为空,但剪枝已禁用,继续处理";
+      debug("  [警告] Z1为空,但剪枝已禁用,继续处理");
     }
 
     // 2.4 对每个被选中的变迁尝试发生（跨核可产生多条出边）
@@ -191,7 +191,7 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
 
       if (uniq.find(key) != uniq.end()) {
         v = uniq[key];
-        spdlog::debug << "  [已存在] 使用已有状态";
+        debug("  [已存在] 使用已有状态");
       } else {
         // 规范化后继状态
         StateClass canonical_nxt = canonicalize(nxt);
@@ -199,7 +199,7 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
         Q.push(canonical_nxt);
         uniq[key] = v;
         stats_.total_states++;
-        spdlog::debug << "  [新状态] 添加到图和队列";
+        debug("  [新状态] 添加到图和队列");
         // 输出新状态的详细信息
         log_state_class_details(
             nxt, "[新状态 " + std::to_string(nxt.state_id) + "] ");
@@ -242,7 +242,7 @@ StateClass StateClassReachabilityGraph::create_initial_state_class() {
   // 输出初始状态的详细信息
   log_state_class_details(initial, "[初始状态] ");
 
-  spdlog::debug << "[STATE_CLASS] 创建初始状态:";
+  debug("[STATE_CLASS] 创建初始状态:");
   spdlog::debug << "  标识: " << format_marking(initial.marking);
   spdlog::debug << "  使能变迁: "
                            << format_transitions(initial.enabled);
@@ -727,7 +727,7 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
 bool StateClassReachabilityGraph::should_prune(
     const StateClass& state, const std::set<StateClass>& visited) const {
   if (state.Z1.is_empty() || state.Z2.is_empty()) {
-    spdlog::info("    状态 ") << state.state_id << " 被剪枝,因为 Z1 或 Z2 为空";
+    info("    状态 {} 被剪枝,因为 Z1 或 Z2 为空", state.state_id);
     return true;
   }
 
