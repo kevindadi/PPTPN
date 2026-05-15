@@ -132,7 +132,7 @@ digraph G {
 
 Where:
 - `[100,100]` - Execution time interval (WCET)
-- `97` - Priority (lower value = higher priority)
+- `97` - Priority (higher value = higher priority)
 - `0` - Assigned CPU core
 - `[3,3]` - Lock IDs used
 

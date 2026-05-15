@@ -55,15 +55,30 @@ struct PeriodicTask {
   std::pair<int, int> period_time = {0, 0};
 };
 
-struct DistTask {
-  string name;
-  pair<int, int> time = {0, 0};
+// Task category for logical grouping
+enum class TaskCategory {
+  EXECUTABLE,  // Tasks that execute (PeriodicTask, APeriodicTask)
+  CONTROL,     // Control flow nodes (ForkTask, JoinTask)
+  MARKER       // Empty/marker nodes
 };
 
-struct SyncTask {
+// FORK node: represents a branching point in the task graph
+struct ForkTask {
   string name;
   pair<int, int> time = {0, 0};
+  static constexpr TaskCategory category() { return TaskCategory::CONTROL; }
 };
+
+// JOIN node: represents a synchronization point in the task graph
+struct JoinTask {
+  string name;
+  pair<int, int> time = {0, 0};
+  static constexpr TaskCategory category() { return TaskCategory::CONTROL; }
+};
+
+// Backward compatibility typedefs
+using DistTask = ForkTask;
+using SyncTask = JoinTask;
 
 struct EmptyTask {
   string name;

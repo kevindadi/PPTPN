@@ -23,12 +23,17 @@ struct TaskConfig {
 };
 
 // 节点类型的枚举,区别于结构体枚举,仅为后续区分, TASK包含周期任务和一般任务
-enum TDGVertexType { TASK, SYNC, DIST, EMPTY };
+enum TDGVertexType { TASK, FORK, JOIN, EMPTY };
 // 边的枚举, 不同节点类型
 enum EdgeType {
-
+  SOLID,    // 正常边
+  DASHED,   // 虚线边(反馈边/周期循环)
+  DDD       // 同步边
 };
-// TDG结构体,包含DAG图中所有信息
+
+// 输入格式检测
+enum class InputFormat { DOT, JSON };
+
 class TDG {
  public:
   TDG() = default;
@@ -68,8 +73,22 @@ class TDG {
   // 优先级抢占的任务配置简化
   std::unordered_map<string, TaskConfig> tasks_config;
 
+  // 边集合 (source, target, label, style)
+  std::vector<std::tuple<string, string, string, string>> tdg_edges;
+
  public:
   void parse_tdg();
+
+  // JSON 解析相关
+  void parse_json(const std::string& json_file);
+  void parse_json_string(const std::string& json_content);
+
+  // DOT 导出相关
+  void export_to_dot(const std::string& output_path);
+  std::string to_dot_string() const;
+
+  // 输入格式检测
+  static InputFormat detect_format(const std::string& file_path);
 
   // 解析 vertex 的 label 属性
   NodeType parse_vertex_label(const string &label);
@@ -77,6 +96,10 @@ class TDG {
   static vector<int> parse_time_vec(string times);
 
   std::unordered_map<int, vector<string>> classify_priority();
+
+ private:
+  // 从 JSON 内部构建 TDG 图结构
+  void build_graph_from_json();
 };
 
 #endif

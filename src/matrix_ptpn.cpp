@@ -415,14 +415,14 @@ std::pair<size_t, size_t> MatrixPTPN::add_node_matrix(
   } else if (holds_alternative<APeriodicTask>(node_type)) {
     auto ap_task = get<APeriodicTask>(node_type);
     return add_ap_node_matrix(ap_task);
-  } else if (holds_alternative<SyncTask>(node_type)) {
-    auto [name, time] = get<SyncTask>(node_type);
+  } else if (holds_alternative<JoinTask>(node_type)) {
+    auto [name, time] = get<JoinTask>(node_type);
     TimeInterval interval(0, 0);
     size_t sync_trans = add_transition("Sync" + std::to_string(node_index++),
                                        interval, 411, 411, false);
     return std::make_pair(sync_trans, sync_trans);
-  } else if (holds_alternative<DistTask>(node_type)) {
-    auto [name, time] = get<DistTask>(node_type);
+  } else if (holds_alternative<ForkTask>(node_type)) {
+    auto [name, time] = get<ForkTask>(node_type);
     TimeInterval interval(0, 0);
     size_t dist_trans = add_transition("Dist" + std::to_string(node_index++),
                                        interval, 411, 411, false);

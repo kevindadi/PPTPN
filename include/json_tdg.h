@@ -1,0 +1,86 @@
+#ifndef JSON_TDG_H
+#define JSON_TDG_H
+
+#include <string>
+#include <vector>
+#include <map>
+#include <variant>
+#include <optional>
+
+#include "dag.h"
+#include "nlohmann/json.hpp"
+
+namespace json_tdg {
+
+struct JsonParseResult {
+  bool success;
+  std::string error_message;
+  int error_line = 0;
+};
+
+struct JsonNode {
+  std::string id;
+  std::string type;  // "periodic", "aperiodic", "fork", "join", "empty"
+  int priority = 100;
+  int core = 0;
+  std::vector<std::pair<int, int>> time;  // WCET intervals
+  std::pair<int, int> period = {0, 0};   // For periodic tasks only
+  std::vector<std::string> locks;
+
+  NodeType to_node_type() const;
+};
+
+struct JsonEdge {
+  std::string source;
+  std::string target;
+  std::string label;  // Edge delay/cost
+  std::string style;  // "solid", "dashed", "ddd"
+};
+
+struct JsonGraph {
+  std::string name = "G";
+  int num_cpus = 1;
+  int cores_per_cpu = 1;
+  std::vector<JsonNode> nodes;
+  std::vector<JsonEdge> edges;
+};
+
+class JsonTDGParser {
+ public:
+  JsonTDGParser() = default;
+
+  JsonParseResult parse_file(const std::string& file_path);
+  JsonParseResult parse_string(const std::string& json_content);
+
+  std::string get_graph_name() const { return graph_.name; }
+  int get_num_cpus() const { return graph_.num_cpus; }
+  int get_cores_per_cpu() const { return graph_.cores_per_cpu; }
+  const std::vector<JsonNode>& get_nodes() const { return graph_.nodes; }
+  const std::vector<JsonEdge>& get_edges() const { return graph_.edges; }
+  const std::string& get_original_json() const { return original_json_; }
+
+  JsonParseResult validate() const;
+  std::vector<std::string> get_validation_errors() const {
+    return validation_errors_;
+  }
+
+  std::string to_dot_string() const;
+
+ private:
+  void parse_graph_object(const nlohmann::json& graph_obj);
+  void parse_configuration_object(const nlohmann::json& config);
+  void parse_nodes_array(const nlohmann::json& nodes_array);
+  void parse_edges_array(const nlohmann::json& edges_array);
+  JsonNode parse_node_object(const nlohmann::json& node_obj);
+
+  JsonGraph graph_;
+  std::string original_json_;
+  mutable std::vector<std::string> validation_errors_;
+};
+
+std::string node_type_to_string(const NodeType& node);
+std::string node_to_dot_label(const NodeType& node);
+
+}  // namespace json_tdg
+
+#endif  // JSON_TDG_H

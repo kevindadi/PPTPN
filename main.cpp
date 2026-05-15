@@ -57,20 +57,18 @@ size_t get_memory_usage() {
 
 // 显示使用说明
 void print_usage(const po::options_description& desc) {
-  std::cout << "优先级时间Petri网分析工具 (PPTPN)" << std::endl;
-  std::cout << "用法: ./PPTPN --cpus <num_cpus> --cores <cores_per_cpu> [选项]"
+  std::cout << "Priority Timed Petri Net Analyzer (PTPN)" << std::endl;
+  std::cout << "Usage: ./PTPN --cpus <num_cpus> --cores <cores_per_cpu> [options]"
             << std::endl;
   std::cout << std::endl;
   std::cout << desc << std::endl;
-  std::cout << "示例:" << std::endl;
-  std::cout << "  ./PPTPN --cpus 2 --cores 4 --file my_task.dot " << std::endl;
-  std::cout << "  ./PPTPN --cpus 1 --cores 2 --file simple.dot" << std::endl;
-  std::cout
-      << "  ./PPTPN --cpus 2 --cores 4 --file my_task.dot --tina my_petri.net"
-      << std::endl;
-  std::cout
-      << "  ./PPTPN --cpus 2 --cores 4 --file my_task.dot --romeo my_petri.xml"
-      << std::endl;
+  std::cout << "Examples:" << std::endl;
+  std::cout << "  ./PTPN --cpus 2 --cores 4 --file tasks.json" << std::endl;
+  std::cout << "  ./PTPN --cpus 1 --cores 2 --file tasks.dot" << std::endl;
+  std::cout << "  ./PTPN --cpus 2 --cores 4 --file tasks.json --export-dot"
+            << std::endl;
+  std::cout << "  ./PTPN --cpus 2 --cores 4 --file tasks.dot --max_states 1000"
+            << std::endl;
 }
 
 int main(int argc, char* argv[]) {
@@ -78,6 +76,11 @@ int main(int argc, char* argv[]) {
   boost::log::add_common_attributes();
   boost::log::core::get()->set_filter(boost::log::trivial::severity >=
                                       boost::log::trivial::info);
+
+  BOOST_LOG_TRIVIAL(info) << "==========================================";
+  BOOST_LOG_TRIVIAL(info) << "PTPN - Priority Timed Petri Net Analyzer";
+  BOOST_LOG_TRIVIAL(info) << "==========================================";
+
   int deadline;
   int num_cpus;
   int cores_per_cpu;
@@ -86,25 +89,30 @@ int main(int argc, char* argv[]) {
   std::string scg_type;
   std::string tina_file_path;
   std::string romeo_file_path;
-  size_t max_states = std::numeric_limits<size_t>::max();  // 默认无限制
+  size_t max_states = std::numeric_limits<size_t>::max();
+  bool export_dot = false;
 
-  po::options_description desc("选项");
-  desc.add_options()("help", "显示帮助信息")(
+  po::options_description desc("Options");
+  desc.add_options()("help", "Show help information")(
       "deadline", po::value<int>(&deadline)->default_value(0),
-      "设置截止时间进行检查")(
+      "Set deadline for checking")(
       "file", po::value<std::string>(&file_path)->default_value("dag.dot"),
-      "指定Petri网的dot文件路径")("cpus", po::value<int>(&num_cpus)->required(),
-                                  "CPU数量")(
-      "cores", po::value<int>(&cores_per_cpu)->required(), "每个CPU的核心数")(
+      "Input file path (.json or .dot)")(
+      "cpus", po::value<int>(&num_cpus)->required(), "Number of CPUs")(
+      "cores", po::value<int>(&cores_per_cpu)->required(),
+      "Number of cores per CPU")(
       "max_states", po::value<size_t>(&max_states),
-      "状态类图生成的最大状态数限制(不指定则无限制)")(
-      "import_dot", po::value<std::string>(), "从DOT文件导入Petri网")(
+      "Maximum number of states in reachability graph")(
+      "export-dot",
+      po::value<bool>(&export_dot)->default_value(false)->implicit_value(true),
+      "Export input to DOT format as reference")(
+      "import_dot", po::value<std::string>(), "Import from DOT file")(
       "tina",
       po::value<std::string>(&tina_file_path)->implicit_value("ptpn.net"),
-      "导出为Tina .net格式")(
+      "Export to Tina .net format")(
       "romeo",
       po::value<std::string>(&romeo_file_path)->implicit_value("ptpn.xml"),
-      "导出为Romeo XML格式");
+      "Export to Romeo XML format");
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -115,19 +123,44 @@ int main(int argc, char* argv[]) {
   }
   po::notify(vm);
 
+  // Detect input format
+  auto input_format = TDG::detect_format(file_path);
+  if (input_format == InputFormat::JSON) {
+    BOOST_LOG_TRIVIAL(info) << "[INPUT] Detected JSON format: " << file_path;
+  } else {
+    BOOST_LOG_TRIVIAL(info) << "[INPUT] Detected DOT format: " << file_path;
+  }
+
   size_t initial_memory = get_memory_usage();
   auto start_time = std::chrono::high_resolution_clock::now();
 
   auto tdg_start = std::chrono::high_resolution_clock::now();
-  BOOST_LOG_TRIVIAL(info) << "Starting TDG parsing for file: " << file_path;
+  BOOST_LOG_TRIVIAL(info) << "[TDG] Starting parsing: " << file_path;
   TDG tdg_rap(file_path, num_cpus, cores_per_cpu);
-  BOOST_LOG_TRIVIAL(info) << "TDG object created successfully";
+  BOOST_LOG_TRIVIAL(info) << "[TDG] TDG object created successfully";
 
-  tdg_rap.parse_tdg();
-  BOOST_LOG_TRIVIAL(info) << "TDG parsing completed";
+  // Parse based on detected format
+  if (input_format == InputFormat::JSON) {
+    tdg_rap.parse_json(file_path);
+  } else {
+    tdg_rap.parse_tdg();
+  }
+  BOOST_LOG_TRIVIAL(info) << "[TDG] Parsing completed";
+
+  // Optional: Export to DOT for reference
+  if (export_dot) {
+    std::string dot_path = file_path;
+    // Replace .json with .dot
+    size_t dot_pos = dot_path.rfind('.');
+    if (dot_pos != std::string::npos) {
+      dot_path = dot_path.substr(0, dot_pos);
+    }
+    dot_path += ".dot";
+    tdg_rap.export_to_dot(dot_path);
+  }
 
   tdg_rap.classify_priority();
-  BOOST_LOG_TRIVIAL(info) << "Priority classification completed";
+  BOOST_LOG_TRIVIAL(info) << "[TDG] Priority classification completed";
 
   // ptpn::PriorityTPN ptpn;
   // BOOST_LOG_TRIVIAL(info) << "PriorityTPN object created";
@@ -141,52 +174,50 @@ int main(int argc, char* argv[]) {
       tdg_end - tdg_start);
   size_t tdg_memory = get_memory_usage() - initial_memory;
 
-  BOOST_LOG_TRIVIAL(info) << "\nPetri网生成统计:" << "  时间: "
-                          << tdg_duration.count() << " 毫秒"
-                          << "  内存使用: " << tdg_memory << " KB";
+  BOOST_LOG_TRIVIAL(info) << "\n[STATS] Petri Net Generation: "
+                          << tdg_duration.count() << " ms, "
+                          << tdg_memory << " KB";
 
-  BOOST_LOG_TRIVIAL(info) << "\n转换为矩阵形式的 PTPN...";
+  BOOST_LOG_TRIVIAL(info) << "\n[PTPN] Converting to Matrix PTPN...";
   matrix_ptpn::MatrixPTPN matrix_ptpn;
   matrix_ptpn.transform_tdg_to_matrix_ptpn(tdg_rap);
-  BOOST_LOG_TRIVIAL(info) << "矩阵形式 PTPN 转换完成";
-  BOOST_LOG_TRIVIAL(info) << "  库所数: " << matrix_ptpn.num_places();
-  BOOST_LOG_TRIVIAL(info) << "  变迁数: " << matrix_ptpn.num_transitions();
+  BOOST_LOG_TRIVIAL(info) << "[PTPN] Matrix PTPN conversion completed";
+  BOOST_LOG_TRIVIAL(info) << "  Places: " << matrix_ptpn.num_places();
+  BOOST_LOG_TRIVIAL(info) << "  Transitions: " << matrix_ptpn.num_transitions();
 
   std::cout << matrix_ptpn.to_string();
 
   std::string matrix_ptpn_dot_file = "matrix_ptpn.dot";
   graph_ptpn::GraphPTPN graph_ptpn(matrix_ptpn);
   if (graph_ptpn.save_to_dot(matrix_ptpn_dot_file)) {
-    BOOST_LOG_TRIVIAL(info) << "矩阵PTPN图已导出到: " << matrix_ptpn_dot_file;
+    BOOST_LOG_TRIVIAL(info) << "[OUTPUT] Matrix PTPN saved to: " << matrix_ptpn_dot_file;
   } else {
-    BOOST_LOG_TRIVIAL(warning) << "无法导出矩阵PTPN图到: " << matrix_ptpn_dot_file;
+    BOOST_LOG_TRIVIAL(warning) << "[OUTPUT] Failed to save Matrix PTPN";
   }
 
-  BOOST_LOG_TRIVIAL(info) << "\n使用优先级时间Petri网状态类算法...";
+  BOOST_LOG_TRIVIAL(info) << "\n[SCG] Building State Class Reachability Graph...";
   size_t scg_start_memory = get_memory_usage();
   auto scg_start = std::chrono::high_resolution_clock::now();
   state_class::StateClassReachabilityGraph scg(matrix_ptpn);
-  BOOST_LOG_TRIVIAL(info) << "开始构建状态类可达图(最大状态数: " << max_states
-                          << ")...";
+  BOOST_LOG_TRIVIAL(info) << "[SCG] Starting build (max_states=" << max_states << ")...";
 
   size_t num_states = scg.build(max_states);
-  BOOST_LOG_TRIVIAL(info) << "状态类可达图构建完成";
+  BOOST_LOG_TRIVIAL(info) << "[SCG] Build completed";
 
   const auto& stats = scg.get_statistics();
-  BOOST_LOG_TRIVIAL(info) << "  生成状态数: " << stats.total_states;
-  BOOST_LOG_TRIVIAL(info) << "  状态转移数: " << stats.total_transitions;
-  BOOST_LOG_TRIVIAL(info) << "  使能变迁计数: "
-                          << stats.enabled_transitions_count;
-  BOOST_LOG_TRIVIAL(info) << "  剪枝状态数: " << stats.pruned_states_count;
+  BOOST_LOG_TRIVIAL(info) << "  Total states: " << stats.total_states;
+  BOOST_LOG_TRIVIAL(info) << "  Total transitions: " << stats.total_transitions;
+  BOOST_LOG_TRIVIAL(info) << "  Enabled transitions: " << stats.enabled_transitions_count;
+  BOOST_LOG_TRIVIAL(info) << "  Pruned states: " << stats.pruned_states_count;
 
   std::string scg_dot_file = "state_class_graph.dot";
   if (scg.save_to_dot(scg_dot_file)) {
-    BOOST_LOG_TRIVIAL(info) << "状态类图已导出到: " << scg_dot_file;
+    BOOST_LOG_TRIVIAL(info) << "[OUTPUT] State class graph (DOT) saved to: " << scg_dot_file;
   }
 
   std::string scg_json_file = "state_class_graph.json";
   if (scg.save_to_json(scg_json_file)) {
-    BOOST_LOG_TRIVIAL(info) << "状态类图已导出到: " << scg_json_file;
+    BOOST_LOG_TRIVIAL(info) << "[OUTPUT] State class graph (JSON) saved to: " << scg_json_file;
   }
 
   auto scg_end = std::chrono::high_resolution_clock::now();
@@ -194,9 +225,9 @@ int main(int argc, char* argv[]) {
       scg_end - scg_start);
   size_t scg_memory = get_memory_usage() - scg_start_memory;
 
-  BOOST_LOG_TRIVIAL(info) << "\n状态类生成统计:" << "  时间: "
-                          << scg_duration.count() << " 毫秒"
-                          << "  内存使用: " << scg_memory << " KB";
+  BOOST_LOG_TRIVIAL(info) << "\n[STATS] State Class Generation: "
+                          << scg_duration.count() << " ms, "
+                          << scg_memory << " KB";
 
   // BOOST_LOG_TRIVIAL(info) << "\n开始任务分析...";
   // auto analysis_start = std::chrono::high_resolution_clock::now();
@@ -246,9 +277,11 @@ int main(int argc, char* argv[]) {
       end_time - start_time);
   size_t total_memory = get_memory_usage() - initial_memory;
 
-  std::cout << "\n总体统计:" << std::endl;
-  std::cout << "  总时间: " << total_duration.count() << " 毫秒" << std::endl;
-  std::cout << "  总内存使用: " << total_memory << " KB" << std::endl;
+  std::cout << "\n========================================" << std::endl;
+  std::cout << "Total Statistics:" << std::endl;
+  std::cout << "  Total time: " << total_duration.count() << " ms" << std::endl;
+  std::cout << "  Total memory: " << total_memory << " KB" << std::endl;
+  std::cout << "========================================" << std::endl;
 
   return 0;
 }

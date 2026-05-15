@@ -17,11 +17,11 @@ class TDG;
 struct TaskConfig;
 struct PeriodicTask;
 struct APeriodicTask;
-struct DistTask;
-struct SyncTask;
+struct ForkTask;
+struct JoinTask;
 struct EmptyTask;
 using NodeType =
-    std::variant<PeriodicTask, APeriodicTask, DistTask, SyncTask, EmptyTask>;
+    std::variant<PeriodicTask, APeriodicTask, ForkTask, JoinTask, EmptyTask>;
 
 namespace matrix_ptpn {
 
