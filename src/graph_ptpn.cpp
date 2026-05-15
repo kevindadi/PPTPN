@@ -7,6 +7,7 @@
 #include <fstream>
 #include <limits>
 #include <map>
+#include <spdlog/spdlog.h>
 
 namespace graph_ptpn {
 
@@ -49,7 +50,7 @@ GraphPTPN::GraphPTPN(const matrix_ptpn::MatrixPTPN& matrix_ptpn) {
 void GraphPTPN::convert_matrix_to_graph(
     const matrix_ptpn::MatrixPTPN& matrix_ptpn) {
   try {
-    info("[GRAPH_PTPN] 开始将矩阵形式转换为Boost Graph形式...");
+    spdlog::info("[GRAPH_PTPN] 开始将矩阵形式转换为Boost Graph形式...");
 
     graph.clear();
     std::map<size_t, VertexDesc> place_to_vertex;
@@ -128,8 +129,7 @@ bool GraphPTPN::save_to_dot(const std::string& file_path) const {
 
     std::ofstream ofs(dot_filename.string());
     if (!ofs) {
-      spdlog::error
-          << "[GRAPH_PTPN] 无法打开DOT文件: " << dot_filename.string();
+      spdlog::error("[GRAPH_PTPN] 无法打开DOT文件: {}", dot_filename.string());
       return false;
     }
 

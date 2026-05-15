@@ -18,6 +18,21 @@ struct JsonParseResult {
   int error_line = 0;
 };
 
+struct ValidationResult {
+  bool success = true;
+  std::vector<std::string> errors;
+  std::vector<std::string> warnings;
+
+  void add_error(const std::string& err) {
+    success = false;
+    errors.push_back(err);
+  }
+
+  void add_warning(const std::string& warn) {
+    warnings.push_back(warn);
+  }
+};
+
 struct JsonNode {
   std::string id;
   std::string type;
@@ -41,6 +56,7 @@ struct JsonGraph {
   std::string name = "G";
   int num_cpus = 1;
   int cores_per_cpu = 1;
+  std::vector<std::string> shared_locks;
   std::vector<JsonNode> nodes;
   std::vector<JsonEdge> edges;
 };
@@ -59,10 +75,7 @@ class JsonTDGParser {
   const std::vector<JsonEdge>& get_edges() const { return graph_.edges; }
   const std::string& get_original_json() const { return original_json_; }
 
-  JsonParseResult validate() const;
-  std::vector<std::string> get_validation_errors() const {
-    return validation_errors_;
-  }
+  ValidationResult validate() const;
 
   std::string to_dot_string() const;
 
@@ -75,7 +88,6 @@ class JsonTDGParser {
 
   JsonGraph graph_;
   std::string original_json_;
-  mutable std::vector<std::string> validation_errors_;
 };
 
 std::string node_type_to_string(const NodeType& node);

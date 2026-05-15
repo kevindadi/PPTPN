@@ -55,8 +55,12 @@ JsonParseResult JsonTDGParser::parse_string(const std::string& json_content) {
 
     auto validation = validate();
     if (!validation.success) {
-      spdlog::error("[JSON] Validation failed: {}", validation.error_message);
-      return validation;
+      std::ostringstream err_msg;
+      for (const auto& err : validation.errors) {
+        err_msg << err << "; ";
+      }
+      spdlog::error("[JSON] Validation failed: {}", err_msg.str());
+      return {false, err_msg.str(), 0};
     }
 
     spdlog::info("[JSON] JSON parsing completed successfully");
@@ -86,6 +90,15 @@ void JsonTDGParser::parse_configuration_object(const nlohmann::json& config) {
   if (config.contains("cores_per_cpu")) {
     graph_.cores_per_cpu = config["cores_per_cpu"].get<int>();
     spdlog::debug("[JSON] cores_per_cpu: {}", graph_.cores_per_cpu);
+  }
+  if (config.contains("shared_locks")) {
+    const auto& locks_arr = config["shared_locks"];
+    if (locks_arr.is_array()) {
+      for (const auto& lock : locks_arr) {
+        graph_.shared_locks.push_back(lock.get<std::string>());
+      }
+    }
+    spdlog::debug("[JSON] shared_locks: {}", graph_.shared_locks.size());
   }
 }
 
@@ -184,47 +197,104 @@ void JsonTDGParser::parse_edges_array(const nlohmann::json& edges_array) {
   }
 }
 
-JsonParseResult JsonTDGParser::validate() const {
-  validation_errors_.clear();
+ValidationResult JsonTDGParser::validate() const {
+  ValidationResult result;
+  int total_cores = graph_.num_cpus * graph_.cores_per_cpu;
 
   std::set<std::string> node_ids;
+  std::set<std::string> task_ids;
+  std::set<std::string> available_locks(graph_.shared_locks.begin(), graph_.shared_locks.end());
+
+  // Rule 1: Node ID uniqueness
   for (const auto& node : graph_.nodes) {
     if (node_ids.count(node.id) > 0) {
-      validation_errors_.push_back("Duplicate node ID: " + node.id);
+      result.add_error("Duplicate node ID: " + node.id);
     }
     node_ids.insert(node.id);
 
+    if (node.type == "periodic" || node.type == "aperiodic") {
+      task_ids.insert(node.id);
+    }
+  }
+
+  // Rule 2: Node type validation
+  for (const auto& node : graph_.nodes) {
     if (node.type != "periodic" && node.type != "aperiodic" &&
         node.type != "fork" && node.type != "join" && node.type != "empty") {
-      validation_errors_.push_back("Unknown node type '" + node.type +
-                                    "' for node '" + node.id + "'");
+      result.add_error("Unknown node type '" + node.type + "' for node '" + node.id + "'");
     }
 
-    if (node.type == "periodic" && node.period.first == 0 &&
-        node.period.second == 0) {
-      validation_errors_.push_back("Periodic task '" + node.id +
-                                    "' missing 'period' field");
+    // Rule 3: Core number validity
+    if (node.core < 0 || node.core >= total_cores) {
+      result.add_error("Node '" + node.id + "' has invalid core " +
+                       std::to_string(node.core) + " (valid range: 0-" +
+                       std::to_string(total_cores - 1) + ")");
+    }
+
+    // Rule 4: Periodic task must have non-zero period
+    if (node.type == "periodic") {
+      if (node.period.first == 0 && node.period.second == 0) {
+        result.add_error("Periodic task '" + node.id + "' has missing or zero 'period' field");
+      }
+      if (node.period.first > node.period.second) {
+        result.add_error("Periodic task '" + node.id + "' has invalid period [" +
+                         std::to_string(node.period.first) + "," +
+                         std::to_string(node.period.second) + "] (min > max)");
+      }
+    }
+
+    // Rule 5: Time interval format validation
+    for (const auto& time_range : node.time) {
+      if (time_range.first < 0 || time_range.second < 0) {
+        result.add_error("Node '" + node.id + "' has negative time value");
+      }
+      if (time_range.first > time_range.second) {
+        result.add_error("Node '" + node.id + "' has invalid time interval [" +
+                         std::to_string(time_range.first) + "," +
+                         std::to_string(time_range.second) + "] (min > max)");
+      }
+    }
+
+    // Rule 6: Lock resource existence
+    for (const auto& lock : node.locks) {
+      if (available_locks.find(lock) == available_locks.end()) {
+        result.add_error("Node '" + node.id + "' references undefined lock '" + lock + "'");
+      }
+    }
+
+    // Rule 7: fork/join nodes should not have task attributes (warning)
+    if (node.type == "fork" || node.type == "join") {
+      if (node.priority != 100) {
+        result.add_warning("Node '" + node.id + "' is a " + node.type +
+                          " but has custom priority (" + std::to_string(node.priority) + ")");
+      }
+      if (node.core != 0) {
+        result.add_warning("Node '" + node.id + "' is a " + node.type +
+                          " but has custom core (" + std::to_string(node.core) + ")");
+      }
+      if (!node.time.empty()) {
+        result.add_warning("Node '" + node.id + "' is a " + node.type +
+                          " but has time intervals defined");
+      }
     }
   }
 
+  // Rule 8: Edge references must exist
   for (const auto& edge : graph_.edges) {
     if (node_ids.count(edge.source) == 0) {
-      validation_errors_.push_back("Edge references unknown source: " + edge.source);
+      result.add_error("Edge references unknown source node: " + edge.source);
     }
     if (node_ids.count(edge.target) == 0) {
-      validation_errors_.push_back("Edge references unknown target: " + edge.target);
+      result.add_error("Edge references unknown target node: " + edge.target);
     }
   }
 
-  if (!validation_errors_.empty()) {
-    std::ostringstream oss;
-    for (const auto& err : validation_errors_) {
-      oss << err << "; ";
-    }
-    return {false, oss.str(), 0};
+  // Rule 9: At least one task node (warning)
+  if (task_ids.empty()) {
+    result.add_warning("Graph contains no task nodes (periodic or aperiodic)");
   }
 
-  return {true, "", 0};
+  return result;
 }
 
 std::string JsonTDGParser::to_dot_string() const {
