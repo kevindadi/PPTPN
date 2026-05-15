@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
 #include <fstream>
-#include "json_tdg.h"
-#include "clap.h"
+#include "tdg/tdg.h"
 
-using json_tdg::JsonTDGParser;
+using tdg::JsonTDGParser;
+using tdg::TDG;
 
 class TdgExportTest : public ::testing::Test {
  protected:

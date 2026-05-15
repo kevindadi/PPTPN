@@ -42,18 +42,16 @@ find_package(fmt REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 message(STATUS "Boost include dir: ${Boost_INCLUDE_DIRS}")
 
-include_directories(include)
+include_directories(src)
 
 # Core library containing all logic
 add_library(PTPN_core STATIC
-    src/clap.cpp
-    src/matrix_ptpn.cpp
-    src/graph_ptpn.cpp
-    src/state_class.cpp
-    src/state_class_graph.cpp
-    src/json_tdg.cpp
+    src/tdg/tdg.cpp
+    src/petri/petri.cpp
+    src/petri/graph.cpp
+    src/analysis/reachability.cpp
 )
-target_include_directories(PTPN_core PUBLIC include)
+target_include_directories(PTPN_core PUBLIC src)
 target_link_libraries(PTPN_core PUBLIC
     Boost::graph
     Boost::filesystem

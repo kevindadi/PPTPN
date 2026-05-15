@@ -21,5 +21,7 @@ target_link_libraries(ptpn_test
   gtest_main
 )
 
+target_include_directories(ptpn_test PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
 include(GoogleTest)
 gtest_discover_tests(ptpn_test)

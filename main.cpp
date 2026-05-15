@@ -17,11 +17,10 @@
 #include <iostream>
 #include <limits>
 
-#include "clap.h"
-#include "json_tdg.h"
-#include "matrix_ptpn.h"
-#include "graph_ptpn.h"
-#include "state_class_graph.h"
+#include "tdg/tdg.h"
+#include "petri/petri.h"
+#include "petri/graph.h"
+#include "analysis/state.h"
 
 using namespace std;
 
@@ -79,7 +78,7 @@ int main(int argc, char* argv[]) {
   auto tdg_start = chrono::high_resolution_clock::now();
   spdlog::info("[TDG] Starting JSON parsing: {}", input_file);
 
-  json_tdg::JsonTDGParser parser;
+  tdg::JsonTDGParser parser;
   auto parse_result = parser.parse_file(input_file);
 
   if (!parse_result.success) {
@@ -132,7 +131,7 @@ int main(int argc, char* argv[]) {
 
   // Transform to Matrix PTPN
   spdlog::info("\n[PTPN] Converting to Matrix PTPN...");
-  matrix_ptpn::MatrixPTPN matrix_ptpn;
+  petri::MatrixPTPN matrix_ptpn;
   matrix_ptpn.transform_tdg_to_matrix_ptpn(tdg);
   spdlog::info("[PTPN] Matrix PTPN conversion completed");
   spdlog::info("  Places: {}", matrix_ptpn.num_places());
@@ -141,7 +140,7 @@ int main(int argc, char* argv[]) {
   cout << matrix_ptpn.to_string();
 
   string matrix_ptpn_dot_file = "matrix_ptpn.dot";
-  graph_ptpn::GraphPTPN graph_ptpn(matrix_ptpn);
+  graph::GraphPTPN graph_ptpn(matrix_ptpn);
   if (graph_ptpn.save_to_dot(matrix_ptpn_dot_file)) {
     spdlog::info("[OUTPUT] Matrix PTPN saved to: {}", matrix_ptpn_dot_file);
   } else {

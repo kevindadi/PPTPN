@@ -1,5 +1,5 @@
-#ifndef MATRIX_PTPN_H
-#define MATRIX_PTPN_H
+#ifndef PETRI_H
+#define PETRI_H
 
 #include <climits>
 #include <iostream>
@@ -13,25 +13,13 @@
 #include <variant>
 #include <vector>
 
-class TDG;
-struct TaskConfig;
-struct PeriodicTask;
-struct APeriodicTask;
-struct ForkTask;
-struct JoinTask;
-struct EmptyTask;
-using NodeType =
-    std::variant<PeriodicTask, APeriodicTask, ForkTask, JoinTask, EmptyTask>;
+namespace petri {
 
-namespace matrix_ptpn {
-
-// 无穷大时间常量
 constexpr int INF = std::numeric_limits<int>::max();
 
-// 时间区间结构体
 struct TimeInterval {
-  int earliest;  // α(t),最早可触发时间
-  int latest;    // β(t),最晚可触发时间(可为 INF)
+  int earliest;
+  int latest;
 
   TimeInterval(int e = 0, int l = INF) : earliest(e), latest(l) {
     if (earliest < 0) {
@@ -63,24 +51,22 @@ struct TimeInterval {
   }
 };
 
-// 库所
 struct Place {
-  std::string id;    // 位置 ID
-  std::string name;  // 位置名称
-  int capacity;      // 容量(可选,默认为 1)
+  std::string id;
+  std::string name;
+  int capacity;
 
   Place(const std::string& id = "", const std::string& name = "", int cap = 1)
       : id(id), name(name), capacity(cap) {}
 };
 
-// 变迁
 struct Transition {
-  std::string id;              // 变迁 ID
-  std::string name;            // 变迁名称
-  TimeInterval time_interval;  // I(t) = [α(t), β(t)]
-  int priority;                // π(t),优先级(数值越小优先级越高)
-  int core;                    // 分配的 CPU 核心 ID
-  bool suspendable;            // 是否可挂起
+  std::string id;
+  std::string name;
+  TimeInterval time_interval;
+  int priority;
+  int core;
+  bool suspendable;
 
   Transition(const std::string& id = "", const std::string& name = "",
              const TimeInterval& interval = TimeInterval(),
@@ -93,24 +79,94 @@ struct Transition {
         suspendable(suspendable) {}
 };
 
-// 标识向量类型:M[p] 表示位置 p 的 token 数量
 using Marking = std::vector<int>;
 
-// 优先级时间 Petri 网
+using NodeType = std::variant<struct PeriodicTask, struct APeriodicTask,
+                             struct ForkTask, struct JoinTask, struct EmptyTask>;
+
+enum class TDGVertexType { TASK, FORK, JOIN, EMPTY };
+
+struct TaskConfig {
+  int core;
+  int priority;
+  std::vector<std::pair<int, int>> times;
+  std::vector<std::string> locks;
+};
+
+class TDG {
+ public:
+  TDG() = default;
+  TDG(int num_cpus, int cores_per_cpu)
+      : num_cpus(num_cpus), cores_per_cpu(cores_per_cpu) {}
+
+  int num_cpus = 1;
+  int cores_per_cpu = 1;
+
+  std::vector<NodeType> all_task;
+  std::unordered_map<std::string, int> tasks_priority;
+  std::unordered_map<std::string, TDGVertexType> vertexes_type;
+  std::unordered_map<std::string, NodeType> nodes_type;
+  std::unordered_map<std::string, TaskType> tasks_type;
+  std::set<std::string> lock_set;
+  std::map<std::string, std::vector<std::string>> task_locks_map;
+  std::unordered_map<std::string, TaskConfig> tasks_config;
+  std::vector<std::tuple<std::string, std::string, std::string, std::string>> tdg_edges;
+
+  std::unordered_map<int, std::vector<std::string>> classify_priority();
+};
+
+enum class TaskType { NORMAL, PERIOD, APERIOD, INTERRUPT };
+
+struct APeriodicTask {
+  std::string name;
+  int core = 0;
+  int priority = 100;
+  std::vector<std::pair<int, int>> time;
+  bool is_lock = false;
+  std::vector<std::string> lock;
+  TaskType task_type = TaskType::NORMAL;
+};
+
+struct PeriodicTask {
+  std::string name;
+  int core = 0;
+  int priority = 100;
+  std::vector<std::pair<int, int>> time;
+  bool is_lock = false;
+  std::vector<std::string> lock;
+  TaskType task_type = TaskType::PERIOD;
+  std::pair<int, int> period_time = {0, 0};
+};
+
+struct ForkTask {
+  std::string name;
+  std::pair<int, int> time = std::make_pair(0, 0);
+  ForkTask() = default;
+  ForkTask(const std::string& n) : name(n) {}
+};
+
+struct JoinTask {
+  std::string name;
+  std::pair<int, int> time = std::make_pair(0, 0);
+  JoinTask() = default;
+  JoinTask(const std::string& n) : name(n) {}
+};
+
+struct EmptyTask {
+  std::string name;
+};
+
 class MatrixPTPN {
  public:
   MatrixPTPN() = default;
 
   size_t add_place(const std::string& name, int capacity = 1) {
     places.emplace_back(std::to_string(places.size()), name, capacity);
-
     Pre.emplace_back(std::vector<int>(transitions.size(), 0));
     M0.push_back(0);
-
     for (auto& row : Post) {
       row.push_back(0);
     }
-
     return places.size() - 1;
   }
 
@@ -120,13 +176,10 @@ class MatrixPTPN {
                         bool suspendable = false) {
     transitions.emplace_back(std::to_string(transitions.size()), name, interval,
                              priority, core, suspendable);
-
     for (auto& row : Pre) {
       row.push_back(0);
     }
-
     Post.emplace_back(std::vector<int>(places.size(), 0));
-
     return transitions.size() - 1;
   }
 
@@ -217,14 +270,12 @@ class MatrixPTPN {
 
     Marking new_marking = M;
 
-    // M' = M - Pre + Post
     for (size_t p = 0; p < net.places.size(); ++p) {
       new_marking[p] -= net.Pre[p][trans_idx];
     }
 
     for (size_t p = 0; p < net.places.size(); ++p) {
       new_marking[p] += net.Post[trans_idx][p];
-
       if (net.places[p].capacity != INF &&
           new_marking[p] > net.places[p].capacity) {
         new_marking[p] = net.places[p].capacity;
@@ -235,50 +286,6 @@ class MatrixPTPN {
   }
 
   void fire_transition(size_t trans_idx) { M0 = fire(M0, *this, trans_idx); }
-
-  [[nodiscard]] std::string to_string() const {
-    std::ostringstream oss;
-    oss << "=== Matrix PTPN ===\n";
-    oss << "Places (" << places.size() << "):\n";
-    for (size_t i = 0; i < places.size(); ++i) {
-      oss << "  P" << i << ": " << places[i].name << " [capacity="
-          << (places[i].capacity == INF ? "∞"
-                                        : std::to_string(places[i].capacity))
-          << ", tokens=" << M0[i] << "]\n";
-    }
-
-    oss << "\nTransitions (" << transitions.size() << "):\n";
-    for (size_t i = 0; i < transitions.size(); ++i) {
-      oss << "  T" << i << ": " << transitions[i].name
-          << " [time=" << transitions[i].time_interval.to_string()
-          << ", priority=" << transitions[i].priority
-          << ", core=" << transitions[i].core
-          << ", suspendable=" << (transitions[i].suspendable ? "yes" : "no")
-          << "]\n";
-    }
-
-    oss << "\nPre Matrix (" << Pre.size() << "x"
-        << (Pre.empty() ? 0 : Pre[0].size()) << "):\n";
-    for (size_t p = 0; p < Pre.size(); ++p) {
-      oss << "  P" << p << ": ";
-      for (size_t t = 0; t < Pre[p].size(); ++t) {
-        oss << Pre[p][t] << " ";
-      }
-      oss << "\n";
-    }
-
-    oss << "\nPost Matrix (" << Post.size() << "x"
-        << (Post.empty() ? 0 : Post[0].size()) << "):\n";
-    for (size_t t = 0; t < Post.size(); ++t) {
-      oss << "  T" << t << ": ";
-      for (size_t p = 0; p < Post[t].size(); ++p) {
-        oss << Post[t][p] << " ";
-      }
-      oss << "\n";
-    }
-
-    return oss.str();
-  }
 
   [[nodiscard]] std::vector<size_t> get_enabled_transitions() const {
     std::vector<size_t> enabled;
@@ -309,11 +316,9 @@ class MatrixPTPN {
         filtered.push_back(t);
       }
     }
-
     return filtered;
   }
 
-  // 按核心和优先级过滤使能变迁(先按核心分组,再在每个核心内按优先级过滤)
   [[nodiscard]] std::vector<size_t> filter_by_core_and_priority(
       const std::vector<size_t>& enabled_transitions) const {
     if (enabled_transitions.empty()) {
@@ -355,7 +360,6 @@ class MatrixPTPN {
     return result;
   }
 
-  // 获取指定核心的所有使能变迁
   [[nodiscard]] std::vector<size_t> get_enabled_transitions_by_core(
       int core_id) const {
     std::vector<size_t> result;
@@ -367,9 +371,7 @@ class MatrixPTPN {
     return result;
   }
 
-  // 验证网络结构
   [[nodiscard]] bool verify_structure() const;
-
   void transform_tdg_to_matrix_ptpn(TDG& tdg);
 
  private:
@@ -404,23 +406,20 @@ class MatrixPTPN {
   void handle_normal_edge_matrix(const std::string& source_name,
                                  const std::string& target_name);
 
- private:
-  std::vector<Place> places;            // P:位置集合
-  std::vector<Transition> transitions;  // T:变迁集合
-  std::vector<std::vector<int>> Pre;    // Pre:|P|×|T| 输入矩阵
-  std::vector<std::vector<int>> Post;   // Post:|T|×|P| 输出矩阵
-  Marking M0;                           // M0:初始标识向量
+  std::vector<Place> places;
+  std::vector<Transition> transitions;
+  std::vector<std::vector<int>> Pre;
+  std::vector<std::vector<int>> Post;
+  Marking M0;
 
-  // TDG 转换相关的私有成员
   std::map<std::string, std::pair<size_t, size_t>>
-      node_start_end_map;  // 节点名称 -> (开始节点索引, 结束节点索引)
-  std::unordered_map<std::string, std::vector<size_t>>
-      node_pn_map;                                      // 节点名称 -> Petri网链
-  std::vector<size_t> cpus_place;                       // CPU资源库所索引
-  std::unordered_map<std::string, size_t> locks_place;  // 锁资源库所索引
-  int node_index = 0;                                   // 节点索引计数器
+      node_start_end_map;
+  std::unordered_map<std::string, std::vector<size_t>> node_pn_map;
+  std::vector<size_t> cpus_place;
+  std::unordered_map<std::string, size_t> locks_place;
+  int node_index = 0;
 };
 
-}  // namespace matrix_ptpn
+}  // namespace petri
 
-#endif  // MATRIX_PTPN_H
+#endif

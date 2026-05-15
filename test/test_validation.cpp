@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
-#include "json_tdg.h"
+#include "tdg/tdg.h"
 
-using json_tdg::JsonTDGParser;
+using tdg::JsonTDGParser;
 
 class ValidationTest : public ::testing::Test {
  protected:

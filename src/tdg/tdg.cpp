@@ -1,15 +1,243 @@
-#include "json_tdg.h"
+#include "tdg/tdg.h"
 
 #include <spdlog/spdlog.h>
-#include <fstream>
 #include <set>
-#include <sstream>
 
 using json = nlohmann::json;
 
-namespace json_tdg {
+// ===== TDG Implementation (from clap.cpp) =====
+void tdg::TDG::parse_json(const std::string& json_file) {
+  spdlog::info("[TDG] Starting JSON parsing: {}", json_file);
 
-JsonParseResult JsonTDGParser::parse_file(const std::string& file_path) {
+  tdg::JsonTDGParser parser;
+  auto result = parser.parse_file(json_file);
+
+  if (!result.success) {
+    spdlog::error("[TDG] JSON parsing failed: {}", result.error_message);
+    return;
+  }
+
+  num_cpus = parser.get_num_cpus();
+  cores_per_cpu = parser.get_cores_per_cpu();
+
+  spdlog::info("[TDG] Configuration: {} CPUs, {} cores per CPU", num_cpus, cores_per_cpu);
+
+  for (const auto& json_node : parser.get_nodes()) {
+    std::string id = json_node.id;
+    NodeType node_type = json_node.to_node_type();
+
+    if (std::holds_alternative<PeriodicTask>(node_type)) {
+      const auto& task = std::get<PeriodicTask>(node_type);
+      all_task.emplace_back(node_type);
+      tasks_priority.insert({task.name, task.priority});
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::TASK});
+      tasks_type.insert({task.name, TaskType::PERIOD});
+
+      for (const auto& lock : task.lock) {
+        lock_set.insert(lock);
+        task_locks_map[task.name].push_back(lock);
+      }
+
+      spdlog::info("[TDG] Node '{}' -> periodic (priority={}, core={})",
+                  task.name, task.priority, task.core);
+
+    } else if (std::holds_alternative<APeriodicTask>(node_type)) {
+      const auto& task = std::get<APeriodicTask>(node_type);
+      all_task.emplace_back(node_type);
+      tasks_priority.insert({task.name, task.priority});
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::TASK});
+      tasks_type.insert({task.name, TaskType::NORMAL});
+
+      for (const auto& lock : task.lock) {
+        lock_set.insert(lock);
+        task_locks_map[task.name].push_back(lock);
+      }
+
+      spdlog::info("[TDG] Node '{}' -> aperiodic (priority={}, core={})",
+                  task.name, task.priority, task.core);
+
+    } else if (std::holds_alternative<ForkTask>(node_type)) {
+      const auto& task = std::get<ForkTask>(node_type);
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::FORK});
+      spdlog::info("[TDG] Node '{}' -> fork", task.name);
+
+    } else if (std::holds_alternative<JoinTask>(node_type)) {
+      const auto& task = std::get<JoinTask>(node_type);
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::JOIN});
+      spdlog::info("[TDG] Node '{}' -> join", task.name);
+
+    } else if (std::holds_alternative<EmptyTask>(node_type)) {
+      const auto& task = std::get<EmptyTask>(node_type);
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::EMPTY});
+      spdlog::info("[TDG] Node '{}' -> empty", task.name);
+    }
+  }
+
+  for (const auto& edge : parser.get_edges()) {
+    tdg_edges.emplace_back(edge.source, edge.target, edge.label, edge.style);
+    spdlog::debug("[TDG] Edge: {} -> {} (style={})", edge.source, edge.target, edge.style);
+  }
+
+  spdlog::info("[TDG] JSON parsing completed: {} nodes, {} edges", nodes_type.size(), tdg_edges.size());
+}
+
+void tdg::TDG::parse_json_string(const std::string& json_content) {
+  tdg::JsonTDGParser parser;
+  auto result = parser.parse_string(json_content);
+
+  if (!result.success) {
+    throw std::runtime_error("JSON parsing failed: " + result.error_message);
+  }
+
+  num_cpus = parser.get_num_cpus();
+  cores_per_cpu = parser.get_cores_per_cpu();
+
+  for (const auto& json_node : parser.get_nodes()) {
+    std::string id = json_node.id;
+    NodeType node_type = json_node.to_node_type();
+
+    if (std::holds_alternative<PeriodicTask>(node_type)) {
+      const auto& task = std::get<PeriodicTask>(node_type);
+      all_task.emplace_back(node_type);
+      tasks_priority.insert({task.name, task.priority});
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::TASK});
+      tasks_type.insert({task.name, TaskType::PERIOD});
+
+      for (const auto& lock : task.lock) {
+        lock_set.insert(lock);
+        task_locks_map[task.name].push_back(lock);
+      }
+
+    } else if (std::holds_alternative<APeriodicTask>(node_type)) {
+      const auto& task = std::get<APeriodicTask>(node_type);
+      all_task.emplace_back(node_type);
+      tasks_priority.insert({task.name, task.priority});
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::TASK});
+      tasks_type.insert({task.name, TaskType::NORMAL});
+
+      for (const auto& lock : task.lock) {
+        lock_set.insert(lock);
+        task_locks_map[task.name].push_back(lock);
+      }
+
+    } else if (std::holds_alternative<ForkTask>(node_type)) {
+      const auto& task = std::get<ForkTask>(node_type);
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::FORK});
+
+    } else if (std::holds_alternative<JoinTask>(node_type)) {
+      const auto& task = std::get<JoinTask>(node_type);
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::JOIN);
+
+    } else if (std::holds_alternative<EmptyTask>(node_type)) {
+      const auto& task = std::get<EmptyTask>(node_type);
+      nodes_type.insert({task.name, node_type});
+      vertexes_type.insert({task.name, TDGVertexType::EMPTY});
+    }
+  }
+
+  for (const auto& edge : parser.get_edges()) {
+    tdg_edges.emplace_back(edge.source, edge.target, edge.label, edge.style);
+  }
+}
+
+std::string tdg::TDG::to_dot_string() const {
+  std::ostringstream oss;
+
+  oss << "digraph G {\n";
+
+  for (const auto& [name, node] : nodes_type) {
+    oss << "    " << name << " [label = \"" << tdg::node_to_dot_label(node)
+        << "\";];\n";
+  }
+
+  for (const auto& edge : tdg_edges) {
+    std::string source, target, label, style;
+    std::tie(source, target, label, style) = edge;
+
+    oss << "    " << source << " -> " << target;
+    if (!label.empty() || !style.empty()) {
+      oss << " [";
+      if (!label.empty()) {
+        oss << "xlabel = \"" << label << "\"";
+      }
+      if (!style.empty()) {
+        if (!label.empty()) oss << "; ";
+        oss << "style = \"" << style << "\"";
+      }
+      oss << ";]";
+    }
+    oss << ";\n";
+  }
+
+  oss << "}\n";
+  return oss.str();
+}
+
+void tdg::TDG::export_to_dot(const std::string& output_path) {
+  spdlog::info("[DOT] Exporting to: {}", output_path);
+
+  std::ofstream file(output_path);
+  if (!file.is_open()) {
+    spdlog::error("[DOT] Failed to create file: {}", output_path);
+    return;
+  }
+
+  std::string dot_content = to_dot_string();
+  file << dot_content;
+  file.close();
+
+  spdlog::info("[DOT] Exported {} nodes, {} edges to {}", nodes_type.size(), tdg_edges.size(), output_path);
+}
+
+std::unordered_map<int, std::vector<std::string>> tdg::TDG::classify_priority() {
+  std::unordered_map<int, std::vector<std::string>> core_task;
+
+  for (const auto& task : all_task) {
+    if (std::holds_alternative<APeriodicTask>(task)) {
+      auto result = std::get<APeriodicTask>(task);
+      TaskConfig tc = {result.core, result.priority, result.time, result.lock};
+      tasks_config.insert({result.name, tc});
+      core_task[result.core].push_back(result.name);
+    } else if (std::holds_alternative<PeriodicTask>(task)) {
+      auto result = std::get<PeriodicTask>(task);
+      TaskConfig tc = {result.core, result.priority, result.time, result.lock};
+      tasks_config.insert({result.name, tc});
+      core_task[result.core].push_back(result.name);
+    } else {
+      continue;
+    }
+  }
+
+  for (auto& [fst, snd] : core_task) {
+    std::sort(snd.begin(), snd.end(), [&](const std::string& t1, const std::string& t2) {
+      return tasks_priority[t1] < tasks_priority[t2];
+    });
+  }
+
+  for (auto& [fst, snd] : core_task) {
+    std::stringstream ss;
+    ss << "[TDG] Core: " << fst << " [ ";
+    for (const auto& task : snd) {
+      ss << task << " < ";
+    }
+    ss << " ]";
+    spdlog::info("{}", ss.str());
+  }
+
+  return core_task;
+}
+
+// ===== JSON Parser Implementation (from json_tdg.cpp) =====
+JsonParseResult tdg::JsonTDGParser::parse_file(const std::string& file_path) {
   spdlog::info("[JSON] Starting JSON parsing: {}", file_path);
 
   std::ifstream file(file_path);
@@ -25,7 +253,7 @@ JsonParseResult JsonTDGParser::parse_file(const std::string& file_path) {
   return parse_string(original_json_);
 }
 
-JsonParseResult JsonTDGParser::parse_string(const std::string& json_content) {
+JsonParseResult tdg::JsonTDGParser::parse_string(const std::string& json_content) {
   spdlog::info("[JSON] Parsing JSON content ({} characters)", json_content.size());
 
   try {
@@ -65,14 +293,14 @@ JsonParseResult JsonTDGParser::parse_string(const std::string& json_content) {
   }
 }
 
-void JsonTDGParser::parse_graph_object(const nlohmann::json& graph_obj) {
+void tdg::JsonTDGParser::parse_graph_object(const nlohmann::json& graph_obj) {
   if (graph_obj.contains("name")) {
     graph_.name = graph_obj["name"].get<std::string>();
     spdlog::debug("[JSON] Graph name: {}", graph_.name);
   }
 }
 
-void JsonTDGParser::parse_configuration_object(const nlohmann::json& config) {
+void tdg::JsonTDGParser::parse_configuration_object(const nlohmann::json& config) {
   if (config.contains("num_cpus")) {
     graph_.num_cpus = config["num_cpus"].get<int>();
     spdlog::debug("[JSON] num_cpus: {}", graph_.num_cpus);
@@ -92,7 +320,7 @@ void JsonTDGParser::parse_configuration_object(const nlohmann::json& config) {
   }
 }
 
-void JsonTDGParser::parse_nodes_array(const nlohmann::json& nodes_array) {
+void tdg::JsonTDGParser::parse_nodes_array(const nlohmann::json& nodes_array) {
   graph_.nodes.reserve(nodes_array.size());
 
   for (const auto& node_obj : nodes_array) {
@@ -108,7 +336,7 @@ void JsonTDGParser::parse_nodes_array(const nlohmann::json& nodes_array) {
   }
 }
 
-JsonNode JsonTDGParser::parse_node_object(const nlohmann::json& node_obj) {
+JsonNode tdg::JsonTDGParser::parse_node_object(const nlohmann::json& node_obj) {
   JsonNode node;
 
   if (!node_obj.contains("id")) {
@@ -160,7 +388,7 @@ JsonNode JsonTDGParser::parse_node_object(const nlohmann::json& node_obj) {
   return node;
 }
 
-void JsonTDGParser::parse_edges_array(const nlohmann::json& edges_array) {
+void tdg::JsonTDGParser::parse_edges_array(const nlohmann::json& edges_array) {
   graph_.edges.reserve(edges_array.size());
 
   for (const auto& edge_obj : edges_array) {
@@ -191,7 +419,7 @@ void JsonTDGParser::parse_edges_array(const nlohmann::json& edges_array) {
   }
 }
 
-ValidationResult JsonTDGParser::validate() const {
+ValidationResult tdg::JsonTDGParser::validate() const {
   ValidationResult result;
   int total_cores = graph_.num_cpus * graph_.cores_per_cpu;
 
@@ -293,13 +521,13 @@ ValidationResult JsonTDGParser::validate() const {
   return result;
 }
 
-std::string JsonTDGParser::to_dot_string() const {
+std::string tdg::JsonTDGParser::to_dot_string() const {
   std::ostringstream oss;
 
   oss << "digraph " << graph_.name << " {\n";
 
   for (const auto& node : graph_.nodes) {
-    oss << "    " << node.id << " [label = \"" << node_to_dot_label(node.to_node_type()) << "\";];\n";
+    oss << "    " << node.id << " [label = \"" << tdg::node_to_dot_label(node.to_node_type()) << "\";];\n";
   }
 
   for (const auto& edge : graph_.edges) {
@@ -322,7 +550,7 @@ std::string JsonTDGParser::to_dot_string() const {
   return oss.str();
 }
 
-NodeType JsonNode::to_node_type() const {
+NodeType tdg::JsonNode::to_node_type() const {
   if (type == "periodic") {
     PeriodicTask task;
     task.name = id;
@@ -358,7 +586,7 @@ NodeType JsonNode::to_node_type() const {
   }
 }
 
-std::string node_to_dot_label(const NodeType& node) {
+std::string tdg::node_to_dot_label(const NodeType& node) {
   std::ostringstream oss;
 
   if (std::holds_alternative<PeriodicTask>(node)) {
@@ -408,12 +636,10 @@ std::string node_to_dot_label(const NodeType& node) {
   return oss.str();
 }
 
-std::string node_type_to_string(const NodeType& node) {
+std::string tdg::node_type_to_string(const NodeType& node) {
   if (std::holds_alternative<PeriodicTask>(node)) return "periodic";
   if (std::holds_alternative<APeriodicTask>(node)) return "aperiodic";
   if (std::holds_alternative<ForkTask>(node)) return "fork";
   if (std::holds_alternative<JoinTask>(node)) return "join";
   return "empty";
 }
-
-}  // namespace json_tdg

@@ -1,9 +1,8 @@
 #include <gtest/gtest.h>
-#include "json_tdg.h"
-#include "clap.h"
+#include "tdg/tdg.h"
 
-using json_tdg::JsonTDGParser;
-using json_tdg::JsonNode;
+using tdg::JsonTDGParser;
+using tdg::JsonNode;
 
 class JsonParserTest : public ::testing::Test {
  protected:
