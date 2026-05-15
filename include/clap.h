@@ -1,6 +1,7 @@
 #ifndef DOT_TDG_H
 #define DOT_TDG_H
 
+#include <map>
 #include <set>
 #include <vector>
 
@@ -31,7 +32,7 @@ class TDG {
   std::unordered_map<string, NodeType> nodes_type;
   std::unordered_map<string, TaskType> tasks_type;
   set<string> lock_set;
-  std::map<string, vector<string>> task_locks_map;
+  std::map<std::string, std::vector<std::string>> task_locks_map;
   std::unordered_map<string, TaskConfig> tasks_config;
 
   std::vector<std::tuple<string, string, string, string>> tdg_edges;

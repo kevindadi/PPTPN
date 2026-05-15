@@ -1,6 +1,7 @@
 #include "clap.h"
 #include "json_tdg.h"
 
+#include <fstream>
 #include <spdlog/spdlog.h>
 
 void TDG::parse_json(const std::string& json_file) {

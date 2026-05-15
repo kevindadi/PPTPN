@@ -397,10 +397,8 @@ class MatrixPTPN {
       std::map<std::string, std::vector<std::string>>& task_locks);
   bool is_self_loop_edge(const std::string& source, const std::string& target);
   bool is_dashed_edge(const std::string& edge);
-  void handle_self_loop_edge_matrix(
-      TDG& tdg, void* edge_desc,
-      const std::string&
-          source_name);  // edge_desc 在 cpp 中转换为 TDG_RAP::edge_descriptor
+  void handle_self_loop_edge_matrix(const std::string& label,
+                                    const std::string& source_name);
   void handle_dashed_edge_matrix(const std::string& source_name,
                                  const std::string& target_name);
   void handle_normal_edge_matrix(const std::string& source_name,

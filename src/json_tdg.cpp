@@ -53,16 +53,6 @@ JsonParseResult JsonTDGParser::parse_string(const std::string& json_content) {
                  graph_.num_cpus, graph_.cores_per_cpu);
     spdlog::info("[JSON] Parsed {} nodes, {} edges", graph_.nodes.size(), graph_.edges.size());
 
-    auto validation = validate();
-    if (!validation.success) {
-      std::ostringstream err_msg;
-      for (const auto& err : validation.errors) {
-        err_msg << err << "; ";
-      }
-      spdlog::error("[JSON] Validation failed: {}", err_msg.str());
-      return {false, err_msg.str(), 0};
-    }
-
     spdlog::info("[JSON] JSON parsing completed successfully");
     return {true, "", 0};
 
@@ -183,7 +173,11 @@ void JsonTDGParser::parse_edges_array(const nlohmann::json& edges_array) {
       edge.target = edge_obj["target"].get<std::string>();
     }
     if (edge_obj.contains("label")) {
-      edge.label = std::to_string(edge_obj["label"].get<int>());
+      if (edge_obj["label"].is_number()) {
+        edge.label = std::to_string(edge_obj["label"].get<int>());
+      } else if (edge_obj["label"].is_string()) {
+        edge.label = edge_obj["label"].get<std::string>();
+      }
     }
     if (edge_obj.contains("style")) {
       edge.style = edge_obj["style"].get<std::string>();
@@ -224,11 +218,13 @@ ValidationResult JsonTDGParser::validate() const {
       result.add_error("Unknown node type '" + node.type + "' for node '" + node.id + "'");
     }
 
-    // Rule 3: Core number validity
-    if (node.core < 0 || node.core >= total_cores) {
-      result.add_error("Node '" + node.id + "' has invalid core " +
-                       std::to_string(node.core) + " (valid range: 0-" +
-                       std::to_string(total_cores - 1) + ")");
+    // Rule 3: Core number validity (skip for fork/join which don't need core assignment)
+    if (node.type != "fork" && node.type != "join") {
+      if (node.core < 0 || node.core >= total_cores) {
+        result.add_error("Node '" + node.id + "' has invalid core " +
+                         std::to_string(node.core) + " (valid range: 0-" +
+                         std::to_string(total_cores - 1) + ")");
+      }
     }
 
     // Rule 4: Periodic task must have non-zero period

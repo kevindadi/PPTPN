@@ -20,8 +20,8 @@ TEST_F(ValidationTest, DuplicateNodeId) {
   })";
 
   JsonTDGParser parser;
-  auto result = parser.parse_string(json);
-  ASSERT_TRUE(result.success);
+  auto parse_result = parser.parse_string(json);
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
   auto validation = parser.validate();
   EXPECT_FALSE(validation.success);
@@ -47,8 +47,8 @@ TEST_F(ValidationTest, UnknownNodeType) {
   })";
 
   JsonTDGParser parser;
-  auto result = parser.parse_string(json);
-  ASSERT_TRUE(result.success);
+  auto parse_result = parser.parse_string(json);
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
   auto validation = parser.validate();
   EXPECT_FALSE(validation.success);
@@ -74,8 +74,8 @@ TEST_F(ValidationTest, InvalidCoreNumber) {
   })";
 
   JsonTDGParser parser;
-  auto result = parser.parse_string(json);
-  ASSERT_TRUE(result.success);
+  auto parse_result = parser.parse_string(json);
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
   auto validation = parser.validate();
   EXPECT_FALSE(validation.success);
@@ -103,8 +103,8 @@ TEST_F(ValidationTest, EdgeReferencesUnknownNode) {
   })";
 
   JsonTDGParser parser;
-  auto result = parser.parse_string(json);
-  ASSERT_TRUE(result.success);
+  auto parse_result = parser.parse_string(json);
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
   auto validation = parser.validate();
   EXPECT_FALSE(validation.success);
@@ -130,8 +130,8 @@ TEST_F(ValidationTest, PeriodicTaskMissingPeriod) {
   })";
 
   JsonTDGParser parser;
-  auto result = parser.parse_string(json);
-  ASSERT_TRUE(result.success);
+  auto parse_result = parser.parse_string(json);
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
   auto validation = parser.validate();
   EXPECT_FALSE(validation.success);
@@ -157,8 +157,8 @@ TEST_F(ValidationTest, UndefinedLock) {
   })";
 
   JsonTDGParser parser;
-  auto result = parser.parse_string(json);
-  ASSERT_TRUE(result.success);
+  auto parse_result = parser.parse_string(json);
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
   auto validation = parser.validate();
   EXPECT_FALSE(validation.success);
@@ -187,8 +187,8 @@ TEST_F(ValidationTest, ValidInputNoErrors) {
   })";
 
   JsonTDGParser parser;
-  auto result = parser.parse_string(json);
-  ASSERT_TRUE(result.success);
+  auto parse_result = parser.parse_string(json);
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
   auto validation = parser.validate();
   EXPECT_TRUE(validation.success);
@@ -206,8 +206,8 @@ TEST_F(ValidationTest, InvalidTimeInterval) {
   })";
 
   JsonTDGParser parser;
-  auto result = parser.parse_string(json);
-  ASSERT_TRUE(result.success);
+  auto parse_result = parser.parse_string(json);
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
   auto validation = parser.validate();
   EXPECT_FALSE(validation.success);
@@ -236,8 +236,8 @@ TEST_F(ValidationTest, NoTaskNodesWarning) {
   })";
 
   JsonTDGParser parser;
-  auto result = parser.parse_string(json);
-  ASSERT_TRUE(result.success);
+  auto parse_result = parser.parse_string(json);
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
   auto validation = parser.validate();
   EXPECT_TRUE(validation.success);
@@ -266,8 +266,8 @@ TEST_F(ValidationTest, ForkNodeWithTaskAttributesWarning) {
   })";
 
   JsonTDGParser parser;
-  auto result = parser.parse_string(json);
-  ASSERT_TRUE(result.success);
+  auto parse_result = parser.parse_string(json);
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
   auto validation = parser.validate();
   EXPECT_TRUE(validation.success);
