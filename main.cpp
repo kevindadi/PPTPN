@@ -9,13 +9,9 @@
 #include <unistd.h>
 #endif
 
+#include <spdlog/spdlog.h>
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
-#include <boost/log/core.hpp>
-#include <boost/log/expressions.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/log/utility/setup/common_attributes.hpp>
-#include <boost/log/utility/setup/console.hpp>
 #include <boost/program_options.hpp>
 #include <chrono>
 #include <iostream>
@@ -72,14 +68,9 @@ void print_usage(const po::options_description& desc) {
 }
 
 int main(int argc, char* argv[]) {
-  boost::log::add_console_log(std::clog);
-  boost::log::add_common_attributes();
-  boost::log::core::get()->set_filter(boost::log::trivial::severity >=
-                                      boost::log::trivial::info);
-
-  BOOST_LOG_TRIVIAL(info) << "==========================================";
-  BOOST_LOG_TRIVIAL(info) << "PTPN - Priority Timed Petri Net Analyzer";
-  BOOST_LOG_TRIVIAL(info) << "==========================================";
+  spdlog::info("==========================================");
+  spdlog::info("PTPN - Priority Timed Petri Net Analyzer");
+  spdlog::info("==========================================");
 
   int deadline;
   int num_cpus;
@@ -126,18 +117,18 @@ int main(int argc, char* argv[]) {
   // Detect input format
   auto input_format = TDG::detect_format(file_path);
   if (input_format == InputFormat::JSON) {
-    BOOST_LOG_TRIVIAL(info) << "[INPUT] Detected JSON format: " << file_path;
+    spdlog::info("[INPUT] Detected JSON format: ") << file_path;
   } else {
-    BOOST_LOG_TRIVIAL(info) << "[INPUT] Detected DOT format: " << file_path;
+    spdlog::info("[INPUT] Detected DOT format: ") << file_path;
   }
 
   size_t initial_memory = get_memory_usage();
   auto start_time = std::chrono::high_resolution_clock::now();
 
   auto tdg_start = std::chrono::high_resolution_clock::now();
-  BOOST_LOG_TRIVIAL(info) << "[TDG] Starting parsing: " << file_path;
+  spdlog::info("[TDG] Starting parsing: ") << file_path;
   TDG tdg_rap(file_path, num_cpus, cores_per_cpu);
-  BOOST_LOG_TRIVIAL(info) << "[TDG] TDG object created successfully";
+  spdlog::info("[TDG] TDG object created successfully");
 
   // Parse based on detected format
   if (input_format == InputFormat::JSON) {
@@ -145,7 +136,7 @@ int main(int argc, char* argv[]) {
   } else {
     tdg_rap.parse_tdg();
   }
-  BOOST_LOG_TRIVIAL(info) << "[TDG] Parsing completed";
+  spdlog::info("[TDG] Parsing completed");
 
   // Optional: Export to DOT for reference
   if (export_dot) {
@@ -160,13 +151,13 @@ int main(int argc, char* argv[]) {
   }
 
   tdg_rap.classify_priority();
-  BOOST_LOG_TRIVIAL(info) << "[TDG] Priority classification completed";
+  spdlog::info("[TDG] Priority classification completed");
 
   // ptpn::PriorityTPN ptpn;
-  // BOOST_LOG_TRIVIAL(info) << "PriorityTPN object created";
+  // spdlog::info("PriorityTPN object created");
 
   // ptpn.transform_tdg_to_ptpn(tdg_rap);
-  // BOOST_LOG_TRIVIAL(info) << "TDG to PTPN transformation completed";
+  // spdlog::info("TDG to PTPN transformation completed");
 
   // ptpn.save_ptpn_and_dot("ptpn.dot");
   auto tdg_end = std::chrono::high_resolution_clock::now();
@@ -174,50 +165,50 @@ int main(int argc, char* argv[]) {
       tdg_end - tdg_start);
   size_t tdg_memory = get_memory_usage() - initial_memory;
 
-  BOOST_LOG_TRIVIAL(info) << "\n[STATS] Petri Net Generation: "
+  spdlog::info("\n[STATS] Petri Net Generation: ")
                           << tdg_duration.count() << " ms, "
                           << tdg_memory << " KB";
 
-  BOOST_LOG_TRIVIAL(info) << "\n[PTPN] Converting to Matrix PTPN...";
+  spdlog::info("\n[PTPN] Converting to Matrix PTPN...");
   matrix_ptpn::MatrixPTPN matrix_ptpn;
   matrix_ptpn.transform_tdg_to_matrix_ptpn(tdg_rap);
-  BOOST_LOG_TRIVIAL(info) << "[PTPN] Matrix PTPN conversion completed";
-  BOOST_LOG_TRIVIAL(info) << "  Places: " << matrix_ptpn.num_places();
-  BOOST_LOG_TRIVIAL(info) << "  Transitions: " << matrix_ptpn.num_transitions();
+  spdlog::info("[PTPN] Matrix PTPN conversion completed");
+  spdlog::info("  Places: ") << matrix_ptpn.num_places();
+  spdlog::info("  Transitions: ") << matrix_ptpn.num_transitions();
 
   std::cout << matrix_ptpn.to_string();
 
   std::string matrix_ptpn_dot_file = "matrix_ptpn.dot";
   graph_ptpn::GraphPTPN graph_ptpn(matrix_ptpn);
   if (graph_ptpn.save_to_dot(matrix_ptpn_dot_file)) {
-    BOOST_LOG_TRIVIAL(info) << "[OUTPUT] Matrix PTPN saved to: " << matrix_ptpn_dot_file;
+    spdlog::info("[OUTPUT] Matrix PTPN saved to: ") << matrix_ptpn_dot_file;
   } else {
-    BOOST_LOG_TRIVIAL(warning) << "[OUTPUT] Failed to save Matrix PTPN";
+    spdlog::warn << "[OUTPUT] Failed to save Matrix PTPN";
   }
 
-  BOOST_LOG_TRIVIAL(info) << "\n[SCG] Building State Class Reachability Graph...";
+  spdlog::info("\n[SCG] Building State Class Reachability Graph...");
   size_t scg_start_memory = get_memory_usage();
   auto scg_start = std::chrono::high_resolution_clock::now();
   state_class::StateClassReachabilityGraph scg(matrix_ptpn);
-  BOOST_LOG_TRIVIAL(info) << "[SCG] Starting build (max_states=" << max_states << ")...";
+  spdlog::info("[SCG] Starting build (max_states=") << max_states << ")...";
 
   size_t num_states = scg.build(max_states);
-  BOOST_LOG_TRIVIAL(info) << "[SCG] Build completed";
+  spdlog::info("[SCG] Build completed");
 
   const auto& stats = scg.get_statistics();
-  BOOST_LOG_TRIVIAL(info) << "  Total states: " << stats.total_states;
-  BOOST_LOG_TRIVIAL(info) << "  Total transitions: " << stats.total_transitions;
-  BOOST_LOG_TRIVIAL(info) << "  Enabled transitions: " << stats.enabled_transitions_count;
-  BOOST_LOG_TRIVIAL(info) << "  Pruned states: " << stats.pruned_states_count;
+  spdlog::info("  Total states: ") << stats.total_states;
+  spdlog::info("  Total transitions: ") << stats.total_transitions;
+  spdlog::info("  Enabled transitions: ") << stats.enabled_transitions_count;
+  spdlog::info("  Pruned states: ") << stats.pruned_states_count;
 
   std::string scg_dot_file = "state_class_graph.dot";
   if (scg.save_to_dot(scg_dot_file)) {
-    BOOST_LOG_TRIVIAL(info) << "[OUTPUT] State class graph (DOT) saved to: " << scg_dot_file;
+    spdlog::info("[OUTPUT] State class graph (DOT) saved to: ") << scg_dot_file;
   }
 
   std::string scg_json_file = "state_class_graph.json";
   if (scg.save_to_json(scg_json_file)) {
-    BOOST_LOG_TRIVIAL(info) << "[OUTPUT] State class graph (JSON) saved to: " << scg_json_file;
+    spdlog::info("[OUTPUT] State class graph (JSON) saved to: ") << scg_json_file;
   }
 
   auto scg_end = std::chrono::high_resolution_clock::now();
@@ -225,11 +216,11 @@ int main(int argc, char* argv[]) {
       scg_end - scg_start);
   size_t scg_memory = get_memory_usage() - scg_start_memory;
 
-  BOOST_LOG_TRIVIAL(info) << "\n[STATS] State Class Generation: "
+  spdlog::info("\n[STATS] State Class Generation: ")
                           << scg_duration.count() << " ms, "
                           << scg_memory << " KB";
 
-  // BOOST_LOG_TRIVIAL(info) << "\n开始任务分析...";
+  // spdlog::info("\n开始任务分析...");
   // auto analysis_start = std::chrono::high_resolution_clock::now();
 
   // task_analysis::AnalysisConfig config;
@@ -252,12 +243,12 @@ int main(int argc, char* argv[]) {
   // std::chrono::duration_cast<std::chrono::milliseconds>(
   //     analysis_end - analysis_start);
 
-  // BOOST_LOG_TRIVIAL(info)<< "\n任务分析统计:" << "  分析时间: " <<
+  // spdlog::info("\n任务分析统计:") << "  分析时间: " <<
   // analysis_duration.count() << " 毫秒" << "  分析任务数: " <<
   // analysis_results.size();
 
   // auto report = manager->generate_analysis_report();
-  // BOOST_LOG_TRIVIAL(info) << "\n分析报告:" << report;
+  // spdlog::info("\n分析报告:") << report;
 
   // auto stats = manager->get_statistics();
   // std::cout << "\n详细统计:" << std::endl;

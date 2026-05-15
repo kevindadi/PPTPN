@@ -2,7 +2,6 @@
 
 #include <boost/filesystem.hpp>
 #include <boost/graph/graphviz.hpp>
-#include <boost/log/trivial.hpp>
 #include <boost/property_map/property_map.hpp>
 #include <climits>
 #include <fstream>
@@ -50,8 +49,7 @@ GraphPTPN::GraphPTPN(const matrix_ptpn::MatrixPTPN& matrix_ptpn) {
 void GraphPTPN::convert_matrix_to_graph(
     const matrix_ptpn::MatrixPTPN& matrix_ptpn) {
   try {
-    BOOST_LOG_TRIVIAL(info)
-        << "[GRAPH_PTPN] 开始将矩阵形式转换为Boost Graph形式...";
+    spdlog::info("[GRAPH_PTPN] 开始将矩阵形式转换为Boost Graph形式...");
 
     graph.clear();
     std::map<size_t, VertexDesc> place_to_vertex;
@@ -111,10 +109,10 @@ void GraphPTPN::convert_matrix_to_graph(
       }
     }
 
-    BOOST_LOG_TRIVIAL(info) << "[GRAPH_PTPN] 转换完成: " << num_vertices(graph)
+    spdlog::info("[GRAPH_PTPN] 转换完成: ") << num_vertices(graph)
                             << " 个节点, " << num_edges(graph) << " 条边";
   } catch (const std::exception& e) {
-    BOOST_LOG_TRIVIAL(error) << "[GRAPH_PTPN] 转换失败: " << e.what();
+    spdlog::error << "[GRAPH_PTPN] 转换失败: " << e.what();
     throw;
   }
 }
@@ -131,7 +129,7 @@ bool GraphPTPN::save_to_dot(const std::string& file_path) const {
 
     std::ofstream ofs(dot_filename.string());
     if (!ofs) {
-      BOOST_LOG_TRIVIAL(error)
+      spdlog::error
           << "[GRAPH_PTPN] 无法打开DOT文件: " << dot_filename.string();
       return false;
     }
@@ -148,10 +146,10 @@ bool GraphPTPN::save_to_dot(const std::string& file_path) const {
     ofs.close();
 
     std::string saved_path = boost::filesystem::absolute(dot_filename).string();
-    BOOST_LOG_TRIVIAL(info) << "[GRAPH_PTPN] DOT文件已保存到: " << saved_path;
+    spdlog::info("[GRAPH_PTPN] DOT文件已保存到: ") << saved_path;
     return true;
   } catch (const std::exception& e) {
-    BOOST_LOG_TRIVIAL(error)
+    spdlog::error
         << "[GRAPH_PTPN] 保存DOT文件时发生错误: " << e.what();
     return false;
   }

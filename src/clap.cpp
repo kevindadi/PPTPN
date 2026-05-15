@@ -1,9 +1,8 @@
 #include "clap.h"
 #include "json_tdg.h"
 
+#include <spdlog/spdlog.h>
 #include <boost/exception/all.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/static_assert.hpp>
 #include <algorithm>
 #include <fstream>
 #include <regex>
@@ -42,20 +41,19 @@ void TDG::parse_tdg() {
   //     get(boost::vertex_index, tdg);
   if (std::ifstream tdg_stream(tdg_file);
       read_graphviz(tdg_stream, tdg, tdg_dp)) {
-    BOOST_LOG_TRIVIAL(info)
-        << "[TDG] Graph Name: " << get_property(tdg, boost::graph_name);
+    spdlog::info("[TDG] Graph Name: {}", get_property(tdg, boost::graph_name));
     // 遍历节点,确定节点类型
     BOOST_FOREACH (TDG_RAP::vertex_descriptor v, vertices(tdg)) {
       // TODO: id = label.name
       std::string id = get("node_id", tdg_dp, v);
       std::string label = get("label", tdg_dp, v);
       vertex_index.insert({id, v});
-      BOOST_LOG_TRIVIAL(debug) << "[TDG] " << label;
+      spdlog::debug << "[TDG] " << label;
       NodeType node_type;
       try {
         node_type = parse_vertex_label(label);
       } catch (const LabelParseException &ex) {
-        BOOST_LOG_TRIVIAL(error) << "[TDG] " << id << "的label错误!";
+        spdlog::error << "[TDG] " << id << "的label错误!";
       } catch (const boost::exception &ex) {
         std::cerr << "Boost Exception caught: "
                   << boost::diagnostic_information(ex) << std::endl;
@@ -69,8 +67,7 @@ void TDG::parse_tdg() {
         tasks_priority.insert(make_pair(t_name, p_task.priority));
         nodes_type.insert(make_pair(t_name, p_task));
         vertexes_type.insert(make_pair(t_name, TDGVertexType::TASK));
-        BOOST_LOG_TRIVIAL(info)
-            << "[TDG] " << t_name << ": " << TaskTypeToString[p_task.task_type];
+        spdlog::info("[TDG] ") << t_name << ": " << TaskTypeToString[p_task.task_type];
       } else if (holds_alternative<APeriodicTask>(node_type)) {
         auto ap_task = get<APeriodicTask>(node_type);
         string t_name = ap_task.name;
@@ -79,14 +76,14 @@ void TDG::parse_tdg() {
         tasks_priority.insert(make_pair(t_name, ap_task.priority));
         nodes_type.insert(make_pair(t_name, ap_task));
         vertexes_type.insert(make_pair(t_name, TDGVertexType::TASK));
-        BOOST_LOG_TRIVIAL(info) << "[TDG] " << t_name << ": "
+        spdlog::info("[TDG] ") << t_name << ": "
                                 << TaskTypeToString[ap_task.task_type];
       } else if (holds_alternative<JoinTask>(node_type)) {
         auto s_task = get<JoinTask>(node_type);
         string t_name = s_task.name;
         nodes_type.insert(make_pair(t_name, s_task));
         vertexes_type.insert(make_pair(t_name, TDGVertexType::JOIN));
-        BOOST_LOG_TRIVIAL(info) << "[TDG] " << t_name << ": type: JOIN";
+        spdlog::info("[TDG] ") << t_name << ": type: JOIN";
       } else if (holds_alternative<ForkTask>(node_type)) {
         auto d_task = get<ForkTask>(node_type);
         string t_name = d_task.name;
@@ -95,20 +92,20 @@ void TDG::parse_tdg() {
         //              label.0");
         nodes_type.insert(make_pair(t_name, d_task));
         vertexes_type.insert(make_pair(t_name, TDGVertexType::FORK));
-        BOOST_LOG_TRIVIAL(info) << "[TDG] " << t_name << ": type: FORK";
+        spdlog::info("[TDG] ") << t_name << ": type: FORK";
       } else {
         auto e_task = get<EmptyTask>(node_type);
         string t_name = e_task.name;
         nodes_type.insert(make_pair(t_name, e_task));
         vertexes_type.insert(make_pair(t_name, TDGVertexType::EMPTY));
-        BOOST_LOG_TRIVIAL(info) << "[TDG] " << t_name << ": type: EMPTY";
+        spdlog::info("[TDG] ") << t_name << ": type: EMPTY";
       }
     }
     // 遍历边,找到自环或回环,确定周期任务
     BOOST_FOREACH (TDG_RAP::edge_descriptor e, edges(tdg)) {
       //      auto source_name = tdg[source(e, tdg)].name;
       //      auto target_name = tdg[target(e, tdg)].name;
-      BOOST_LOG_TRIVIAL(debug) << "[TDG] Edge: " << tdg[e].label;
+      spdlog::debug << "[TDG] Edge: " << tdg[e].label;
     }
   }
 }
@@ -123,7 +120,7 @@ NodeType TDG::parse_vertex_label(const string &label) {
   if (label.empty()) {
     BOOST_THROW_EXCEPTION(LabelParseException("Label cannot be empty"));
   }
-  BOOST_LOG_TRIVIAL(info) << "[TDG] Parsing label: " << label;
+  spdlog::info("[TDG] Parsing label: ") << label;
   NodeType node_type;
   regex rgx("\\{(.*?)\\}");
   if (smatch matches; regex_search(label, matches, rgx)) {
@@ -165,7 +162,7 @@ NodeType TDG::parse_vertex_label(const string &label) {
       period_times = parse_time_vec(parts[1]);
       has_period = true;
     } catch (const TimeValueException &e) {
-      BOOST_LOG_TRIVIAL(error) << "[TDG] parse non-periodic task: ";
+      spdlog::error << "[TDG] parse non-periodic task: ";
     }
 
     if (has_period) {
@@ -358,7 +355,7 @@ std::unordered_map<int, vector<string>> TDG::classify_priority() {
       ss << task << " < ";
     }
     ss << " ]";
-    BOOST_LOG_TRIVIAL(info) << ss.str();
+    spdlog::info("{}", ss.str());
   }
 
   return core_task;
@@ -399,13 +396,13 @@ InputFormat TDG::detect_format(const std::string& file_path) {
 
 // JSON 文件解析入口
 void TDG::parse_json(const std::string& json_file) {
-  BOOST_LOG_TRIVIAL(info) << "[TDG] Starting JSON parsing: " << json_file;
+  spdlog::info("[TDG] Starting JSON parsing: ") << json_file;
 
   json_tdg::JsonTDGParser parser;
   auto result = parser.parse_file(json_file);
 
   if (!result.success) {
-    BOOST_LOG_TRIVIAL(error) << "[TDG] JSON parsing failed: " << result.error_message;
+    spdlog::error << "[TDG] JSON parsing failed: " << result.error_message;
     BOOST_THROW_EXCEPTION(LabelParseException("JSON parsing failed: " + result.error_message));
     return;
   }
@@ -415,7 +412,7 @@ void TDG::parse_json(const std::string& json_file) {
   cores_per_cpu = parser.get_cores_per_cpu();
   tdg_file = json_file;
 
-  BOOST_LOG_TRIVIAL(info) << "[TDG] Configuration: " << num_cpus << " CPUs, "
+  spdlog::info("[TDG] Configuration: ") << num_cpus << " CPUs, "
                            << cores_per_cpu << " cores per CPU";
 
   // 转换节点
@@ -437,7 +434,7 @@ void TDG::parse_json(const std::string& json_file) {
         task_locks_map[task.name].push_back(lock);
       }
 
-      BOOST_LOG_TRIVIAL(info) << "[TDG] Node '" << task.name << "' -> periodic "
+      spdlog::info("[TDG] Node '") << task.name << "' -> periodic "
                                << "(priority=" << task.priority
                                << ", core=" << task.core << ")";
 
@@ -455,7 +452,7 @@ void TDG::parse_json(const std::string& json_file) {
         task_locks_map[task.name].push_back(lock);
       }
 
-      BOOST_LOG_TRIVIAL(info) << "[TDG] Node '" << task.name << "' -> aperiodic "
+      spdlog::info("[TDG] Node '") << task.name << "' -> aperiodic "
                                << "(priority=" << task.priority
                                << ", core=" << task.core << ")";
 
@@ -463,30 +460,30 @@ void TDG::parse_json(const std::string& json_file) {
       const auto& task = std::get<ForkTask>(node_type);
       nodes_type.insert({task.name, node_type});
       vertexes_type.insert({task.name, TDGVertexType::FORK});
-      BOOST_LOG_TRIVIAL(info) << "[TDG] Node '" << task.name << "' -> fork";
+      spdlog::info("[TDG] Node '") << task.name << "' -> fork";
 
     } else if (std::holds_alternative<JoinTask>(node_type)) {
       const auto& task = std::get<JoinTask>(node_type);
       nodes_type.insert({task.name, node_type});
       vertexes_type.insert({task.name, TDGVertexType::JOIN});
-      BOOST_LOG_TRIVIAL(info) << "[TDG] Node '" << task.name << "' -> join";
+      spdlog::info("[TDG] Node '") << task.name << "' -> join";
 
     } else if (std::holds_alternative<EmptyTask>(node_type)) {
       const auto& task = std::get<EmptyTask>(node_type);
       nodes_type.insert({task.name, node_type});
       vertexes_type.insert({task.name, TDGVertexType::EMPTY});
-      BOOST_LOG_TRIVIAL(info) << "[TDG] Node '" << task.name << "' -> empty";
+      spdlog::info("[TDG] Node '") << task.name << "' -> empty";
     }
   }
 
   // 转换边
   for (const auto& edge : parser.get_edges()) {
     tdg_edges.emplace_back(edge.source, edge.target, edge.label, edge.style);
-    BOOST_LOG_TRIVIAL(debug) << "[TDG] Edge: " << edge.source << " -> " << edge.target
+    spdlog::debug << "[TDG] Edge: " << edge.source << " -> " << edge.target
                               << " (style=" << edge.style << ")";
   }
 
-  BOOST_LOG_TRIVIAL(info) << "[TDG] JSON parsing completed: "
+  spdlog::info("[TDG] JSON parsing completed: ")
                            << nodes_type.size() << " nodes, " << tdg_edges.size()
                            << " edges";
 }
@@ -596,11 +593,11 @@ std::string TDG::to_dot_string() const {
 
 // 导出到 DOT 文件
 void TDG::export_to_dot(const std::string& output_path) {
-  BOOST_LOG_TRIVIAL(info) << "[DOT] Exporting to: " << output_path;
+  spdlog::info("[DOT] Exporting to: ") << output_path;
 
   std::ofstream file(output_path);
   if (!file.is_open()) {
-    BOOST_LOG_TRIVIAL(error) << "[DOT] Failed to create file: " << output_path;
+    spdlog::error << "[DOT] Failed to create file: " << output_path;
     return;
   }
 
@@ -608,7 +605,7 @@ void TDG::export_to_dot(const std::string& output_path) {
   file << dot_content;
   file.close();
 
-  BOOST_LOG_TRIVIAL(info) << "[DOT] Exported " << nodes_type.size()
+  spdlog::info("[DOT] Exported ") << nodes_type.size()
                            << " nodes, " << tdg_edges.size() << " edges to "
                            << output_path;
 }

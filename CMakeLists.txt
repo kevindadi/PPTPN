@@ -17,7 +17,17 @@ if(VCPKG_ROOT AND EXISTS "${VCPKG_ROOT}/vcpkg")
     set(CMAKE_TOOLCHAIN_FILE "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "Vcpkg toolchain")
 endif()
 
+# FetchContent for nlohmann/json (header-only library)
+include(FetchContent)
+FetchContent_Declare(json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+    DOWNLOAD_EXTRACT_TIMESTAMP true
+)
+FetchContent_MakeAvailable(json)
+
 find_package(Boost REQUIRED COMPONENTS graph program_options filesystem log log_setup thread date_time)
+find_package(spdlog REQUIRED)
+find_package(fmt REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 message(STATUS "Boost include dir: ${Boost_INCLUDE_DIRS}")
 message(STATUS "Boost library dir: ${Boost_LIBRARY_DIRS}")
@@ -25,7 +35,10 @@ message(STATUS "Boost libraries: ${Boost_LIBRARIES}")
 
 include_directories(include)
 
-add_executable(PTPN main.cpp include/clap.h include/dag.h src/clap.cpp
+add_executable(PTPN main.cpp
+        include/clap.h
+        include/dag.h
+        src/clap.cpp
         include/matrix_ptpn.h
         src/matrix_ptpn.cpp
         include/graph_ptpn.h
@@ -44,7 +57,10 @@ target_link_libraries(PTPN PRIVATE
     Boost::log
     Boost::log_setup
     Boost::thread
-    Boost::date_time)
+    Boost::date_time
+    nlohmann_json::nlohmann_json
+    spdlog::spdlog
+    fmt::fmt)
 
 enable_testing()
 
@@ -58,5 +74,7 @@ add_executable(test_json_input test/test_json_input.cpp
 target_link_libraries(test_json_input PRIVATE
     Boost::graph
     Boost::log
-    Boost::log_setup)
+    Boost::log_setup
+    nlohmann_json::nlohmann_json
+    spdlog::spdlog)
 add_test(NAME TestJsonInput COMMAND test_json_input)

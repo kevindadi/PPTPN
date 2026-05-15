@@ -1,7 +1,6 @@
 #include "matrix_ptpn.h"
 
 #include <boost/graph/graph_traits.hpp>
-#include <boost/log/trivial.hpp>
 #include <map>
 #include <unordered_map>
 
@@ -14,35 +13,34 @@ namespace matrix_ptpn {
 
 void MatrixPTPN::transform_tdg_to_matrix_ptpn(TDG& tdg) {
   try {
-    BOOST_LOG_TRIVIAL(info)
-        << "[MATRIX_PTPN] 开始从 TDG 转换到矩阵形式 PTPN...";
+    spdlog::info("[MATRIX_PTPN] 开始从 TDG 转换到矩阵形式 PTPN...");
 
     // 1. 转换顶点
-    BOOST_LOG_TRIVIAL(info) << "[MATRIX_PTPN] 开始转换顶点...";
+    spdlog::info("[MATRIX_PTPN] 开始转换顶点...");
     transform_vertices_from_tdg(tdg);
 
     // 2. 转换边
-    BOOST_LOG_TRIVIAL(info) << "[MATRIX_PTPN] 开始转换边...";
+    spdlog::info("[MATRIX_PTPN] 开始转换边...");
     transform_edges_from_tdg(tdg);
 
     // 3. 创建优先级抢占关系
-    BOOST_LOG_TRIVIAL(info) << "[MATRIX_PTPN] 开始创建优先级抢占关系...";
+    spdlog::info("[MATRIX_PTPN] 开始创建优先级抢占关系...");
     add_preempt_task_matrix(tdg.classify_priority(), tdg.tasks_config,
                             tdg.nodes_type);
 
     // 4. 添加资源和绑定
-    BOOST_LOG_TRIVIAL(info) << "[MATRIX_PTPN] 开始添加资源和绑定...";
+    spdlog::info("[MATRIX_PTPN] 开始添加资源和绑定...");
     add_resources_and_bindings_matrix(tdg);
 
-    BOOST_LOG_TRIVIAL(info) << "[MATRIX_PTPN] TDG 转换完成,共 " << places.size()
+    spdlog::info("[MATRIX_PTPN] TDG 转换完成,共 ") << places.size()
                             << " 个库所," << transitions.size() << " 个变迁";
 
     // 验证结构
     if (!verify_structure()) {
-      BOOST_LOG_TRIVIAL(warning) << "[MATRIX_PTPN] 结构验证失败,但继续执行";
+      spdlog::warn << "[MATRIX_PTPN] 结构验证失败,但继续执行";
     }
   } catch (const std::exception& e) {
-    BOOST_LOG_TRIVIAL(error)
+    spdlog::error
         << "[MATRIX_PTPN] Failed to transform TDG to Matrix PTPN: " << e.what();
     throw;
   }
@@ -52,7 +50,7 @@ void MatrixPTPN::transform_tdg_to_matrix_ptpn(TDG& tdg) {
 void MatrixPTPN::transform_vertices_from_tdg(TDG& tdg) {
   BOOST_FOREACH (const TDG_RAP::vertex_descriptor v, vertices(tdg.tdg)) {
     const string& vertex_name = tdg.tdg[v].name;
-    BOOST_LOG_TRIVIAL(debug)
+    spdlog::debug
         << "[MATRIX_PTPN] Processing vertex: " << vertex_name;
 
     try {
@@ -73,19 +71,19 @@ void MatrixPTPN::transform_vertices_from_tdg(TDG& tdg) {
           // consume 变迁应该从 exit 库所消耗 token
           set_pre_arc(end_idx, consume_trans, 1);
           // consume 变迁不产生新的 token,所以不需要 post_arc
-          BOOST_LOG_TRIVIAL(debug)
+          spdlog::debug
               << "[MATRIX_PTPN] Added consume token transition for "
                  "APeriodicTask: "
               << vertex_name << " (from exit place " << end_idx << ")";
         }
       }
     } catch (const std::exception& e) {
-      BOOST_LOG_TRIVIAL(error) << "[MATRIX_PTPN] Failed to transform vertex "
+      spdlog::error << "[MATRIX_PTPN] Failed to transform vertex "
                                << vertex_name << ": " << e.what();
       throw;
     }
   }
-  BOOST_LOG_TRIVIAL(info) << "[MATRIX_PTPN] Vertex transformation completed";
+  spdlog::info("[MATRIX_PTPN] Vertex transformation completed");
 }
 
 // 转换边
@@ -107,7 +105,7 @@ void MatrixPTPN::transform_edges_from_tdg(TDG& tdg) {
 
       handle_normal_edge_matrix(source_name, target_name);
     } catch (const std::exception& exception) {
-      BOOST_LOG_TRIVIAL(error)
+      spdlog::error
           << "[MATRIX_PTPN] Failed to transform edge: " << exception.what();
       throw;
     }
@@ -157,8 +155,8 @@ void MatrixPTPN::handle_normal_edge_matrix(const string& source_name,
   size_t source_node = source_it->second.second;
   size_t target_node = target_it->second.first;
 
-  BOOST_LOG_TRIVIAL(debug) << "[MATRIX_PTPN] source_name: " << source_name;
-  BOOST_LOG_TRIVIAL(debug) << "[MATRIX_PTPN] target_name: " << target_name;
+  spdlog::debug << "[MATRIX_PTPN] source_name: " << source_name;
+  spdlog::debug << "[MATRIX_PTPN] target_name: " << target_name;
 
   // 如果链接的某个节点属于Dist,Sync则直接链接
   if (source_name.substr(0, 4) == "Dist" ||
@@ -192,12 +190,12 @@ void MatrixPTPN::handle_normal_edge_matrix(const string& source_name,
     set_pre_arc(source_node, middle_trans, 1);
     set_post_arc(middle_trans, target_node, 1);
   } else {
-    BOOST_LOG_TRIVIAL(warning)
+    spdlog::warn
         << "[MATRIX_PTPN] Unexpected node types for edge: " << source_name
         << " -> " << target_name;
   }
 
-  BOOST_LOG_TRIVIAL(debug) << "[MATRIX_PTPN] Added edge: " << source_name
+  spdlog::debug << "[MATRIX_PTPN] Added edge: " << source_name
                            << " -> " << target_name;
 }
 
@@ -220,13 +218,13 @@ void MatrixPTPN::add_cpu_resource_matrix(int cpus, int cores_per_cpu) {
     cpus_place.push_back(c);
     set_initial_marking(c, cores_per_cpu);
   }
-  BOOST_LOG_TRIVIAL(info) << "[MATRIX_PTPN] create core resource!";
+  spdlog::info("[MATRIX_PTPN] create core resource!");
 }
 
 // 添加锁资源库所
 void MatrixPTPN::add_lock_resource_matrix(const set<string>& locks_name) {
   if (locks_name.empty()) {
-    BOOST_LOG_TRIVIAL(info) << "[MATRIX_PTPN] TDG_RAP without locks!";
+    spdlog::info("[MATRIX_PTPN] TDG_RAP without locks!");
     return;
   }
   for (const auto& lock_name : locks_name) {
@@ -234,7 +232,7 @@ void MatrixPTPN::add_lock_resource_matrix(const set<string>& locks_name) {
     locks_place.insert(make_pair(lock_name, l));
     set_initial_marking(l, 1);
   }
-  BOOST_LOG_TRIVIAL(info) << "[MATRIX_PTPN] create lock resource!";
+  spdlog::info("[MATRIX_PTPN] create lock resource!");
 }
 
 // 任务绑定CPU资源
@@ -274,7 +272,7 @@ void MatrixPTPN::task_bind_lock_resource_matrix(
     const vector<NodeType>& all_task,
     std::map<string, vector<string>>& task_locks) {
   if (task_locks.empty()) {
-    BOOST_LOG_TRIVIAL(info) << "[MATRIX_PTPN] No task locks to bind";
+    spdlog::info("[MATRIX_PTPN] No task locks to bind");
     return;
   }
 
@@ -296,14 +294,13 @@ void MatrixPTPN::task_bind_lock_resource_matrix(
         }
       }
     } catch (const std::exception& e) {
-      BOOST_LOG_TRIVIAL(error)
+      spdlog::error
           << "[MATRIX_PTPN] Failed to process task: " << e.what();
       throw;
     }
   }
 
-  BOOST_LOG_TRIVIAL(info)
-      << "[MATRIX_PTPN] Completed lock resource binding for all tasks";
+  spdlog::info("[MATRIX_PTPN] Completed lock resource binding for all tasks");
 }
 
 void MatrixPTPN::bind_task_locks_matrix(
@@ -312,14 +309,14 @@ void MatrixPTPN::bind_task_locks_matrix(
     std::map<string, vector<string>>& task_locks) {
   constexpr size_t MIN_CHAIN_LENGTH = 5;
   if (task_pt_chain.size() < MIN_CHAIN_LENGTH) {
-    BOOST_LOG_TRIVIAL(debug) << "[MATRIX_PTPN] Skip chain for " << task_name
+    spdlog::debug << "[MATRIX_PTPN] Skip chain for " << task_name
                              << ": too short for locks";
     return;
   }
 
   auto task_locks_it = task_locks.find(task_name);
   if (task_locks_it == task_locks.end()) {
-    BOOST_LOG_TRIVIAL(warning)
+    spdlog::warn
         << "[MATRIX_PTPN] No locks found for task: " << task_name;
     return;
   }
@@ -348,10 +345,10 @@ void MatrixPTPN::bind_task_locks_matrix(
         set_post_arc(drop_lock, lock, 1);
       }
 
-      BOOST_LOG_TRIVIAL(debug) << "[MATRIX_PTPN] Bound lock " << lock_type
+      spdlog::debug << "[MATRIX_PTPN] Bound lock " << lock_type
                                << " to task " << task_name;
     } catch (const std::exception& e) {
-      BOOST_LOG_TRIVIAL(error) << "[MATRIX_PTPN] Failed to bind lock " << i
+      spdlog::error << "[MATRIX_PTPN] Failed to bind lock " << i
                                << " for task " << task_name << ": " << e.what();
       throw;
     }
@@ -367,7 +364,7 @@ bool MatrixPTPN::verify_structure() const {
     size_t expected_cols = transitions.size();
     for (size_t p = 0; p < Pre.size(); ++p) {
       if (Pre[p].size() != expected_cols) {
-        BOOST_LOG_TRIVIAL(error)
+        spdlog::error
             << "[MATRIX_PTPN] Pre矩阵第 " << p << " 行维度不一致";
         is_valid = false;
       }
@@ -378,7 +375,7 @@ bool MatrixPTPN::verify_structure() const {
     size_t expected_cols = places.size();
     for (size_t t = 0; t < Post.size(); ++t) {
       if (Post[t].size() != expected_cols) {
-        BOOST_LOG_TRIVIAL(error)
+        spdlog::error
             << "[MATRIX_PTPN] Post矩阵第 " << t << " 行维度不一致";
         is_valid = false;
       }
@@ -387,21 +384,21 @@ bool MatrixPTPN::verify_structure() const {
 
   // 检查标识维度
   if (M0.size() != places.size()) {
-    BOOST_LOG_TRIVIAL(error) << "[MATRIX_PTPN] 初始标识维度与库所数量不一致";
+    spdlog::error << "[MATRIX_PTPN] 初始标识维度与库所数量不一致";
     is_valid = false;
   }
 
   // 检查时间区间有效性
   for (size_t t = 0; t < transitions.size(); ++t) {
     if (!transitions[t].time_interval.is_valid()) {
-      BOOST_LOG_TRIVIAL(error)
+      spdlog::error
           << "[MATRIX_PTPN] 变迁 T" << t << " 的时间区间无效";
       is_valid = false;
     }
   }
 
   if (is_valid) {
-    BOOST_LOG_TRIVIAL(info) << "[MATRIX_PTPN] 结构验证通过";
+    spdlog::info("[MATRIX_PTPN] 结构验证通过");
   }
 
   return is_valid;
@@ -522,7 +519,7 @@ void MatrixPTPN::add_monitor_matrix(const std::string& task_name,
   if (end < places.size()) {
     set_pre_arc(end, ending, 1);
   } else {
-    BOOST_LOG_TRIVIAL(warning)
+    spdlog::warn
         << "[MATRIX_PTPN] end node is transition, cannot add monitor edge";
   }
 
@@ -536,7 +533,7 @@ void MatrixPTPN::add_preempt_task_matrix(
     const std::unordered_map<int, std::vector<std::string>>& core_task,
     const std::unordered_map<std::string, TaskConfig>& tc,
     const std::unordered_map<std::string, NodeType>& nodes_type) {
-  BOOST_LOG_TRIVIAL(info) << "[MATRIX_PTPN] 开始添加抢占任务...";
+  spdlog::info("[MATRIX_PTPN] 开始添加抢占任务...");
 
   // 处理单个任务的抢占
   auto handle_task_preemption =
@@ -549,7 +546,7 @@ void MatrixPTPN::add_preempt_task_matrix(
         // 4:exit
 
         if (l_t_pn.size() < 5 || h_t_pn.size() < 5) {
-          BOOST_LOG_TRIVIAL(warning)
+          spdlog::warn
               << "[MATRIX_PTPN] 任务链长度不足,跳过抢占: " << l_t_name << " <- "
               << h_t_name;
           return;
@@ -570,7 +567,7 @@ void MatrixPTPN::add_preempt_task_matrix(
 
         if (is_interrupt) {
           // 中断任务抢占:需要重新建立变迁t1,库所p1,变迁t2,建立entry->t1->p1->t2->end的路径
-          BOOST_LOG_TRIVIAL(debug) << "[MATRIX_PTPN] 中断任务抢占: " << h_t_name
+          spdlog::debug << "[MATRIX_PTPN] 中断任务抢占: " << h_t_name
                                    << " 抢占 " << l_t_name;
 
           // 创建抢占路径:entry -> t1 -> p1 -> t2 -> exit
@@ -605,7 +602,7 @@ void MatrixPTPN::add_preempt_task_matrix(
         } else {
           // 正常任务抢占:从高优先级任务的entry -> preempt变迁 -> ready
           // 表示CPU资源在低优先级任务那里
-          BOOST_LOG_TRIVIAL(debug) << "[MATRIX_PTPN] 正常任务抢占: " << h_t_name
+          spdlog::debug << "[MATRIX_PTPN] 正常任务抢占: " << h_t_name
                                    << " 抢占 " << l_t_name;
 
           std::string preempt_name = h_t_name + "_preempt_" + l_t_name + "_" +
@@ -631,7 +628,7 @@ void MatrixPTPN::add_preempt_task_matrix(
         if (!l_tc.locks.empty()) {
           constexpr size_t MIN_CHAIN_LENGTH = 9;
           if (l_t_pn.size() < MIN_CHAIN_LENGTH) {
-            BOOST_LOG_TRIVIAL(debug)
+            spdlog::debug
                 << "[MATRIX_PTPN] 任务链长度不足,跳过锁抢占: " << l_t_name;
             return;
           }
@@ -698,7 +695,7 @@ void MatrixPTPN::add_preempt_task_matrix(
 
   // 主循环:按核心分组,高优先级任务抢占低优先级
   for (const auto& [core_id, tasks] : core_task) {
-    BOOST_LOG_TRIVIAL(debug)
+    spdlog::debug
         << "[MATRIX_PTPN] 处理核心 " << core_id << " 的抢占关系";
 
     // 任务列表已经按优先级排序(从低到高)
@@ -728,7 +725,7 @@ void MatrixPTPN::add_preempt_task_matrix(
 
         if (l_t_pns_it == node_pn_map.end() ||
             h_t_pns_it == node_pn_map.end()) {
-          BOOST_LOG_TRIVIAL(warning)
+          spdlog::warn
               << "[MATRIX_PTPN] 找不到任务链: " << l_t_name << " 或 "
               << h_t_name;
           continue;
@@ -751,7 +748,7 @@ void MatrixPTPN::add_preempt_task_matrix(
                                  is_interrupt);
         }
 
-        BOOST_LOG_TRIVIAL(debug)
+        spdlog::debug
             << "[MATRIX_PTPN] 抢占关系: " << l_t_name
             << " (priority=" << l_tc.priority << ") <- " << h_t_name
             << " (priority=" << h_tc.priority << ")";
@@ -759,7 +756,7 @@ void MatrixPTPN::add_preempt_task_matrix(
     }
   }
 
-  BOOST_LOG_TRIVIAL(info) << "[MATRIX_PTPN] 抢占任务添加完成";
+  spdlog::info("[MATRIX_PTPN] 抢占任务添加完成");
 }
 
 }  // namespace matrix_ptpn

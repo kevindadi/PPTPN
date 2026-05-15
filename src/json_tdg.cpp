@@ -1,14 +1,20 @@
 #include "json_tdg.h"
 
+#include <spdlog/spdlog.h>
 #include <fstream>
 #include <set>
 #include <sstream>
 
+using json = nlohmann::json;
+
 namespace json_tdg {
 
 JsonParseResult JsonTDGParser::parse_file(const std::string& file_path) {
+  spdlog::info("[JSON] Starting JSON parsing: {}", file_path);
+
   std::ifstream file(file_path);
   if (!file.is_open()) {
+    spdlog::error("[JSON] Failed to open file: {}", file_path);
     return {false, "Failed to open file: " + file_path, 0};
   }
 
@@ -20,119 +26,161 @@ JsonParseResult JsonTDGParser::parse_file(const std::string& file_path) {
 }
 
 JsonParseResult JsonTDGParser::parse_string(const std::string& json_content) {
+  spdlog::info("[JSON] Parsing JSON content ({} characters)", json_content.size());
+
   try {
-    std::istringstream stream(json_content);
-    boost::property_tree::ptree pt;
-    read_json(stream, pt);
+    auto j = json::parse(json_content);
+    spdlog::debug("[JSON] JSON parsed successfully");
 
-    if (pt.find("graph") != pt.not_found()) {
-      auto& graph = pt.get_child("graph");
-      if (graph.find("name") != graph.not_found()) {
-        graph_.name = graph.get<std::string>("name");
-      }
+    if (j.contains("graph")) {
+      parse_graph_object(j["graph"]);
     }
 
-    if (pt.find("configuration") != pt.not_found()) {
-      auto& config = pt.get_child("configuration");
-      if (config.find("num_cpus") != config.not_found()) {
-        graph_.num_cpus = config.get<int>("num_cpus");
-      }
-      if (config.find("cores_per_cpu") != config.not_found()) {
-        graph_.cores_per_cpu = config.get<int>("cores_per_cpu");
-      }
+    if (j.contains("configuration")) {
+      parse_configuration_object(j["configuration"]);
     }
 
-    if (pt.find("nodes") != pt.not_found()) {
-      for (auto& node : pt.get_child("nodes")) {
-        parse_node(node.second);
-      }
+    if (j.contains("nodes")) {
+      parse_nodes_array(j["nodes"]);
     }
 
-    if (pt.find("edges") != pt.not_found()) {
-      for (auto& edge : pt.get_child("edges")) {
-        parse_edge(edge.second);
-      }
+    if (j.contains("edges")) {
+      parse_edges_array(j["edges"]);
     }
+
+    spdlog::info("[JSON] Graph name: {}", graph_.name);
+    spdlog::info("[JSON] Configuration: {} CPUs, {} cores per CPU",
+                 graph_.num_cpus, graph_.cores_per_cpu);
+    spdlog::info("[JSON] Parsed {} nodes, {} edges", graph_.nodes.size(), graph_.edges.size());
 
     auto validation = validate();
     if (!validation.success) {
+      spdlog::error("[JSON] Validation failed: {}", validation.error_message);
       return validation;
     }
 
+    spdlog::info("[JSON] JSON parsing completed successfully");
     return {true, "", 0};
 
-  } catch (const boost::property_tree::json_parser::json_parser_error& e) {
-    return {false, e.what(), 0};
+  } catch (const json::parse_error& e) {
+    spdlog::error("[JSON] Parse error: {}", e.what());
+    return {false, e.what(), static_cast<int>(e.byte)};
   } catch (const std::exception& e) {
+    spdlog::error("[JSON] Error: {}", e.what());
     return {false, e.what(), 0};
   }
 }
 
-void JsonTDGParser::parse_node(const boost::property_tree::ptree& node) {
-  JsonNode jn;
-
-  jn.id = node.get<std::string>("id");
-  jn.type = node.get<std::string>("type");
-
-  if (node.find("priority") != node.not_found()) {
-    jn.priority = node.get<int>("priority");
+void JsonTDGParser::parse_graph_object(const nlohmann::json& graph_obj) {
+  if (graph_obj.contains("name")) {
+    graph_.name = graph_obj["name"].get<std::string>();
+    spdlog::debug("[JSON] Graph name: {}", graph_.name);
   }
-  if (node.find("core") != node.not_found()) {
-    jn.core = node.get<int>("core");
-  }
-
-  if (node.find("time") != node.not_found()) {
-    for (auto& t : node.get_child("time")) {
-      // t is array like [3, 8]
-      int idx = 0;
-      int min_val = 0, max_val = 0;
-      for (auto& val : t.second) {
-        if (idx == 0) min_val = val.second.get_value<int>();
-        else if (idx == 1) max_val = val.second.get_value<int>();
-        idx++;
-      }
-      jn.time.push_back({min_val, max_val});
-    }
-  }
-
-  if (node.find("period") != node.not_found()) {
-    auto& period = node.get_child("period");
-    auto it = period.begin();
-    int first = it->second.get_value<int>();
-    ++it;
-    int second = it->second.get_value<int>();
-    jn.period = {first, second};
-  }
-
-  if (node.find("locks") != node.not_found()) {
-    for (auto& lock : node.get_child("locks")) {
-      jn.locks.push_back(lock.second.get_value<std::string>());
-    }
-  }
-
-  graph_.nodes.push_back(jn);
 }
 
-void JsonTDGParser::parse_edge(const boost::property_tree::ptree& edge) {
-  JsonEdge je;
+void JsonTDGParser::parse_configuration_object(const nlohmann::json& config) {
+  if (config.contains("num_cpus")) {
+    graph_.num_cpus = config["num_cpus"].get<int>();
+    spdlog::debug("[JSON] num_cpus: {}", graph_.num_cpus);
+  }
+  if (config.contains("cores_per_cpu")) {
+    graph_.cores_per_cpu = config["cores_per_cpu"].get<int>();
+    spdlog::debug("[JSON] cores_per_cpu: {}", graph_.cores_per_cpu);
+  }
+}
 
-  for (auto& item : edge) {
-    if (item.first == "source") {
-      je.source = item.second.data();
+void JsonTDGParser::parse_nodes_array(const nlohmann::json& nodes_array) {
+  graph_.nodes.reserve(nodes_array.size());
+
+  for (const auto& node_obj : nodes_array) {
+    try {
+      auto node = parse_node_object(node_obj);
+      graph_.nodes.push_back(node);
+
+      spdlog::debug("[JSON] Node '{}' -> {} (priority={}, core={})",
+                    node.id, node.type, node.priority, node.core);
+    } catch (const std::exception& e) {
+      spdlog::warn("[JSON] Skipping invalid node: {}", e.what());
     }
-    if (item.first == "target") {
-      je.target = item.second.data();
-    }
-    if (item.first == "label") {
-      je.label = item.second.data();
-    }
-    if (item.first == "style") {
-      je.style = item.second.data();
+  }
+}
+
+JsonNode JsonTDGParser::parse_node_object(const nlohmann::json& node_obj) {
+  JsonNode node;
+
+  if (!node_obj.contains("id")) {
+    throw std::runtime_error("Node missing required field 'id'");
+  }
+  node.id = node_obj["id"].get<std::string>();
+
+  if (!node_obj.contains("type")) {
+    throw std::runtime_error("Node '" + node.id + "' missing required field 'type'");
+  }
+  node.type = node_obj["type"].get<std::string>();
+
+  if (node_obj.contains("priority")) {
+    node.priority = node_obj["priority"].get<int>();
+  }
+  if (node_obj.contains("core")) {
+    node.core = node_obj["core"].get<int>();
+  }
+
+  if (node_obj.contains("time")) {
+    const auto& time_arr = node_obj["time"];
+    if (time_arr.is_array()) {
+      for (const auto& interval : time_arr) {
+        if (interval.is_array() && interval.size() == 2) {
+          int min_val = interval[0].get<int>();
+          int max_val = interval[1].get<int>();
+          node.time.push_back({min_val, max_val});
+        }
+      }
     }
   }
 
-  if (!je.source.empty() && !je.target.empty()) {
-    graph_.edges.push_back(je);
+  if (node_obj.contains("period")) {
+    const auto& period_arr = node_obj["period"];
+    if (period_arr.is_array() && period_arr.size() == 2) {
+      node.period = {period_arr[0].get<int>(), period_arr[1].get<int>()};
+    }
+  }
+
+  if (node_obj.contains("locks")) {
+    const auto& locks_arr = node_obj["locks"];
+    if (locks_arr.is_array()) {
+      for (const auto& lock : locks_arr) {
+        node.locks.push_back(lock.get<std::string>());
+      }
+    }
+  }
+
+  return node;
+}
+
+void JsonTDGParser::parse_edges_array(const nlohmann::json& edges_array) {
+  graph_.edges.reserve(edges_array.size());
+
+  for (const auto& edge_obj : edges_array) {
+    JsonEdge edge;
+
+    if (edge_obj.contains("source")) {
+      edge.source = edge_obj["source"].get<std::string>();
+    }
+    if (edge_obj.contains("target")) {
+      edge.target = edge_obj["target"].get<std::string>();
+    }
+    if (edge_obj.contains("label")) {
+      edge.label = std::to_string(edge_obj["label"].get<int>());
+    }
+    if (edge_obj.contains("style")) {
+      edge.style = edge_obj["style"].get<std::string>();
+    }
+
+    if (!edge.source.empty() && !edge.target.empty()) {
+      graph_.edges.push_back(edge);
+      spdlog::debug("[JSON] Edge: {} -> {} (style={}, label={})",
+                   edge.source, edge.target, edge.style, edge.label);
+    }
   }
 }
 
@@ -181,6 +229,7 @@ JsonParseResult JsonTDGParser::validate() const {
 
 std::string JsonTDGParser::to_dot_string() const {
   std::ostringstream oss;
+
   oss << "digraph " << graph_.name << " {\n";
 
   for (const auto& node : graph_.nodes) {
@@ -191,7 +240,9 @@ std::string JsonTDGParser::to_dot_string() const {
     oss << "    " << edge.source << " -> " << edge.target;
     if (!edge.label.empty() || !edge.style.empty()) {
       oss << " [";
-      if (!edge.label.empty()) oss << "xlabel = \"" << edge.label << "\"";
+      if (!edge.label.empty()) {
+        oss << "xlabel = \"" << edge.label << "\"";
+      }
       if (!edge.style.empty()) {
         if (!edge.label.empty()) oss << "; ";
         oss << "style = \"" << edge.style << "\"";
