@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
-#include "tdg/tdg.h"
+#include "json/json.h"
 
-using tdg::JsonTDGParser;
+using parse::Parser;
 
 class ValidationTest : public ::testing::Test {
  protected:
@@ -19,7 +19,7 @@ TEST_F(ValidationTest, DuplicateNodeId) {
     "edges": []
   })";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto parse_result = parser.parse_string(json);
   ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
@@ -46,7 +46,7 @@ TEST_F(ValidationTest, UnknownNodeType) {
     "edges": []
   })";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto parse_result = parser.parse_string(json);
   ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
@@ -73,7 +73,7 @@ TEST_F(ValidationTest, InvalidCoreNumber) {
     "edges": []
   })";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto parse_result = parser.parse_string(json);
   ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
@@ -82,7 +82,7 @@ TEST_F(ValidationTest, InvalidCoreNumber) {
 
   bool has_core_error = false;
   for (const auto& err : validation.errors) {
-    if (err.find("invalid core") != std::string::npos) {
+    if (err.find("Invalid core number") != std::string::npos) {
       has_core_error = true;
       break;
     }
@@ -102,7 +102,7 @@ TEST_F(ValidationTest, EdgeReferencesUnknownNode) {
     ]
   })";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto parse_result = parser.parse_string(json);
   ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
@@ -129,7 +129,7 @@ TEST_F(ValidationTest, PeriodicTaskMissingPeriod) {
     "edges": []
   })";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto parse_result = parser.parse_string(json);
   ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
@@ -156,7 +156,7 @@ TEST_F(ValidationTest, UndefinedLock) {
     "edges": []
   })";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto parse_result = parser.parse_string(json);
   ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
@@ -186,7 +186,7 @@ TEST_F(ValidationTest, ValidInputNoErrors) {
     ]
   })";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto parse_result = parser.parse_string(json);
   ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
@@ -205,7 +205,7 @@ TEST_F(ValidationTest, InvalidTimeInterval) {
     "edges": []
   })";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto parse_result = parser.parse_string(json);
   ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
@@ -214,7 +214,7 @@ TEST_F(ValidationTest, InvalidTimeInterval) {
 
   bool has_time_error = false;
   for (const auto& err : validation.errors) {
-    if (err.find("invalid time interval") != std::string::npos) {
+    if (err.find("Invalid time interval") != std::string::npos) {
       has_time_error = true;
       break;
     }
@@ -235,7 +235,7 @@ TEST_F(ValidationTest, NoTaskNodesWarning) {
     ]
   })";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto parse_result = parser.parse_string(json);
   ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 
@@ -244,7 +244,7 @@ TEST_F(ValidationTest, NoTaskNodesWarning) {
 
   bool has_no_task_warning = false;
   for (const auto& warn : validation.warnings) {
-    if (warn.find("no task nodes") != std::string::npos) {
+    if (warn.find("No task nodes found") != std::string::npos) {
       has_no_task_warning = true;
       break;
     }
@@ -265,7 +265,7 @@ TEST_F(ValidationTest, ForkNodeWithTaskAttributesWarning) {
     ]
   })";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto parse_result = parser.parse_string(json);
   ASSERT_TRUE(parse_result.success) << parse_result.error_message;
 

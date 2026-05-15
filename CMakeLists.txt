@@ -1,9 +1,12 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.27)
 project(PTPN)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
-cmake_policy(SET CMP0167 OLD)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Suppress warnings from dependencies with older cmake_minimum_required
+cmake_policy(SET CMP0167 NEW)
+cmake_policy(SET CMP0057 NEW)
 
 # Use vcpkg for dependencies
 if(DEFINED ENV{VCPKG_ROOT})
@@ -32,7 +35,7 @@ FetchContent_MakeAvailable(json)
 # CLI11
 FetchContent_Declare(cli11
     GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
-    GIT_TAG v2.3.2
+    GIT_TAG v2.6.2
 )
 FetchContent_MakeAvailable(cli11)
 
@@ -46,9 +49,11 @@ include_directories(src)
 
 # Core library containing all logic
 add_library(PTPN_core STATIC
+    src/json/json.cpp
     src/tdg/tdg.cpp
     src/petri/petri.cpp
     src/petri/graph.cpp
+    src/tdg2pn/tdg2pn.cpp
     src/analysis/reachability.cpp
 )
 target_include_directories(PTPN_core PUBLIC src)
@@ -63,7 +68,7 @@ target_link_libraries(PTPN_core PUBLIC
 )
 
 # Main executable
-add_executable(PTPN main.cpp)
+add_executable(PTPN src/main.cpp)
 target_link_libraries(PTPN PRIVATE PTPN_core CLI11::CLI11)
 
 # Test subdirectory

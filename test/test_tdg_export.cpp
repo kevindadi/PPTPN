@@ -1,9 +1,10 @@
 #include <gtest/gtest.h>
 #include <fstream>
 #include "tdg/tdg.h"
+#include "json/json.h"
 
-using tdg::JsonTDGParser;
 using tdg::TDG;
+using parse::Parser;
 
 class TdgExportTest : public ::testing::Test {
  protected:
@@ -23,7 +24,7 @@ TEST_F(TdgExportTest, TdgDotExport) {
     ]
   })";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto result = parser.parse_string(json);
   ASSERT_TRUE(result.success);
 
@@ -54,7 +55,7 @@ TEST_F(TdgExportTest, TdgJsonParsingIntegration) {
     ]
   })";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto result = parser.parse_string(json);
   ASSERT_TRUE(result.success);
 
@@ -79,7 +80,7 @@ TEST_F(TdgExportTest, ExportToDotFile) {
     "edges": []
   })";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto result = parser.parse_string(json);
   ASSERT_TRUE(result.success);
 
@@ -122,7 +123,7 @@ TEST_F(TdgExportTest, ForkJoinNodes) {
     ]
   })";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto result = parser.parse_string(json);
   ASSERT_TRUE(result.success);
 
@@ -132,8 +133,8 @@ TEST_F(TdgExportTest, ForkJoinNodes) {
   EXPECT_EQ(tdg.nodes_type.size(), 5);
 
   std::string dot = tdg.to_dot_string();
-  EXPECT_NE(dot.find("ForkFork1"), std::string::npos);
-  EXPECT_NE(dot.find("WaitJoin1"), std::string::npos);
+  EXPECT_NE(dot.find("Fork1"), std::string::npos);
+  EXPECT_NE(dot.find("Join1"), std::string::npos);
 }
 
 TEST_F(TdgExportTest, EmptyNode) {
@@ -151,7 +152,7 @@ TEST_F(TdgExportTest, EmptyNode) {
     ]
   })";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto result = parser.parse_string(json);
   ASSERT_TRUE(result.success);
 
@@ -159,5 +160,5 @@ TEST_F(TdgExportTest, EmptyNode) {
   tdg.parse_json_string(json);
 
   std::string dot = tdg.to_dot_string();
-  EXPECT_NE(dot.find("EmptyEmpty1"), std::string::npos);
+  EXPECT_NE(dot.find("Empty1"), std::string::npos);
 }

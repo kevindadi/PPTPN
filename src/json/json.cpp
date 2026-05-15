@@ -1,10 +1,11 @@
 #include "json/json.h"
 
 #include <spdlog/spdlog.h>
+#include <sstream>
 
-using json = nlohmann::json;
+using nlohmann::json;
 
-namespace json {
+namespace parse {
 
 ParseResult Parser::parse_file(const std::string& file_path) {
   spdlog::info("[JSON] Starting JSON parsing: {}", file_path);
@@ -178,9 +179,8 @@ ValidationResult Parser::validate() const {
   // Check for missing period on periodic tasks
   for (const auto& node : graph_.nodes) {
     if (node.type == "periodic") {
-      bool has_valid_period = std::all_of(node.period.begin(), node.period.end(),
-                                           [](int v) { return v > 0; });
-      if (!has_valid_period) {
+      if (node.period.first <= 0 || node.period.second <= 0 ||
+          node.period.first > node.period.second) {
         result.add_error("Periodic task " + node.id + " missing or invalid period");
       }
     }
@@ -275,7 +275,7 @@ NodeType JsonNode::to_node_type() const {
     task.priority = priority;
     task.core = core;
     task.time = this->time;
-    task.locks = locks;
+    task.lock = locks;
     task.task_type = TaskType::PERIOD;
     task.period_time = period;
     return task;
@@ -285,7 +285,7 @@ NodeType JsonNode::to_node_type() const {
     task.priority = priority;
     task.core = core;
     task.time = this->time;
-    task.locks = locks;
+    task.lock = locks;
     task.task_type = TaskType::NORMAL;
     return task;
   } else if (type == "fork") {
@@ -334,4 +334,4 @@ std::string node_to_dot_label(const NodeType& node) {
   }
 }
 
-}  // namespace json
+}  // namespace parse

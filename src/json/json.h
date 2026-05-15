@@ -1,15 +1,15 @@
 #ifndef JSON_TDG_PARSER_H
 #define JSON_TDG_PARSER_H
 
+#include <fstream>
 #include <string>
 #include <vector>
 
 #include <nlohmann/json.hpp>
 
 #include "../types/types.h"
-#include "../tdg/tdg.h"
 
-namespace json {
+namespace parse {
 
 struct ParseResult {
   bool success;

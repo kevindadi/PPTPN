@@ -545,8 +545,7 @@ void StateClassReachabilityGraph::log_state_class_details(
   spdlog::debug("{}==========================================", prefix);
 }
 
-StateClassReachabilityGraph::StateClassReachabilityGraph(
-    const petri::MatrixPTPN& ptpn)
+StateClassReachabilityGraph::StateClassReachabilityGraph(const petri::PTPN& ptpn)
     : ptpn_(ptpn), next_state_id_(0), pruning_enabled_(false) {}
 
 size_t StateClassReachabilityGraph::build(size_t max_states) {
@@ -675,7 +674,7 @@ void StateClassReachabilityGraph::explore_successors(
 
 bool StateClassReachabilityGraph::is_transition_enabled(
     const StateClass& state, size_t trans_idx) const {
-  return petri::MatrixPTPN::is_enabled(state.marking, ptpn_, trans_idx);
+  return petri::PTPN::is_enabled(state.marking, ptpn_, trans_idx);
 }
 
 std::pair<int, int> StateClassReachabilityGraph::get_transition_time_bounds(
@@ -705,7 +704,7 @@ std::pair<DBM, DBM> StateClassReachabilityGraph::time_advance(
     bool is_enabled = false;
     if (trans_idx < num_transitions) {
       is_enabled =
-          petri::MatrixPTPN::is_enabled(state.marking, ptpn_, trans_idx);
+          petri::PTPN::is_enabled(state.marking, ptpn_, trans_idx);
     }
 
     if (!is_enabled) {
@@ -840,7 +839,7 @@ void StateClassReachabilityGraph::recompute_suspension(
     StateClass& state) const {
   std::set<size_t> enabled;
   for (size_t t = 0; t < ptpn_.num_transitions(); ++t) {
-    if (petri::MatrixPTPN::is_enabled(state.marking, ptpn_, t)) {
+    if (petri::PTPN::is_enabled(state.marking, ptpn_, t)) {
       enabled.insert(t);
     }
   }
@@ -892,7 +891,7 @@ StateClass StateClassReachabilityGraph::fire_transition(const StateClass& state,
 
   StateClass new_state = state;
 
-  new_state.marking = petri::MatrixPTPN::fire(state.marking, ptpn_, trans_idx);
+  new_state.marking = petri::PTPN::fire(state.marking, ptpn_, trans_idx);
 
   spdlog::debug("      Marking: {} -> {}", format_marking(state.marking), format_marking(new_state.marking));
 
@@ -926,7 +925,7 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
 
   std::vector<size_t> enabled;
   for (size_t t = 0; t < ptpn_.num_transitions(); ++t) {
-    if (petri::MatrixPTPN::is_enabled(state.marking, ptpn_, t)) {
+    if (petri::PTPN::is_enabled(state.marking, ptpn_, t)) {
       enabled.push_back(t);
     }
   }
@@ -1334,7 +1333,7 @@ std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_dbm(
 
   double fire_time = to.cumulative_time;
 
-  to.marking = petri::MatrixPTPN::fire(to.marking, ptpn_, trans_idx);
+  to.marking = petri::PTPN::fire(to.marking, ptpn_, trans_idx);
 
   if (to.marking.empty()) {
     spdlog::debug("    {}: marking empty after fire", format_transitions({trans_idx}, false));
@@ -1366,7 +1365,7 @@ void StateClassReachabilityGraph::compute_enabled_and_clocks(
 
   std::set<size_t> new_enabled;
   for (size_t t = 0; t < num_transitions; ++t) {
-    if (petri::MatrixPTPN::is_enabled(state.marking, ptpn_, t)) {
+    if (petri::PTPN::is_enabled(state.marking, ptpn_, t)) {
       new_enabled.insert(t);
     }
   }

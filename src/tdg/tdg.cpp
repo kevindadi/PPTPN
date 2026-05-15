@@ -10,7 +10,7 @@ namespace tdg {
 void TDG::parse_json(const std::string& json_file) {
   spdlog::info("[TDG] Starting JSON parsing: {}", json_file);
 
-  json::Parser parser;
+  parse::Parser parser;
   auto result = parser.parse_file(json_file);
 
   if (!result.success) {
@@ -87,7 +87,7 @@ void TDG::parse_json(const std::string& json_file) {
 }
 
 void TDG::parse_json_string(const std::string& json_content) {
-  json::Parser parser;
+  parse::Parser parser;
   auto result = parser.parse_string(json_content);
 
   if (!result.success) {
@@ -154,7 +154,7 @@ std::string TDG::to_dot_string() const {
   oss << "digraph G {\n";
 
   for (const auto& [name, node] : nodes_type) {
-    oss << "    " << name << " [label = \"" << json::node_to_dot_label(node)
+    oss << "    " << name << " [label = \"" << parse::node_to_dot_label(node)
         << "\";];\n";
   }
 

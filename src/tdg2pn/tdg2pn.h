@@ -18,6 +18,7 @@ class TDG2PN {
   static void transform(const tdg::TDG& tdg, petri::PTPN& ptpn);
 
  private:
+  static std::unordered_map<int, std::vector<std::string>> classify_tdg_priority(const tdg::TDG& tdg);
   static void transform_vertices(petri::PTPN& ptpn, const tdg::TDG& tdg);
   static void transform_edges(petri::PTPN& ptpn, const tdg::TDG& tdg);
   static std::pair<size_t, size_t> add_node_matrix(petri::PTPN& ptpn, const NodeType& node_type);
@@ -37,12 +38,12 @@ class TDG2PN {
   static void task_bind_lock_resource_matrix(
       petri::PTPN& ptpn,
       const std::vector<NodeType>& all_task,
-      std::map<std::string, std::vector<std::string>>& task_locks);
+      const std::map<std::string, std::vector<std::string>>& task_locks);
   static void bind_task_locks_matrix(
       petri::PTPN& ptpn,
       const std::string& task_name, const std::vector<std::string>& lock_types,
       const std::vector<size_t>& task_pt_chain,
-      std::map<std::string, std::vector<std::string>>& task_locks);
+      const std::map<std::string, std::vector<std::string>>& task_locks);
   static bool is_self_loop_edge(const std::string& source, const std::string& target);
   static bool is_dashed_edge(const std::string& edge);
   static void handle_self_loop_edge_matrix(petri::PTPN& ptpn,

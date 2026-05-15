@@ -1,6 +1,7 @@
 #ifndef TDG_H
 #define TDG_H
 
+#include <fstream>
 #include <map>
 #include <set>
 #include <string>

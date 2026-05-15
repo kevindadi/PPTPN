@@ -123,7 +123,7 @@ typedef boost::graph_traits<SCGraph>::edge_descriptor SCEdge;
 
 class StateClassReachabilityGraph {
  public:
-  explicit StateClassReachabilityGraph(const petri::MatrixPTPN& ptpn);
+  explicit StateClassReachabilityGraph(const petri::PTPN& ptpn);
 
   void set_pruning_enabled(bool enabled) { pruning_enabled_ = enabled; }
   [[nodiscard]] bool is_pruning_enabled() const { return pruning_enabled_; }
@@ -156,7 +156,7 @@ class StateClassReachabilityGraph {
   bool save_to_json(const std::string& file_path) const;
 
  private:
-  const petri::MatrixPTPN& ptpn_;
+  const petri::PTPN& ptpn_;
   SCGraph graph_;
   SCVertex initial_vertex_;
   Statistics stats_;

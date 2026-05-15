@@ -80,7 +80,7 @@ int main(int argc, char* argv[]) {
   auto tdg_start = chrono::high_resolution_clock::now();
   spdlog::info("[JSON] Starting JSON parsing: {}", input_file);
 
-  json::Parser parser;
+  parse::Parser parser;
   auto parse_result = parser.parse_file(input_file);
 
   if (!parse_result.success) {

@@ -181,6 +181,7 @@ void TDG2PN::handle_dashed_edge_matrix(petri::PTPN& ptpn,
                                         const std::string& source_name,
                                         const std::string& target_name) {
   // Dashed edge: tail node is start, head node is end
+  
 }
 
 void TDG2PN::handle_normal_edge_matrix(petri::PTPN& ptpn,
@@ -299,7 +300,7 @@ void TDG2PN::task_bind_cpu_resource_matrix(petri::PTPN& ptpn,
 
 void TDG2PN::task_bind_lock_resource_matrix(petri::PTPN& ptpn,
     const std::vector<NodeType>& all_task,
-    std::map<std::string, std::vector<std::string>>& task_locks) {
+    const std::map<std::string, std::vector<std::string>>& task_locks) {
   if (task_locks.empty()) {
     info("[TDG2PN] No task locks to bind");
     return;
@@ -334,7 +335,7 @@ void TDG2PN::task_bind_lock_resource_matrix(petri::PTPN& ptpn,
 void TDG2PN::bind_task_locks_matrix(petri::PTPN& ptpn,
     const std::string& task_name, const std::vector<std::string>& lock_types,
     const std::vector<size_t>& task_pt_chain,
-    std::map<std::string, std::vector<std::string>>& task_locks) {
+    const std::map<std::string, std::vector<std::string>>& task_locks) {
   constexpr size_t MIN_CHAIN_LENGTH = 5;
   if (task_pt_chain.size() < MIN_CHAIN_LENGTH) {
     spdlog::debug("[TDG2PN] Skip chain for {}: too short for locks", task_name);
