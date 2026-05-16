@@ -3,6 +3,8 @@
 .DS_Store
 .claude
 
-build
+build/
 main.pdf
 paper
+
+Testing

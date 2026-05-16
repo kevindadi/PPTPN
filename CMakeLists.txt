@@ -1,137 +1,75 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.27)
 project(PTPN)
 
 set(CMAKE_CXX_STANDARD 17)
-if(POLICY CMP0167)
-  cmake_policy(SET CMP0167 NEW)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Suppress warnings from dependencies with older cmake_minimum_required
+cmake_policy(SET CMP0167 NEW)
+cmake_policy(SET CMP0057 NEW)
+
+# Use vcpkg for dependencies
+if(DEFINED ENV{VCPKG_ROOT})
+    set(VCPKG_ROOT $ENV{VCPKG_ROOT})
+elseif(DEFINED ENV{VCPKG_INSTALLATION_ROOT})
+    set(VCPKG_ROOT $ENV{VCPKG_INSTALLATION_ROOT})
+elseif(EXISTS "/Users/kevin/vcpkg")
+    set(VCPKG_ROOT "/Users/kevin/vcpkg")
 endif()
 
-if(APPLE)
-    set(CMAKE_OSX_ARCHITECTURES "arm64")
-    set(CMAKE_SYSTEM_PROCESSOR "arm64")
+if(VCPKG_ROOT AND EXISTS "${VCPKG_ROOT}/vcpkg")
+    message(STATUS "Using vcpkg from: ${VCPKG_ROOT}")
+    set(CMAKE_TOOLCHAIN_FILE "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "Vcpkg toolchain")
 endif()
 
-# FetchContent for nlohmann/json (header-only library)
+# FetchContent for dependencies
 include(FetchContent)
+
+# nlohmann/json
 FetchContent_Declare(json
     URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+    DOWNLOAD_EXTRACT_TIMESTAMP true
 )
 FetchContent_MakeAvailable(json)
 
-set(BOOST_ROOT "/opt/homebrew/opt/boost")
-set(BOOST_DIR "/opt/homebrew/opt/boost")
-set(Boost_NO_SYSTEM_PATHS ON)
-set(BOOST_INCLUDEDIR "/opt/homebrew/opt/boost/include")
-set(BOOST_LIBRARYDIR "/opt/homebrew/opt/boost/lib")
+# CLI11
+FetchContent_Declare(cli11
+    GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
+    GIT_TAG v2.6.2
+)
+FetchContent_MakeAvailable(cli11)
 
-find_package(Boost REQUIRED COMPONENTS graph program_options filesystem log log_setup thread date_time)
+find_package(Boost REQUIRED COMPONENTS graph filesystem thread date_time)
+find_package(spdlog REQUIRED)
+find_package(fmt REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 message(STATUS "Boost include dir: ${Boost_INCLUDE_DIRS}")
-message(STATUS "Boost library dir: ${Boost_LIBRARY_DIRS}")
-message(STATUS "Boost libraries: ${Boost_LIBRARIES}")
 
-include_directories(include)
+include_directories(src)
 
-add_executable(PTPN main.cpp include/clap.h include/dag.h src/clap.cpp
-        include/matrix_ptpn.h
-        src/matrix_ptpn.cpp
-        include/graph_ptpn.h
-        src/graph_ptpn.cpp
-        include/state_class.h
-        src/state_class.cpp
-        include/state_class_graph.h
-        src/state_class_graph.cpp
-        include/json_tdg.h
-        src/json_tdg.cpp)
-
-target_link_libraries(PTPN PRIVATE
+# Core library containing all logic
+add_library(PTPN_core STATIC
+    src/json/json.cpp
+    src/tdg/tdg.cpp
+    src/petri/petri.cpp
+    src/petri/graph.cpp
+    src/tdg2pn/tdg2pn.cpp
+    src/analysis/reachability.cpp
+)
+target_include_directories(PTPN_core PUBLIC src)
+target_link_libraries(PTPN_core PUBLIC
     Boost::graph
-    Boost::program_options
     Boost::filesystem
-    Boost::log
-    Boost::log_setup
     Boost::thread
     Boost::date_time
-    nlohmann_json::nlohmann_json)
-
-
-
-enable_testing()
-
-add_executable(matrix_ptpn_example test/matrix_ptpn_example.cpp
-        include/matrix_ptpn.h
+    nlohmann_json::nlohmann_json
+    spdlog::spdlog
+    fmt::fmt
 )
-target_link_libraries(matrix_ptpn_example PRIVATE
-    Boost::graph 
-    Boost::filesystem
-    Boost::log
-    Boost::log_setup
-    Boost::thread
-    Boost::date_time)
 
-add_executable(test_matrix_conversion test/test_matrix_conversion.cpp
-        include/matrix_ptpn.h
-        src/matrix_ptpn.cpp
-        include/graph_ptpn.h
-        src/graph_ptpn.cpp
-        include/clap.h
-        src/clap.cpp
-        include/dag.h
-)
-target_link_libraries(test_matrix_conversion PRIVATE
-    Boost::graph 
-    Boost::filesystem
-    Boost::log
-    Boost::log_setup
-    Boost::thread
-    Boost::date_time)
+# Main executable
+add_executable(PTPN src/main.cpp)
+target_link_libraries(PTPN PRIVATE PTPN_core CLI11::CLI11)
 
-add_executable(test_state_class_example test/test_state_class_example.cpp
-        include/state_class.h
-        src/state_class.cpp
-        include/state_class_graph.h
-        src/state_class_graph.cpp
-        include/matrix_ptpn.h
-        src/matrix_ptpn.cpp
-        include/clap.h
-        src/clap.cpp
-        include/dag.h
-)
-target_link_libraries(test_state_class_example PRIVATE
-    Boost::graph 
-    Boost::filesystem
-    Boost::log
-    Boost::log_setup
-    Boost::thread
-    Boost::date_time)
-
-
-add_test(NAME TestMatrixPTPNExample COMMAND matrix_ptpn_example)
-add_test(NAME TestMatrixConversion COMMAND test_matrix_conversion)
-add_test(NAME TestStateClassExample COMMAND test_state_class_example)
-
-# JSON Input Test
-add_executable(test_json_input test/test_json_input.cpp
-        include/json_tdg.h
-        src/json_tdg.cpp
-        include/dag.h
-        include/clap.h
-        src/clap.cpp
-        include/matrix_ptpn.h
-        src/matrix_ptpn.cpp
-        include/graph_ptpn.h
-        src/graph_ptpn.cpp
-        include/state_class.h
-        src/state_class.cpp
-        include/state_class_graph.h
-        src/state_class_graph.cpp)
-target_link_libraries(test_json_input PRIVATE
-    Boost::graph
-    Boost::program_options
-    Boost::filesystem
-    Boost::log
-    Boost::log_setup
-    Boost::thread
-    Boost::date_time
-    nlohmann_json::nlohmann_json)
-add_test(NAME TestJsonInput COMMAND test_json_input)
+# Test subdirectory
+add_subdirectory(test)

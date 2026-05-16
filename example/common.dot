@@ -1,13 +1,13 @@
 digraph G {
-    A [label = "{A;[100,100];97;0;[3,8]}";];
-    A -> B [xlabel = "19"; style = "";];
-    B [label = "{B;98;0;[3,5]}";];
-    B -> C [xlabel = "19"; style = "";];
-    C [label = "{C;99;1;[8,10]}";];
-    D [label = "{D;[50,50];97;1;[6,8]}";];
-    D -> E [xlabel = "19"; style = "";];
-    E [label = "{E;98;1;[2,3]}";];
-    E -> C [xlabel = "19"; style = "";];
+    F [label = "F\naperiodic\nprio=96 core=0\ntime=[3, 3]\nlocks=lock3";];
+    E [label = "E\naperiodic\nprio=98 core=1\ntime=[3, 5]\nlocks=lock2, lock3";];
+    A [label = "A\nperiodic\nprio=97 core=0\ntime=[100, 100]\nperiod=[100, 100]\nlocks=lock3, lock8";];
+    D [label = "D\nperiodic\nprio=97 core=1\ntime=[50, 50]\nperiod=[50, 50]\nlocks=lock6, lock8";];
+    C [label = "C\naperiodic\nprio=99 core=1\ntime=[3, 5]\nlocks=lock8, lock10";];
+    B [label = "B\naperiodic\nprio=98 core=0\ntime=[3, 5]\nlocks=lock3, lock5";];
+    A -> B [xlabel = "19";];
+    B -> C [xlabel = "19";];
+    D -> E [xlabel = "19";];
+    E -> C [xlabel = "19";];
     D -> F [xlabel = "50"; style = "dashed";];
-    F [label = "{F;96;0;[3,3]}";];
 }

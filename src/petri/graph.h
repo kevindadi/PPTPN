@@ -1,5 +1,5 @@
-#ifndef GRAPH_PTPN_H
-#define GRAPH_PTPN_H
+#ifndef GRAPH_H
+#define GRAPH_H
 
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>
@@ -7,9 +7,9 @@
 #include <string>
 #include <variant>
 
-#include "matrix_ptpn.h"
+#include "petri/petri.h"
 
-namespace graph_ptpn {
+namespace graph {
 
 struct Place {
   int token = 0;
@@ -55,24 +55,20 @@ typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::bidirectionalS,
     Graph;
 typedef boost::graph_traits<Graph>::vertex_descriptor VertexDesc;
 
-/**
- * GraphPTPN类:负责所有与图相关的操作（读取、导出等）
- * 将矩阵形式的PTPN转换为Boost Graph形式,用于导出和可视化
- */
 class GraphPTPN {
  public:
-  explicit GraphPTPN(const matrix_ptpn::MatrixPTPN& matrix_ptpn);
+  explicit GraphPTPN(const petri::PTPN& ptpn);
 
   bool save_to_dot(const std::string& file_path) const;
 
   const Graph& get_graph() const { return graph; }
 
  private:
-  void convert_matrix_to_graph(const matrix_ptpn::MatrixPTPN& matrix_ptpn);
+  void convert_matrix_to_graph(const petri::PTPN& ptpn);
 
   Graph graph;
 };
 
-}  // namespace graph_ptpn
+}  // namespace graph
 
-#endif  // GRAPH_PTPN_H
+#endif
