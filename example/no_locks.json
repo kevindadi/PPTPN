@@ -1,0 +1,32 @@
+{
+  "graph": {
+    "name": "NoLockGraph"
+  },
+  "configuration": {
+    "num_cpus": 2,
+    "cores_per_cpu": 4,
+    "shared_locks": []
+  },
+  "nodes": [
+    {
+      "id": "TaskA",
+      "type": "periodic",
+      "priority": 97,
+      "core": 0,
+      "time": [[0, 100]],
+      "period": [100, 100],
+      "locks": []
+    },
+    {
+      "id": "TaskB",
+      "type": "aperiodic",
+      "priority": 98,
+      "core": 1,
+      "time": [[0, 50]],
+      "locks": []
+    }
+  ],
+  "edges": [
+    {"source": "TaskA", "target": "TaskB", "label": "20"}
+  ]
+}

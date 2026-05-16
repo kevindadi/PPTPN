@@ -5,7 +5,7 @@
   "configuration": {
     "num_cpus": 2,
     "cores_per_cpu": 4,
-    "shared_locks": ["lock2", "lock3", "lock5", "lock6", "lock8", "lock10"]
+    "shared_locks": ["mutex2", "mutex3", "mutex5", "mutex6", "mutex8", "mutex10", "spin1", "spin2"]
   },
   "nodes": [
     {
@@ -13,50 +13,50 @@
       "type": "periodic",
       "priority": 97,
       "core": 0,
-      "time": [[100, 100]],
+      "time": [[0, 10], [10, 20], [20, 30], [30, 40], [40, 100]],
       "period": [100, 100],
-      "locks": ["lock3", "lock8"]
+      "locks": ["mutex3", "spin1"]
     },
     {
       "id": "B",
       "type": "aperiodic",
       "priority": 98,
       "core": 0,
-      "time": [[3, 5]],
-      "locks": ["lock3", "lock5"]
+      "time": [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5]],
+      "locks": ["mutex3", "spin2"]
     },
     {
       "id": "C",
       "type": "aperiodic",
       "priority": 99,
       "core": 1,
-      "time": [[3, 5]],
-      "locks": ["lock8", "lock10"]
+      "time": [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5]],
+      "locks": ["spin1", "mutex10"]
     },
     {
       "id": "D",
       "type": "periodic",
       "priority": 97,
       "core": 1,
-      "time": [[50, 50]],
+      "time": [[0, 10], [10, 20], [20, 30], [30, 40], [40, 50]],
       "period": [50, 50],
-      "locks": ["lock6", "lock8"]
+      "locks": ["mutex6", "spin2"]
     },
     {
       "id": "E",
       "type": "aperiodic",
       "priority": 98,
       "core": 1,
-      "time": [[3, 5]],
-      "locks": ["lock2", "lock3"]
+      "time": [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5]],
+      "locks": ["spin1", "mutex2"]
     },
     {
       "id": "F",
       "type": "aperiodic",
       "priority": 96,
       "core": 0,
-      "time": [[3, 3]],
-      "locks": ["lock3"]
+      "time": [[0, 1], [1, 2], [2, 3]],
+      "locks": ["mutex3"]
     }
   ],
   "edges": [
