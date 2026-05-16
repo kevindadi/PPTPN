@@ -104,7 +104,8 @@ JSON 文件描述了一个任务依赖图 (Task Dependency Graph)，包含任务
 "configuration": {
   "num_cpus": 2,
   "cores_per_cpu": 4,
-  "shared_locks": ["mutex1", "spin1", "mutex_global"]
+  "shared_locks": ["mutex1", "spin1", "mutex_global"],
+  "policy": "fixed"
 }
 ```
 
@@ -113,6 +114,21 @@ JSON 文件描述了一个任务依赖图 (Task Dependency Graph)，包含任务
 | `num_cpus` | integer | 是 | CPU 数量 |
 | `cores_per_cpu` | integer | 是 | 每 CPU 核心数 |
 | `shared_locks` | array | 是 | 全局共享锁列表，**所有节点使用的锁必须在此定义** |
+| `policy` | string | 否 | 调度策略，默认 `fixed` |
+
+### 调度策略 (policy)
+
+| 策略 | 说明 |
+|------|------|
+| `fixed` | 固定优先级（默认） |
+| `rm` | Rate Monotonic - 周期越短优先级越高 |
+| `dm` | Deadline Monotonic - 截止时间越短优先级越高 |
+| `edf` | Earliest Deadline First - 截止时间最早优先 |
+| `llf` | Least Laxity First - 松弛时间最小优先 |
+| `fifo` | 先来先服务 |
+| `pip` | Priority Inheritance Protocol - 优先级继承协议 |
+| `pcp` | Priority Ceiling Protocol - 优先级天花板协议 |
+| `srp` | Stack Resource Policy - 栈资源策略 |
 
 ---
 

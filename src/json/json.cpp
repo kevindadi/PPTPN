@@ -209,6 +209,10 @@ void Parser::parse_configuration_object(const nlohmann::json& config) {
   if (config.contains("shared_locks")) {
     graph_.shared_locks = config["shared_locks"].get<std::vector<std::string>>();
   }
+  if (config.contains("policy")) {
+    std::string policy_str = config["policy"].get<std::string>();
+    graph_.policy = parse_schedule_policy(policy_str);
+  }
 }
 
 void Parser::parse_nodes_array(const nlohmann::json& nodes_array) {

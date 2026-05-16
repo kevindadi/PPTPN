@@ -56,6 +56,7 @@ struct JsonGraph {
   int num_cpus = 1;
   int cores_per_cpu = 1;
   std::vector<std::string> shared_locks;
+  SchedulePolicy policy = SchedulePolicy::FIXED;  // 调度策略
   std::vector<JsonNode> nodes;
   std::vector<JsonEdge> edges;
 };
@@ -70,6 +71,7 @@ class Parser {
   std::string get_graph_name() const { return graph_.name; }
   int get_num_cpus() const { return graph_.num_cpus; }
   int get_cores_per_cpu() const { return graph_.cores_per_cpu; }
+  SchedulePolicy get_policy() const { return graph_.policy; }
   const std::vector<JsonNode>& get_nodes() const { return graph_.nodes; }
   const std::vector<JsonEdge>& get_edges() const { return graph_.edges; }
   const std::string& get_original_json() const { return original_json_; }

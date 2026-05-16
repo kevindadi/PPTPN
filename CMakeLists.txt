@@ -49,6 +49,7 @@ include_directories(src)
 
 # Core library containing all logic
 add_library(PTPN_core STATIC
+    src/types/types.cpp
     src/json/json.cpp
     src/tdg/tdg.cpp
     src/petri/petri.cpp
