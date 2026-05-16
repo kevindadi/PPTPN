@@ -2,188 +2,205 @@
 
 A tool for analyzing and verifying real-time task system schedulability based on Priority Timed Petri Nets (PTPN) and state class analysis.
 
-## Background
+## 功能概述
 
-This tool converts Task Dependency Graphs (TDG) into Priority Timed Petri Nets, then analyzes the system through state class reachability graphs to determine:
-- **Schedulability** - Whether tasks meet deadlines
-- **Deadlock Detection** - Identify potential deadlocks
-- **WCRT Analysis** - Compute worst-case response times
-- **Resource Contention** - Analyze CPU and lock resource allocation
+将任务依赖图 (TDG) 转换为优先级时间 Petri 网 (PTPN)，通过状态类可达性图分析系统：
 
-## Architecture
+- **可调度性分析** - 判断任务是否满足截止时间
+- **死锁检测** - 识别潜在的死锁情况
+- **WCRT 分析** - 计算最坏情况响应时间
+- **资源竞争分析** - 分析 CPU 和锁资源的分配
+
+## 架构
 
 ```
-Input (DOT) ──→ [TDG Parser] ──→ [MatrixPTPN] ──→ [StateClassRG] ──→ Output
-                  │                │                 │
-              DAG/CLAP         Matrix Rep       Reachability
-                  │                │                 │
-              Task Graph        Petri Net          State Class
+JSON 文件 ──→ [JSON 解析] ──→ [TDG 模型] ──→ [TDG2PN 转换] ──→ [PTPN] ──→ [可达性分析]
+                  │              │                │            │              │
+              解析器          任务依赖图         转换器       Petri 网       状态类图
 ```
 
-### Core Modules
+### 模块结构
 
-| Module | File | Description |
-|--------|------|-------------|
-| **DAG/CLAP** | [dag.h](include/dag.h), [clap.h](include/clap.h) | Parse task dependency graphs in DOT format |
-| **MatrixPTPN** | [matrix_ptpn.h](include/matrix_ptpn.h) | Matrix representation of PTPN (Pre/Post matrices) |
-| **GraphPTPN** | [graph_ptpn.h](include/graph_ptpn.h) | Convert to Boost Graph for export and visualization |
-| **StateClass** | [state_class.h](include/state_class.h) | DBM (Difference Bound Matrix) and state class structures |
-| **StateClassRG** | [state_class_graph.h](include/state_class_graph.h) | State class reachability graph builder |
+| 模块 | 目录 | 说明 |
+|------|------|------|
+| **JSON 解析** | [src/json/](src/json/) | 解析 JSON 格式的任务图配置 |
+| **TDG** | [src/tdg/](src/tdg/) | 任务依赖图数据结构 |
+| **PTPN** | [src/petri/](src/petri/) | 优先级时间 Petri 网定义 |
+| **TDG2PN** | [src/tdg2pn/](src/tdg2pn/) | TDG 到 PTPN 的转换算法 |
+| **分析** | [src/analysis/](src/analysis/) | 状态类可达性分析 |
 
-### Task Types
+## 项目结构
 
-```cpp
-PeriodicTask    // Periodic task (Period, WCET, Priority, Core, Locks)
-APeriodicTask   // Aperiodic task (WCET, Priority, Core, Locks)
-DistTask        // Distributed task
-SyncTask        // Synchronization task
-EmptyTask       // Empty task
+```
+src/
+├── json/           # JSON 解析器
+│   ├── json.h
+│   └── json.cpp
+├── tdg/            # 任务依赖图
+│   ├── tdg.h
+│   └── tdg.cpp
+├── petri/          # Petri 网
+│   ├── petri.h
+│   ├── petri.cpp
+│   ├── graph.h
+│   └── graph.cpp
+├── tdg2pn/         # TDG → PTPN 转换
+│   ├── tdg2pn.h
+│   └── tdg2pn.cpp
+├── analysis/       # 可达性分析
+│   ├── state.h
+│   └── reachability.cpp
+└── main.cpp        # 主程序入口
 ```
 
-### PTPN Structure
+## 构建步骤
 
-- **Places**: CPU core resources, lock resources, task states
-- **Transitions**: Task execution with time interval `[α, β]` and priority π
-- **Pre/Post Matrices**: Arc weights
+### Step 1: 安装依赖
 
-### State Class Analysis
-
-State class = (M, Z1, Z2), where:
-- `M`: Marking vector (token distribution)
-- `Z1`: DBM for non-suspendable transition time constraints
-- `Z2`: DBM for suspendable transition time constraints
-
-DBM represents clock constraints and is minimized using the Floyd-Warshall algorithm.
-
-## Dependencies
-
-- **C++17** or higher
-- **Boost** libraries:
-  - `graph` - Graph structures
-  - `program_options` - Command-line arguments
-  - `filesystem` - File operations
-  - `log` / `log_setup` - Logging
-  - `thread` - Multi-threading
-  - `date_time` - Time handling
-
-Install (macOS):
+**macOS:**
 ```bash
-brew install boost
+brew install boost ninja cmake
 ```
 
-Install (Linux):
+**Linux:**
 ```bash
-sudo apt install libboost-all-dev
+sudo apt install libboost-all-dev ninja-build cmake
 ```
 
-## Build
+### Step 2: 构建项目
 
 ```bash
-cmake -B build -H .
+# 使用 Ninja 构建（推荐）
+cmake -B build -G Ninja
 cmake --build build
 ```
 
-## Usage
-
-### Basic Usage
+### Step 3: 运行测试
 
 ```bash
-./build/PTPN --cpus <num_cpus> --cores <cores_per_cpu> --file <task_graph.dot>
+./build/test/ptpn_test
 ```
 
-### Command Line Options
+## 使用方法
 
-| Option | Description |
-|--------|-------------|
-| `--cpus` | Number of CPUs (required) |
-| `--cores` | Number of cores per CPU (required) |
-| `--file` | Task graph DOT file path (default: `dag.dot`) |
-| `--deadline` | Set deadline for checking |
-| `--max_states` | Maximum number of states in reachability graph |
-
-### Examples
+### 命令行选项
 
 ```bash
-# Analyze task graph with 2 CPUs, 4 cores per CPU
-./build/PTPN --cpus 2 --cores 4 --file example/common.dot
-
-# Analyze simple task graph
-./build/PTPN --cpus 1 --cores 2 --file example/fixed_time/common_fixed_lower.dot
-
-# Limit maximum states
-./build/PTPN --cpus 2 --cores 4 --file example/common.dot --max_states 1000
+./build/PTPN -f <input.json> [选项]
 ```
 
-### Input Format (DOT)
+| 选项 | 说明 |
+|------|------|
+| `-f, --file` | 输入 JSON 文件（必需） |
+| `-m, --max-states` | 可达性图最大状态数（默认：无限制） |
+| `-e, --export-dot` | 解析后导出 TDG DOT 文件用于验证 |
+| `--tina` | 导出为 Tina .net 格式 |
+| `--romeo` | 导出为 Romeo XML 格式 |
+| `-v, --version` | 显示版本信息 |
 
-Task graph uses DOT format, node label format:
-```
-{NodeName; TimeInterval; Priority; CoreID; [LockSet]}
+### 示例
+
+```bash
+# 基本用法
+./build/PTPN -f example/task_graph.json
+
+# 导出 DOT 便于调试
+./build/PTPN -f example/task_graph.json --export-dot
+
+# 限制状态数量
+./build/PTPN -f example/task_graph.json -m 1000
 ```
 
-Example:
-```
-digraph G {
-    A [label = "{A;[100,100];97;0;[3,3]}";];
-    A -> B [xlabel = "19";];
-    B [label = "{B;98;0;[3,3]}";];
+## 输入格式 (JSON)
+
+### 基本结构
+
+```json
+{
+  "graph": {
+    "name": "TaskGraph"
+  },
+  "configuration": {
+    "num_cpus": 2,
+    "cores_per_cpu": 4,
+    "shared_locks": ["lock1", "lock2"]
+  },
+  "nodes": [
+    {
+      "id": "TaskA",
+      "type": "periodic",
+      "priority": 97,
+      "core": 0,
+      "time": [[3, 8]],
+      "period": [100, 100],
+      "locks": ["lock1"]
+    },
+    {
+      "id": "TaskB",
+      "type": "aperiodic",
+      "priority": 98,
+      "core": 1,
+      "time": [[2, 5]],
+      "locks": []
+    }
+  ],
+  "edges": [
+    {"source": "TaskA", "target": "TaskB", "label": "50", "style": "dashed"}
+  ]
 }
 ```
 
-Where:
-- `[100,100]` - Execution time interval (WCET)
-- `97` - Priority (higher value = higher priority)
-- `0` - Assigned CPU core
-- `[3,3]` - Lock IDs used
+### 节点类型
 
-### Output
+| 类型 | 说明 | 必需字段 |
+|------|------|----------|
+| `periodic` | 周期任务 | `priority`, `core`, `time`, `period`, `locks` |
+| `aperiodic` | 非周期任务 | `priority`, `core`, `time`, `locks` |
+| `fork` | 分支节点 | 无 |
+| `join` | 汇合节点 | 无 |
+| `empty` | 空节点 | 无 |
 
-Running generates:
-- `matrix_ptpn.dot` - PTPN structure diagram
-- `state_class_graph.dot` - State class reachability graph
-- `state_class_graph.json` - State class reachability graph (JSON format)
+### 字段说明
 
-## Example Task Graphs
+- `id`: 节点唯一标识符
+- `type`: 节点类型 (`periodic` | `aperiodic` | `fork` | `join` | `empty`)
+- `priority`: 任务优先级（数值越大优先级越高）
+- `core`: 分配的核心 ID（从 0 开始）
+- `time`: 执行时间区间 `[[start, end]]`
+- `period`: 周期 `[@lower, @upper]`（仅 periodic 类型）
+- `locks`: 使用的锁列表
 
-Located in `example/` directory:
-- `common.dot` - Standard task graph
-- `fixed_time/` - Fixed time task graph examples
+## 输出说明
 
-## Testing
+运行后生成：
 
-```bash
-# Run all tests
-ctest --output-on-failure
+- `ptpn.dot` - PTPN 结构图
+- 可选：`*.dot` - 如果使用 `--export-dot`，导出 TDG 可视化图
 
-# Run specific tests
-./build/test_matrix_conversion
-./build/test_state_class_example
-```
+## 核心算法
 
-## Project Structure
+1. **TDG → PTPN 转换**: 将任务依赖图转换为优先级时间 Petri 网
+2. **状态类可达性图构建**: 使用 DBM（差分边界矩阵）处理时间约束，按核心和优先级选择迁移
+3. **DBM 最小化**: Floyd-Warshall 算法检查约束一致性
+4. **抢占处理**: 分离 Z1/Z2 分别处理不可挂起/可挂起迁移的时间约束
 
-```
-priority/
-├── include/              # Header files
-│   ├── dag.h             # Task type definitions
-│   ├── clap.h            # TDG parser
-│   ├── matrix_ptpn.h      # PTPN matrix representation
-│   ├── graph_ptpn.h       # Boost Graph export
-│   ├── state_class.h      # DBM and state class
-│   └── state_class_graph.h  # Reachability graph builder
-├── src/                  # Implementation files
-├── test/                 # Test files
-├── example/              # Example task graphs
-├── main.cpp              # Main entry point
-└── CMakeLists.txt        # Build configuration
-```
+## 状态类分析
 
-## Core Algorithms
+状态类 = (M, Z1, Z2)，其中：
+- `M`: 标识向量（令牌分布）
+- `Z1`: 不可挂起迁移时间约束的 DBM
+- `Z2`: 可挂起迁移时间约束的 DBM
 
-1. **TDG → PTPN Conversion**: Convert task dependency graph to Priority Timed Petri Net
-2. **State Class Reachability Graph Construction**: Use DBM for time constraints, select transitions by core and priority
-3. **DBM Minimization**: Floyd-Warshall algorithm for constraint consistency checking
-4. **Preemption Handling**: Separate Z1/Z2 for non-suspendable/suspendable transition constraints
+DBM 表示时钟约束，使用 Floyd-Warshall 算法最小化。
+
+## 依赖
+
+- **C++17** 或更高版本
+- **CMake 3.14+**
+- **Boost** 库: `graph`, `filesystem`, `thread`, `date_time`
+- **CLI11** 命令行解析
+- **spdlog** 日志库
+- **nlohmann/json** JSON 解析
 
 ## License
 

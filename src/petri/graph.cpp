@@ -41,29 +41,28 @@ static VertexDesc add_transition(Graph& graph, const std::string& name,
   return boost::add_vertex(v, graph);
 }
 
-GraphPTPN::GraphPTPN(const petri::MatrixPTPN& matrix_ptpn) {
-  convert_matrix_to_graph(matrix_ptpn);
+GraphPTPN::GraphPTPN(const petri::PTPN& ptpn) {
+  convert_matrix_to_graph(ptpn);
 }
 
-void GraphPTPN::convert_matrix_to_graph(
-    const petri::MatrixPTPN& matrix_ptpn) {
+void GraphPTPN::convert_matrix_to_graph(const petri::PTPN& ptpn) {
   try {
-    spdlog::info("[GRAPH] Converting matrix to Boost Graph...");
+    spdlog::info("[GRAPH] Converting PTPN to Boost Graph...");
 
     graph.clear();
     std::map<size_t, VertexDesc> place_to_vertex;
     std::map<size_t, VertexDesc> transition_to_vertex;
 
-    const auto& marking = matrix_ptpn.get_marking();
+    const auto& marking = ptpn.get_marking();
 
-    for (size_t p = 0; p < matrix_ptpn.num_places(); ++p) {
-      const auto& place = matrix_ptpn.get_place(p);
+    for (size_t p = 0; p < ptpn.num_places(); ++p) {
+      const auto& place = ptpn.get_place(p);
       VertexDesc v = add_place(graph, place.name, marking[p], place.capacity);
       place_to_vertex[p] = v;
     }
 
-    for (size_t t = 0; t < matrix_ptpn.num_transitions(); ++t) {
-      const auto& trans = matrix_ptpn.get_transition(t);
+    for (size_t t = 0; t < ptpn.num_transitions(); ++t) {
+      const auto& trans = ptpn.get_transition(t);
       std::pair<int, int> const_time(
           trans.time_interval.earliest,
           trans.time_interval.latest == petri::INF
@@ -74,7 +73,7 @@ void GraphPTPN::convert_matrix_to_graph(
       transition_to_vertex[t] = v;
     }
 
-    const auto& Pre = matrix_ptpn.get_pre_matrix();
+    const auto& Pre = ptpn.get_pre_matrix();
     for (size_t p = 0; p < Pre.size(); ++p) {
       for (size_t t = 0; t < Pre[p].size(); ++t) {
         if (Pre[p][t] > 0) {
@@ -83,13 +82,12 @@ void GraphPTPN::convert_matrix_to_graph(
           if (Pre[p][t] > 1) {
             e.label = std::to_string(Pre[p][t]);
           }
-          boost::add_edge(place_to_vertex[p], transition_to_vertex[t], e,
-                          graph);
+          boost::add_edge(place_to_vertex[p], transition_to_vertex[t], e, graph);
         }
       }
     }
 
-    const auto& Post = matrix_ptpn.get_post_matrix();
+    const auto& Post = ptpn.get_post_matrix();
     for (size_t t = 0; t < Post.size(); ++t) {
       for (size_t p = 0; p < Post[t].size(); ++p) {
         if (Post[t][p] > 0) {
@@ -98,8 +96,7 @@ void GraphPTPN::convert_matrix_to_graph(
           if (Post[t][p] > 1) {
             e.label = std::to_string(Post[t][p]);
           }
-          boost::add_edge(transition_to_vertex[t], place_to_vertex[p], e,
-                          graph);
+          boost::add_edge(transition_to_vertex[t], place_to_vertex[p], e, graph);
         }
       }
     }

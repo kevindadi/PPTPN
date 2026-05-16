@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
-#include "tdg/tdg.h"
+#include "json/json.h"
 
-using tdg::JsonTDGParser;
-using tdg::JsonNode;
+using parse::Parser;
+using parse::JsonNode;
 
 class JsonParserTest : public ::testing::Test {
  protected:
@@ -22,7 +22,7 @@ TEST_F(JsonParserTest, ValidJsonParsing) {
     ]
   })";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto result = parser.parse_string(json);
 
   EXPECT_TRUE(result.success);
@@ -36,7 +36,7 @@ TEST_F(JsonParserTest, ValidJsonParsing) {
 TEST_F(JsonParserTest, InvalidJsonErrorHandling) {
   std::string invalid_json = "{ invalid json }";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto result = parser.parse_string(invalid_json);
 
   EXPECT_FALSE(result.success);
@@ -68,7 +68,7 @@ TEST_F(JsonParserTest, DotExport) {
     "edges": []
   })";
 
-  JsonTDGParser parser;
+  Parser parser;
   auto result = parser.parse_string(json);
   ASSERT_TRUE(result.success);
 
@@ -79,7 +79,7 @@ TEST_F(JsonParserTest, DotExport) {
 }
 
 TEST_F(JsonParserTest, ParseFileNotFound) {
-  JsonTDGParser parser;
+  Parser parser;
   auto result = parser.parse_file("/nonexistent/path/file.json");
 
   EXPECT_FALSE(result.success);
