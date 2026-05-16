@@ -5,6 +5,58 @@
 
 using nlohmann::json;
 
+namespace {
+
+std::string format_range(const std::pair<int, int>& range) {
+  return "[" + std::to_string(range.first) + ", " + std::to_string(range.second) + "]";
+}
+
+std::string format_time_ranges(const std::vector<std::pair<int, int>>& time_ranges) {
+  std::ostringstream oss;
+  for (size_t i = 0; i < time_ranges.size(); ++i) {
+    if (i > 0) {
+      oss << ", ";
+    }
+    oss << format_range(time_ranges[i]);
+  }
+  return oss.str();
+}
+
+std::string format_locks(const std::vector<std::string>& locks) {
+  if (locks.empty()) {
+    return "none";
+  }
+
+  std::ostringstream oss;
+  for (size_t i = 0; i < locks.size(); ++i) {
+    if (i > 0) {
+      oss << ", ";
+    }
+    oss << locks[i];
+  }
+  return oss.str();
+}
+
+std::string build_node_label(const parse::JsonNode& node) {
+  std::ostringstream oss;
+  oss << node.id << "\\n" << node.type;
+
+  if (node.type == "periodic" || node.type == "aperiodic") {
+    oss << "\\nprio=" << node.priority << " core=" << node.core;
+    if (!node.time.empty()) {
+      oss << "\\ntime=" << format_time_ranges(node.time);
+    }
+    if (node.type == "periodic") {
+      oss << "\\nperiod=" << format_range(node.period);
+    }
+    oss << "\\nlocks=" << format_locks(node.locks);
+  }
+
+  return oss.str();
+}
+
+}  // namespace
+
 namespace parse {
 
 ParseResult Parser::parse_file(const std::string& file_path) {
@@ -239,11 +291,7 @@ std::string Parser::to_dot_string() const {
   oss << "  node [shape=box];\n\n";
 
   for (const auto& node : graph_.nodes) {
-    oss << "  " << node.id << " [label=\"" << node.id << "\\n(" << node.type << ")";
-    if (node.type == "periodic" || node.type == "aperiodic") {
-      oss << "\\nprio=" << node.priority << " core=" << node.core;
-    }
-    oss << "\"];\n";
+    oss << "  " << node.id << " [label=\"" << build_node_label(node) << "\"];\n";
   }
 
   oss << "\n";
@@ -315,22 +363,56 @@ std::string node_type_to_string(const NodeType& node) {
   }
 }
 
+std::string format_range(const std::pair<int, int>& range) {
+  return "[" + std::to_string(range.first) + ", " + std::to_string(range.second) + "]";
+}
+
+std::string format_time_ranges(const std::vector<std::pair<int, int>>& time_ranges) {
+  std::ostringstream oss;
+  for (size_t i = 0; i < time_ranges.size(); ++i) {
+    if (i > 0) oss << ", ";
+    oss << format_range(time_ranges[i]);
+  }
+  return oss.str();
+}
+
+std::string format_locks(const std::vector<std::string>& locks) {
+  if (locks.empty()) return "none";
+  std::ostringstream oss;
+  for (size_t i = 0; i < locks.size(); ++i) {
+    if (i > 0) oss << ", ";
+    oss << locks[i];
+  }
+  return oss.str();
+}
+
 std::string node_to_dot_label(const NodeType& node) {
   if (std::holds_alternative<PeriodicTask>(node)) {
     const auto& task = std::get<PeriodicTask>(node);
-    return task.name + "\\n(" + std::to_string(task.priority) + ")";
+    std::ostringstream oss;
+    oss << task.name << "\\nperiodic\\nprio=" << task.priority
+        << " core=" << task.core
+        << "\\ntime=" << format_time_ranges(task.time)
+        << "\\nperiod=" << format_range(task.period_time)
+        << "\\nlocks=" << format_locks(task.lock);
+    return oss.str();
   } else if (std::holds_alternative<APeriodicTask>(node)) {
     const auto& task = std::get<APeriodicTask>(node);
-    return task.name + "\\n(" + std::to_string(task.priority) + ")";
+    std::ostringstream oss;
+    oss << task.name << "\\naperiodic\\nprio=" << task.priority
+        << " core=" << task.core
+        << "\\ntime=" << format_time_ranges(task.time)
+        << "\\nlocks=" << format_locks(task.lock);
+    return oss.str();
   } else if (std::holds_alternative<ForkTask>(node)) {
     const auto& task = std::get<ForkTask>(node);
-    return task.name;
+    return task.name + "\\nfork";
   } else if (std::holds_alternative<JoinTask>(node)) {
     const auto& task = std::get<JoinTask>(node);
-    return task.name;
+    return task.name + "\\njoin";
   } else {
     const auto& task = std::get<EmptyTask>(node);
-    return task.name;
+    return task.name + "\\nempty";
   }
 }
 

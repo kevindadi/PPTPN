@@ -1,10 +1,10 @@
 digraph G {
-    F [label = "F\n(96)";];
-    E [label = "E\n(98)";];
-    A [label = "A\n(97)";];
-    D [label = "D\n(97)";];
-    C [label = "C\n(99)";];
-    B [label = "B\n(98)";];
+    F [label = "F\naperiodic\nprio=96 core=0\ntime=[3, 3]\nlocks=lock3";];
+    E [label = "E\naperiodic\nprio=98 core=1\ntime=[3, 5]\nlocks=lock2, lock3";];
+    A [label = "A\nperiodic\nprio=97 core=0\ntime=[100, 100]\nperiod=[100, 100]\nlocks=lock3, lock8";];
+    D [label = "D\nperiodic\nprio=97 core=1\ntime=[50, 50]\nperiod=[50, 50]\nlocks=lock6, lock8";];
+    C [label = "C\naperiodic\nprio=99 core=1\ntime=[3, 5]\nlocks=lock8, lock10";];
+    B [label = "B\naperiodic\nprio=98 core=0\ntime=[3, 5]\nlocks=lock3, lock5";];
     A -> B [xlabel = "19";];
     B -> C [xlabel = "19";];
     D -> E [xlabel = "19";];
