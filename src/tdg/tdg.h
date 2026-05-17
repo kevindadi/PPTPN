@@ -20,6 +20,7 @@ class TDG {
 
   int num_cpus = 1;
   int cores_per_cpu = 1;
+  SchedulePolicy policy = SchedulePolicy::FIXED;
 
   std::vector<NodeType> all_task;
   std::unordered_map<std::string, int> tasks_priority;

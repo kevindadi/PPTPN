@@ -59,6 +59,84 @@ std::string build_node_label(const parse::JsonNode& node) {
 
 namespace parse {
 
+LockType get_lock_type(const std::string& lock_name) {
+  if (lock_name.rfind("mutex", 0) == 0) {
+    return LockType::MUTEX;
+  }
+  if (lock_name.rfind("spin", 0) == 0) {
+    return LockType::SPIN;
+  }
+  return LockType::UNKNOWN;
+}
+
+std::string get_lock_type_short(const std::string& lock_name) {
+  switch (get_lock_type(lock_name)) {
+    case LockType::MUTEX: return "[M]";
+    case LockType::SPIN: return "[S]";
+    default: return "[?]";
+  }
+}
+
+std::string format_locks_with_type(const std::vector<std::string>& locks) {
+  if (locks.empty()) {
+    return "none";
+  }
+
+  std::ostringstream oss;
+  for (size_t i = 0; i < locks.size(); ++i) {
+    if (i > 0) {
+      oss << " ";
+    }
+    oss << get_lock_type_short(locks[i]) << locks[i];
+  }
+  return oss.str();
+}
+
+int calculate_time_interval_count(int lock_count) {
+  return 2 * lock_count + 1;
+}
+
+std::string get_time_interval_label(int index, const std::vector<std::string>& locks) {
+  int lock_count = static_cast<int>(locks.size());
+
+  if (lock_count == 0) {
+    return "[Exec]";
+  }
+
+  if (lock_count == 1) {
+    switch (index) {
+      case 0: return "[Pre]";
+      case 1: return "[CS:" + locks[0] + "]";
+      case 2: return "[Post]";
+      default: return "[?]";
+    }
+  }
+
+  // 嵌套加锁: 锁1 -> 锁2 -> ... -> 锁n -> 解锁n -> ... -> 解锁1
+  if (index < lock_count) {
+    // 临界区前阶段
+    if (index == 0) {
+      return "[Pre:" + locks[0] + "]";
+    } else {
+      return "[CS:" + locks[index - 1] + "]";
+    }
+  } else if (index == lock_count) {
+    // 最后一个锁的临界区内
+    return "[CS:" + locks[lock_count - 1] + "]";
+  } else {
+    // 解锁阶段
+    int post_index = index - lock_count;
+    if (post_index == 0) {
+      return "[Post:" + locks[lock_count - 1] + "]";
+    } else {
+      return "[Post" + std::to_string(post_index) + "]";
+    }
+  }
+}
+}
+
+namespace parse {
+
 ParseResult Parser::parse_file(const std::string& file_path) {
   spdlog::info("[JSON] Starting JSON parsing: {}", file_path);
 
@@ -130,6 +208,10 @@ void Parser::parse_configuration_object(const nlohmann::json& config) {
   }
   if (config.contains("shared_locks")) {
     graph_.shared_locks = config["shared_locks"].get<std::vector<std::string>>();
+  }
+  if (config.contains("policy")) {
+    std::string policy_str = config["policy"].get<std::string>();
+    graph_.policy = parse_schedule_policy(policy_str);
   }
 }
 
@@ -244,6 +326,30 @@ ValidationResult Parser::validate() const {
     for (const auto& lock : node.locks) {
       if (defined_locks.find(lock) == defined_locks.end()) {
         result.add_error("Node " + node.id + " uses undefined lock: " + lock);
+      }
+    }
+  }
+
+  // Check for invalid lock prefix (must start with 'mutex' or 'spin')
+  for (const auto& node : graph_.nodes) {
+    for (const auto& lock : node.locks) {
+      LockType lock_type = get_lock_type(lock);
+      if (lock_type == LockType::UNKNOWN) {
+        result.add_error("Node " + node.id + " uses invalid lock prefix '" + lock +
+                         "': must start with 'mutex' or 'spin'");
+      }
+    }
+  }
+
+  // Check time interval count matches lock count rule (2*locks+1)
+  for (const auto& node : graph_.nodes) {
+    if (node.type == "periodic" || node.type == "aperiodic") {
+      int expected_count = calculate_time_interval_count(static_cast<int>(node.locks.size()));
+      int actual_count = static_cast<int>(node.time.size());
+      if (actual_count != expected_count) {
+        result.add_error("Node " + node.id + " has " + std::to_string(node.locks.size()) +
+                         " lock(s) but " + std::to_string(actual_count) +
+                         " time interval(s) (expected " + std::to_string(expected_count) + ")");
       }
     }
   }
@@ -391,18 +497,32 @@ std::string node_to_dot_label(const NodeType& node) {
     const auto& task = std::get<PeriodicTask>(node);
     std::ostringstream oss;
     oss << task.name << "\\nperiodic\\nprio=" << task.priority
-        << " core=" << task.core
-        << "\\ntime=" << format_time_ranges(task.time)
-        << "\\nperiod=" << format_range(task.period_time)
-        << "\\nlocks=" << format_locks(task.lock);
+        << " core=" << task.core << "\\n";
+
+    // Build time with interval labels
+    for (size_t i = 0; i < task.time.size(); ++i) {
+      if (i > 0) oss << ", ";
+      oss << get_time_interval_label(static_cast<int>(i), task.lock)
+          << " " << format_range(task.time[i]);
+    }
+
+    oss << "\\nperiod=" << format_range(task.period_time)
+        << "\\nlocks=" << format_locks_with_type(task.lock);
     return oss.str();
   } else if (std::holds_alternative<APeriodicTask>(node)) {
     const auto& task = std::get<APeriodicTask>(node);
     std::ostringstream oss;
     oss << task.name << "\\naperiodic\\nprio=" << task.priority
-        << " core=" << task.core
-        << "\\ntime=" << format_time_ranges(task.time)
-        << "\\nlocks=" << format_locks(task.lock);
+        << " core=" << task.core << "\\n";
+
+    // Build time with interval labels
+    for (size_t i = 0; i < task.time.size(); ++i) {
+      if (i > 0) oss << ", ";
+      oss << get_time_interval_label(static_cast<int>(i), task.lock)
+          << " " << format_range(task.time[i]);
+    }
+
+    oss << "\\nlocks=" << format_locks_with_type(task.lock);
     return oss.str();
   } else if (std::holds_alternative<ForkTask>(node)) {
     const auto& task = std::get<ForkTask>(node);

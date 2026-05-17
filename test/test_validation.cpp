@@ -149,9 +149,9 @@ TEST_F(ValidationTest, PeriodicTaskMissingPeriod) {
 TEST_F(ValidationTest, UndefinedLock) {
   std::string json = R"({
     "graph": {"name": "Test"},
-    "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": ["lock1"]},
+    "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": ["mutex1"]},
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": ["lock2"]}
+      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[0, 3], [3, 8], [8, 10]], "period": [100, 100], "locks": ["mutex2"]}
     ],
     "edges": []
   })";
@@ -176,9 +176,9 @@ TEST_F(ValidationTest, UndefinedLock) {
 TEST_F(ValidationTest, ValidInputNoErrors) {
   std::string json = R"({
     "graph": {"name": "Test"},
-    "configuration": {"num_cpus": 2, "cores_per_cpu": 4, "shared_locks": ["lock1", "lock2"]},
+    "configuration": {"num_cpus": 2, "cores_per_cpu": 4, "shared_locks": ["mutex1", "spin1"]},
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": ["lock1"]},
+      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[0, 3], [3, 8], [8, 10]], "period": [100, 100], "locks": ["mutex1"]},
       {"id": "TaskB", "type": "aperiodic", "priority": 98, "core": 1, "time": [[2, 5]], "locks": []}
     ],
     "edges": [
@@ -257,8 +257,8 @@ TEST_F(ValidationTest, ForkNodeWithTaskAttributesWarning) {
     "graph": {"name": "Test"},
     "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": []},
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": []},
-      {"id": "Fork1", "type": "fork", "priority": 50, "core": 1}
+      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[0, 10]], "period": [100, 100], "locks": []},
+      {"id": "Fork1", "type": "fork", "time": [[0, 5]]}
     ],
     "edges": [
       {"source": "TaskA", "target": "Fork1"}
@@ -272,4 +272,113 @@ TEST_F(ValidationTest, ForkNodeWithTaskAttributesWarning) {
   auto validation = parser.validate();
   EXPECT_TRUE(validation.success);
   EXPECT_FALSE(validation.warnings.empty());
+}
+
+TEST_F(ValidationTest, InvalidLockPrefix) {
+  std::string json = R"({
+    "graph": {"name": "Test"},
+    "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": ["badlock"]},
+    "nodes": [
+      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[0, 3], [3, 8], [8, 10]], "period": [100, 100], "locks": ["badlock"]}
+    ],
+    "edges": []
+  })";
+
+  Parser parser;
+  auto parse_result = parser.parse_string(json);
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
+
+  auto validation = parser.validate();
+  EXPECT_FALSE(validation.success);
+
+  bool has_prefix_error = false;
+  for (const auto& err : validation.errors) {
+    if (err.find("invalid lock prefix") != std::string::npos) {
+      has_prefix_error = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(has_prefix_error);
+}
+
+TEST_F(ValidationTest, ValidMutexAndSpinLocks) {
+  std::string json = R"({
+    "graph": {"name": "Test"},
+    "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": ["mutex1", "spin1"]},
+    "nodes": [
+      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[0, 3], [3, 8], [8, 10]], "period": [100, 100], "locks": ["mutex1"]},
+      {"id": "TaskB", "type": "aperiodic", "priority": 98, "core": 0, "time": [[0, 2], [2, 5], [5, 7], [7, 9], [9, 12]], "locks": ["mutex1", "spin1"]}
+    ],
+    "edges": []
+  })";
+
+  Parser parser;
+  auto parse_result = parser.parse_string(json);
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
+
+  auto validation = parser.validate();
+  EXPECT_TRUE(validation.success);
+}
+
+TEST_F(ValidationTest, TimeIntervalCountMismatch) {
+  std::string json = R"({
+    "graph": {"name": "Test"},
+    "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": ["mutex1"]},
+    "nodes": [
+      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[0, 10]], "period": [100, 100], "locks": ["mutex1"]}
+    ],
+    "edges": []
+  })";
+
+  Parser parser;
+  auto parse_result = parser.parse_string(json);
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
+
+  auto validation = parser.validate();
+  EXPECT_FALSE(validation.success);
+
+  bool has_count_error = false;
+  for (const auto& err : validation.errors) {
+    if (err.find("time interval(s)") != std::string::npos) {
+      has_count_error = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(has_count_error);
+}
+
+TEST_F(ValidationTest, CorrectTimeIntervalCountOneLock) {
+  std::string json = R"({
+    "graph": {"name": "Test"},
+    "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": ["mutex1"]},
+    "nodes": [
+      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[0, 5], [5, 10], [10, 15]], "period": [100, 100], "locks": ["mutex1"]}
+    ],
+    "edges": []
+  })";
+
+  Parser parser;
+  auto parse_result = parser.parse_string(json);
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
+
+  auto validation = parser.validate();
+  EXPECT_TRUE(validation.success);
+}
+
+TEST_F(ValidationTest, CorrectTimeIntervalCountTwoLocks) {
+  std::string json = R"({
+    "graph": {"name": "Test"},
+    "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": ["mutex1", "spin1"]},
+    "nodes": [
+      {"id": "TaskA", "type": "aperiodic", "priority": 97, "core": 0, "time": [[0, 2], [2, 5], [5, 8], [8, 10], [10, 15]], "locks": ["mutex1", "spin1"]}
+    ],
+    "edges": []
+  })";
+
+  Parser parser;
+  auto parse_result = parser.parse_string(json);
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
+
+  auto validation = parser.validate();
+  EXPECT_TRUE(validation.success);
 }

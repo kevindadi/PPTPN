@@ -56,6 +56,7 @@ struct JsonGraph {
   int num_cpus = 1;
   int cores_per_cpu = 1;
   std::vector<std::string> shared_locks;
+  SchedulePolicy policy = SchedulePolicy::FIXED;  // 调度策略
   std::vector<JsonNode> nodes;
   std::vector<JsonEdge> edges;
 };
@@ -70,6 +71,7 @@ class Parser {
   std::string get_graph_name() const { return graph_.name; }
   int get_num_cpus() const { return graph_.num_cpus; }
   int get_cores_per_cpu() const { return graph_.cores_per_cpu; }
+  SchedulePolicy get_policy() const { return graph_.policy; }
   const std::vector<JsonNode>& get_nodes() const { return graph_.nodes; }
   const std::vector<JsonEdge>& get_edges() const { return graph_.edges; }
   const std::string& get_original_json() const { return original_json_; }
@@ -91,6 +93,16 @@ class Parser {
 std::string node_type_to_string(const NodeType& node);
 std::string node_to_dot_label(const NodeType& node);
 
-}  // namespace json
+// 锁类型辅助函数
+enum class LockType { MUTEX, SPIN, UNKNOWN };
+LockType get_lock_type(const std::string& lock_name);
+std::string get_lock_type_short(const std::string& lock_name);
+std::string format_locks_with_type(const std::vector<std::string>& locks);
+
+// 时间区间计算
+int calculate_time_interval_count(int lock_count);
+std::string get_time_interval_label(int index, const std::vector<std::string>& locks);
+
+}  // namespace parse
 
 #endif  // JSON_TDG_PARSER_H
