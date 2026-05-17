@@ -190,22 +190,20 @@ TEST_F(TdgExportTest, EmptyNode) {
   EXPECT_NE(dot.find("Empty1"), std::string::npos);
 }
 
-TEST_F(TdgExportTest, ConfigurationPeriodicReleaseCreatesSingleReleaseStructure) {
+TEST_F(TdgExportTest, FixedPriorityRestartPreemptionReturnsLowTaskToEntry) {
   std::string json = R"({
-    "graph": {"name": "PeriodicConfigTest"},
+    "graph": {"name": "FixedPriorityRestart"},
     "configuration": {
       "num_cpus": 1,
       "cores_per_cpu": 1,
       "shared_locks": [],
-      "periodic": [{"task": "TaskA", "period": 100}]
+      "policy": "fixed_prior_with_restart"
     },
     "nodes": [
-      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[3, 8]], "locks": []},
-      {"id": "TaskB", "type": "task", "priority": 98, "core": 0, "time": [[1, 2]], "locks": []}
+      {"id": "LowTask", "type": "task", "priority": 90, "core": 0, "time": [[1, 2]], "locks": []},
+      {"id": "HighTask", "type": "task", "priority": 100, "core": 0, "time": [[1, 1]], "locks": []}
     ],
-    "edges": [
-      {"source": "TaskA", "target": "TaskB"}
-    ]
+    "edges": []
   })";
 
   TDG tdg;
@@ -214,50 +212,46 @@ TEST_F(TdgExportTest, ConfigurationPeriodicReleaseCreatesSingleReleaseStructure)
   petri::PTPN ptpn;
   converter::TDG2PN::transform(tdg, ptpn);
 
-  bool has_cfg_random = false;
-  bool has_cfg_fire = false;
-  bool has_legacy_random = false;
-  bool has_legacy_fire = false;
+  const auto low_it = ptpn.node_start_end_map.find("LowTask");
+  const auto high_it = ptpn.node_start_end_map.find("HighTask");
+  ASSERT_NE(low_it, ptpn.node_start_end_map.end());
+  ASSERT_NE(high_it, ptpn.node_start_end_map.end());
 
-  for (const auto& place : ptpn.places) {
-    if (place.name == "TaskA_cfg_random") {
-      has_cfg_random = true;
+  const size_t low_entry = low_it->second.first;
+  const size_t low_ready = ptpn.node_pn_map.at("LowTask")[2];
+  const size_t high_entry = high_it->second.first;
+  const size_t high_ready = ptpn.node_pn_map.at("HighTask")[2];
+
+  bool found_restart_preempt = false;
+  for (size_t t = 0; t < ptpn.transitions.size(); ++t) {
+    const auto& transition = ptpn.transitions[t];
+    if (transition.name.find("HighTask_restart_preempt_LowTask") == std::string::npos) {
+      continue;
     }
-    if (place.name == "TaskArandom") {
-      has_legacy_random = true;
-    }
+    found_restart_preempt = true;
+    EXPECT_EQ(ptpn.get_pre_matrix()[high_entry][t], 1);
+    EXPECT_EQ(ptpn.get_pre_matrix()[low_ready][t], 1);
+    EXPECT_EQ(ptpn.get_post_matrix()[t][high_ready], 1);
+    EXPECT_EQ(ptpn.get_post_matrix()[t][low_entry], 1);
   }
 
-  for (const auto& transition : ptpn.transitions) {
-    if (transition.name == "TaskA_cfg_fire") {
-      has_cfg_fire = true;
-    }
-    if (transition.name == "TaskAfire") {
-      has_legacy_fire = true;
-    }
-  }
-
-  EXPECT_TRUE(has_cfg_random);
-  EXPECT_TRUE(has_cfg_fire);
-  EXPECT_FALSE(has_legacy_random);
-  EXPECT_FALSE(has_legacy_fire);
+  EXPECT_TRUE(found_restart_preempt);
 }
 
-TEST_F(TdgExportTest, SelfLoopPeriodicReleaseSkipsConfigurationReleaseStructure) {
+TEST_F(TdgExportTest, FixedPriorityResumePreemptionRestoresLowTaskToPreemptionPoint) {
   std::string json = R"({
-    "graph": {"name": "PeriodicSelfLoopTest"},
+    "graph": {"name": "FixedPriorityResume"},
     "configuration": {
       "num_cpus": 1,
       "cores_per_cpu": 1,
       "shared_locks": [],
-      "periodic": [{"task": "TaskA", "period": 100}]
+      "policy": "fixed_prior_with_resume"
     },
     "nodes": [
-      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[3, 8]], "locks": []}
+      {"id": "LowTask", "type": "task", "priority": 90, "core": 0, "time": [[1, 2]], "locks": []},
+      {"id": "HighTask", "type": "task", "priority": 100, "core": 0, "time": [[1, 1]], "locks": []}
     ],
-    "edges": [
-      {"source": "TaskA", "target": "TaskA", "label": "100"}
-    ]
+    "edges": []
   })";
 
   TDG tdg;
@@ -266,31 +260,138 @@ TEST_F(TdgExportTest, SelfLoopPeriodicReleaseSkipsConfigurationReleaseStructure)
   petri::PTPN ptpn;
   converter::TDG2PN::transform(tdg, ptpn);
 
-  bool has_cfg_random = false;
-  bool has_cfg_fire = false;
-  bool has_monitor_deadline = false;
-  bool has_monitor_timed = false;
+  const auto low_it = ptpn.node_start_end_map.find("LowTask");
+  const auto high_it = ptpn.node_start_end_map.find("HighTask");
+  ASSERT_NE(low_it, ptpn.node_start_end_map.end());
+  ASSERT_NE(high_it, ptpn.node_start_end_map.end());
 
-  for (const auto& place : ptpn.places) {
-    if (place.name == "TaskA_cfg_random") {
-      has_cfg_random = true;
+  const size_t low_ready = ptpn.node_pn_map.at("LowTask")[2];
+  const size_t high_entry = high_it->second.first;
+  const size_t high_ready = ptpn.node_pn_map.at("HighTask")[2];
+  const size_t high_exit = high_it->second.second;
+
+  ssize_t suspended_place = -1;
+  size_t preempt_transition = 0;
+  size_t resume_transition = 0;
+
+  for (size_t p = 0; p < ptpn.places.size(); ++p) {
+    if (ptpn.places[p].name.find("LowTask_suspended_HighTask") != std::string::npos) {
+      suspended_place = static_cast<ssize_t>(p);
+      break;
     }
-    if (place.name == "TaskAdeadline") {
-      has_monitor_deadline = true;
+  }
+  ASSERT_NE(suspended_place, -1);
+
+  bool found_resume_preempt = false;
+  bool found_resume_transition = false;
+  for (size_t t = 0; t < ptpn.transitions.size(); ++t) {
+    const auto& transition = ptpn.transitions[t];
+    if (transition.name.find("HighTask_resume_preempt_LowTask") != std::string::npos) {
+      found_resume_preempt = true;
+      preempt_transition = t;
+    }
+    if (transition.name.find("LowTask_resume_HighTask") != std::string::npos) {
+      found_resume_transition = true;
+      resume_transition = t;
     }
   }
 
-  for (const auto& transition : ptpn.transitions) {
-    if (transition.name == "TaskA_cfg_fire") {
-      has_cfg_fire = true;
-    }
-    if (transition.name == "TaskAtimed") {
-      has_monitor_timed = true;
-    }
-  }
+  ASSERT_TRUE(found_resume_preempt);
+  ASSERT_TRUE(found_resume_transition);
 
-  EXPECT_FALSE(has_cfg_random);
-  EXPECT_FALSE(has_cfg_fire);
-  EXPECT_TRUE(has_monitor_deadline);
-  EXPECT_TRUE(has_monitor_timed);
+  EXPECT_EQ(ptpn.get_pre_matrix()[high_entry][preempt_transition], 1);
+  EXPECT_EQ(ptpn.get_pre_matrix()[low_ready][preempt_transition], 1);
+  EXPECT_EQ(ptpn.get_post_matrix()[preempt_transition][high_ready], 1);
+  EXPECT_EQ(ptpn.get_post_matrix()[preempt_transition][suspended_place], 1);
+
+  EXPECT_EQ(ptpn.get_pre_matrix()[suspended_place][resume_transition], 1);
+  EXPECT_EQ(ptpn.get_pre_matrix()[high_exit][resume_transition], 1);
+  EXPECT_EQ(ptpn.get_post_matrix()[resume_transition][low_ready], 1);
+}
+
+TEST_F(TdgExportTest, ForkJoinTransitionEdgeRules) {
+  std::string valid_json = R"({
+    "graph": {"name": "ForkJoinEdgeRules"},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": []
+    },
+    "nodes": [
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[1, 2]], "locks": []},
+      {"id": "Fork1", "type": "fork"},
+      {"id": "Join1", "type": "join"},
+      {"id": "TaskB", "type": "task", "priority": 98, "core": 0, "time": [[2, 3]], "locks": []}
+    ],
+    "edges": [
+      {"source": "TaskA", "target": "Fork1"},
+      {"source": "Join1", "target": "TaskB"}
+    ]
+  })";
+
+  TDG valid_tdg;
+  valid_tdg.parse_json_string(valid_json);
+
+  petri::PTPN valid_ptpn;
+  EXPECT_NO_THROW(converter::TDG2PN::transform(valid_tdg, valid_ptpn));
+
+  bool has_task_to_fork_arc = false;
+  bool has_join_to_task_arc = false;
+
+  const auto fork_it = valid_tdg.nodes_type.find("Fork1");
+  const auto join_it = valid_tdg.nodes_type.find("Join1");
+  ASSERT_NE(fork_it, valid_tdg.nodes_type.end());
+  ASSERT_NE(join_it, valid_tdg.nodes_type.end());
+
+  ASSERT_TRUE(std::holds_alternative<ForkTask>(fork_it->second));
+  ASSERT_TRUE(std::holds_alternative<JoinTask>(join_it->second));
+
+  const auto task_a_it = valid_ptpn.node_start_end_map.find("TaskA");
+  const auto task_b_it = valid_ptpn.node_start_end_map.find("TaskB");
+  const auto fork_map_it = valid_ptpn.node_start_end_map.find("Fork1");
+  const auto join_map_it = valid_ptpn.node_start_end_map.find("Join1");
+  ASSERT_NE(task_a_it, valid_ptpn.node_start_end_map.end());
+  ASSERT_NE(task_b_it, valid_ptpn.node_start_end_map.end());
+  ASSERT_NE(fork_map_it, valid_ptpn.node_start_end_map.end());
+  ASSERT_NE(join_map_it, valid_ptpn.node_start_end_map.end());
+
+  const size_t task_a_exit = task_a_it->second.second;
+  const size_t task_b_entry = task_b_it->second.first;
+  const size_t fork_transition = fork_map_it->second.first;
+  const size_t join_transition = join_map_it->second.first;
+
+  ASSERT_LT(task_a_exit, valid_ptpn.places.size());
+  ASSERT_LT(task_b_entry, valid_ptpn.places.size());
+  ASSERT_LT(fork_transition, valid_ptpn.transitions.size());
+  ASSERT_LT(join_transition, valid_ptpn.transitions.size());
+
+  has_task_to_fork_arc = valid_ptpn.get_pre_matrix()[task_a_exit][fork_transition] == 1;
+  has_join_to_task_arc = valid_ptpn.get_post_matrix()[join_transition][task_b_entry] == 1;
+
+  EXPECT_TRUE(has_task_to_fork_arc);
+  EXPECT_TRUE(has_join_to_task_arc);
+
+  std::string invalid_json = R"({
+    "graph": {"name": "InvalidForkJoinEdgeRules"},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": []
+    },
+    "nodes": [
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[1, 2]], "locks": []},
+      {"id": "Fork1", "type": "fork"},
+      {"id": "Join1", "type": "join"}
+    ],
+    "edges": [
+      {"source": "TaskA", "target": "Fork1"},
+      {"source": "Fork1", "target": "Join1"}
+    ]
+  })";
+
+  TDG invalid_tdg;
+  invalid_tdg.parse_json_string(invalid_json);
+
+  petri::PTPN invalid_ptpn;
+  EXPECT_THROW(converter::TDG2PN::transform(invalid_tdg, invalid_ptpn), std::runtime_error);
 }

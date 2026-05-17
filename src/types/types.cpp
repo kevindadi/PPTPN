@@ -4,6 +4,12 @@ SchedulePolicy parse_policy_string(const std::string& policy) {
   if (policy == "fixed") {
     return SchedulePolicy::FIXED;
   }
+  if (policy == "fixed_prior_with_restart") {
+    return SchedulePolicy::FIXED_PRIOR_WITH_RESTART;
+  }
+  if (policy == "fixed_prior_with_resume") {
+    return SchedulePolicy::FIXED_PRIOR_WITH_RESUME;
+  }
   if (policy == "rm") {
     return SchedulePolicy::RM;
   }
@@ -35,6 +41,10 @@ std::string policy_to_string(SchedulePolicy policy) {
   switch (policy) {
     case SchedulePolicy::FIXED:
       return "fixed";
+    case SchedulePolicy::FIXED_PRIOR_WITH_RESTART:
+      return "fixed_prior_with_restart";
+    case SchedulePolicy::FIXED_PRIOR_WITH_RESUME:
+      return "fixed_prior_with_resume";
     case SchedulePolicy::RM:
       return "rm";
     case SchedulePolicy::DM:

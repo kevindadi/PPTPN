@@ -38,7 +38,12 @@ class TDG2PN {
                                      size_t end_idx);
   static bool has_non_self_successor(const tdg::TDG& tdg, const std::string& task_name);
   static bool has_self_loop_release(const tdg::TDG& tdg, const std::string& task_name);
-  static void add_preempt_task_matrix(
+  static void fixed_prior_with_restart(
+      petri::PTPN& ptpn,
+      const std::unordered_map<int, std::vector<std::string>>& core_task,
+      const std::unordered_map<std::string, TaskConfig>& tc,
+      const std::unordered_map<std::string, NodeType>& nodes_type);
+  static void fixed_prior_with_resume(
       petri::PTPN& ptpn,
       const std::unordered_map<int, std::vector<std::string>>& core_task,
       const std::unordered_map<std::string, TaskConfig>& tc,
@@ -65,6 +70,7 @@ class TDG2PN {
                                          const std::string& source_name,
                                          const std::string& target_name);
   static void handle_normal_edge_matrix(petri::PTPN& ptpn,
+                                         const tdg::TDG& tdg,
                                          const std::string& source_name,
                                          const std::string& target_name);
 };

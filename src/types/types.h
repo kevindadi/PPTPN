@@ -12,16 +12,18 @@ enum class TaskType { NORMAL, PERIOD, APERIOD, INTERRUPT };
 
 // 实时系统调度策略
 enum class SchedulePolicy {
-  FIXED,   // Fixed Priority - 固定优先级
-  RM,      // Rate Monotonic - 周期越短优先级越高
-  DM,      // Deadline Monotonic - 截止时间越短优先级越高
-  EDF,     // Earliest Deadline First - 截止时间最早优先
-  LLF,     // Least Laxity First - 松弛时间最小优先
-  FIFO,    // First In First Out - 先来先服务
-  PIP,     // Priority Inheritance Protocol - 优先级继承协议
-  PCP,     // Priority Ceiling Protocol - 优先级天花板协议
-  SRP,     // Stack Resource Policy - 栈资源策略
-  UNKNOWN  // 未知策略
+  FIXED,                     // Fixed Priority - 固定优先级（兼容别名，默认按 resume 处理）
+  FIXED_PRIOR_WITH_RESTART,  // Fixed Priority with restart
+  FIXED_PRIOR_WITH_RESUME,   // Fixed Priority with resume
+  RM,                        // Rate Monotonic - 周期越短优先级越高
+  DM,                        // Deadline Monotonic - 截止时间越短优先级越高
+  EDF,                       // Earliest Deadline First - 截止时间最早优先
+  LLF,                       // Least Laxity First - 松弛时间最小优先
+  FIFO,                      // First In First Out - 先来先服务
+  PIP,                       // Priority Inheritance Protocol - 优先级继承协议
+  PCP,                       // Priority Ceiling Protocol - 优先级天花板协议
+  SRP,                       // Stack Resource Policy - 栈资源策略
+  UNKNOWN                    // 未知策略
 };
 
 SchedulePolicy parse_schedule_policy(const std::string& policy);
