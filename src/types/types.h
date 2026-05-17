@@ -10,7 +10,26 @@
 
 enum class TaskType { NORMAL, PERIOD, APERIOD, INTERRUPT };
 
-struct APeriodicTask {
+// 实时系统调度策略
+enum class SchedulePolicy {
+  FIXED,                     // Fixed Priority - 固定优先级（兼容别名，默认按 resume 处理）
+  FIXED_PRIOR_WITH_RESTART,  // Fixed Priority with restart
+  FIXED_PRIOR_WITH_RESUME,   // Fixed Priority with resume
+  RM,                        // Rate Monotonic - 周期越短优先级越高
+  DM,                        // Deadline Monotonic - 截止时间越短优先级越高
+  EDF,                       // Earliest Deadline First - 截止时间最早优先
+  LLF,                       // Least Laxity First - 松弛时间最小优先
+  FIFO,                      // First In First Out - 先来先服务
+  PIP,                       // Priority Inheritance Protocol - 优先级继承协议
+  PCP,                       // Priority Ceiling Protocol - 优先级天花板协议
+  SRP,                       // Stack Resource Policy - 栈资源策略
+  UNKNOWN                    // 未知策略
+};
+
+SchedulePolicy parse_schedule_policy(const std::string& policy);
+std::string schedule_policy_to_string(SchedulePolicy policy);
+
+struct TaskNode {
   std::string name;
   int core = 0;
   int priority = 100;
@@ -18,17 +37,6 @@ struct APeriodicTask {
   bool is_lock = false;
   std::vector<std::string> lock;
   TaskType task_type = TaskType::NORMAL;
-};
-
-struct PeriodicTask {
-  std::string name;
-  int core = 0;
-  int priority = 100;
-  std::vector<std::pair<int, int>> time;
-  bool is_lock = false;
-  std::vector<std::string> lock;
-  TaskType task_type = TaskType::PERIOD;
-  std::pair<int, int> period_time = {0, 0};
 };
 
 struct ForkTask {
@@ -49,8 +57,7 @@ struct EmptyTask {
   std::string name;
 };
 
-using NodeType = std::variant<PeriodicTask, APeriodicTask,
-                              ForkTask, JoinTask, EmptyTask>;
+using NodeType = std::variant<TaskNode, ForkTask, JoinTask, EmptyTask>;
 
 enum class TDGVertexType { TASK, FORK, JOIN, EMPTY };
 
@@ -59,6 +66,16 @@ struct TaskConfig {
   int priority;
   std::vector<std::pair<int, int>> times;
   std::vector<std::string> locks;
+};
+
+struct StartBinding {
+  std::string task;
+  int tokens = 1;
+};
+
+struct PeriodicBinding {
+  std::string task;
+  int period = 0;
 };
 
 #endif  // TYPES_H

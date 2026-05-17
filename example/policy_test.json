@@ -1,0 +1,23 @@
+{
+  "graph": {
+    "name": "PolicyTest"
+  },
+  "configuration": {
+    "num_cpus": 2,
+    "cores_per_cpu": 4,
+    "shared_locks": [],
+    "policy": "rm",
+    "periodic": [{"task": "A", "period": 100}]
+  },
+  "nodes": [
+    {
+      "id": "A",
+      "type": "task",
+      "priority": 97,
+      "core": 0,
+      "time": [[3, 8]],
+      "locks": []
+    }
+  ],
+  "edges": []
+}

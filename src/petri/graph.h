@@ -11,9 +11,16 @@
 
 namespace graph {
 
+enum class PlaceKind {
+  NORMAL,
+  CPU_RESOURCE,
+  LOCK_RESOURCE,
+};
+
 struct Place {
   int token = 0;
   int capacity = 1;
+  PlaceKind kind = PlaceKind::NORMAL;
 };
 
 struct Transition {

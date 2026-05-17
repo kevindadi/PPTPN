@@ -20,8 +20,12 @@ class TDG {
 
   int num_cpus = 1;
   int cores_per_cpu = 1;
+  SchedulePolicy policy = SchedulePolicy::FIXED;
 
   std::vector<NodeType> all_task;
+  std::vector<StartBinding> start_tasks;
+  std::vector<std::string> end_tasks;
+  std::vector<PeriodicBinding> periodic_tasks;
   std::unordered_map<std::string, int> tasks_priority;
   std::unordered_map<std::string, TDGVertexType> vertexes_type;
   std::unordered_map<std::string, NodeType> nodes_type;

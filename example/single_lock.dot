@@ -1,0 +1,7 @@
+digraph G {
+    TaskC [label = "TaskC\nperiodic\nprio=99 core=0\n[Pre] [0, 20], [CS:mutex1] [20, 40], [Post] [40, 60]\nperiod=[200, 200]\nlocks=[M]mutex1";];
+    TaskB [label = "TaskB\naperiodic\nprio=98 core=1\n[Pre] [0, 5], [CS:spin1] [5, 10], [Post] [10, 15]\nlocks=[S]spin1";];
+    TaskA [label = "TaskA\nperiodic\nprio=97 core=0\n[Pre] [0, 10], [CS:mutex1] [10, 30], [Post] [30, 50]\nperiod=[100, 100]\nlocks=[M]mutex1";];
+    TaskA -> TaskB [xlabel = "10";];
+    TaskB -> TaskC [xlabel = "15";];
+}

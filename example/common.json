@@ -5,58 +5,65 @@
   "configuration": {
     "num_cpus": 2,
     "cores_per_cpu": 4,
-    "shared_locks": ["lock2", "lock3", "lock5", "lock6", "lock8", "lock10"]
+    "shared_locks": [],
+    "policy": "fifo",
+    "start": [
+      {"task": "A", "tokens": 1}, {"task": "D", "tokens": 1}
+    ],
+    "end": ["C", "F"],
+    "periodic": [
+      {"task": "A", "period": 100},
+      {"task": "D", "period": 50}
+    ]
   },
   "nodes": [
     {
       "id": "A",
-      "type": "periodic",
+      "type": "task",
       "priority": 97,
       "core": 0,
-      "time": [[100, 100]],
-      "period": [100, 100],
-      "locks": ["lock3", "lock8"]
+      "time": [[3, 8]],
+      "locks": []
     },
     {
       "id": "B",
-      "type": "aperiodic",
+      "type": "task",
       "priority": 98,
       "core": 0,
       "time": [[3, 5]],
-      "locks": ["lock3", "lock5"]
+      "locks": []
     },
     {
       "id": "C",
-      "type": "aperiodic",
+      "type": "task",
       "priority": 99,
       "core": 1,
-      "time": [[3, 5]],
-      "locks": ["lock8", "lock10"]
+      "time": [[8, 10]],
+      "locks": []
     },
     {
       "id": "D",
-      "type": "periodic",
+      "type": "task",
       "priority": 97,
       "core": 1,
-      "time": [[50, 50]],
-      "period": [50, 50],
-      "locks": ["lock6", "lock8"]
+      "time": [[6, 8]],
+      "locks": []
     },
     {
       "id": "E",
-      "type": "aperiodic",
+      "type": "task",
       "priority": 98,
       "core": 1,
-      "time": [[3, 5]],
-      "locks": ["lock2", "lock3"]
+      "time": [[15, 18]],
+      "locks": []
     },
     {
       "id": "F",
-      "type": "aperiodic",
+      "type": "task",
       "priority": 96,
       "core": 0,
       "time": [[3, 3]],
-      "locks": ["lock3"]
+      "locks": []
     }
   ],
   "edges": [

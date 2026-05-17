@@ -1,10 +1,10 @@
 digraph G {
-    F [label = "F\naperiodic\nprio=96 core=0\ntime=[3, 3]\nlocks=lock3";];
-    E [label = "E\naperiodic\nprio=98 core=1\ntime=[3, 5]\nlocks=lock2, lock3";];
-    A [label = "A\nperiodic\nprio=97 core=0\ntime=[100, 100]\nperiod=[100, 100]\nlocks=lock3, lock8";];
-    D [label = "D\nperiodic\nprio=97 core=1\ntime=[50, 50]\nperiod=[50, 50]\nlocks=lock6, lock8";];
-    C [label = "C\naperiodic\nprio=99 core=1\ntime=[3, 5]\nlocks=lock8, lock10";];
-    B [label = "B\naperiodic\nprio=98 core=0\ntime=[3, 5]\nlocks=lock3, lock5";];
+    F [label = "F\ntask\nprio=96 core=0\n[Exec] [3, 3]\nlocks=none";];
+    E [label = "E\ntask\nprio=98 core=1\n[Exec] [15, 18]\nlocks=none";];
+    A [label = "A\ntask\nprio=97 core=0\n[Exec] [3, 8]\nlocks=none";];
+    D [label = "D\ntask\nprio=97 core=1\n[Exec] [6, 8]\nlocks=none";];
+    C [label = "C\ntask\nprio=99 core=1\n[Exec] [8, 10]\nlocks=none";];
+    B [label = "B\ntask\nprio=98 core=0\n[Exec] [3, 5]\nlocks=none";];
     A -> B [xlabel = "19";];
     B -> C [xlabel = "19";];
     D -> E [xlabel = "19";];

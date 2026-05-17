@@ -7,6 +7,48 @@
 
 namespace tdg {
 
+void add_parsed_node(tdg::TDG& tdg, const NodeType& node_type, bool log_node) {
+  if (std::holds_alternative<TaskNode>(node_type)) {
+    const auto& task = std::get<TaskNode>(node_type);
+    tdg.all_task.emplace_back(node_type);
+    tdg.tasks_priority.insert({task.name, task.priority});
+    tdg.nodes_type.insert({task.name, node_type});
+    tdg.vertexes_type.insert({task.name, TDGVertexType::TASK});
+    tdg.tasks_type.insert({task.name, TaskType::NORMAL});
+
+    for (const auto& lock : task.lock) {
+      tdg.lock_set.insert(lock);
+      tdg.task_locks_map[task.name].push_back(lock);
+    }
+
+    if (log_node) {
+      spdlog::info("[TDG] Node '{}' -> task (priority={}, core={})",
+                   task.name, task.priority, task.core);
+    }
+  } else if (std::holds_alternative<ForkTask>(node_type)) {
+    const auto& task = std::get<ForkTask>(node_type);
+    tdg.nodes_type.insert({task.name, node_type});
+    tdg.vertexes_type.insert({task.name, TDGVertexType::FORK});
+    if (log_node) {
+      spdlog::info("[TDG] Node '{}' -> fork", task.name);
+    }
+  } else if (std::holds_alternative<JoinTask>(node_type)) {
+    const auto& task = std::get<JoinTask>(node_type);
+    tdg.nodes_type.insert({task.name, node_type});
+    tdg.vertexes_type.insert({task.name, TDGVertexType::JOIN});
+    if (log_node) {
+      spdlog::info("[TDG] Node '{}' -> join", task.name);
+    }
+  } else if (std::holds_alternative<EmptyTask>(node_type)) {
+    const auto& task = std::get<EmptyTask>(node_type);
+    tdg.nodes_type.insert({task.name, node_type});
+    tdg.vertexes_type.insert({task.name, TDGVertexType::EMPTY});
+    if (log_node) {
+      spdlog::info("[TDG] Node '{}' -> empty", task.name);
+    }
+  }
+}
+
 void TDG::parse_json(const std::string& json_file) {
   spdlog::info("[TDG] Starting JSON parsing: {}", json_file);
 
@@ -20,62 +62,15 @@ void TDG::parse_json(const std::string& json_file) {
 
   num_cpus = parser.get_num_cpus();
   cores_per_cpu = parser.get_cores_per_cpu();
+  policy = parser.get_policy();
+  start_tasks = parser.get_start_tasks();
+  end_tasks = parser.get_end_tasks();
+  periodic_tasks = parser.get_periodic_tasks();
 
   spdlog::info("[TDG] Configuration: {} CPUs, {} cores per CPU", num_cpus, cores_per_cpu);
 
   for (const auto& json_node : parser.get_nodes()) {
-    NodeType node_type = json_node.to_node_type();
-
-    if (std::holds_alternative<PeriodicTask>(node_type)) {
-      const auto& task = std::get<PeriodicTask>(node_type);
-      all_task.emplace_back(node_type);
-      tasks_priority.insert({task.name, task.priority});
-      nodes_type.insert({task.name, node_type});
-      vertexes_type.insert({task.name, TDGVertexType::TASK});
-      tasks_type.insert({task.name, TaskType::PERIOD});
-
-      for (const auto& lock : task.lock) {
-        lock_set.insert(lock);
-        task_locks_map[task.name].push_back(lock);
-      }
-
-      spdlog::info("[TDG] Node '{}' -> periodic (priority={}, core={})",
-                   task.name, task.priority, task.core);
-
-    } else if (std::holds_alternative<APeriodicTask>(node_type)) {
-      const auto& task = std::get<APeriodicTask>(node_type);
-      all_task.emplace_back(node_type);
-      tasks_priority.insert({task.name, task.priority});
-      nodes_type.insert({task.name, node_type});
-      vertexes_type.insert({task.name, TDGVertexType::TASK});
-      tasks_type.insert({task.name, TaskType::NORMAL});
-
-      for (const auto& lock : task.lock) {
-        lock_set.insert(lock);
-        task_locks_map[task.name].push_back(lock);
-      }
-
-      spdlog::info("[TDG] Node '{}' -> aperiodic (priority={}, core={})",
-                   task.name, task.priority, task.core);
-
-    } else if (std::holds_alternative<ForkTask>(node_type)) {
-      const auto& task = std::get<ForkTask>(node_type);
-      nodes_type.insert({task.name, node_type});
-      vertexes_type.insert({task.name, TDGVertexType::FORK});
-      spdlog::info("[TDG] Node '{}' -> fork", task.name);
-
-    } else if (std::holds_alternative<JoinTask>(node_type)) {
-      const auto& task = std::get<JoinTask>(node_type);
-      nodes_type.insert({task.name, node_type});
-      vertexes_type.insert({task.name, TDGVertexType::JOIN});
-      spdlog::info("[TDG] Node '{}' -> join", task.name);
-
-    } else if (std::holds_alternative<EmptyTask>(node_type)) {
-      const auto& task = std::get<EmptyTask>(node_type);
-      nodes_type.insert({task.name, node_type});
-      vertexes_type.insert({task.name, TDGVertexType::EMPTY});
-      spdlog::info("[TDG] Node '{}' -> empty", task.name);
-    }
+    add_parsed_node(*this, json_node.to_node_type(), true);
   }
 
   for (const auto& edge : parser.get_edges()) {
@@ -96,51 +91,13 @@ void TDG::parse_json_string(const std::string& json_content) {
 
   num_cpus = parser.get_num_cpus();
   cores_per_cpu = parser.get_cores_per_cpu();
+  policy = parser.get_policy();
+  start_tasks = parser.get_start_tasks();
+  end_tasks = parser.get_end_tasks();
+  periodic_tasks = parser.get_periodic_tasks();
 
   for (const auto& json_node : parser.get_nodes()) {
-    NodeType node_type = json_node.to_node_type();
-
-    if (std::holds_alternative<PeriodicTask>(node_type)) {
-      const auto& task = std::get<PeriodicTask>(node_type);
-      all_task.emplace_back(node_type);
-      tasks_priority.insert({task.name, task.priority});
-      nodes_type.insert({task.name, node_type});
-      vertexes_type.insert({task.name, TDGVertexType::TASK});
-      tasks_type.insert({task.name, TaskType::PERIOD});
-
-      for (const auto& lock : task.lock) {
-        lock_set.insert(lock);
-        task_locks_map[task.name].push_back(lock);
-      }
-
-    } else if (std::holds_alternative<APeriodicTask>(node_type)) {
-      const auto& task = std::get<APeriodicTask>(node_type);
-      all_task.emplace_back(node_type);
-      tasks_priority.insert({task.name, task.priority});
-      nodes_type.insert({task.name, node_type});
-      vertexes_type.insert({task.name, TDGVertexType::TASK});
-      tasks_type.insert({task.name, TaskType::NORMAL});
-
-      for (const auto& lock : task.lock) {
-        lock_set.insert(lock);
-        task_locks_map[task.name].push_back(lock);
-      }
-
-    } else if (std::holds_alternative<ForkTask>(node_type)) {
-      const auto& task = std::get<ForkTask>(node_type);
-      nodes_type.insert({task.name, node_type});
-      vertexes_type.insert({task.name, TDGVertexType::FORK});
-
-    } else if (std::holds_alternative<JoinTask>(node_type)) {
-      const auto& task = std::get<JoinTask>(node_type);
-      nodes_type.insert({task.name, node_type});
-      vertexes_type.insert({task.name, TDGVertexType::JOIN});
-
-    } else if (std::holds_alternative<EmptyTask>(node_type)) {
-      const auto& task = std::get<EmptyTask>(node_type);
-      nodes_type.insert({task.name, node_type});
-      vertexes_type.insert({task.name, TDGVertexType::EMPTY});
-    }
+    add_parsed_node(*this, json_node.to_node_type(), false);
   }
 
   for (const auto& edge : parser.get_edges()) {
@@ -201,13 +158,8 @@ std::unordered_map<int, std::vector<std::string>> TDG::classify_priority() {
   std::unordered_map<int, std::vector<std::string>> core_task;
 
   for (const auto& task : all_task) {
-    if (std::holds_alternative<APeriodicTask>(task)) {
-      auto result = std::get<APeriodicTask>(task);
-      TaskConfig tc = {result.core, result.priority, result.time, result.lock};
-      tasks_config.insert({result.name, tc});
-      core_task[result.core].push_back(result.name);
-    } else if (std::holds_alternative<PeriodicTask>(task)) {
-      auto result = std::get<PeriodicTask>(task);
+    if (std::holds_alternative<TaskNode>(task)) {
+      auto result = std::get<TaskNode>(task);
       TaskConfig tc = {result.core, result.priority, result.time, result.lock};
       tasks_config.insert({result.name, tc});
       core_task[result.core].push_back(result.name);

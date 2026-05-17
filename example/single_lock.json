@@ -1,0 +1,41 @@
+{
+  "graph": {
+    "name": "SingleLockGraph"
+  },
+  "configuration": {
+    "num_cpus": 2,
+    "cores_per_cpu": 4,
+    "shared_locks": ["mutex1", "spin1"],
+    "periodic": [{"task": "TaskA", "period": 100}, {"task": "TaskC", "period": 200}]
+  },
+  "nodes": [
+    {
+      "id": "TaskA",
+      "type": "task",
+      "priority": 97,
+      "core": 0,
+      "time": [[0, 10], [10, 30], [30, 50]],
+      "locks": ["mutex1"]
+    },
+    {
+      "id": "TaskB",
+      "type": "task",
+      "priority": 98,
+      "core": 1,
+      "time": [[0, 5], [5, 10], [10, 15]],
+      "locks": ["spin1"]
+    },
+    {
+      "id": "TaskC",
+      "type": "task",
+      "priority": 99,
+      "core": 0,
+      "time": [[0, 20], [20, 40], [40, 60]],
+      "locks": ["mutex1"]
+    }
+  ],
+  "edges": [
+    {"source": "TaskA", "target": "TaskB", "label": "10"},
+    {"source": "TaskB", "target": "TaskC", "label": "15"}
+  ]
+}
