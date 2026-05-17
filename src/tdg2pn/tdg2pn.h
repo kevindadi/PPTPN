@@ -21,9 +21,8 @@ class TDG2PN {
   static std::unordered_map<int, std::vector<std::string>> classify_tdg_priority(const tdg::TDG& tdg);
   static void transform_vertices(petri::PTPN& ptpn, const tdg::TDG& tdg);
   static void transform_edges(petri::PTPN& ptpn, const tdg::TDG& tdg);
-    static std::pair<size_t, size_t> add_node_matrix(petri::PTPN& ptpn, const std::variant<PeriodicTask, APeriodicTask, ForkTask, JoinTask, EmptyTask>& node_type);
-  static std::pair<size_t, size_t> add_p_node_matrix(petri::PTPN& ptpn, PeriodicTask& p_task);
-  static std::pair<size_t, size_t> add_ap_node_matrix(petri::PTPN& ptpn, APeriodicTask& ap_task);
+  static std::pair<size_t, size_t> add_node_matrix(petri::PTPN& ptpn, const NodeType& node_type);
+  static std::pair<size_t, size_t> add_task_node_matrix(petri::PTPN& ptpn, const ::TaskNode& task);
   static std::vector<size_t> add_execution_chain(petri::PTPN& ptpn,
                                                  const std::string& task_name,
                                                  const std::vector<std::pair<int, int>>& times,
@@ -32,7 +31,19 @@ class TDG2PN {
                                                  int core);
   static void add_monitor_matrix(petri::PTPN& ptpn, const std::string& task_name,
                                   int task_period_time, size_t start, size_t end);
-  static void add_preempt_task_matrix(
+  static void add_start_bindings(petri::PTPN& ptpn, const tdg::TDG& tdg);
+  static void add_end_consumers(petri::PTPN& ptpn, const tdg::TDG& tdg);
+  static void add_periodic_release_bindings(petri::PTPN& ptpn, const tdg::TDG& tdg);
+  static void add_consume_transition(petri::PTPN& ptpn, const std::string& task_name,
+                                     size_t end_idx);
+  static bool has_non_self_successor(const tdg::TDG& tdg, const std::string& task_name);
+  static bool has_self_loop_release(const tdg::TDG& tdg, const std::string& task_name);
+  static void fixed_prior_with_restart(
+      petri::PTPN& ptpn,
+      const std::unordered_map<int, std::vector<std::string>>& core_task,
+      const std::unordered_map<std::string, TaskConfig>& tc,
+      const std::unordered_map<std::string, NodeType>& nodes_type);
+  static void fixed_prior_with_resume(
       petri::PTPN& ptpn,
       const std::unordered_map<int, std::vector<std::string>>& core_task,
       const std::unordered_map<std::string, TaskConfig>& tc,
@@ -59,6 +70,7 @@ class TDG2PN {
                                          const std::string& source_name,
                                          const std::string& target_name);
   static void handle_normal_edge_matrix(petri::PTPN& ptpn,
+                                         const tdg::TDG& tdg,
                                          const std::string& source_name,
                                          const std::string& target_name);
 };

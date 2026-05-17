@@ -38,7 +38,6 @@ struct JsonNode {
   int priority = 100;
   int core = 0;
   std::vector<std::pair<int, int>> time;
-  std::pair<int, int> period = {0, 0};
   std::vector<std::string> locks;
 
   NodeType to_node_type() const;
@@ -57,6 +56,9 @@ struct JsonGraph {
   int cores_per_cpu = 1;
   std::vector<std::string> shared_locks;
   SchedulePolicy policy = SchedulePolicy::FIXED;  // 调度策略
+  std::vector<StartBinding> start_tasks;
+  std::vector<std::string> end_tasks;
+  std::vector<PeriodicBinding> periodic_tasks;
   std::vector<JsonNode> nodes;
   std::vector<JsonEdge> edges;
 };
@@ -72,6 +74,9 @@ class Parser {
   int get_num_cpus() const { return graph_.num_cpus; }
   int get_cores_per_cpu() const { return graph_.cores_per_cpu; }
   SchedulePolicy get_policy() const { return graph_.policy; }
+  const std::vector<StartBinding>& get_start_tasks() const { return graph_.start_tasks; }
+  const std::vector<std::string>& get_end_tasks() const { return graph_.end_tasks; }
+  const std::vector<PeriodicBinding>& get_periodic_tasks() const { return graph_.periodic_tasks; }
   const std::vector<JsonNode>& get_nodes() const { return graph_.nodes; }
   const std::vector<JsonEdge>& get_edges() const { return graph_.edges; }
   const std::string& get_original_json() const { return original_json_; }
