@@ -592,16 +592,6 @@ std::pair<size_t, size_t> TDG2PN::add_p_node_matrix(petri::PTPN& ptpn, PeriodicT
   size_t entry = chain.front();
   size_t exit = chain.back();
 
-  size_t random = ptpn.add_place(p_task.name + "random", 1);
-  petri::TimeInterval fire_interval(p_task.period_time.first,
-                                    p_task.period_time.second);
-  size_t fire = ptpn.add_transition(p_task.name + "fire", fire_interval, 411, 411, false);
-
-  ptpn.set_initial_marking(random, 1);
-  ptpn.set_pre_arc(random, fire, 1);
-  ptpn.set_post_arc(fire, random, 1);
-  ptpn.set_post_arc(fire, entry, 1);
-
   ptpn.node_pn_map[p_task.name] = chain;
 
   return std::make_pair(entry, exit);

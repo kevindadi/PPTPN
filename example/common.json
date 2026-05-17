@@ -10,7 +10,7 @@
     "start": [
       {"task": "A", "tokens": 1}, {"task": "D", "tokens": 1}
     ],
-    "end": ["C"],
+    "end": ["C", "F"],
     "periodic": ["A", "D"]
   },
   "nodes": [

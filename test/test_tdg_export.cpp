@@ -2,6 +2,8 @@
 #include <fstream>
 #include "tdg/tdg.h"
 #include "json/json.h"
+#include "tdg2pn/tdg2pn.h"
+#include "petri/petri.h"
 
 using tdg::TDG;
 using parse::Parser;
@@ -161,4 +163,109 @@ TEST_F(TdgExportTest, EmptyNode) {
 
   std::string dot = tdg.to_dot_string();
   EXPECT_NE(dot.find("Empty1"), std::string::npos);
+}
+
+TEST_F(TdgExportTest, ConfigurationPeriodicReleaseCreatesSingleReleaseStructure) {
+  std::string json = R"({
+    "graph": {"name": "PeriodicConfigTest"},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": [],
+      "periodic": ["TaskA"]
+    },
+    "nodes": [
+      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": []},
+      {"id": "TaskB", "type": "aperiodic", "priority": 98, "core": 0, "time": [[1, 2]], "locks": []}
+    ],
+    "edges": [
+      {"source": "TaskA", "target": "TaskB"}
+    ]
+  })";
+
+  TDG tdg;
+  tdg.parse_json_string(json);
+
+  petri::PTPN ptpn;
+  converter::TDG2PN::transform(tdg, ptpn);
+
+  bool has_cfg_random = false;
+  bool has_cfg_fire = false;
+  bool has_legacy_random = false;
+  bool has_legacy_fire = false;
+
+  for (const auto& place : ptpn.places) {
+    if (place.name == "TaskA_cfg_random") {
+      has_cfg_random = true;
+    }
+    if (place.name == "TaskArandom") {
+      has_legacy_random = true;
+    }
+  }
+
+  for (const auto& transition : ptpn.transitions) {
+    if (transition.name == "TaskA_cfg_fire") {
+      has_cfg_fire = true;
+    }
+    if (transition.name == "TaskAfire") {
+      has_legacy_fire = true;
+    }
+  }
+
+  EXPECT_TRUE(has_cfg_random);
+  EXPECT_TRUE(has_cfg_fire);
+  EXPECT_FALSE(has_legacy_random);
+  EXPECT_FALSE(has_legacy_fire);
+}
+
+TEST_F(TdgExportTest, SelfLoopPeriodicReleaseSkipsConfigurationReleaseStructure) {
+  std::string json = R"({
+    "graph": {"name": "PeriodicSelfLoopTest"},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": [],
+      "periodic": ["TaskA"]
+    },
+    "nodes": [
+      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": []}
+    ],
+    "edges": [
+      {"source": "TaskA", "target": "TaskA", "label": "100"}
+    ]
+  })";
+
+  TDG tdg;
+  tdg.parse_json_string(json);
+
+  petri::PTPN ptpn;
+  converter::TDG2PN::transform(tdg, ptpn);
+
+  bool has_cfg_random = false;
+  bool has_cfg_fire = false;
+  bool has_monitor_deadline = false;
+  bool has_monitor_timed = false;
+
+  for (const auto& place : ptpn.places) {
+    if (place.name == "TaskA_cfg_random") {
+      has_cfg_random = true;
+    }
+    if (place.name == "TaskAdeadline") {
+      has_monitor_deadline = true;
+    }
+  }
+
+  for (const auto& transition : ptpn.transitions) {
+    if (transition.name == "TaskA_cfg_fire") {
+      has_cfg_fire = true;
+    }
+    if (transition.name == "TaskAtimed") {
+      has_monitor_timed = true;
+    }
+  }
+
+  EXPECT_FALSE(has_cfg_random);
+  EXPECT_FALSE(has_cfg_fire);
+  EXPECT_TRUE(has_monitor_deadline);
+  EXPECT_TRUE(has_monitor_timed);
 }
