@@ -47,9 +47,13 @@ void TDG2PN::transform(const tdg::TDG& tdg, petri::PTPN& ptpn) {
     info("[TDG2PN] Transforming edges...");
     transform_edges(ptpn, tdg);
 
-    info("[TDG2PN] Creating priority preemption relations...");
-    auto core_task = classify_tdg_priority(tdg);
-    add_preempt_task_matrix(ptpn, core_task, tasks_config, tdg.nodes_type);
+    if (tdg.policy == SchedulePolicy::FIXED) {
+      info("[TDG2PN] Creating priority preemption relations...");
+      auto core_task = classify_tdg_priority(tdg);
+      add_preempt_task_matrix(ptpn, core_task, tasks_config, tdg.nodes_type);
+    } else {
+      info("[TDG2PN] Skipping preemption expansion for non-fixed policy");
+    }
 
     info("[TDG2PN] Adding resources and bindings...");
     add_resources_and_bindings_matrix(ptpn, tdg);
@@ -354,8 +358,8 @@ void TDG2PN::bind_task_locks_matrix(petri::PTPN& ptpn,
     try {
       const std::string& lock_type = lock_types[i];
 
-      const size_t get_lock = task_pt_chain[3 + 2 * i];
-      const size_t drop_lock = task_pt_chain[task_pt_chain.size() - 2 - 2 * (i + 1)];
+      const size_t get_lock = 5 + 4 * i;
+      const size_t drop_lock = task_pt_chain.size() - 4 - 2 * i;
 
       auto lock_it = ptpn.locks_place.find(lock_type);
       if (lock_it == ptpn.locks_place.end()) {
@@ -363,11 +367,18 @@ void TDG2PN::bind_task_locks_matrix(petri::PTPN& ptpn,
       }
       const size_t lock = lock_it->second;
 
-      if (get_lock < ptpn.transitions.size()) {
-        ptpn.set_pre_arc(lock, get_lock, 1);
+      if (get_lock >= task_pt_chain.size() || drop_lock >= task_pt_chain.size()) {
+        throw std::runtime_error("Task chain layout does not match lock structure for: " + task_name);
       }
-      if (drop_lock < ptpn.transitions.size()) {
-        ptpn.set_post_arc(drop_lock, lock, 1);
+
+      const size_t get_lock_transition = task_pt_chain[get_lock];
+      const size_t drop_lock_transition = task_pt_chain[drop_lock];
+
+      if (get_lock_transition < ptpn.transitions.size()) {
+        ptpn.set_pre_arc(lock, get_lock_transition, 1);
+      }
+      if (drop_lock_transition < ptpn.transitions.size()) {
+        ptpn.set_post_arc(drop_lock_transition, lock, 1);
       }
 
       spdlog::debug("[TDG2PN] Bound lock {} to task {}", lock_type, task_name);
@@ -405,17 +416,77 @@ std::pair<size_t, size_t> TDG2PN::add_node_matrix(petri::PTPN& ptpn,
   }
 }
 
-std::pair<size_t, size_t> TDG2PN::add_p_node_matrix(petri::PTPN& ptpn, PeriodicTask& p_task) {
-  size_t entry = ptpn.add_place(p_task.name + "entry", 1);
+std::vector<size_t> TDG2PN::add_execution_chain(petri::PTPN& ptpn,
+                                                const std::string& task_name,
+                                                const std::vector<std::pair<int, int>>& times,
+                                                const std::vector<std::string>& locks,
+                                                int priority,
+                                                int core) {
+  if (times.empty()) {
+    throw std::runtime_error("Task has no execution segments: " + task_name);
+  }
+
+  std::vector<size_t> chain;
+
+  size_t entry = ptpn.add_place(task_name + "entry", 1);
   petri::TimeInterval get_core_interval(0, 0);
-  size_t get_core = ptpn.add_transition(p_task.name + "get_core", get_core_interval,
-                                         p_task.priority, p_task.core, false);
-  size_t ready = ptpn.add_place(p_task.name + "ready", 1);
-  petri::TimeInterval exec_interval(p_task.time.front().first,
-                                    p_task.time.front().second);
-  size_t exec = ptpn.add_transition(p_task.name + "exec", exec_interval,
-                                    p_task.priority, p_task.core, false);
-  size_t exit = ptpn.add_place(p_task.name + "exit", 1);
+  size_t get_core = ptpn.add_transition(task_name + "get_core", get_core_interval,
+                                        priority, core, false);
+  size_t ready = ptpn.add_place(task_name + "ready", 1);
+
+  ptpn.set_pre_arc(entry, get_core, 1);
+  ptpn.set_post_arc(get_core, ready, 1);
+
+  chain.push_back(entry);
+  chain.push_back(get_core);
+  chain.push_back(ready);
+
+  size_t current_place = ready;
+
+  for (size_t i = 0; i < times.size(); ++i) {
+    const auto& [start, end] = times[i];
+    std::string exec_name = times.size() == 1
+        ? task_name + "exec"
+        : task_name + "_exec_" + std::to_string(i + 1);
+    petri::TimeInterval exec_interval(start, end);
+    size_t exec = ptpn.add_transition(exec_name, exec_interval, priority, core, false);
+
+    const bool is_last_segment = (i == times.size() - 1);
+    std::string next_place_name = is_last_segment
+        ? task_name + "exit"
+        : task_name + "_seg_" + std::to_string(i + 1) + "_done";
+    size_t next_place = ptpn.add_place(next_place_name, 1);
+
+    ptpn.set_pre_arc(current_place, exec, 1);
+    ptpn.set_post_arc(exec, next_place, 1);
+
+    chain.push_back(exec);
+    chain.push_back(next_place);
+    current_place = next_place;
+
+    if (i < locks.size()) {
+      petri::TimeInterval lock_interval(0, 0);
+      std::string lock_name = task_name + "_lock_" + std::to_string(i + 1);
+      size_t lock_transition = ptpn.add_transition(lock_name, lock_interval, priority, core, false);
+      size_t hold_place = ptpn.add_place(task_name + "_hold_" + std::to_string(i + 1), 1);
+
+      ptpn.set_pre_arc(current_place, lock_transition, 1);
+      ptpn.set_post_arc(lock_transition, hold_place, 1);
+
+      chain.push_back(lock_transition);
+      chain.push_back(hold_place);
+      current_place = hold_place;
+    }
+  }
+
+  return chain;
+}
+
+std::pair<size_t, size_t> TDG2PN::add_p_node_matrix(petri::PTPN& ptpn, PeriodicTask& p_task) {
+  std::vector<size_t> chain = add_execution_chain(ptpn, p_task.name, p_task.time,
+                                                  p_task.lock, p_task.priority, p_task.core);
+  size_t entry = chain.front();
+  size_t exit = chain.back();
 
   size_t random = ptpn.add_place(p_task.name + "random", 1);
   petri::TimeInterval fire_interval(p_task.period_time.first,
@@ -423,39 +494,21 @@ std::pair<size_t, size_t> TDG2PN::add_p_node_matrix(petri::PTPN& ptpn, PeriodicT
   size_t fire = ptpn.add_transition(p_task.name + "fire", fire_interval, 411, 411, false);
 
   ptpn.set_initial_marking(random, 1);
-
   ptpn.set_pre_arc(random, fire, 1);
   ptpn.set_post_arc(fire, random, 1);
   ptpn.set_post_arc(fire, entry, 1);
-  ptpn.set_pre_arc(entry, get_core, 1);
-  ptpn.set_post_arc(get_core, ready, 1);
-  ptpn.set_pre_arc(ready, exec, 1);
-  ptpn.set_post_arc(exec, exit, 1);
 
-  std::vector<size_t> chain = {entry, get_core, ready, exec, exit};
   ptpn.node_pn_map[p_task.name] = chain;
 
   return std::make_pair(entry, exit);
 }
 
 std::pair<size_t, size_t> TDG2PN::add_ap_node_matrix(petri::PTPN& ptpn, APeriodicTask& ap_task) {
-  size_t entry = ptpn.add_place(ap_task.name + "entry", 1);
-  petri::TimeInterval get_core_interval(0, 0);
-  size_t get_core = ptpn.add_transition(ap_task.name + "get_core", get_core_interval,
-                                        ap_task.priority, ap_task.core, false);
-  size_t ready = ptpn.add_place(ap_task.name + "ready", 1);
-  petri::TimeInterval exec_interval(ap_task.time.front().first,
-                                    ap_task.time.front().second);
-  size_t exec = ptpn.add_transition(ap_task.name + "exec", exec_interval,
-                                    ap_task.priority, ap_task.core, false);
-  size_t exit = ptpn.add_place(ap_task.name + "exit", 1);
+  std::vector<size_t> chain = add_execution_chain(ptpn, ap_task.name, ap_task.time,
+                                                  ap_task.lock, ap_task.priority, ap_task.core);
+  size_t entry = chain.front();
+  size_t exit = chain.back();
 
-  ptpn.set_pre_arc(entry, get_core, 1);
-  ptpn.set_post_arc(get_core, ready, 1);
-  ptpn.set_pre_arc(ready, exec, 1);
-  ptpn.set_post_arc(exec, exit, 1);
-
-  std::vector<size_t> chain = {entry, get_core, ready, exec, exit};
   ptpn.node_pn_map[ap_task.name] = chain;
 
   return std::make_pair(entry, exit);

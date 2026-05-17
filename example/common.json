@@ -5,7 +5,8 @@
   "configuration": {
     "num_cpus": 2,
     "cores_per_cpu": 4,
-    "shared_locks": []
+    "shared_locks": [],
+    "policy": "fifo"
   },
   "nodes": [
     {
