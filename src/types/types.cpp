@@ -1,7 +1,5 @@
 #include "types/types.h"
 
-namespace {
-
 SchedulePolicy parse_policy_string(const std::string& policy) {
   if (policy == "fixed") {
     return SchedulePolicy::FIXED;
@@ -57,8 +55,6 @@ std::string policy_to_string(SchedulePolicy policy) {
       return "unknown";
   }
 }
-
-}  // namespace
 
 SchedulePolicy parse_schedule_policy(const std::string& policy) {
   return parse_policy_string(policy);
