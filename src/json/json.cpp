@@ -37,6 +37,51 @@ std::string format_locks(const std::vector<std::string>& locks) {
   return oss.str();
 }
 
+StartBinding parse_start_binding(const nlohmann::json& binding_obj) {
+  StartBinding binding;
+  if (binding_obj.is_string()) {
+    binding.task = binding_obj.get<std::string>();
+    return binding;
+  }
+
+  binding.task = binding_obj.value("task", "");
+  if (binding_obj.contains("tokens")) {
+    binding.tokens = binding_obj["tokens"].get<int>();
+  }
+  return binding;
+}
+
+bool is_task_type(const std::string& type) {
+  return type == "periodic" || type == "aperiodic";
+}
+
+bool has_incoming_edge(const parse::JsonGraph& graph, const std::string& node_id) {
+  for (const auto& edge : graph.edges) {
+    if (edge.target == node_id && edge.source != node_id) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool has_outgoing_edge(const parse::JsonGraph& graph, const std::string& node_id) {
+  for (const auto& edge : graph.edges) {
+    if (edge.source == node_id && edge.target != node_id) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool has_self_loop_edge(const parse::JsonGraph& graph, const std::string& node_id) {
+  for (const auto& edge : graph.edges) {
+    if (edge.source == node_id && edge.target == node_id) {
+      return true;
+    }
+  }
+  return false;
+}
+
 std::string build_node_label(const parse::JsonNode& node) {
   std::ostringstream oss;
   oss << node.id << "\\n" << node.type;
@@ -156,6 +201,9 @@ ParseResult Parser::parse_file(const std::string& file_path) {
 ParseResult Parser::parse_string(const std::string& json_content) {
   spdlog::info("[JSON] Parsing JSON content ({} characters)", json_content.size());
 
+  graph_ = JsonGraph{};
+  original_json_ = json_content;
+
   try {
     auto j = json::parse(json_content);
     spdlog::debug("[JSON] JSON parsed successfully");
@@ -212,6 +260,17 @@ void Parser::parse_configuration_object(const nlohmann::json& config) {
   if (config.contains("policy")) {
     std::string policy_str = config["policy"].get<std::string>();
     graph_.policy = parse_schedule_policy(policy_str);
+  }
+  if (config.contains("start")) {
+    for (const auto& start_obj : config["start"]) {
+      graph_.start_tasks.push_back(parse_start_binding(start_obj));
+    }
+  }
+  if (config.contains("end")) {
+    graph_.end_tasks = config["end"].get<std::vector<std::string>>();
+  }
+  if (config.contains("periodic")) {
+    graph_.periodic_tasks = config["periodic"].get<std::vector<std::string>>();
   }
 }
 
@@ -307,6 +366,56 @@ ValidationResult Parser::validate() const {
     }
     if (node_ids.find(edge.target) == node_ids.end()) {
       result.add_error("Edge references unknown target node: " + edge.target);
+    }
+  }
+
+  std::unordered_map<std::string, std::string> node_types;
+  for (const auto& node : graph_.nodes) {
+    node_types[node.id] = node.type;
+  }
+
+  for (const auto& start_task : graph_.start_tasks) {
+    if (node_ids.find(start_task.task) == node_ids.end()) {
+      result.add_error("Start task references unknown node: " + start_task.task);
+      continue;
+    }
+    if (!is_task_type(node_types[start_task.task])) {
+      result.add_error("Start task must reference a task node: " + start_task.task);
+      continue;
+    }
+    if (start_task.tokens < 0) {
+      result.add_error("Start task token count must be non-negative: " + start_task.task);
+    }
+    if (has_incoming_edge(graph_, start_task.task)) {
+      result.add_warning("Start task " + start_task.task + " has predecessor edges");
+    }
+  }
+
+  for (const auto& end_task : graph_.end_tasks) {
+    if (node_ids.find(end_task) == node_ids.end()) {
+      result.add_error("End task references unknown node: " + end_task);
+      continue;
+    }
+    if (!is_task_type(node_types[end_task])) {
+      result.add_error("End task must reference a task node: " + end_task);
+      continue;
+    }
+    if (has_outgoing_edge(graph_, end_task)) {
+      result.add_warning("End task " + end_task + " has successor edges");
+    }
+  }
+
+  for (const auto& periodic_task : graph_.periodic_tasks) {
+    if (node_ids.find(periodic_task) == node_ids.end()) {
+      result.add_error("Periodic task references unknown node: " + periodic_task);
+      continue;
+    }
+    if (!is_task_type(node_types[periodic_task])) {
+      result.add_error("Periodic task must reference a task node: " + periodic_task);
+      continue;
+    }
+    if (has_self_loop_edge(graph_, periodic_task)) {
+      result.add_warning("Periodic task " + periodic_task + " already has a self-loop release edge");
     }
   }
 
@@ -467,29 +576,6 @@ std::string node_type_to_string(const NodeType& node) {
   } else {
     return "empty";
   }
-}
-
-std::string format_range(const std::pair<int, int>& range) {
-  return "[" + std::to_string(range.first) + ", " + std::to_string(range.second) + "]";
-}
-
-std::string format_time_ranges(const std::vector<std::pair<int, int>>& time_ranges) {
-  std::ostringstream oss;
-  for (size_t i = 0; i < time_ranges.size(); ++i) {
-    if (i > 0) oss << ", ";
-    oss << format_range(time_ranges[i]);
-  }
-  return oss.str();
-}
-
-std::string format_locks(const std::vector<std::string>& locks) {
-  if (locks.empty()) return "none";
-  std::ostringstream oss;
-  for (size_t i = 0; i < locks.size(); ++i) {
-    if (i > 0) oss << ", ";
-    oss << locks[i];
-  }
-  return oss.str();
 }
 
 std::string node_to_dot_label(const NodeType& node) {

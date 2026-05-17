@@ -382,3 +382,166 @@ TEST_F(ValidationTest, CorrectTimeIntervalCountTwoLocks) {
   auto validation = parser.validate();
   EXPECT_TRUE(validation.success);
 }
+
+TEST_F(ValidationTest, StartTaskUnknownNode) {
+  std::string json = R"({
+    "graph": {"name": "Test"},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": [],
+      "start": ["MissingTask"]
+    },
+    "nodes": [
+      {"id": "TaskA", "type": "aperiodic", "priority": 98, "core": 0, "time": [[1, 2]], "locks": []}
+    ],
+    "edges": []
+  })";
+
+  Parser parser;
+  ASSERT_TRUE(parser.parse_string(json).success);
+
+  auto validation = parser.validate();
+  EXPECT_FALSE(validation.success);
+
+  bool has_error = false;
+  for (const auto& err : validation.errors) {
+    if (err.find("Start task references unknown node") != std::string::npos) {
+      has_error = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(has_error);
+}
+
+TEST_F(ValidationTest, StartTaskWithPredecessorWarning) {
+  std::string json = R"({
+    "graph": {"name": "Test"},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": [],
+      "start": ["TaskB"]
+    },
+    "nodes": [
+      {"id": "TaskA", "type": "aperiodic", "priority": 97, "core": 0, "time": [[1, 2]], "locks": []},
+      {"id": "TaskB", "type": "aperiodic", "priority": 98, "core": 0, "time": [[2, 3]], "locks": []}
+    ],
+    "edges": [
+      {"source": "TaskA", "target": "TaskB"}
+    ]
+  })";
+
+  Parser parser;
+  ASSERT_TRUE(parser.parse_string(json).success);
+
+  auto validation = parser.validate();
+  EXPECT_TRUE(validation.success);
+
+  bool has_warning = false;
+  for (const auto& warn : validation.warnings) {
+    if (warn.find("Start task TaskB has predecessor edges") != std::string::npos) {
+      has_warning = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(has_warning);
+}
+
+TEST_F(ValidationTest, EndTaskWithSuccessorWarning) {
+  std::string json = R"({
+    "graph": {"name": "Test"},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": [],
+      "end": ["TaskA"]
+    },
+    "nodes": [
+      {"id": "TaskA", "type": "aperiodic", "priority": 97, "core": 0, "time": [[1, 2]], "locks": []},
+      {"id": "TaskB", "type": "aperiodic", "priority": 98, "core": 0, "time": [[2, 3]], "locks": []}
+    ],
+    "edges": [
+      {"source": "TaskA", "target": "TaskB"}
+    ]
+  })";
+
+  Parser parser;
+  ASSERT_TRUE(parser.parse_string(json).success);
+
+  auto validation = parser.validate();
+  EXPECT_TRUE(validation.success);
+
+  bool has_warning = false;
+  for (const auto& warn : validation.warnings) {
+    if (warn.find("End task TaskA has successor edges") != std::string::npos) {
+      has_warning = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(has_warning);
+}
+
+TEST_F(ValidationTest, PeriodicTaskWithSelfLoopWarning) {
+  std::string json = R"({
+    "graph": {"name": "Test"},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": [],
+      "periodic": ["TaskA"]
+    },
+    "nodes": [
+      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[1, 2]], "period": [10, 10], "locks": []}
+    ],
+    "edges": [
+      {"source": "TaskA", "target": "TaskA", "style": "dashed"}
+    ]
+  })";
+
+  Parser parser;
+  ASSERT_TRUE(parser.parse_string(json).success);
+
+  auto validation = parser.validate();
+  EXPECT_TRUE(validation.success);
+
+  bool has_warning = false;
+  for (const auto& warn : validation.warnings) {
+    if (warn.find("Periodic task TaskA already has a self-loop release edge") != std::string::npos) {
+      has_warning = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(has_warning);
+}
+
+TEST_F(ValidationTest, StartTaskNegativeTokens) {
+  std::string json = R"({
+    "graph": {"name": "Test"},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": [],
+      "start": [{"task": "TaskA", "tokens": -1}]
+    },
+    "nodes": [
+      {"id": "TaskA", "type": "aperiodic", "priority": 98, "core": 0, "time": [[1, 2]], "locks": []}
+    ],
+    "edges": []
+  })";
+
+  Parser parser;
+  ASSERT_TRUE(parser.parse_string(json).success);
+
+  auto validation = parser.validate();
+  EXPECT_FALSE(validation.success);
+
+  bool has_error = false;
+  for (const auto& err : validation.errors) {
+    if (err.find("Start task token count must be non-negative") != std::string::npos) {
+      has_error = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(has_error);
+}

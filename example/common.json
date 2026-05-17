@@ -6,7 +6,12 @@
     "num_cpus": 2,
     "cores_per_cpu": 4,
     "shared_locks": [],
-    "policy": "fifo"
+    "policy": "fifo",
+    "start": [
+      {"task": "A", "tokens": 1}, {"task": "D", "tokens": 1}
+    ],
+    "end": ["C"],
+    "periodic": ["A", "D"]
   },
   "nodes": [
     {

@@ -32,6 +32,13 @@ class TDG2PN {
                                                  int core);
   static void add_monitor_matrix(petri::PTPN& ptpn, const std::string& task_name,
                                   int task_period_time, size_t start, size_t end);
+  static void add_start_bindings(petri::PTPN& ptpn, const tdg::TDG& tdg);
+  static void add_end_consumers(petri::PTPN& ptpn, const tdg::TDG& tdg);
+  static void add_periodic_release_bindings(petri::PTPN& ptpn, const tdg::TDG& tdg);
+  static void add_consume_transition(petri::PTPN& ptpn, const std::string& task_name,
+                                     size_t end_idx);
+  static bool has_non_self_successor(const tdg::TDG& tdg, const std::string& task_name);
+  static bool has_self_loop_release(const tdg::TDG& tdg, const std::string& task_name);
   static void add_preempt_task_matrix(
       petri::PTPN& ptpn,
       const std::unordered_map<int, std::vector<std::string>>& core_task,

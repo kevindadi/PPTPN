@@ -31,6 +31,43 @@ TEST_F(JsonParserTest, ValidJsonParsing) {
   EXPECT_EQ(parser.get_cores_per_cpu(), 4);
   EXPECT_EQ(parser.get_nodes().size(), 2);
   EXPECT_EQ(parser.get_edges().size(), 1);
+  EXPECT_TRUE(parser.get_start_tasks().empty());
+  EXPECT_TRUE(parser.get_end_tasks().empty());
+  EXPECT_TRUE(parser.get_periodic_tasks().empty());
+}
+
+TEST_F(JsonParserTest, ConfigurationStartEndPeriodicParsing) {
+  std::string json = R"({
+    "graph": {"name": "ConfigTest"},
+    "configuration": {
+      "num_cpus": 2,
+      "cores_per_cpu": 4,
+      "shared_locks": [],
+      "start": [{"task": "TaskA", "tokens": 2}, "TaskB"],
+      "end": ["TaskC"],
+      "periodic": ["TaskA"]
+    },
+    "nodes": [
+      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": []},
+      {"id": "TaskB", "type": "aperiodic", "priority": 98, "core": 1, "time": [[3, 5]], "locks": []},
+      {"id": "TaskC", "type": "aperiodic", "priority": 99, "core": 1, "time": [[4, 6]], "locks": []}
+    ],
+    "edges": []
+  })";
+
+  Parser parser;
+  auto result = parser.parse_string(json);
+
+  EXPECT_TRUE(result.success);
+  ASSERT_EQ(parser.get_start_tasks().size(), 2);
+  EXPECT_EQ(parser.get_start_tasks()[0].task, "TaskA");
+  EXPECT_EQ(parser.get_start_tasks()[0].tokens, 2);
+  EXPECT_EQ(parser.get_start_tasks()[1].task, "TaskB");
+  EXPECT_EQ(parser.get_start_tasks()[1].tokens, 1);
+  ASSERT_EQ(parser.get_end_tasks().size(), 1);
+  EXPECT_EQ(parser.get_end_tasks()[0], "TaskC");
+  ASSERT_EQ(parser.get_periodic_tasks().size(), 1);
+  EXPECT_EQ(parser.get_periodic_tasks()[0], "TaskA");
 }
 
 TEST_F(JsonParserTest, InvalidJsonErrorHandling) {

@@ -16,6 +16,110 @@ static void error(const std::string& msg) {
   spdlog::error("[TDG2PN] {}", msg);
 }
 
+bool TDG2PN::has_non_self_successor(const tdg::TDG& tdg,
+                                    const std::string& task_name) {
+  for (const auto& edge : tdg.tdg_edges) {
+    std::string source, target, label, style;
+    std::tie(source, target, label, style) = edge;
+    if (source == task_name && target != task_name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool TDG2PN::has_self_loop_release(const tdg::TDG& tdg,
+                                   const std::string& task_name) {
+  for (const auto& edge : tdg.tdg_edges) {
+    std::string source, target, label, style;
+    std::tie(source, target, label, style) = edge;
+    if (source == task_name && target == task_name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void TDG2PN::add_consume_transition(petri::PTPN& ptpn,
+                                    const std::string& task_name,
+                                    size_t end_idx) {
+  petri::TimeInterval interval(0, 0);
+  size_t consume_trans = ptpn.add_transition(task_name + "_consume",
+                                             interval, 411, 411, false);
+  ptpn.set_pre_arc(end_idx, consume_trans, 1);
+}
+
+void TDG2PN::add_start_bindings(petri::PTPN& ptpn, const tdg::TDG& tdg) {
+  for (const auto& start_binding : tdg.start_tasks) {
+    const auto node_it = ptpn.node_start_end_map.find(start_binding.task);
+    if (node_it == ptpn.node_start_end_map.end()) {
+      warn("[TDG2PN] Start task not found in node map: " + start_binding.task);
+      continue;
+    }
+    if (start_binding.tokens <= 0) {
+      continue;
+    }
+    ptpn.set_initial_marking(node_it->second.first, start_binding.tokens);
+  }
+}
+
+void TDG2PN::add_end_consumers(petri::PTPN& ptpn, const tdg::TDG& tdg) {
+  std::set<std::string> consume_tasks;
+
+  for (const auto& [vertex_name, node_type] : tdg.nodes_type) {
+    if (!std::holds_alternative<APeriodicTask>(node_type)) {
+      continue;
+    }
+    if (!has_non_self_successor(tdg, vertex_name)) {
+      consume_tasks.insert(vertex_name);
+    }
+  }
+
+  consume_tasks.insert(tdg.end_tasks.begin(), tdg.end_tasks.end());
+
+  for (const auto& task_name : consume_tasks) {
+    const auto node_it = ptpn.node_start_end_map.find(task_name);
+    if (node_it == ptpn.node_start_end_map.end()) {
+      warn("[TDG2PN] End task not found in node map: " + task_name);
+      continue;
+    }
+    add_consume_transition(ptpn, task_name, node_it->second.second);
+  }
+}
+
+void TDG2PN::add_periodic_release_bindings(petri::PTPN& ptpn,
+                                           const tdg::TDG& tdg) {
+  for (const auto& task_name : tdg.periodic_tasks) {
+    if (has_self_loop_release(tdg, task_name)) {
+      continue;
+    }
+
+    const auto node_it = ptpn.node_start_end_map.find(task_name);
+    const auto type_it = tdg.nodes_type.find(task_name);
+    if (node_it == ptpn.node_start_end_map.end() || type_it == tdg.nodes_type.end()) {
+      warn("[TDG2PN] Periodic task not found for release binding: " + task_name);
+      continue;
+    }
+
+    if (!std::holds_alternative<PeriodicTask>(type_it->second)) {
+      warn("[TDG2PN] Periodic release requested for non-periodic node: " + task_name);
+      continue;
+    }
+
+    const auto& task = std::get<PeriodicTask>(type_it->second);
+    size_t random = ptpn.add_place(task.name + "_cfg_random", 1);
+    petri::TimeInterval fire_interval(task.period_time.first,
+                                      task.period_time.second);
+    size_t fire = ptpn.add_transition(task.name + "_cfg_fire", fire_interval,
+                                      411, 411, false);
+
+    ptpn.set_initial_marking(random, 1);
+    ptpn.set_pre_arc(random, fire, 1);
+    ptpn.set_post_arc(fire, random, 1);
+    ptpn.set_post_arc(fire, node_it->second.first, 1);
+  }
+}
+
 void TDG2PN::transform(const tdg::TDG& tdg, petri::PTPN& ptpn) {
   try {
     info("[TDG2PN] Starting TDG to PTPN transformation...");
@@ -46,6 +150,10 @@ void TDG2PN::transform(const tdg::TDG& tdg, petri::PTPN& ptpn) {
 
     info("[TDG2PN] Transforming edges...");
     transform_edges(ptpn, tdg);
+
+    add_start_bindings(ptpn, tdg);
+    add_periodic_release_bindings(ptpn, tdg);
+    add_end_consumers(ptpn, tdg);
 
     if (tdg.policy == SchedulePolicy::FIXED) {
       info("[TDG2PN] Creating priority preemption relations...");
@@ -114,18 +222,14 @@ void TDG2PN::transform_vertices(petri::PTPN& ptpn, const tdg::TDG& tdg) {
       for (const auto& edge : tdg.tdg_edges) {
         std::string source, target, label, style;
         std::tie(source, target, label, style) = edge;
-        if (source == vertex_name) {
+        if (source == vertex_name && target != vertex_name) {
           is_leaf = false;
           break;
         }
       }
 
       if (is_leaf && std::holds_alternative<APeriodicTask>(node_type)) {
-        petri::TimeInterval interval(0, 0);
-        size_t consume_trans = ptpn.add_transition(vertex_name + "_consume",
-                                                   interval, 411, 411, false);
-        ptpn.set_pre_arc(end_idx, consume_trans, 1);
-        spdlog::debug("[TDG2PN] Added consume token transition for APeriodicTask: {}", vertex_name);
+        spdlog::debug("[TDG2PN] Leaf aperiodic task will get consume transition later: {}", vertex_name);
       }
     } catch (const std::exception& e) {
       spdlog::error("[TDG2PN] Failed to transform vertex {}: {}", vertex_name, e.what());

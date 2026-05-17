@@ -78,4 +78,9 @@ struct TaskConfig {
   std::vector<std::string> locks;
 };
 
+struct StartBinding {
+  std::string task;
+  int tokens = 1;
+};
+
 #endif  // TYPES_H

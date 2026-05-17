@@ -21,6 +21,9 @@ void TDG::parse_json(const std::string& json_file) {
   num_cpus = parser.get_num_cpus();
   cores_per_cpu = parser.get_cores_per_cpu();
   policy = parser.get_policy();
+  start_tasks = parser.get_start_tasks();
+  end_tasks = parser.get_end_tasks();
+  periodic_tasks = parser.get_periodic_tasks();
 
   spdlog::info("[TDG] Configuration: {} CPUs, {} cores per CPU", num_cpus, cores_per_cpu);
 
@@ -98,6 +101,9 @@ void TDG::parse_json_string(const std::string& json_content) {
   num_cpus = parser.get_num_cpus();
   cores_per_cpu = parser.get_cores_per_cpu();
   policy = parser.get_policy();
+  start_tasks = parser.get_start_tasks();
+  end_tasks = parser.get_end_tasks();
+  periodic_tasks = parser.get_periodic_tasks();
 
   for (const auto& json_node : parser.get_nodes()) {
     NodeType node_type = json_node.to_node_type();
