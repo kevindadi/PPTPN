@@ -14,8 +14,8 @@ TEST_F(JsonParserTest, ValidJsonParsing) {
     "graph": {"name": "TestGraph"},
     "configuration": {"num_cpus": 2, "cores_per_cpu": 4, "shared_locks": ["lock1", "lock2"]},
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": ["lock1"]},
-      {"id": "TaskB", "type": "aperiodic", "priority": 98, "core": 1, "time": [[3, 5]], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[3, 8]], "locks": ["lock1"]},
+      {"id": "TaskB", "type": "task", "priority": 98, "core": 1, "time": [[3, 5]], "locks": []}
     ],
     "edges": [
       {"source": "TaskA", "target": "TaskB"}
@@ -84,16 +84,15 @@ TEST_F(JsonParserTest, InvalidJsonErrorHandling) {
 TEST_F(JsonParserTest, NodeTypeConversion) {
   JsonNode node;
   node.id = "TaskA";
-  node.type = "periodic";
+  node.type = "task";
   node.priority = 97;
   node.core = 0;
   node.time = {{3, 8}};
-  node.period = {100, 100};
   node.locks = {"lock1"};
 
   NodeType node_type = node.to_node_type();
 
-  EXPECT_TRUE(std::holds_alternative<::PeriodicTask>(node_type));
+  EXPECT_TRUE(std::holds_alternative<::TaskNode>(node_type));
 }
 
 TEST_F(JsonParserTest, DotExport) {
@@ -101,7 +100,7 @@ TEST_F(JsonParserTest, DotExport) {
     "graph": {"name": "ExportTest"},
     "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": []},
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[3, 8]], "locks": []}
     ],
     "edges": []
   })";

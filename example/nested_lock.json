@@ -27,11 +27,10 @@
     },
     {
       "id": "TaskC",
-      "type": "periodic",
+      "type": "task",
       "priority": 99,
       "core": 0,
       "time": [[0, 10], [10, 20], [20, 30], [30, 40], [40, 80]],
-      "period": [200, 200],
       "locks": ["mutex2", "mutex1"]
     }
   ],

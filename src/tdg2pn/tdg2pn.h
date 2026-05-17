@@ -21,9 +21,8 @@ class TDG2PN {
   static std::unordered_map<int, std::vector<std::string>> classify_tdg_priority(const tdg::TDG& tdg);
   static void transform_vertices(petri::PTPN& ptpn, const tdg::TDG& tdg);
   static void transform_edges(petri::PTPN& ptpn, const tdg::TDG& tdg);
-    static std::pair<size_t, size_t> add_node_matrix(petri::PTPN& ptpn, const std::variant<PeriodicTask, APeriodicTask, ForkTask, JoinTask, EmptyTask>& node_type);
-  static std::pair<size_t, size_t> add_p_node_matrix(petri::PTPN& ptpn, PeriodicTask& p_task);
-  static std::pair<size_t, size_t> add_ap_node_matrix(petri::PTPN& ptpn, APeriodicTask& ap_task);
+  static std::pair<size_t, size_t> add_node_matrix(petri::PTPN& ptpn, const NodeType& node_type);
+  static std::pair<size_t, size_t> add_task_node_matrix(petri::PTPN& ptpn, const ::TaskNode& task);
   static std::vector<size_t> add_execution_chain(petri::PTPN& ptpn,
                                                  const std::string& task_name,
                                                  const std::vector<std::pair<int, int>>& times,

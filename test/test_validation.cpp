@@ -13,8 +13,8 @@ TEST_F(ValidationTest, DuplicateNodeId) {
     "graph": {"name": "Test"},
     "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": []},
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": []},
-      {"id": "TaskA", "type": "periodic", "priority": 98, "core": 0, "time": [[2, 5]], "period": [200, 200], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[3, 8]], "locks": []},
+      {"id": "TaskA", "type": "task", "priority": 98, "core": 0, "time": [[2, 5]], "locks": []}
     ],
     "edges": []
   })";
@@ -68,7 +68,7 @@ TEST_F(ValidationTest, InvalidCoreNumber) {
     "graph": {"name": "Test"},
     "configuration": {"num_cpus": 1, "cores_per_cpu": 4, "shared_locks": []},
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 10, "time": [[3, 8]], "period": [100, 100], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 10, "time": [[3, 8]], "locks": []}
     ],
     "edges": []
   })";
@@ -95,7 +95,7 @@ TEST_F(ValidationTest, EdgeReferencesUnknownNode) {
     "graph": {"name": "Test"},
     "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": []},
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[3, 8]], "locks": []}
     ],
     "edges": [
       {"source": "TaskA", "target": "UnknownNode"}
@@ -188,7 +188,7 @@ TEST_F(ValidationTest, UndefinedLock) {
     "graph": {"name": "Test"},
     "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": ["mutex1"]},
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[0, 3], [3, 8], [8, 10]], "period": [100, 100], "locks": ["mutex2"]}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[0, 3], [3, 8], [8, 10]], "locks": ["mutex2"]}
     ],
     "edges": []
   })";
@@ -242,7 +242,7 @@ TEST_F(ValidationTest, InvalidTimeInterval) {
     "graph": {"name": "Test"},
     "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": []},
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[8, 3]], "period": [100, 100], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[8, 3]], "locks": []}
     ],
     "edges": []
   })";
@@ -299,7 +299,7 @@ TEST_F(ValidationTest, ForkNodeWithTaskAttributesWarning) {
     "graph": {"name": "Test"},
     "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": []},
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[0, 10]], "period": [100, 100], "locks": []},
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[0, 10]], "locks": []},
       {"id": "Fork1", "type": "fork", "time": [[0, 5]]}
     ],
     "edges": [
@@ -321,7 +321,7 @@ TEST_F(ValidationTest, InvalidLockPrefix) {
     "graph": {"name": "Test"},
     "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": ["badlock"]},
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[0, 3], [3, 8], [8, 10]], "period": [100, 100], "locks": ["badlock"]}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[0, 3], [3, 8], [8, 10]], "locks": ["badlock"]}
     ],
     "edges": []
   })";
@@ -348,8 +348,8 @@ TEST_F(ValidationTest, ValidMutexAndSpinLocks) {
     "graph": {"name": "Test"},
     "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": ["mutex1", "spin1"]},
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[0, 3], [3, 8], [8, 10]], "period": [100, 100], "locks": ["mutex1"]},
-      {"id": "TaskB", "type": "aperiodic", "priority": 98, "core": 0, "time": [[0, 2], [2, 5], [5, 7], [7, 9], [9, 12]], "locks": ["mutex1", "spin1"]}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[0, 3], [3, 8], [8, 10]], "locks": ["mutex1"]},
+      {"id": "TaskB", "type": "task", "priority": 98, "core": 0, "time": [[0, 2], [2, 5], [5, 7], [7, 9], [9, 12]], "locks": ["mutex1", "spin1"]}
     ],
     "edges": []
   })";
@@ -367,7 +367,7 @@ TEST_F(ValidationTest, TimeIntervalCountMismatch) {
     "graph": {"name": "Test"},
     "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": ["mutex1"]},
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[0, 10]], "period": [100, 100], "locks": ["mutex1"]}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[0, 10]], "locks": ["mutex1"]}
     ],
     "edges": []
   })";
@@ -394,7 +394,7 @@ TEST_F(ValidationTest, CorrectTimeIntervalCountOneLock) {
     "graph": {"name": "Test"},
     "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": ["mutex1"]},
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[0, 5], [5, 10], [10, 15]], "period": [100, 100], "locks": ["mutex1"]}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[0, 5], [5, 10], [10, 15]], "locks": ["mutex1"]}
     ],
     "edges": []
   })";
@@ -412,7 +412,7 @@ TEST_F(ValidationTest, CorrectTimeIntervalCountTwoLocks) {
     "graph": {"name": "Test"},
     "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": ["mutex1", "spin1"]},
     "nodes": [
-      {"id": "TaskA", "type": "aperiodic", "priority": 97, "core": 0, "time": [[0, 2], [2, 5], [5, 8], [8, 10], [10, 15]], "locks": ["mutex1", "spin1"]}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[0, 2], [2, 5], [5, 8], [8, 10], [10, 15]], "locks": ["mutex1", "spin1"]}
     ],
     "edges": []
   })";
@@ -435,7 +435,7 @@ TEST_F(ValidationTest, StartTaskUnknownNode) {
       "start": ["MissingTask"]
     },
     "nodes": [
-      {"id": "TaskA", "type": "aperiodic", "priority": 98, "core": 0, "time": [[1, 2]], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 98, "core": 0, "time": [[1, 2]], "locks": []}
     ],
     "edges": []
   })";
@@ -466,8 +466,8 @@ TEST_F(ValidationTest, StartTaskWithPredecessorWarning) {
       "start": ["TaskB"]
     },
     "nodes": [
-      {"id": "TaskA", "type": "aperiodic", "priority": 97, "core": 0, "time": [[1, 2]], "locks": []},
-      {"id": "TaskB", "type": "aperiodic", "priority": 98, "core": 0, "time": [[2, 3]], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[1, 2]], "locks": []},
+      {"id": "TaskB", "type": "task", "priority": 98, "core": 0, "time": [[2, 3]], "locks": []}
     ],
     "edges": [
       {"source": "TaskA", "target": "TaskB"}
@@ -500,8 +500,8 @@ TEST_F(ValidationTest, EndTaskWithSuccessorWarning) {
       "end": ["TaskA"]
     },
     "nodes": [
-      {"id": "TaskA", "type": "aperiodic", "priority": 97, "core": 0, "time": [[1, 2]], "locks": []},
-      {"id": "TaskB", "type": "aperiodic", "priority": 98, "core": 0, "time": [[2, 3]], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[1, 2]], "locks": []},
+      {"id": "TaskB", "type": "task", "priority": 98, "core": 0, "time": [[2, 3]], "locks": []}
     ],
     "edges": [
       {"source": "TaskA", "target": "TaskB"}
@@ -567,7 +567,7 @@ TEST_F(ValidationTest, StartTaskNegativeTokens) {
       "start": [{"task": "TaskA", "tokens": -1}]
     },
     "nodes": [
-      {"id": "TaskA", "type": "aperiodic", "priority": 98, "core": 0, "time": [[1, 2]], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 98, "core": 0, "time": [[1, 2]], "locks": []}
     ],
     "edges": []
   })";

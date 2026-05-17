@@ -209,13 +209,8 @@ std::unordered_map<int, std::vector<std::string>> TDG::classify_priority() {
   std::unordered_map<int, std::vector<std::string>> core_task;
 
   for (const auto& task : all_task) {
-    if (std::holds_alternative<APeriodicTask>(task)) {
-      auto result = std::get<APeriodicTask>(task);
-      TaskConfig tc = {result.core, result.priority, result.time, result.lock};
-      tasks_config.insert({result.name, tc});
-      core_task[result.core].push_back(result.name);
-    } else if (std::holds_alternative<PeriodicTask>(task)) {
-      auto result = std::get<PeriodicTask>(task);
+    if (std::holds_alternative<TaskNode>(task)) {
+      auto result = std::get<TaskNode>(task);
       TaskConfig tc = {result.core, result.priority, result.time, result.lock};
       tasks_config.insert({result.name, tc});
       core_task[result.core].push_back(result.name);

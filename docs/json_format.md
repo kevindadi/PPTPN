@@ -75,8 +75,7 @@ Supported node types:
 
 | Type | Description | Required fields |
 | --- | --- | --- |
-| `periodic` | Task with a period range | `id`, `type`, `priority`, `core`, `time`, `period`, `locks` |
-| `aperiodic` | Task without a period range | `id`, `type`, `priority`, `core`, `time`, `locks` |
+| `task` | Executable task node | `id`, `type`, `priority`, `core`, `time`, `locks` |
 | `fork` | Fork node | `id`, `type` |
 | `join` | Join node | `id`, `type` |
 | `empty` | Empty node | `id`, `type` |
@@ -90,7 +89,6 @@ Supported node types:
 | `priority` | integer | Task priority |
 | `core` | integer | Assigned core id, starting from `0` |
 | `time` | array | Execution time segments |
-| `period` | array | Period range `[lower, upper]`, required only for `periodic` |
 | `locks` | array | Lock list |
 
 ## Lock naming
@@ -154,21 +152,20 @@ This assumes nested locking order.
     "policy": "fifo",
     "start": [{"task": "TaskA", "tokens": 1}],
     "end": ["TaskC"],
-    "periodic": ["TaskA"]
+    "periodic": [{"task": "TaskA", "period": 100}]
   },
   "nodes": [
     {
       "id": "TaskA",
-      "type": "periodic",
+      "type": "task",
       "priority": 97,
       "core": 0,
       "time": [[0, 10], [10, 15], [15, 30]],
-      "period": [100, 100],
       "locks": ["mutex1"]
     },
     {
       "id": "TaskB",
-      "type": "aperiodic",
+      "type": "task",
       "priority": 98,
       "core": 1,
       "time": [[0, 5]],
@@ -176,7 +173,7 @@ This assumes nested locking order.
     },
     {
       "id": "TaskC",
-      "type": "aperiodic",
+      "type": "task",
       "priority": 99,
       "core": 0,
       "time": [[0, 8]],

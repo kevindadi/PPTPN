@@ -27,7 +27,7 @@ enum class SchedulePolicy {
 SchedulePolicy parse_schedule_policy(const std::string& policy);
 std::string schedule_policy_to_string(SchedulePolicy policy);
 
-struct APeriodicTask {
+struct TaskNode {
   std::string name;
   int core = 0;
   int priority = 100;
@@ -35,17 +35,6 @@ struct APeriodicTask {
   bool is_lock = false;
   std::vector<std::string> lock;
   TaskType task_type = TaskType::NORMAL;
-};
-
-struct PeriodicTask {
-  std::string name;
-  int core = 0;
-  int priority = 100;
-  std::vector<std::pair<int, int>> time;
-  bool is_lock = false;
-  std::vector<std::string> lock;
-  TaskType task_type = TaskType::PERIOD;
-  std::pair<int, int> period_time = {0, 0};
 };
 
 struct ForkTask {
@@ -66,8 +55,7 @@ struct EmptyTask {
   std::string name;
 };
 
-using NodeType = std::variant<PeriodicTask, APeriodicTask,
-                              ForkTask, JoinTask, EmptyTask>;
+using NodeType = std::variant<TaskNode, ForkTask, JoinTask, EmptyTask>;
 
 enum class TDGVertexType { TASK, FORK, JOIN, EMPTY };
 

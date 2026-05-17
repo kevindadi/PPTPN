@@ -95,13 +95,10 @@ std::string build_node_label(const parse::JsonNode& node) {
   std::ostringstream oss;
   oss << node.id << "\\n" << node.type;
 
-  if (node.type == "periodic" || node.type == "aperiodic") {
+  if (node.type == "task") {
     oss << "\\nprio=" << node.priority << " core=" << node.core;
     if (!node.time.empty()) {
       oss << "\\ntime=" << format_time_ranges(node.time);
-    }
-    if (node.type == "periodic") {
-      oss << "\\nperiod=" << format_range(node.period);
     }
     oss << "\\nlocks=" << format_locks(node.locks);
   }
@@ -324,14 +321,6 @@ JsonNode Parser::parse_node_object(const nlohmann::json& node_obj) {
     }
   }
 
-  if (node_obj.contains("period")) {
-    auto& period = node_obj["period"];
-    if (period.is_array() && period.size() == 2) {
-      node.period.first = period[0].get<int>();
-      node.period.second = period[1].get<int>();
-    }
-  }
-
   if (node_obj.contains("locks")) {
     node.locks = node_obj["locks"].get<std::vector<std::string>>();
   }
@@ -352,7 +341,7 @@ ValidationResult Parser::validate() const {
   }
 
   // Check for unknown node types
-  std::set<std::string> valid_types = {"periodic", "aperiodic", "fork", "join", "empty"};
+  std::set<std::string> valid_types = {"task", "fork", "join", "empty"};
   for (const auto& node : graph_.nodes) {
     if (valid_types.find(node.type) == valid_types.end()) {
       result.add_error("Unknown node type: " + node.type + " for node " + node.id);
@@ -361,7 +350,7 @@ ValidationResult Parser::validate() const {
 
   // Check for invalid core numbers
   for (const auto& node : graph_.nodes) {
-    if (node.type == "periodic" || node.type == "aperiodic") {
+    if (node.type == "task") {
       int max_core = graph_.num_cpus * graph_.cores_per_cpu - 1;
       if (node.core < 0 || node.core > max_core) {
         result.add_error("Invalid core number for node " + node.id + ": " +
@@ -456,7 +445,7 @@ ValidationResult Parser::validate() const {
 
   // Check time interval count matches lock count rule (2*locks+1)
   for (const auto& node : graph_.nodes) {
-    if (node.type == "periodic" || node.type == "aperiodic") {
+    if (node.type == "task") {
       int expected_count = calculate_time_interval_count(static_cast<int>(node.locks.size()));
       int actual_count = static_cast<int>(node.time.size());
       if (actual_count != expected_count) {
@@ -481,7 +470,7 @@ ValidationResult Parser::validate() const {
   // Check for task nodes (warn if none)
   bool has_task_nodes = false;
   for (const auto& node : graph_.nodes) {
-    if (node.type == "periodic" || node.type == "aperiodic") {
+    if (node.type == "task") {
       has_task_nodes = true;
       break;
     }
@@ -536,18 +525,8 @@ std::string Parser::to_dot_string() const {
 }
 
 NodeType JsonNode::to_node_type() const {
-  if (type == "periodic") {
-    PeriodicTask task;
-    task.name = id;
-    task.priority = priority;
-    task.core = core;
-    task.time = this->time;
-    task.lock = locks;
-    task.task_type = TaskType::PERIOD;
-    task.period_time = period;
-    return task;
-  } else if (type == "aperiodic") {
-    APeriodicTask task;
+  if (type == "task") {
+    TaskNode task;
     task.name = id;
     task.priority = priority;
     task.core = core;
@@ -569,10 +548,8 @@ NodeType JsonNode::to_node_type() const {
 }
 
 std::string node_type_to_string(const NodeType& node) {
-  if (std::holds_alternative<PeriodicTask>(node)) {
-    return "periodic";
-  } else if (std::holds_alternative<APeriodicTask>(node)) {
-    return "aperiodic";
+  if (std::holds_alternative<TaskNode>(node)) {
+    return "task";
   } else if (std::holds_alternative<ForkTask>(node)) {
     return "fork";
   } else if (std::holds_alternative<JoinTask>(node)) {
@@ -583,29 +560,12 @@ std::string node_type_to_string(const NodeType& node) {
 }
 
 std::string node_to_dot_label(const NodeType& node) {
-  if (std::holds_alternative<PeriodicTask>(node)) {
-    const auto& task = std::get<PeriodicTask>(node);
+  if (std::holds_alternative<TaskNode>(node)) {
+    const auto& task = std::get<TaskNode>(node);
     std::ostringstream oss;
-    oss << task.name << "\\nperiodic\\nprio=" << task.priority
+    oss << task.name << "\\ntask\\nprio=" << task.priority
         << " core=" << task.core << "\\n";
 
-    // Build time with interval labels
-    for (size_t i = 0; i < task.time.size(); ++i) {
-      if (i > 0) oss << ", ";
-      oss << get_time_interval_label(static_cast<int>(i), task.lock)
-          << " " << format_range(task.time[i]);
-    }
-
-    oss << "\\nperiod=" << format_range(task.period_time)
-        << "\\nlocks=" << format_locks_with_type(task.lock);
-    return oss.str();
-  } else if (std::holds_alternative<APeriodicTask>(node)) {
-    const auto& task = std::get<APeriodicTask>(node);
-    std::ostringstream oss;
-    oss << task.name << "\\naperiodic\\nprio=" << task.priority
-        << " core=" << task.core << "\\n";
-
-    // Build time with interval labels
     for (size_t i = 0; i < task.time.size(); ++i) {
       if (i > 0) oss << ", ";
       oss << get_time_interval_label(static_cast<int>(i), task.lock)

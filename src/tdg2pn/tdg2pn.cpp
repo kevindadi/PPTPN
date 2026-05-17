@@ -67,7 +67,7 @@ void TDG2PN::add_end_consumers(petri::PTPN& ptpn, const tdg::TDG& tdg) {
   std::set<std::string> consume_tasks;
 
   for (const auto& [vertex_name, node_type] : tdg.nodes_type) {
-    if (!std::holds_alternative<APeriodicTask>(node_type)) {
+    if (!std::holds_alternative<TaskNode>(node_type)) {
       continue;
     }
     if (!has_non_self_successor(tdg, vertex_name)) {
@@ -132,12 +132,8 @@ void TDG2PN::transform(const tdg::TDG& tdg, petri::PTPN& ptpn) {
     // Build tasks_config from tdg
     std::unordered_map<std::string, TaskConfig> tasks_config;
     for (const auto& task : tdg.all_task) {
-      if (std::holds_alternative<APeriodicTask>(task)) {
-        auto result = std::get<APeriodicTask>(task);
-        TaskConfig tc = {result.core, result.priority, result.time, result.lock};
-        tasks_config.insert({result.name, tc});
-      } else if (std::holds_alternative<PeriodicTask>(task)) {
-        auto result = std::get<PeriodicTask>(task);
+      if (std::holds_alternative<TaskNode>(task)) {
+        auto result = std::get<TaskNode>(task);
         TaskConfig tc = {result.core, result.priority, result.time, result.lock};
         tasks_config.insert({result.name, tc});
       }
@@ -180,11 +176,8 @@ std::unordered_map<int, std::vector<std::string>> TDG2PN::classify_tdg_priority(
   std::unordered_map<int, std::vector<std::string>> core_task;
 
   for (const auto& task : tdg.all_task) {
-    if (std::holds_alternative<APeriodicTask>(task)) {
-      const auto& result = std::get<APeriodicTask>(task);
-      core_task[result.core].push_back(result.name);
-    } else if (std::holds_alternative<PeriodicTask>(task)) {
-      const auto& result = std::get<PeriodicTask>(task);
+    if (std::holds_alternative<TaskNode>(task)) {
+      const auto& result = std::get<TaskNode>(task);
       core_task[result.core].push_back(result.name);
     }
   }
@@ -226,8 +219,8 @@ void TDG2PN::transform_vertices(petri::PTPN& ptpn, const tdg::TDG& tdg) {
         }
       }
 
-      if (is_leaf && std::holds_alternative<APeriodicTask>(node_type)) {
-        spdlog::debug("[TDG2PN] Leaf aperiodic task will get consume transition later: {}", vertex_name);
+      if (is_leaf && std::holds_alternative<TaskNode>(node_type)) {
+        spdlog::debug("[TDG2PN] Leaf task will get consume transition later: {}", vertex_name);
       }
     } catch (const std::exception& e) {
       spdlog::error("[TDG2PN] Failed to transform vertex {}: {}", vertex_name, e.what());
@@ -378,21 +371,10 @@ void TDG2PN::add_lock_resource_matrix(petri::PTPN& ptpn, const std::set<std::str
 void TDG2PN::task_bind_cpu_resource_matrix(petri::PTPN& ptpn,
     const std::vector<NodeType>& all_task) {
   for (const auto& task : all_task) {
-    if (std::holds_alternative<APeriodicTask>(task)) {
-      auto ap_task = std::get<APeriodicTask>(task);
-      const int cpu_index = ap_task.core;
-      auto task_pt_chains = ptpn.node_pn_map.find(ap_task.name)->second;
-      if (task_pt_chains.size() >= 2) {
-        ptpn.set_pre_arc(ptpn.cpus_place[cpu_index], task_pt_chains[1], 1);
-        if (task_pt_chains.size() >= 5) {
-          ptpn.set_post_arc(task_pt_chains[task_pt_chains.size() - 2],
-                            ptpn.cpus_place[cpu_index], 1);
-        }
-      }
-    } else if (std::holds_alternative<PeriodicTask>(task)) {
-      auto p_task = std::get<PeriodicTask>(task);
-      const int cpu_index = p_task.core;
-      auto task_pt_chains = ptpn.node_pn_map.find(p_task.name)->second;
+    if (std::holds_alternative<TaskNode>(task)) {
+      auto task_node = std::get<TaskNode>(task);
+      const int cpu_index = task_node.core;
+      auto task_pt_chains = ptpn.node_pn_map.find(task_node.name)->second;
       if (task_pt_chains.size() >= 2) {
         ptpn.set_pre_arc(ptpn.cpus_place[cpu_index], task_pt_chains[1], 1);
         if (task_pt_chains.size() >= 5) {
@@ -414,18 +396,11 @@ void TDG2PN::task_bind_lock_resource_matrix(petri::PTPN& ptpn,
 
   for (const auto& task : all_task) {
     try {
-      if (std::holds_alternative<APeriodicTask>(task)) {
-        const auto& ap_task = std::get<APeriodicTask>(task);
-        if (auto chains_it = ptpn.node_pn_map.find(ap_task.name);
+      if (std::holds_alternative<TaskNode>(task)) {
+        const auto& task_node = std::get<TaskNode>(task);
+        if (auto chains_it = ptpn.node_pn_map.find(task_node.name);
             chains_it != ptpn.node_pn_map.end()) {
-          bind_task_locks_matrix(ptpn, ap_task.name, ap_task.lock, chains_it->second,
-                                  task_locks);
-        }
-      } else if (std::holds_alternative<PeriodicTask>(task)) {
-        const auto& p_task = std::get<PeriodicTask>(task);
-        auto chains_it = ptpn.node_pn_map.find(p_task.name);
-        if (chains_it != ptpn.node_pn_map.end()) {
-          bind_task_locks_matrix(ptpn, p_task.name, p_task.lock, chains_it->second,
+          bind_task_locks_matrix(ptpn, task_node.name, task_node.lock, chains_it->second,
                                   task_locks);
         }
       }
@@ -493,12 +468,9 @@ void TDG2PN::bind_task_locks_matrix(petri::PTPN& ptpn,
 
 std::pair<size_t, size_t> TDG2PN::add_node_matrix(petri::PTPN& ptpn,
     const NodeType& node_type) {
-  if (std::holds_alternative<PeriodicTask>(node_type)) {
-    auto p_task = std::get<PeriodicTask>(node_type);
-    return add_p_node_matrix(ptpn, p_task);
-  } else if (std::holds_alternative<APeriodicTask>(node_type)) {
-    auto ap_task = std::get<APeriodicTask>(node_type);
-    return add_ap_node_matrix(ptpn, ap_task);
+  if (std::holds_alternative<TaskNode>(node_type)) {
+    const auto& task = std::get<TaskNode>(node_type);
+    return add_task_node_matrix(ptpn, task);
   } else if (std::holds_alternative<JoinTask>(node_type)) {
     auto [name, time] = std::get<JoinTask>(node_type);
     petri::TimeInterval interval(0, 0);
@@ -584,24 +556,13 @@ std::vector<size_t> TDG2PN::add_execution_chain(petri::PTPN& ptpn,
   return chain;
 }
 
-std::pair<size_t, size_t> TDG2PN::add_p_node_matrix(petri::PTPN& ptpn, PeriodicTask& p_task) {
-  std::vector<size_t> chain = add_execution_chain(ptpn, p_task.name, p_task.time,
-                                                  p_task.lock, p_task.priority, p_task.core);
+std::pair<size_t, size_t> TDG2PN::add_task_node_matrix(petri::PTPN& ptpn, const TaskNode& task) {
+  std::vector<size_t> chain = add_execution_chain(ptpn, task.name, task.time,
+                                                  task.lock, task.priority, task.core);
   size_t entry = chain.front();
   size_t exit = chain.back();
 
-  ptpn.node_pn_map[p_task.name] = chain;
-
-  return std::make_pair(entry, exit);
-}
-
-std::pair<size_t, size_t> TDG2PN::add_ap_node_matrix(petri::PTPN& ptpn, APeriodicTask& ap_task) {
-  std::vector<size_t> chain = add_execution_chain(ptpn, ap_task.name, ap_task.time,
-                                                  ap_task.lock, ap_task.priority, ap_task.core);
-  size_t entry = chain.front();
-  size_t exit = chain.back();
-
-  ptpn.node_pn_map[ap_task.name] = chain;
+  ptpn.node_pn_map[task.name] = chain;
 
   return std::make_pair(entry, exit);
 }
@@ -795,9 +756,9 @@ void TDG2PN::add_preempt_task_matrix(
         bool is_interrupt = false;
         auto node_type_it = nodes_type.find(h_t_name);
         if (node_type_it != nodes_type.end() &&
-            std::holds_alternative<PeriodicTask>(node_type_it->second)) {
-          const auto& p_task = std::get<PeriodicTask>(node_type_it->second);
-          is_interrupt = (p_task.task_type == TaskType::INTERRUPT);
+            std::holds_alternative<TaskNode>(node_type_it->second)) {
+          const auto& task = std::get<TaskNode>(node_type_it->second);
+          is_interrupt = (task.task_type == TaskType::INTERRUPT);
         }
 
         for (const auto& l_t_pn : {l_t_pns_it->second}) {

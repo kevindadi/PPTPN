@@ -38,7 +38,6 @@ struct JsonNode {
   int priority = 100;
   int core = 0;
   std::vector<std::pair<int, int>> time;
-  std::pair<int, int> period = {0, 0};
   std::vector<std::string> locks;
 
   NodeType to_node_type() const;
