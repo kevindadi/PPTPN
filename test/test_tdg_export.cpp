@@ -16,10 +16,15 @@ class TdgExportTest : public ::testing::Test {
 TEST_F(TdgExportTest, TdgDotExport) {
   std::string json = R"({
     "graph": {"name": "DotExportTest"},
-    "configuration": {"num_cpus": 2, "cores_per_cpu": 4, "shared_locks": ["lock1"]},
+    "configuration": {
+      "num_cpus": 2,
+      "cores_per_cpu": 4,
+      "shared_locks": ["lock1"],
+      "periodic": [{"task": "TaskA", "period": 100}]
+    },
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": ["lock1"]},
-      {"id": "TaskB", "type": "aperiodic", "priority": 98, "core": 1, "time": [[2, 5]], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[3, 8]], "locks": ["lock1"]},
+      {"id": "TaskB", "type": "task", "priority": 98, "core": 1, "time": [[2, 5]], "locks": []}
     ],
     "edges": [
       {"source": "TaskA", "target": "TaskB", "label": "50", "style": "dashed"}
@@ -44,11 +49,16 @@ TEST_F(TdgExportTest, TdgDotExport) {
 TEST_F(TdgExportTest, TdgJsonParsingIntegration) {
   std::string json = R"({
     "graph": {"name": "TDGTest"},
-    "configuration": {"num_cpus": 2, "cores_per_cpu": 4, "shared_locks": ["lock1", "lock2"]},
+    "configuration": {
+      "num_cpus": 2,
+      "cores_per_cpu": 4,
+      "shared_locks": ["lock1", "lock2"],
+      "periodic": [{"task": "TaskA", "period": 100}, {"task": "TaskB", "period": 200}]
+    },
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": ["lock1"]},
-      {"id": "TaskB", "type": "periodic", "priority": 95, "core": 1, "time": [[5, 10]], "period": [200, 200], "locks": ["lock2"]},
-      {"id": "TaskC", "type": "aperiodic", "priority": 99, "core": 0, "time": [[1, 3]], "locks": []},
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[3, 8]], "locks": ["lock1"]},
+      {"id": "TaskB", "type": "task", "priority": 95, "core": 1, "time": [[5, 10]], "locks": ["lock2"]},
+      {"id": "TaskC", "type": "task", "priority": 99, "core": 0, "time": [[1, 3]], "locks": []},
       {"id": "Fork1", "type": "fork"}
     ],
     "edges": [
@@ -75,9 +85,14 @@ TEST_F(TdgExportTest, TdgJsonParsingIntegration) {
 TEST_F(TdgExportTest, ExportToDotFile) {
   std::string json = R"({
     "graph": {"name": "FileExportTest"},
-    "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": []},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": [],
+      "periodic": [{"task": "TaskA", "period": 100}]
+    },
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[3, 8]], "locks": []}
     ],
     "edges": []
   })";
@@ -109,13 +124,18 @@ TEST_F(TdgExportTest, ExportToDotFile) {
 TEST_F(TdgExportTest, ForkJoinNodes) {
   std::string json = R"({
     "graph": {"name": "ForkJoinTest"},
-    "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": []},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": [],
+      "periodic": [{"task": "TaskA", "period": 100}]
+    },
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": []},
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[3, 8]], "locks": []},
       {"id": "Fork1", "type": "fork"},
       {"id": "Fork2", "type": "fork"},
       {"id": "Join1", "type": "join"},
-      {"id": "TaskB", "type": "aperiodic", "priority": 98, "core": 0, "time": [[2, 5]], "locks": []}
+      {"id": "TaskB", "type": "task", "priority": 98, "core": 0, "time": [[2, 5]], "locks": []}
     ],
     "edges": [
       {"source": "TaskA", "target": "Fork1"},
@@ -142,11 +162,16 @@ TEST_F(TdgExportTest, ForkJoinNodes) {
 TEST_F(TdgExportTest, EmptyNode) {
   std::string json = R"({
     "graph": {"name": "EmptyTest"},
-    "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": []},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": [],
+      "periodic": [{"task": "TaskA", "period": 100}]
+    },
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": []},
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[3, 8]], "locks": []},
       {"id": "Empty1", "type": "empty"},
-      {"id": "TaskB", "type": "aperiodic", "priority": 98, "core": 0, "time": [[2, 5]], "locks": []}
+      {"id": "TaskB", "type": "task", "priority": 98, "core": 0, "time": [[2, 5]], "locks": []}
     ],
     "edges": [
       {"source": "TaskA", "target": "Empty1"},
@@ -172,11 +197,11 @@ TEST_F(TdgExportTest, ConfigurationPeriodicReleaseCreatesSingleReleaseStructure)
       "num_cpus": 1,
       "cores_per_cpu": 1,
       "shared_locks": [],
-      "periodic": ["TaskA"]
+      "periodic": [{"task": "TaskA", "period": 100}]
     },
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": []},
-      {"id": "TaskB", "type": "aperiodic", "priority": 98, "core": 0, "time": [[1, 2]], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[3, 8]], "locks": []},
+      {"id": "TaskB", "type": "task", "priority": 98, "core": 0, "time": [[1, 2]], "locks": []}
     ],
     "edges": [
       {"source": "TaskA", "target": "TaskB"}
@@ -225,10 +250,10 @@ TEST_F(TdgExportTest, SelfLoopPeriodicReleaseSkipsConfigurationReleaseStructure)
       "num_cpus": 1,
       "cores_per_cpu": 1,
       "shared_locks": [],
-      "periodic": ["TaskA"]
+      "periodic": [{"task": "TaskA", "period": 100}]
     },
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[3, 8]], "locks": []}
     ],
     "edges": [
       {"source": "TaskA", "target": "TaskA", "label": "100"}

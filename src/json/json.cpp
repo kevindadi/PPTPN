@@ -51,8 +51,17 @@ StartBinding parse_start_binding(const nlohmann::json& binding_obj) {
   return binding;
 }
 
+PeriodicBinding parse_periodic_binding(const nlohmann::json& binding_obj) {
+  PeriodicBinding binding;
+  binding.task = binding_obj.value("task", "");
+  if (binding_obj.contains("period")) {
+    binding.period = binding_obj["period"].get<int>();
+  }
+  return binding;
+}
+
 bool is_task_type(const std::string& type) {
-  return type == "periodic" || type == "aperiodic";
+  return type == "task";
 }
 
 bool has_incoming_edge(const parse::JsonGraph& graph, const std::string& node_id) {
@@ -270,7 +279,9 @@ void Parser::parse_configuration_object(const nlohmann::json& config) {
     graph_.end_tasks = config["end"].get<std::vector<std::string>>();
   }
   if (config.contains("periodic")) {
-    graph_.periodic_tasks = config["periodic"].get<std::vector<std::string>>();
+    for (const auto& periodic_obj : config["periodic"]) {
+      graph_.periodic_tasks.push_back(parse_periodic_binding(periodic_obj));
+    }
   }
 }
 
@@ -406,26 +417,19 @@ ValidationResult Parser::validate() const {
   }
 
   for (const auto& periodic_task : graph_.periodic_tasks) {
-    if (node_ids.find(periodic_task) == node_ids.end()) {
-      result.add_error("Periodic task references unknown node: " + periodic_task);
+    if (node_ids.find(periodic_task.task) == node_ids.end()) {
+      result.add_error("Periodic task references unknown node: " + periodic_task.task);
       continue;
     }
-    if (!is_task_type(node_types[periodic_task])) {
-      result.add_error("Periodic task must reference a task node: " + periodic_task);
+    if (!is_task_type(node_types[periodic_task.task])) {
+      result.add_error("Periodic task must reference a task node: " + periodic_task.task);
       continue;
     }
-    if (has_self_loop_edge(graph_, periodic_task)) {
-      result.add_warning("Periodic task " + periodic_task + " already has a self-loop release edge");
+    if (periodic_task.period <= 0) {
+      result.add_error("Periodic task period must be positive: " + periodic_task.task);
     }
-  }
-
-  // Check for missing period on periodic tasks
-  for (const auto& node : graph_.nodes) {
-    if (node.type == "periodic") {
-      if (node.period.first <= 0 || node.period.second <= 0 ||
-          node.period.first > node.period.second) {
-        result.add_error("Periodic task " + node.id + " missing or invalid period");
-      }
+    if (has_self_loop_edge(graph_, periodic_task.task)) {
+      result.add_warning("Periodic task " + periodic_task.task + " already has a self-loop release edge");
     }
   }
 

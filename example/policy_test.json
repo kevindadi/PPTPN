@@ -6,16 +6,16 @@
     "num_cpus": 2,
     "cores_per_cpu": 4,
     "shared_locks": [],
-    "policy": "rm"
+    "policy": "rm",
+    "periodic": [{"task": "A", "period": 100}]
   },
   "nodes": [
     {
       "id": "A",
-      "type": "periodic",
+      "type": "task",
       "priority": 97,
       "core": 0,
       "time": [[3, 8]],
-      "period": [100, 100],
       "locks": []
     }
   ],

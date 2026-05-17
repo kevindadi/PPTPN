@@ -83,4 +83,9 @@ struct StartBinding {
   int tokens = 1;
 };
 
+struct PeriodicBinding {
+  std::string task;
+  int period = 0;
+};
+
 #endif  // TYPES_H

@@ -59,7 +59,7 @@ struct JsonGraph {
   SchedulePolicy policy = SchedulePolicy::FIXED;  // 调度策略
   std::vector<StartBinding> start_tasks;
   std::vector<std::string> end_tasks;
-  std::vector<std::string> periodic_tasks;
+  std::vector<PeriodicBinding> periodic_tasks;
   std::vector<JsonNode> nodes;
   std::vector<JsonEdge> edges;
 };
@@ -77,7 +77,7 @@ class Parser {
   SchedulePolicy get_policy() const { return graph_.policy; }
   const std::vector<StartBinding>& get_start_tasks() const { return graph_.start_tasks; }
   const std::vector<std::string>& get_end_tasks() const { return graph_.end_tasks; }
-  const std::vector<std::string>& get_periodic_tasks() const { return graph_.periodic_tasks; }
+  const std::vector<PeriodicBinding>& get_periodic_tasks() const { return graph_.periodic_tasks; }
   const std::vector<JsonNode>& get_nodes() const { return graph_.nodes; }
   const std::vector<JsonEdge>& get_edges() const { return graph_.edges; }
   const std::string& get_original_json() const { return original_json_; }

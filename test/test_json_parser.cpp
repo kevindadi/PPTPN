@@ -45,12 +45,12 @@ TEST_F(JsonParserTest, ConfigurationStartEndPeriodicParsing) {
       "shared_locks": [],
       "start": [{"task": "TaskA", "tokens": 2}, "TaskB"],
       "end": ["TaskC"],
-      "periodic": ["TaskA"]
+      "periodic": [{"task": "TaskA", "period": 100}]
     },
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "period": [100, 100], "locks": []},
-      {"id": "TaskB", "type": "aperiodic", "priority": 98, "core": 1, "time": [[3, 5]], "locks": []},
-      {"id": "TaskC", "type": "aperiodic", "priority": 99, "core": 1, "time": [[4, 6]], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[3, 8]], "locks": []},
+      {"id": "TaskB", "type": "task", "priority": 98, "core": 1, "time": [[3, 5]], "locks": []},
+      {"id": "TaskC", "type": "task", "priority": 99, "core": 1, "time": [[4, 6]], "locks": []}
     ],
     "edges": []
   })";
@@ -67,7 +67,8 @@ TEST_F(JsonParserTest, ConfigurationStartEndPeriodicParsing) {
   ASSERT_EQ(parser.get_end_tasks().size(), 1);
   EXPECT_EQ(parser.get_end_tasks()[0], "TaskC");
   ASSERT_EQ(parser.get_periodic_tasks().size(), 1);
-  EXPECT_EQ(parser.get_periodic_tasks()[0], "TaskA");
+  EXPECT_EQ(parser.get_periodic_tasks()[0].task, "TaskA");
+  EXPECT_EQ(parser.get_periodic_tasks()[0].period, 100);
 }
 
 TEST_F(JsonParserTest, InvalidJsonErrorHandling) {

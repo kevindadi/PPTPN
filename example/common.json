@@ -11,21 +11,23 @@
       {"task": "A", "tokens": 1}, {"task": "D", "tokens": 1}
     ],
     "end": ["C", "F"],
-    "periodic": ["A", "D"]
+    "periodic": [
+      {"task": "A", "period": 100},
+      {"task": "D", "period": 50}
+    ]
   },
   "nodes": [
     {
       "id": "A",
-      "type": "periodic",
+      "type": "task",
       "priority": 97,
       "core": 0,
       "time": [[3, 8]],
-      "period": [100, 100],
       "locks": []
     },
     {
       "id": "B",
-      "type": "aperiodic",
+      "type": "task",
       "priority": 98,
       "core": 0,
       "time": [[3, 5]],

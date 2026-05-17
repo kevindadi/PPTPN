@@ -89,28 +89,26 @@ void TDG2PN::add_end_consumers(petri::PTPN& ptpn, const tdg::TDG& tdg) {
 
 void TDG2PN::add_periodic_release_bindings(petri::PTPN& ptpn,
                                            const tdg::TDG& tdg) {
-  for (const auto& task_name : tdg.periodic_tasks) {
-    if (has_self_loop_release(tdg, task_name)) {
+  for (const auto& periodic_task : tdg.periodic_tasks) {
+    if (has_self_loop_release(tdg, periodic_task.task)) {
       continue;
     }
 
-    const auto node_it = ptpn.node_start_end_map.find(task_name);
-    const auto type_it = tdg.nodes_type.find(task_name);
+    const auto node_it = ptpn.node_start_end_map.find(periodic_task.task);
+    const auto type_it = tdg.nodes_type.find(periodic_task.task);
     if (node_it == ptpn.node_start_end_map.end() || type_it == tdg.nodes_type.end()) {
-      warn("[TDG2PN] Periodic task not found for release binding: " + task_name);
+      warn("[TDG2PN] Periodic task not found for release binding: " + periodic_task.task);
       continue;
     }
 
-    if (!std::holds_alternative<PeriodicTask>(type_it->second)) {
-      warn("[TDG2PN] Periodic release requested for non-periodic node: " + task_name);
+    if (!std::holds_alternative<TaskNode>(type_it->second)) {
+      warn("[TDG2PN] Periodic release requested for non-task node: " + periodic_task.task);
       continue;
     }
 
-    const auto& task = std::get<PeriodicTask>(type_it->second);
-    size_t random = ptpn.add_place(task.name + "_cfg_random", 1);
-    petri::TimeInterval fire_interval(task.period_time.first,
-                                      task.period_time.second);
-    size_t fire = ptpn.add_transition(task.name + "_cfg_fire", fire_interval,
+    size_t random = ptpn.add_place(periodic_task.task + "_cfg_random", 1);
+    petri::TimeInterval fire_interval(periodic_task.period, periodic_task.period);
+    size_t fire = ptpn.add_transition(periodic_task.task + "_cfg_fire", fire_interval,
                                       411, 411, false);
 
     ptpn.set_initial_marking(random, 1);

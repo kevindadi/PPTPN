@@ -16,7 +16,7 @@ This document defines the JSON format used to describe a task dependency graph (
     "policy": "fixed",
     "start": [{"task": "A", "tokens": 1}],
     "end": ["C"],
-    "periodic": ["A"]
+    "periodic": [{"task": "A", "period": 100}]
   },
   "nodes": [],
   "edges": []
@@ -41,7 +41,7 @@ This document defines the JSON format used to describe a task dependency graph (
   "policy": "fifo",
   "start": [{"task": "A", "tokens": 1}],
   "end": ["C"],
-  "periodic": ["A"]
+  "periodic": [{"task": "A", "period": 100}]
 }
 ```
 
@@ -53,7 +53,7 @@ This document defines the JSON format used to describe a task dependency graph (
 | `policy` | string | no | Scheduling policy, default is `fixed` |
 | `start` | array | no | Start task bindings; each item is either a task name or `{ "task", "tokens" }` |
 | `end` | array | no | End task names; a zero-time consume transition is added after task completion |
-| `periodic` | array | no | Task names that should receive configuration-driven periodic release structure |
+| `periodic` | array | no | Configuration-driven periodic release bindings; each item is `{ "task", "period" }` |
 
 ### Scheduling policies
 
@@ -198,12 +198,12 @@ Errors:
 - Unknown node types
 - Invalid core indices
 - Edges referencing unknown nodes
-- Missing or invalid `period` on `periodic` nodes
 - Undefined locks
 - Invalid lock prefixes
 - Invalid time segment counts
 - Invalid time ranges
 - Unknown or non-task references in `start`, `end`, or `periodic`
+- Non-positive `periodic[*].period`
 - Negative token counts in `start`
 
 Warnings:

@@ -119,12 +119,17 @@ TEST_F(ValidationTest, EdgeReferencesUnknownNode) {
   EXPECT_TRUE(has_edge_error);
 }
 
-TEST_F(ValidationTest, PeriodicTaskMissingPeriod) {
+TEST_F(ValidationTest, PeriodicTaskUnknownNode) {
   std::string json = R"({
     "graph": {"name": "Test"},
-    "configuration": {"num_cpus": 1, "cores_per_cpu": 1, "shared_locks": []},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": [],
+      "periodic": [{"task": "MissingTask", "period": 100}]
+    },
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[3, 8]], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[3, 8]], "locks": []}
     ],
     "edges": []
   })";
@@ -138,7 +143,39 @@ TEST_F(ValidationTest, PeriodicTaskMissingPeriod) {
 
   bool has_period_error = false;
   for (const auto& err : validation.errors) {
-    if (err.find("missing") != std::string::npos && err.find("period") != std::string::npos) {
+    if (err.find("Periodic task references unknown node") != std::string::npos) {
+      has_period_error = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(has_period_error);
+}
+
+TEST_F(ValidationTest, PeriodicTaskNonPositivePeriod) {
+  std::string json = R"({
+    "graph": {"name": "Test"},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": [],
+      "periodic": [{"task": "TaskA", "period": 0}]
+    },
+    "nodes": [
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[3, 8]], "locks": []}
+    ],
+    "edges": []
+  })";
+
+  Parser parser;
+  auto parse_result = parser.parse_string(json);
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
+
+  auto validation = parser.validate();
+  EXPECT_FALSE(validation.success);
+
+  bool has_period_error = false;
+  for (const auto& err : validation.errors) {
+    if (err.find("Periodic task period must be positive") != std::string::npos) {
       has_period_error = true;
       break;
     }
@@ -176,10 +213,15 @@ TEST_F(ValidationTest, UndefinedLock) {
 TEST_F(ValidationTest, ValidInputNoErrors) {
   std::string json = R"({
     "graph": {"name": "Test"},
-    "configuration": {"num_cpus": 2, "cores_per_cpu": 4, "shared_locks": ["mutex1", "spin1"]},
+    "configuration": {
+      "num_cpus": 2,
+      "cores_per_cpu": 4,
+      "shared_locks": ["mutex1", "spin1"],
+      "periodic": [{"task": "TaskA", "period": 100}]
+    },
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[0, 3], [3, 8], [8, 10]], "period": [100, 100], "locks": ["mutex1"]},
-      {"id": "TaskB", "type": "aperiodic", "priority": 98, "core": 1, "time": [[2, 5]], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[0, 3], [3, 8], [8, 10]], "locks": ["mutex1"]},
+      {"id": "TaskB", "type": "task", "priority": 98, "core": 1, "time": [[2, 5]], "locks": []}
     ],
     "edges": [
       {"source": "TaskA", "target": "TaskB"}
@@ -489,10 +531,10 @@ TEST_F(ValidationTest, PeriodicTaskWithSelfLoopWarning) {
       "num_cpus": 1,
       "cores_per_cpu": 1,
       "shared_locks": [],
-      "periodic": ["TaskA"]
+      "periodic": [{"task": "TaskA", "period": 10}]
     },
     "nodes": [
-      {"id": "TaskA", "type": "periodic", "priority": 97, "core": 0, "time": [[1, 2]], "period": [10, 10], "locks": []}
+      {"id": "TaskA", "type": "task", "priority": 97, "core": 0, "time": [[1, 2]], "locks": []}
     ],
     "edges": [
       {"source": "TaskA", "target": "TaskA", "style": "dashed"}
