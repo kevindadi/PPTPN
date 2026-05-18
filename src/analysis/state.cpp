@@ -208,6 +208,47 @@ void DBM::reset_clock(size_t clock_idx) {
   }
 }
 
+void DBM::forget_clock(size_t clock_idx) {
+  check_index(clock_idx, clock_idx);
+
+  if (clock_idx == 0) {
+    return;
+  }
+
+  bool changed = false;
+  for (size_t i = 0; i < clock_count_; ++i) {
+    if (i != clock_idx) {
+      if (matrix_[offset(clock_idx, i)] != INF_TIME) {
+        matrix_[offset(clock_idx, i)] = INF_TIME;
+        changed = true;
+      }
+      if (matrix_[offset(i, clock_idx)] != INF_TIME) {
+        matrix_[offset(i, clock_idx)] = INF_TIME;
+        changed = true;
+      }
+    }
+  }
+
+  if (matrix_[offset(clock_idx, 0)] != INF_TIME) {
+    matrix_[offset(clock_idx, 0)] = INF_TIME;
+    changed = true;
+  }
+  if (matrix_[offset(0, clock_idx)] != 0) {
+    matrix_[offset(0, clock_idx)] = 0;
+    changed = true;
+  }
+  if (matrix_[offset(clock_idx, clock_idx)] != 0) {
+    matrix_[offset(clock_idx, clock_idx)] = 0;
+    changed = true;
+  }
+
+  frozen_clocks_.erase(clock_idx);
+
+  if (changed) {
+    minimize();
+  }
+}
+
 DBM DBM::intersection(const DBM& other) const {
   if (clock_count_ != other.clock_count_) {
     throw std::invalid_argument("DBM sizes must match for intersection");
@@ -312,7 +353,7 @@ bool DBM::operator<(const DBM& other) const {
     }
   }
 
-  return false;
+  return frozen_clocks_ < other.frozen_clocks_;
 }
 
 void DBM::remove_clock(size_t clock_idx) {
@@ -422,8 +463,6 @@ bool StateClass::operator==(const StateClass& other) const {
   if (marking != other.marking) return false;
   if (!(Z1 == other.Z1)) return false;
   if (!(Z2 == other.Z2)) return false;
-  if (enabled != other.enabled) return false;
-  if (suspended != other.suspended) return false;
   return true;
 }
 
@@ -434,13 +473,7 @@ bool StateClass::operator<(const StateClass& other) const {
   if (Z1 < other.Z1) return true;
   if (other.Z1 < Z1) return false;
 
-  if (Z2 < other.Z2) return true;
-  if (other.Z2 < Z2) return false;
-
-  if (enabled < other.enabled) return true;
-  if (other.enabled < enabled) return false;
-
-  return suspended < other.suspended;
+  return Z2 < other.Z2;
 }
 
 StateClass StateClass::copy() const {

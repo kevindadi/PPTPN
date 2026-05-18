@@ -433,6 +433,7 @@ StateClass StateClassReachabilityGraph::canonicalize(
     const StateClass& state) const {
   StateClass canonical = state;
 
+  recompute_suspension(canonical);
   canonical.Z1.minimize();
   canonical.Z2.minimize();
 
@@ -540,8 +541,8 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
       if (clock_idx < state.Z1.size()) {
         int upper = state.Z1.get_constraint(clock_idx, 0);
         int lower = state.Z1.get_constraint(0, clock_idx);
-        if (upper != 0 || lower != 0) {
-          state.Z1.reset_clock(clock_idx);
+        if (upper != INF_TIME || lower != 0) {
+          state.Z1.forget_clock(clock_idx);
           z1_changed = true;
           cleared_count++;
         }
@@ -549,8 +550,8 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
       if (clock_idx < state.Z2.size()) {
         int upper = state.Z2.get_constraint(clock_idx, 0);
         int lower = state.Z2.get_constraint(0, clock_idx);
-        if (upper != 0 || lower != 0) {
-          state.Z2.reset_clock(clock_idx);
+        if (upper != INF_TIME || lower != 0) {
+          state.Z2.forget_clock(clock_idx);
           z2_changed = true;
         }
       }
@@ -901,7 +902,6 @@ bool StateClassReachabilityGraph::maximal_time_elapse(StateClass& state,
 std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_dbm(
     size_t trans_idx, const StateClass& from_state) {
   StateClass to = from_state.copy();
-  to.state_id = next_state_id_++;
 
   const auto& transition = ptpn_.get_transition(trans_idx);
   int alpha = transition.time_interval.earliest;
@@ -993,10 +993,10 @@ void StateClassReachabilityGraph::compute_enabled_and_clocks(
   for (size_t t : to_remove) {
     size_t clock_idx = t + 1;
     if (clock_idx < state.Z1.size()) {
-      state.Z1.reset_clock(clock_idx);
+      state.Z1.forget_clock(clock_idx);
     }
     if (clock_idx < state.Z2.size()) {
-      state.Z2.reset_clock(clock_idx);
+      state.Z2.forget_clock(clock_idx);
     }
     state.Z1.unfreeze_clock(clock_idx);
     state.Z2.unfreeze_clock(clock_idx);

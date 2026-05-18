@@ -46,6 +46,7 @@ class DBM {
   void resize(size_t new_size);
   void elapse_time(int delta);
   void reset_clock(size_t clock_idx);
+  void forget_clock(size_t clock_idx);
   void remove_clock(size_t clock_idx);
   [[nodiscard]] DBM restrict_for_firing(size_t transition_id, int alpha,
                                         int beta) const;
