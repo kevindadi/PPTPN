@@ -717,8 +717,8 @@ void TDG2PN::fixed_prior_with_restart(
 
     for (size_t i = 0; i < tasks.size(); ++i) {
       for (size_t j = i + 1; j < tasks.size(); ++j) {
-        const std::string& l_t_name = tasks[i];
-        const std::string& h_t_name = tasks[j];
+        const std::string& h_t_name = tasks[i];
+        const std::string& l_t_name = tasks[j];
 
         auto l_t_it = tc.find(l_t_name);
         auto h_t_it = tc.find(h_t_name);
@@ -859,8 +859,8 @@ void TDG2PN::fixed_prior_with_resume(
 
     for (size_t i = 0; i < tasks.size(); ++i) {
       for (size_t j = i + 1; j < tasks.size(); ++j) {
-        const std::string& l_t_name = tasks[i];
-        const std::string& h_t_name = tasks[j];
+        const std::string& h_t_name = tasks[i];
+        const std::string& l_t_name = tasks[j];
 
         auto l_t_it = tc.find(l_t_name);
         auto h_t_it = tc.find(h_t_name);
