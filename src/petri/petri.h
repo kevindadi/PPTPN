@@ -71,7 +71,7 @@ struct Transition {
 
   Transition(const std::string& id = "", const std::string& name = "",
              const TimeInterval& interval = TimeInterval(),
-             int priority = INT_MAX, int core = 0, bool suspendable = false)
+             int priority = INT_MAX, int core = -1, bool suspendable = false)
       : id(id),
         name(name),
         time_interval(interval),
@@ -98,7 +98,7 @@ class PTPN {
 
   size_t add_transition(const std::string& name,
                         const TimeInterval& interval = TimeInterval(),
-                        int priority = INT_MAX, int core = 0,
+                        int priority = INT_MAX, int core = -1,
                         bool suspendable = false) {
     transitions.emplace_back(std::to_string(transitions.size()), name, interval,
                              priority, core, suspendable);
@@ -273,15 +273,26 @@ class PTPN {
       return {};
     }
 
-    int highest_priority = INT_MAX;
+    std::vector<size_t> scheduling_transitions;
     for (size_t t : enabled_transitions) {
-      if (transitions[t].priority < highest_priority) {
+      if (transitions[t].priority != INT_MAX) {
+        scheduling_transitions.push_back(t);
+      }
+    }
+
+    if (scheduling_transitions.empty()) {
+      return enabled_transitions;
+    }
+
+    int highest_priority = INT_MIN;
+    for (size_t t : scheduling_transitions) {
+      if (transitions[t].priority > highest_priority) {
         highest_priority = transitions[t].priority;
       }
     }
 
     std::vector<size_t> filtered;
-    for (size_t t : enabled_transitions) {
+    for (size_t t : scheduling_transitions) {
       if (transitions[t].priority == highest_priority) {
         filtered.push_back(t);
       }
@@ -295,17 +306,26 @@ class PTPN {
       return {};
     }
 
+    std::vector<size_t> non_scheduling_transitions;
     std::map<int, std::vector<size_t>> transitions_by_core;
     for (size_t t : enabled_transitions) {
+      if (transitions[t].priority == INT_MAX || transitions[t].core < 0) {
+        non_scheduling_transitions.push_back(t);
+        continue;
+      }
       transitions_by_core[transitions[t].core].push_back(t);
     }
 
-    std::vector<size_t> filtered;
+    if (transitions_by_core.empty()) {
+      return enabled_transitions;
+    }
+
+    std::vector<size_t> filtered = non_scheduling_transitions;
 
     for (auto& [core_id, core_transitions] : transitions_by_core) {
-      int highest_priority = INT_MAX;
+      int highest_priority = INT_MIN;
       for (size_t t : core_transitions) {
-        if (transitions[t].priority < highest_priority) {
+        if (transitions[t].priority > highest_priority) {
           highest_priority = transitions[t].priority;
         }
       }
