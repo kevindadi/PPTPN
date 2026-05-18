@@ -1,6 +1,6 @@
 # Unified TDG-to-Petri-Net P/T Rules
 
-This document describes how TDG nodes are lowered into a static P/T Petri net under the FIFO scheduling policy. The `fixed` policy keeps the same base net and adds extra preemption paths for higher-priority tasks.
+This document describes how TDG nodes are lowered into a static P/T Petri net under the FIFO scheduling policy. The fixed-priority variants keep the same base net and add extra preemption paths for higher-priority tasks.
 
 ## Conventions
 
@@ -183,16 +183,45 @@ FIFO does not add extra scheduling-control places.
 4. No extra preemption path is added.
 5. All execution transitions are non-suspendable by default.
 
-## Fixed-priority policy
+## Fixed-priority variants
 
-The `fixed` policy keeps the FIFO base task chains and adds static preemption and resume paths for higher-priority tasks on the same core.
+The fixed-priority variants keep the FIFO base task chains and add static preemption paths for higher-priority tasks on the same core.
 
-| Aspect | FIFO | fixed |
-| --- | --- | --- |
-| Base task chain | kept | kept |
-| CPU resource model | kept | kept |
-| Lock resource model | kept | kept |
-| Preemption paths | none | added |
-| `suspendable` | all `false` | lower-priority execution segments may become `true` |
+| Aspect | FIFO | `fixed_prior_with_restart` | `fixed_prior_with_resume` |
+| --- | --- | --- | --- |
+| Base task chain | kept | kept | kept |
+| CPU resource model | kept | kept | kept |
+| Lock resource model | kept | kept | kept |
+| Preemption paths | none | added | added |
+| Low-priority token after preemption | n/a | returns to task entry | moves to suspended place |
+| Recovery after high-priority completion | n/a | low task restarts from entry | low task resumes at the same preemption point |
+| `suspendable` | all `false` | lower-priority execution segments may become `true` | lower-priority execution segments may become `true` |
+| Spin-lock preemption paths | n/a | not added | not added |
 
-In short: FIFO provides the base net, and `fixed` extends that base net with preemption structure.
+### `fixed_prior_with_restart`
+
+This variant extends the FIFO base net with immediate preemption transitions that redirect the preempted low-priority task token back to its entry place.
+
+```text
+H_entry_p + L_preempt_p -> restart_preempt_t -> H_ready_p + L_entry_p
+```
+
+Use this when you want the cheaper static model in which a preempted task restarts from the beginning of its task chain.
+
+### `fixed_prior_with_resume`
+
+This variant extends the FIFO base net with a suspended place and a resume transition for each allowed preemption point.
+
+```text
+H_entry_p + L_preempt_p -> resume_preempt_t -> H_ready_p + L_suspended_p
+H_exit_p + L_suspended_p -> resume_t -> L_preempt_p
+```
+
+Use this when you want the usual real-time preempt-resume semantics, where the preempted task continues from the exact point where it was interrupted.
+
+In both variants:
+
+1. Priority is already known during lowering because tasks are grouped by core and sorted before preemption arcs are added.
+2. Only selected low-priority execution segments are marked `suspendable`.
+3. `fork` and `join` nodes do not participate in preemption expansion.
+4. No extra lock-specific preemption path is added once a `spin` lock is encountered.

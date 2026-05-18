@@ -309,6 +309,77 @@ TEST_F(TdgExportTest, FixedPriorityResumePreemptionRestoresLowTaskToPreemptionPo
   EXPECT_EQ(ptpn.get_post_matrix()[resume_transition][low_ready], 1);
 }
 
+TEST_F(TdgExportTest, FixedPriorityVariantsDoNotAddSpinLockPreemptionPaths) {
+  std::string restart_json = R"({
+    "graph": {"name": "SpinRestart"},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": ["spin1"],
+      "policy": "fixed_prior_with_restart"
+    },
+    "nodes": [
+      {"id": "LowTask", "type": "task", "priority": 90, "core": 0, "time": [[1, 2], [2, 3], [3, 4]], "locks": ["spin1"]},
+      {"id": "HighTask", "type": "task", "priority": 100, "core": 0, "time": [[1, 1]], "locks": []}
+    ],
+    "edges": []
+  })";
+
+  TDG restart_tdg;
+  restart_tdg.parse_json_string(restart_json);
+
+  petri::PTPN restart_ptpn;
+  converter::TDG2PN::transform(restart_tdg, restart_ptpn);
+
+  bool has_restart_lock_preempt = false;
+  for (const auto& transition : restart_ptpn.transitions) {
+    if (transition.name.find("restart_lock_preempt") != std::string::npos) {
+      has_restart_lock_preempt = true;
+      break;
+    }
+  }
+  EXPECT_FALSE(has_restart_lock_preempt);
+
+  std::string resume_json = R"({
+    "graph": {"name": "SpinResume"},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": ["spin1"],
+      "policy": "fixed_prior_with_resume"
+    },
+    "nodes": [
+      {"id": "LowTask", "type": "task", "priority": 90, "core": 0, "time": [[1, 2], [2, 3], [3, 4]], "locks": ["spin1"]},
+      {"id": "HighTask", "type": "task", "priority": 100, "core": 0, "time": [[1, 1]], "locks": []}
+    ],
+    "edges": []
+  })";
+
+  TDG resume_tdg;
+  resume_tdg.parse_json_string(resume_json);
+
+  petri::PTPN resume_ptpn;
+  converter::TDG2PN::transform(resume_tdg, resume_ptpn);
+
+  bool has_resume_lock_preempt = false;
+  bool has_lock_suspended_place = false;
+  for (const auto& transition : resume_ptpn.transitions) {
+    if (transition.name.find("resume_lock_preempt") != std::string::npos) {
+      has_resume_lock_preempt = true;
+      break;
+    }
+  }
+  for (const auto& place : resume_ptpn.places) {
+    if (place.name.find("lock_suspended") != std::string::npos) {
+      has_lock_suspended_place = true;
+      break;
+    }
+  }
+
+  EXPECT_FALSE(has_resume_lock_preempt);
+  EXPECT_FALSE(has_lock_suspended_place);
+}
+
 TEST_F(TdgExportTest, ForkJoinTransitionEdgeRules) {
   std::string valid_json = R"({
     "graph": {"name": "ForkJoinEdgeRules"},

@@ -98,7 +98,6 @@ class Parser {
 std::string node_type_to_string(const NodeType& node);
 std::string node_to_dot_label(const NodeType& node);
 
-// 锁类型辅助函数
 enum class LockType { MUTEX, SPIN, UNKNOWN };
 LockType get_lock_type(const std::string& lock_name);
 std::string get_lock_type_short(const std::string& lock_name);
