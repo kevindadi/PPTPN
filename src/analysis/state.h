@@ -36,7 +36,7 @@ class DBM {
   DBM(DBM&& other) noexcept = default;
   DBM& operator=(DBM&& other) noexcept = default;
 
-  [[nodiscard]] size_t size() const { return matrix_.size(); }
+  [[nodiscard]] size_t size() const { return clock_count_; }
 
   void set_constraint(size_t i, size_t j, int bound);
   [[nodiscard]] int get_constraint(size_t i, size_t j) const;
@@ -62,10 +62,11 @@ class DBM {
   bool operator<(const DBM& other) const;
 
  private:
-  std::vector<std::vector<int>> matrix_;
+  std::vector<int> matrix_;
   size_t clock_count_;
   std::set<size_t> frozen_clocks_;
 
+  [[nodiscard]] size_t offset(size_t i, size_t j) const;
   void check_index(size_t i, size_t j) const;
   void initialize_clock(size_t clock_idx);
 };
