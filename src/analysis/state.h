@@ -220,6 +220,8 @@ class StateClassReachabilityGraph {
                              double firing_time);
 
   void update_dbm_constraints(StateClass& state);
+  std::vector<size_t> collect_enabled_transitions(
+      const StateClass& state) const;
 
   bool should_prune(const StateClass& state,
                     const std::set<StateClass>& visited) const;

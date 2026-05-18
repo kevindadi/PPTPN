@@ -271,6 +271,19 @@ bool StateClassReachabilityGraph::is_transition_enabled(
   return petri::PTPN::is_enabled(state.marking, ptpn_, trans_idx);
 }
 
+std::vector<size_t> StateClassReachabilityGraph::collect_enabled_transitions(
+    const StateClass& state) const {
+  std::vector<size_t> enabled;
+  const size_t num_transitions = ptpn_.num_transitions();
+  enabled.reserve(num_transitions);
+  for (size_t t = 0; t < num_transitions; ++t) {
+    if (is_transition_enabled(state, t)) {
+      enabled.push_back(t);
+    }
+  }
+  return enabled;
+}
+
 std::pair<int, int> StateClassReachabilityGraph::get_transition_time_bounds(
     const StateClass& state, size_t trans_idx) const {
   const auto& transition = ptpn_.get_transition(trans_idx);
@@ -428,17 +441,12 @@ StateClass StateClassReachabilityGraph::canonicalize(
 
 void StateClassReachabilityGraph::recompute_suspension(
     StateClass& state) const {
-  std::set<size_t> enabled;
-  for (size_t t = 0; t < ptpn_.num_transitions(); ++t) {
-    if (is_transition_enabled(state, t)) {
-      enabled.insert(t);
-    }
-  }
+  std::vector<size_t> enabled_vec = collect_enabled_transitions(state);
+  std::set<size_t> enabled(enabled_vec.begin(), enabled_vec.end());
 
   state.enabled = enabled;
 
   std::set<size_t> suspended;
-  std::vector<size_t> enabled_vec(enabled.begin(), enabled.end());
 
   for (size_t t : enabled) {
     if (is_suspended(t, enabled_vec)) {
@@ -514,34 +522,37 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
     state.Z2.resize(num_transitions + 1);
   }
 
-  std::vector<size_t> enabled;
-  for (size_t t = 0; t < ptpn_.num_transitions(); ++t) {
-    if (is_transition_enabled(state, t)) {
-      enabled.push_back(t);
-    }
+  std::vector<size_t> enabled = collect_enabled_transitions(state);
+  std::vector<bool> enabled_flags(num_transitions, false);
+  for (size_t t : enabled) {
+    enabled_flags[t] = true;
   }
 
+  bool z1_changed = false;
+  bool z2_changed = false;
   size_t cleared_count = 0;
   size_t initialized_count = 0;
 
   for (size_t t = 0; t < num_transitions; ++t) {
-    bool is_enabled = false;
-    for (size_t e : enabled) {
-      if (e == t) {
-        is_enabled = true;
-        break;
-      }
-    }
-
-    if (!is_enabled) {
+    if (!enabled_flags[t]) {
       size_t clock_idx = t + 1;
 
       if (clock_idx < state.Z1.size()) {
-        state.Z1.reset_clock(clock_idx);
-        cleared_count++;
+        int upper = state.Z1.get_constraint(clock_idx, 0);
+        int lower = state.Z1.get_constraint(0, clock_idx);
+        if (upper != 0 || lower != 0) {
+          state.Z1.reset_clock(clock_idx);
+          z1_changed = true;
+          cleared_count++;
+        }
       }
       if (clock_idx < state.Z2.size()) {
-        state.Z2.reset_clock(clock_idx);
+        int upper = state.Z2.get_constraint(clock_idx, 0);
+        int lower = state.Z2.get_constraint(0, clock_idx);
+        if (upper != 0 || lower != 0) {
+          state.Z2.reset_clock(clock_idx);
+          z2_changed = true;
+        }
       }
 
       state.Z1.unfreeze_clock(clock_idx);
@@ -601,6 +612,7 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
         } else {
           state.Z2.set_constraint(clock_idx, 0, INF_TIME);
         }
+        z2_changed = true;
       } else {
         if (transition.time_interval.earliest > 0) {
           state.Z1.set_constraint(0, clock_idx, -transition.time_interval.earliest);
@@ -612,6 +624,7 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
         } else {
           state.Z1.set_constraint(clock_idx, 0, INF_TIME);
         }
+        z1_changed = true;
       }
     }
   }
@@ -620,8 +633,12 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
     spdlog::debug("    Initialized {} new enabled clocks", initialized_count);
   }
 
-  state.Z1.minimize();
-  state.Z2.minimize();
+  if (z1_changed) {
+    state.Z1.minimize();
+  }
+  if (z2_changed) {
+    state.Z2.minimize();
+  }
 }
 
 bool StateClassReachabilityGraph::should_prune(
