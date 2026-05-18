@@ -4,6 +4,11 @@
 
 namespace converter {
 
+namespace {
+constexpr int kNoSchedulingPriority = INT_MAX;
+constexpr int kNoSchedulingCore = -1;
+}
+
 static void info(const std::string& msg) {
   spdlog::info("[TDG2PN] {}", msg);
 }
@@ -45,7 +50,8 @@ void TDG2PN::add_consume_transition(petri::PTPN& ptpn,
                                     size_t end_idx) {
   petri::TimeInterval interval(0, 0);
   size_t consume_trans = ptpn.add_transition(task_name + "_consume",
-                                             interval, 411, 411, false);
+                                             interval, kNoSchedulingPriority,
+                                             kNoSchedulingCore, false);
   ptpn.set_pre_arc(end_idx, consume_trans, 1);
 }
 
@@ -109,7 +115,7 @@ void TDG2PN::add_periodic_release_bindings(petri::PTPN& ptpn,
     size_t random = ptpn.add_place(periodic_task.task + "_cfg_random", 1);
     petri::TimeInterval fire_interval(periodic_task.period, periodic_task.period);
     size_t fire = ptpn.add_transition(periodic_task.task + "_cfg_fire", fire_interval,
-                                      411, 411, false);
+                                      kNoSchedulingPriority, kNoSchedulingCore, false);
 
     ptpn.set_initial_marking(random, 1);
     ptpn.set_pre_arc(random, fire, 1);
@@ -189,7 +195,7 @@ std::unordered_map<int, std::vector<std::string>> TDG2PN::classify_tdg_priority(
 
   for (auto& [core_id, tasks] : core_task) {
     std::sort(tasks.begin(), tasks.end(), [&](const std::string& t1, const std::string& t2) {
-      return tdg.tasks_priority.at(t1) < tdg.tasks_priority.at(t2);
+      return tdg.tasks_priority.at(t1) > tdg.tasks_priority.at(t2);
     });
   }
 
@@ -349,7 +355,9 @@ void TDG2PN::handle_normal_edge_matrix(petri::PTPN& ptpn,
 
   const std::string trans_name = source_name + "_to_" + target_name;
   petri::TimeInterval interval(0, 0);
-  size_t middle_trans = ptpn.add_transition(trans_name, interval, 411, 411, false);
+  size_t middle_trans = ptpn.add_transition(trans_name, interval,
+                                            kNoSchedulingPriority,
+                                            kNoSchedulingCore, false);
 
   if (source_node < ptpn.places.size() && target_node < ptpn.places.size()) {
     ptpn.set_pre_arc(source_node, middle_trans, 1);
@@ -497,15 +505,21 @@ std::pair<size_t, size_t> TDG2PN::add_node_matrix(petri::PTPN& ptpn,
   } else if (std::holds_alternative<JoinTask>(node_type)) {
     auto [name, time] = std::get<JoinTask>(node_type);
     petri::TimeInterval interval(0, 0);
-    size_t fork_trans = ptpn.add_transition("Fork" + std::to_string(ptpn.node_index++),
-                                            interval, 411, 411, false);
-    return std::make_pair(fork_trans, fork_trans);
+    size_t join_trans = ptpn.add_transition("Join" + std::to_string(ptpn.node_index++),
+                                            interval,
+                                            kNoSchedulingPriority,
+                                            kNoSchedulingCore,
+                                            false);
+    return std::make_pair(join_trans, join_trans);
   } else if (std::holds_alternative<ForkTask>(node_type)) {
     auto [name, time] = std::get<ForkTask>(node_type);
     petri::TimeInterval interval(0, 0);
-    size_t join_trans = ptpn.add_transition("Join" + std::to_string(ptpn.node_index++),
-                                            interval, 411, 411, false);
-    return std::make_pair(join_trans, join_trans);
+    size_t fork_trans = ptpn.add_transition("Fork" + std::to_string(ptpn.node_index++),
+                                            interval,
+                                            kNoSchedulingPriority,
+                                            kNoSchedulingCore,
+                                            false);
+    return std::make_pair(fork_trans, fork_trans);
   } else {
     auto [name] = std::get<EmptyTask>(node_type);
     size_t empty_place = ptpn.add_place("Empty" + std::to_string(ptpn.node_index++), 1);
@@ -598,10 +612,14 @@ void TDG2PN::add_monitor_matrix(petri::PTPN& ptpn, const std::string& task_name,
   size_t t_end = ptpn.add_place(task_name + "end", 1);
 
   petri::TimeInterval timed_interval(task_period_time, task_period_time);
-  size_t timed = ptpn.add_transition(task_name + "timed", timed_interval, 411, 411, false);
-  size_t ending = ptpn.add_transition(task_name + "ending", petri::TimeInterval(0, 0), 411, 411, false);
-  size_t complete = ptpn.add_transition(task_name + "complete", petri::TimeInterval(0, 0), 411, 411, false);
-  size_t tout = ptpn.add_transition(task_name + "out", petri::TimeInterval(0, 0), 411, 411, false);
+  size_t timed = ptpn.add_transition(task_name + "timed", timed_interval,
+                                     kNoSchedulingPriority, kNoSchedulingCore, false);
+  size_t ending = ptpn.add_transition(task_name + "ending", petri::TimeInterval(0, 0),
+                                      kNoSchedulingPriority, kNoSchedulingCore, false);
+  size_t complete = ptpn.add_transition(task_name + "complete", petri::TimeInterval(0, 0),
+                                        kNoSchedulingPriority, kNoSchedulingCore, false);
+  size_t tout = ptpn.add_transition(task_name + "out", petri::TimeInterval(0, 0),
+                                    kNoSchedulingPriority, kNoSchedulingCore, false);
 
   ptpn.set_post_arc(ending, t_end, 1);
   ptpn.set_pre_arc(t_end, complete, 1);
@@ -699,8 +717,8 @@ void TDG2PN::fixed_prior_with_restart(
 
     for (size_t i = 0; i < tasks.size(); ++i) {
       for (size_t j = i + 1; j < tasks.size(); ++j) {
-        const std::string& l_t_name = tasks[i];
-        const std::string& h_t_name = tasks[j];
+        const std::string& h_t_name = tasks[i];
+        const std::string& l_t_name = tasks[j];
 
         auto l_t_it = tc.find(l_t_name);
         auto h_t_it = tc.find(h_t_name);
@@ -841,8 +859,8 @@ void TDG2PN::fixed_prior_with_resume(
 
     for (size_t i = 0; i < tasks.size(); ++i) {
       for (size_t j = i + 1; j < tasks.size(); ++j) {
-        const std::string& l_t_name = tasks[i];
-        const std::string& h_t_name = tasks[j];
+        const std::string& h_t_name = tasks[i];
+        const std::string& l_t_name = tasks[j];
 
         auto l_t_it = tc.find(l_t_name);
         auto h_t_it = tc.find(h_t_name);

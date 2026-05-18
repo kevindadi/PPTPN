@@ -170,7 +170,7 @@ std::unordered_map<int, std::vector<std::string>> TDG::classify_priority() {
 
   for (auto& [fst, snd] : core_task) {
     std::sort(snd.begin(), snd.end(), [&](const std::string& t1, const std::string& t2) {
-      return tasks_priority[t1] < tasks_priority[t2];
+      return tasks_priority[t1] > tasks_priority[t2];
     });
   }
 

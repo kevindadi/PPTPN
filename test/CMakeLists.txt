@@ -13,6 +13,7 @@ add_executable(ptpn_test
   test_json_parser.cpp
   test_validation.cpp
   test_tdg_export.cpp
+  test_example_artifacts.cpp
 )
 
 target_link_libraries(ptpn_test

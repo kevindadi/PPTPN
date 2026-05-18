@@ -24,6 +24,7 @@ endif()
 
 # FetchContent for dependencies
 include(FetchContent)
+include(CTest)
 
 # nlohmann/json
 FetchContent_Declare(json
@@ -55,6 +56,7 @@ add_library(PTPN_core STATIC
     src/petri/petri.cpp
     src/petri/graph.cpp
     src/tdg2pn/tdg2pn.cpp
+    src/analysis/state.cpp
     src/analysis/reachability.cpp
 )
 target_include_directories(PTPN_core PUBLIC src)

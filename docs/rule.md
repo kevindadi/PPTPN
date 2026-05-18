@@ -173,6 +173,41 @@ Release rules:
 - `exec_(2n)_t` releases `L1`
 - `exec_(2n+1)_t` releases the CPU
 
+## Transition semantic fields
+
+The generated Petri net uses transition fields with three distinct semantics:
+
+- `time interval`: whether the transition consumes modeled time
+- `priority`: whether the transition participates in fixed-priority scheduling order
+- `core`: whether the transition is bound to a specific execution core for scheduling semantics
+
+The lowering must treat these fields by transition role rather than assigning the same meaning to every transition.
+
+| Transition kind | Examples | Time interval | Priority field | Core field | Suspendable | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| CPU acquisition | `get_core_t` | `I=[0,0]` | task priority | task core | `false` | Structural step that consumes `core_c_p` and moves the task into `ready_p`. |
+| Lock acquisition | `lock_k_t` | `I=[0,0]` | task priority | task core | `false` | Structural step that consumes the lock token. |
+| Execution segment | `exec_i_t` | task WCET interval | task priority | task core | policy-dependent | The only task-body transition that consumes modeled execution time. |
+| Periodic release | `release_t(P)` | `I=[P,P]` | none | none | `false` | Generates periodic arrivals; it is not a CPU-scheduled task execution step. |
+| Dependency connector | `A_to_B` | `I=[0,0]` | none | none | `false` | Used only to preserve place-transition-place alternation for `task -> task` edges. |
+| End consumer | `consume_t` | `I=[0,0]` | none | none | `false` | Removes terminal tokens from configured end tasks. |
+| Restart preemption | `H_restart_preempt_L` | `I=[0,0]` | high-task priority | high-task core | `false` | Scheduling-control transition; preempts `L` and sends it back to `L_entry_p`. |
+| Resume preemption | `H_resume_preempt_L` | `I=[0,0]` | high-task priority | high-task core | `false` | Scheduling-control transition; preempts `L` and moves it to a suspended place. |
+| Resume recovery | `L_resume_H` | `I=[0,0]` | high-task priority | high-task core | `false` | Scheduling-control transition enabled by `H_exit_p`; restores `L` to its original preemption point. |
+| Fork / join control | fork/join node transition | `I=[0,0]` | none | none | `false` | Structural synchronization transition, not a CPU execution step. |
+
+### Rules for priority and core assignment
+
+1. Only transitions that represent CPU-scheduled behavior carry scheduling metadata (`priority`, `core`).
+2. Timed execution transitions always carry the owning task's priority and core.
+3. Immediate scheduling-control transitions created for fixed-priority preemption also carry the high-priority task's priority and core.
+4. Pure structural transitions do not carry scheduling semantics, even if the implementation stores placeholder fields internally.
+5. `task -> task` connector transitions must not participate in preemption ordering.
+6. `fork` and `join` transitions are synchronization structure, not execution on a CPU core.
+7. Preemption paths are created only for task pairs on the same core.
+8. A preemption-control transition must use the core of the high-priority task, which is also the core of the preempted low-priority task in valid fixed-priority expansion.
+9. If the implementation requires default numeric values for non-scheduling transitions, those values are placeholders only and must not be interpreted as real scheduling policy data.
+
 ## FIFO policy
 
 FIFO does not add extra scheduling-control places.
