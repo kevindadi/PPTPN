@@ -8,6 +8,21 @@
 
 namespace state_class {
 
+namespace {
+constexpr int kNoSchedulingPriority = INT_MAX;
+
+bool has_higher_priority(const petri::Transition& lhs,
+                         const petri::Transition& rhs) {
+  if (lhs.priority == kNoSchedulingPriority) {
+    return false;
+  }
+  if (rhs.priority == kNoSchedulingPriority) {
+    return true;
+  }
+  return lhs.priority > rhs.priority;
+}
+}
+
 static void debug(const std::string& msg) {
   spdlog::debug("[STATE] {}", msg);
 }
@@ -114,10 +129,10 @@ StateClassReachabilityGraph::StateClassReachabilityGraph(const petri::PTPN& ptpn
 
 size_t StateClassReachabilityGraph::build(size_t max_states) {
   stats_ = Statistics();
+  reset_dbm_instrumentation();
   state_to_vertex_.clear();
 
-  StateClass s0 = create_initial_state_class();
-  StateClass canonical_s0 = canonicalize(s0);
+  StateClass s0 = canonicalize(create_initial_state_class());
 
   SCVertex s0_vertex = find_or_add_vertex(s0);
   initial_vertex_ = s0_vertex;
@@ -127,7 +142,7 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
   uniq[{s0.marking, s0.Z1, s0.Z2}] = s0_vertex;
 
   std::queue<StateClass> Q;
-  Q.push(canonical_s0);
+  Q.push(s0);
 
   size_t iteration = 0;
   while (!Q.empty() && stats_.total_states < max_states) {
@@ -147,9 +162,7 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
     apply_preemption(chosen, scheduled);
 
     double dt = 0;
-    if (maximal_time_elapse(scheduled, dt)) {
-      spdlog::debug("  Maximal time elapse: dt = {}", dt);
-    }
+    maximal_time_elapse(scheduled, dt);
 
     if (pruning_enabled_ && scheduled.Z1.is_empty()) {
       debug("  [Prune] Z1 empty, skip");
@@ -168,29 +181,33 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
           spdlog::debug("  {}: fire failed", format_transitions({t}, false));
           stats_.pruned_states_count++;
           continue;
-        } else {
-          spdlog::debug("  {}: fire failed [pruning disabled]", format_transitions({t}, false));
-          continue;
         }
+
+        spdlog::debug("  {}: fire failed [pruning disabled]",
+                      format_transitions({t}, false));
+        continue;
       }
 
-      spdlog::debug("  {} -> successor: ID={}", format_transitions({t}, false), nxt.state_id);
-
-      auto key = std::make_tuple(nxt.marking, nxt.Z1, nxt.Z2);
+      StateClass canonical_nxt = canonicalize(nxt);
+      auto key = std::make_tuple(canonical_nxt.marking, canonical_nxt.Z1,
+                                 canonical_nxt.Z2);
       SCVertex v;
 
-      if (uniq.find(key) != uniq.end()) {
-        v = uniq[key];
+      auto uniq_it = uniq.find(key);
+      if (uniq_it != uniq.end()) {
+        v = uniq_it->second;
+        stats_.dedup_hits_count++;
         debug("  [Existing] Use existing state");
       } else {
-        StateClass canonical_nxt = canonicalize(nxt);
-        v = find_or_add_vertex(nxt);
+        v = find_or_add_vertex(canonical_nxt);
         Q.push(canonical_nxt);
         uniq[key] = v;
         stats_.total_states++;
+        stats_.dedup_misses_count++;
         debug("  [New] Add to graph and queue");
         log_state_class_details(
-            nxt, "[New state " + std::to_string(nxt.state_id) + "] ");
+            canonical_nxt,
+            "[New state " + std::to_string(canonical_nxt.state_id) + "] ");
       }
 
       TransitionEdge edge(static_cast<int>(t), tau);
@@ -199,11 +216,23 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
       fired_count++;
     }
 
-    spdlog::info("[STATE] State {}: {} candidates, {} fired, queue size: {}, total states: {}",
-                 cur.state_id, chosen.size(), fired_count, Q.size(), stats_.total_states);
+    spdlog::debug(
+        "[STATE] State {}: {} candidates, {} fired, queue size: {}, total states: {}",
+        cur.state_id, chosen.size(), fired_count, Q.size(),
+        stats_.total_states);
   }
 
-  spdlog::info("[STATE] Build complete: iterations={}, states={}", iteration, stats_.total_states);
+  stats_.dbm_minimize_calls = get_dbm_instrumentation().minimize_calls;
+
+  info("Build complete: iterations=" + std::to_string(iteration) +
+       ", states=" + std::to_string(stats_.total_states) +
+       ", transitions=" + std::to_string(stats_.total_transitions) +
+       ", dedup_hits=" + std::to_string(stats_.dedup_hits_count) +
+       ", dedup_misses=" + std::to_string(stats_.dedup_misses_count) +
+       ", is_enabled_checks=" +
+       std::to_string(stats_.transition_enabled_checks) +
+       ", dbm_minimize_calls=" +
+       std::to_string(stats_.dbm_minimize_calls));
 
   return stats_.total_states;
 }
@@ -238,6 +267,7 @@ void StateClassReachabilityGraph::explore_successors(
 
 bool StateClassReachabilityGraph::is_transition_enabled(
     const StateClass& state, size_t trans_idx) const {
+  const_cast<Statistics&>(stats_).transition_enabled_checks++;
   return petri::PTPN::is_enabled(state.marking, ptpn_, trans_idx);
 }
 
@@ -318,15 +348,12 @@ bool StateClassReachabilityGraph::is_suspended(
     return false;
   }
 
-  int trans_core = transition.core;
-  int trans_priority = transition.priority;
-
   for (size_t other_t : enabled) {
     if (other_t == trans_idx) continue;
 
     const auto& other_trans = ptpn_.get_transition(other_t);
-    if (other_trans.core == trans_core && !other_trans.suspendable &&
-        other_trans.priority > trans_priority) {
+    if (other_trans.core == transition.core && !other_trans.suspendable &&
+        has_higher_priority(other_trans, transition)) {
       return true;
     }
   }
@@ -403,7 +430,7 @@ void StateClassReachabilityGraph::recompute_suspension(
     StateClass& state) const {
   std::set<size_t> enabled;
   for (size_t t = 0; t < ptpn_.num_transitions(); ++t) {
-    if (petri::PTPN::is_enabled(state.marking, ptpn_, t)) {
+    if (is_transition_enabled(state, t)) {
       enabled.insert(t);
     }
   }
@@ -489,7 +516,7 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
 
   std::vector<size_t> enabled;
   for (size_t t = 0; t < ptpn_.num_transitions(); ++t) {
-    if (petri::PTPN::is_enabled(state.marking, ptpn_, t)) {
+    if (is_transition_enabled(state, t)) {
       enabled.push_back(t);
     }
   }
@@ -756,10 +783,10 @@ std::vector<size_t> StateClassReachabilityGraph::select_per_core(
   for (size_t t : enabled) {
     const auto& transition = ptpn_.get_transition(t);
     int core = transition.core;
-    int priority = transition.priority;
 
-    if (best_per_core.find(core) == best_per_core.end() ||
-        priority > ptpn_.get_transition(best_per_core[core]).priority) {
+    auto it = best_per_core.find(core);
+    if (it == best_per_core.end() ||
+        has_higher_priority(transition, ptpn_.get_transition(it->second))) {
       best_per_core[core] = t;
     }
   }
@@ -790,7 +817,7 @@ void StateClassReachabilityGraph::apply_preemption(
       const auto& transition_t = ptpn_.get_transition(t);
 
       if (transition_t.core == transition_u.core &&
-          transition_t.priority > transition_u.priority) {
+          has_higher_priority(transition_t, transition_u)) {
         state.suspended.insert(u);
 
         size_t clock_idx = u + 1;
@@ -929,7 +956,7 @@ void StateClassReachabilityGraph::compute_enabled_and_clocks(
 
   std::set<size_t> new_enabled;
   for (size_t t = 0; t < num_transitions; ++t) {
-    if (petri::PTPN::is_enabled(state.marking, ptpn_, t)) {
+    if (is_transition_enabled(state, t)) {
       new_enabled.insert(t);
     }
   }

@@ -20,6 +20,13 @@ namespace state_class {
 constexpr int INF_TIME = std::numeric_limits<int>::max();
 constexpr double INF_DOUBLE = std::numeric_limits<double>::infinity();
 
+struct DBMInstrumentation {
+  size_t minimize_calls = 0;
+};
+
+void reset_dbm_instrumentation();
+[[nodiscard]] DBMInstrumentation get_dbm_instrumentation();
+
 class DBM {
  public:
   explicit DBM(size_t size = 0);
@@ -142,12 +149,20 @@ class StateClassReachabilityGraph {
     size_t total_transitions;
     size_t enabled_transitions_count;
     size_t pruned_states_count;
+    size_t dedup_hits_count;
+    size_t dedup_misses_count;
+    size_t transition_enabled_checks;
+    size_t dbm_minimize_calls;
 
     Statistics()
         : total_states(0),
           total_transitions(0),
           enabled_transitions_count(0),
-          pruned_states_count(0) {}
+          pruned_states_count(0),
+          dedup_hits_count(0),
+          dedup_misses_count(0),
+          transition_enabled_checks(0),
+          dbm_minimize_calls(0) {}
   };
 
   [[nodiscard]] const Statistics& get_statistics() const { return stats_; }
@@ -166,7 +181,8 @@ class StateClassReachabilityGraph {
   void explore_successors(const StateClass& current_state,
                           std::set<StateClass>& visited);
 
-  bool is_transition_enabled(const StateClass& state, size_t trans_idx) const;
+  [[nodiscard]] bool is_transition_enabled(const StateClass& state,
+                                           size_t trans_idx) const;
 
   std::pair<int, int> get_transition_time_bounds(const StateClass& state,
                                                  size_t trans_idx) const;

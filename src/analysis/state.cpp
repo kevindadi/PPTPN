@@ -6,6 +6,14 @@
 
 namespace state_class {
 
+namespace {
+DBMInstrumentation g_dbm_instrumentation;
+}
+
+void reset_dbm_instrumentation() { g_dbm_instrumentation = {}; }
+
+DBMInstrumentation get_dbm_instrumentation() { return g_dbm_instrumentation; }
+
 DBM::DBM(size_t size) : clock_count_(size) {
   if (size > 0) {
     matrix_.resize(size, std::vector<int>(size, INF_TIME));
@@ -73,6 +81,8 @@ bool DBM::is_consistent() const {
 }
 
 void DBM::minimize() {
+  ++g_dbm_instrumentation.minimize_calls;
+
   if (clock_count_ == 0) return;
 
   for (size_t k = 0; k < clock_count_; ++k) {
