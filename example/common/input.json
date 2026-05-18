@@ -4,7 +4,7 @@
   },
   "configuration": {
     "num_cpus": 2,
-    "cores_per_cpu": 4,
+    "cores_per_cpu": 1,
     "shared_locks": [],
     "policy": "fixed",
     "start": [

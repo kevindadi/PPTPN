@@ -24,6 +24,7 @@ endif()
 
 # FetchContent for dependencies
 include(FetchContent)
+include(CTest)
 
 # nlohmann/json
 FetchContent_Declare(json

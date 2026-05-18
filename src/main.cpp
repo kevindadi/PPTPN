@@ -14,8 +14,12 @@
 #include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <limits>
+#include <nlohmann/json.hpp>
+#include <variant>
 
 #include "json/json.h"
 #include "tdg/tdg.h"
@@ -25,6 +29,48 @@
 #include "analysis/state.h"
 
 using namespace std;
+namespace fs = std::filesystem;
+
+namespace {
+
+fs::path artifact_path_for(const fs::path& input_path, const string& filename) {
+  return input_path.parent_path() / filename;
+}
+
+bool write_wcet_json(const tdg::TDG& tdg, const fs::path& output_path) {
+  nlohmann::json wcet = nlohmann::json::object();
+  wcet["tasks"] = nlohmann::json::array();
+
+  size_t task_id = 0;
+  for (const auto& node : tdg.all_task) {
+    if (!holds_alternative<TaskNode>(node)) {
+      continue;
+    }
+
+    const auto& task = get<TaskNode>(node);
+    int task_wcet = 0;
+    for (const auto& interval : task.time) {
+      task_wcet += interval.second;
+    }
+
+    wcet["tasks"].push_back({
+        {"id", task_id++},
+        {"name", task.name},
+        {"wcet", task_wcet},
+        {"segments", task.time.size()},
+    });
+  }
+
+  ofstream out(output_path);
+  if (!out.is_open()) {
+    return false;
+  }
+
+  out << wcet.dump(2) << '\n';
+  return true;
+}
+
+}  // namespace
 
 size_t get_memory_usage() {
 #if defined(_WIN32)
@@ -56,13 +102,11 @@ int main(int argc, char* argv[]) {
 
   string input_file;
   size_t max_states = numeric_limits<size_t>::max();
-  bool export_dot = false;
   string tina_file, romeo_file;
 
   app.add_option("-f,--file", input_file, "Input JSON file")
       ->required(true);
   app.add_option("-m,--max-states", max_states, "Maximum number of states in reachability graph");
-  app.add_flag("-e,--export-dot", export_dot, "Export TDG as DOT after parsing for verification");
   app.add_option("--tina", tina_file, "Export to Tina .net format");
   app.add_option("--romeo", romeo_file, "Export to Romeo XML format");
   app.set_version_flag("-v,--version", "1.0.0");
@@ -112,16 +156,20 @@ int main(int argc, char* argv[]) {
   tdg::TDG tdg(parser.get_num_cpus(), parser.get_cores_per_cpu());
   tdg.parse_json(input_file);
 
-  // Optional: Export DOT for verification
-  if (export_dot) {
-    string dot_path = input_file;
-    size_t dot_pos = dot_path.rfind('.');
-    if (dot_pos != string::npos) {
-      dot_path = dot_path.substr(0, dot_pos);
-    }
-    dot_path += ".dot";
-    tdg.export_to_dot(dot_path);
-    spdlog::info("[OUTPUT] TDG DOT exported to: {}", dot_path);
+  fs::path input_path(input_file);
+  fs::path output_dir = input_path.parent_path();
+  fs::path tdg_dot_path = artifact_path_for(input_path, "tdg.dot");
+  fs::path ptpn_dot_path = artifact_path_for(input_path, "ptpn.dot");
+  fs::path state_class_dot_path = artifact_path_for(input_path, "state-class-graph.dot");
+  fs::path wcet_json_path = artifact_path_for(input_path, "wcet.json");
+
+  tdg.export_to_dot(tdg_dot_path.string());
+  spdlog::info("[OUTPUT] TDG DOT exported to: {}", tdg_dot_path.string());
+
+  if (!write_wcet_json(tdg, wcet_json_path)) {
+    spdlog::warn("[OUTPUT] Failed to save WCET JSON to: {}", wcet_json_path.string());
+  } else {
+    spdlog::info("[OUTPUT] WCET JSON exported to: {}", wcet_json_path.string());
   }
 
   auto tdg_end = chrono::high_resolution_clock::now();
@@ -140,12 +188,21 @@ int main(int argc, char* argv[]) {
 
   cout << ptpn.to_string();
 
-  string ptpn_dot_file = "ptpn.dot";
   graph::GraphPTPN graph_ptpn(ptpn);
-  if (graph_ptpn.save_to_dot(ptpn_dot_file)) {
-    spdlog::info("[OUTPUT] PTPN saved to: {}", ptpn_dot_file);
+  if (graph_ptpn.save_to_dot(ptpn_dot_path.string())) {
+    spdlog::info("[OUTPUT] PTPN saved to: {}", ptpn_dot_path.string());
   } else {
     spdlog::warn("[OUTPUT] Failed to save PTPN");
+  }
+
+  state_class::StateClassReachabilityGraph reachability_graph(ptpn);
+  size_t state_count = reachability_graph.build(max_states);
+  spdlog::info("[SCG] Reachability graph built with {} states", state_count);
+  if (reachability_graph.save_to_dot(state_class_dot_path.string())) {
+    spdlog::info("[OUTPUT] State class graph saved to: {}",
+                 state_class_dot_path.string());
+  } else {
+    spdlog::warn("[OUTPUT] Failed to save state class graph");
   }
 
   auto ptpn_end = chrono::high_resolution_clock::now();
