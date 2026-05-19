@@ -8,6 +8,10 @@ namespace state_class {
 
 namespace {
 DBMInstrumentation g_dbm_instrumentation;
+
+void hash_combine(size_t& seed, size_t value) {
+  seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
+}
 }
 
 void reset_dbm_instrumentation() { g_dbm_instrumentation = {}; }
@@ -474,6 +478,30 @@ bool StateClass::operator<(const StateClass& other) const {
   if (other.Z1 < Z1) return false;
 
   return Z2 < other.Z2;
+}
+
+size_t StateKeyHash::operator()(const StateKey& key) const {
+  size_t seed = 0;
+  std::hash<int> int_hash;
+  std::hash<size_t> size_hash;
+
+  for (int value : key.marking) {
+    hash_combine(seed, int_hash(value));
+  }
+  for (int value : key.Z1.raw_matrix()) {
+    hash_combine(seed, int_hash(value));
+  }
+  for (size_t value : key.Z1.frozen_clocks()) {
+    hash_combine(seed, size_hash(value));
+  }
+  for (int value : key.Z2.raw_matrix()) {
+    hash_combine(seed, int_hash(value));
+  }
+  for (size_t value : key.Z2.frozen_clocks()) {
+    hash_combine(seed, size_hash(value));
+  }
+
+  return seed;
 }
 
 StateClass StateClass::copy() const {

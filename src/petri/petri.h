@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "../types/types.h"
@@ -106,6 +107,8 @@ class PTPN {
       row.push_back(0);
     }
     Post.emplace_back(std::vector<int>(places.size(), 0));
+    pre_arcs.emplace_back();
+    post_arcs.emplace_back();
     return transitions.size() - 1;
   }
 
@@ -114,6 +117,7 @@ class PTPN {
       throw std::out_of_range("Invalid place or transition index");
     }
     Pre[place_idx][trans_idx] = weight;
+    rebuild_sparse_arcs();
   }
 
   void set_post_arc(size_t trans_idx, size_t place_idx, int weight = 1) {
@@ -121,6 +125,7 @@ class PTPN {
       throw std::out_of_range("Invalid transition or place index");
     }
     Post[trans_idx][place_idx] = weight;
+    rebuild_sparse_arcs();
   }
 
   void set_initial_marking(const Marking& marking) {
@@ -174,11 +179,9 @@ class PTPN {
       throw std::invalid_argument("Marking size must match number of places");
     }
 
-    for (size_t p = 0; p < net.places.size(); ++p) {
-      if (net.Pre[p][trans_idx] > 0) {
-        if (M[p] < net.Pre[p][trans_idx]) {
-          return false;
-        }
+    for (const auto& [place_idx, weight] : net.pre_arcs[trans_idx]) {
+      if (M[place_idx] < weight) {
+        return false;
       }
     }
     return true;
@@ -196,15 +199,15 @@ class PTPN {
 
     Marking new_marking = M;
 
-    for (size_t p = 0; p < net.places.size(); ++p) {
-      new_marking[p] -= net.Pre[p][trans_idx];
+    for (const auto& [place_idx, weight] : net.pre_arcs[trans_idx]) {
+      new_marking[place_idx] -= weight;
     }
 
-    for (size_t p = 0; p < net.places.size(); ++p) {
-      new_marking[p] += net.Post[trans_idx][p];
-      if (net.places[p].capacity != INF &&
-          new_marking[p] > net.places[p].capacity) {
-        new_marking[p] = net.places[p].capacity;
+    for (const auto& [place_idx, weight] : net.post_arcs[trans_idx]) {
+      new_marking[place_idx] += weight;
+      if (net.places[place_idx].capacity != INF &&
+          new_marking[place_idx] > net.places[place_idx].capacity) {
+        new_marking[place_idx] = net.places[place_idx].capacity;
       }
     }
 
@@ -361,12 +364,35 @@ class PTPN {
     return result;
   }
 
+  void rebuild_sparse_arcs() {
+    pre_arcs.assign(transitions.size(), {});
+    post_arcs.assign(transitions.size(), {});
+
+    for (size_t p = 0; p < Pre.size(); ++p) {
+      for (size_t t = 0; t < Pre[p].size(); ++t) {
+        if (Pre[p][t] > 0) {
+          pre_arcs[t].push_back({p, Pre[p][t]});
+        }
+      }
+    }
+
+    for (size_t t = 0; t < Post.size(); ++t) {
+      for (size_t p = 0; p < Post[t].size(); ++p) {
+        if (Post[t][p] > 0) {
+          post_arcs[t].push_back({p, Post[t][p]});
+        }
+      }
+    }
+  }
+
   [[nodiscard]] bool verify_structure() const;
 
   std::vector<Place> places;
   std::vector<Transition> transitions;
   std::vector<std::vector<int>> Pre;
   std::vector<std::vector<int>> Post;
+  std::vector<std::vector<std::pair<size_t, int>>> pre_arcs;
+  std::vector<std::vector<std::pair<size_t, int>>> post_arcs;
   Marking M0;
 
   std::map<std::string, std::pair<size_t, size_t>> node_start_end_map;
