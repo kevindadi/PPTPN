@@ -34,11 +34,12 @@ int compute_expected_wcet(const TaskNode& task) {
   return wcet;
 }
 
-void verify_example_case(const fs::path& case_dir) {
+void verify_example_case(const fs::path& case_dir, size_t max_states = 256) {
   const fs::path input_path = repo_root() / case_dir / "input.json";
   const fs::path tdg_dot_path = repo_root() / case_dir / "tdg.dot";
   const fs::path ptpn_dot_path = repo_root() / case_dir / "ptpn.dot";
   const fs::path state_class_dot_path = repo_root() / case_dir / "state-class-graph.dot";
+  const fs::path expected_json_path = repo_root() / case_dir / "expected.json";
 
   ASSERT_TRUE(fs::exists(input_path)) << input_path;
   ASSERT_TRUE(fs::exists(tdg_dot_path)) << tdg_dot_path;
@@ -75,7 +76,7 @@ void verify_example_case(const fs::path& case_dir) {
   EXPECT_FALSE(ptpn_dot.empty());
 
   state_class::StateClassReachabilityGraph reachability_graph(ptpn);
-  const size_t state_count = reachability_graph.build(256);
+  const size_t state_count = reachability_graph.build(max_states);
   EXPECT_GT(state_count, 0U);
   ASSERT_TRUE(reachability_graph.save_to_dot(state_class_dot_path.string()));
   const std::string state_class_dot = read_file(state_class_dot_path);
@@ -113,6 +114,54 @@ void verify_example_case(const fs::path& case_dir) {
     EXPECT_TRUE(task_entry.contains("wcet"));
     EXPECT_TRUE(task_entry.contains("segments"));
   }
+
+  if (fs::exists(expected_json_path)) {
+    const auto expected = nlohmann::json::parse(read_file(expected_json_path));
+    EXPECT_FALSE(expected.empty());
+  }
+}
+
+const parse::JsonNode* find_node(const parse::Parser& parser,
+                                 const std::string& node_id) {
+  for (const auto& node : parser.get_nodes()) {
+    if (node.id == node_id) {
+      return &node;
+    }
+  }
+  return nullptr;
+}
+
+bool has_edge(const parse::Parser& parser, const std::string& source,
+              const std::string& target) {
+  for (const auto& edge : parser.get_edges()) {
+    if (edge.source == source && edge.target == target) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void verify_preemption_delayed_structure() {
+  const fs::path input_path = repo_root() / "example" / "bench" /
+                              "preemption_delayed" / "input.json";
+  parse::Parser parser;
+  auto parse_result = parser.parse_file(input_path.string());
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
+
+  const auto* a = find_node(parser, "A");
+  const auto* b = find_node(parser, "B");
+  const auto* c = find_node(parser, "C");
+  ASSERT_NE(a, nullptr);
+  ASSERT_NE(b, nullptr);
+  ASSERT_NE(c, nullptr);
+
+  EXPECT_EQ(a->core, b->core);
+  EXPECT_NE(c->core, a->core);
+  EXPECT_GT(b->priority, a->priority);
+  ASSERT_EQ(c->time.size(), 1U);
+  EXPECT_EQ(c->time[0].first, 2);
+  EXPECT_EQ(c->time[0].second, 2);
+  EXPECT_TRUE(has_edge(parser, "C", "B"));
 }
 
 }  // namespace
@@ -127,4 +176,29 @@ TEST(ExampleArtifactsTest, SingleLockExample) {
 
 TEST(ExampleArtifactsTest, NestedLockExample) {
   verify_example_case(fs::path("example") / "nested_lock");
+}
+
+TEST(ExampleArtifactsTest, BenchPreemptionDelayed) {
+  verify_example_case(fs::path("example") / "bench" / "preemption_delayed", 512);
+  verify_preemption_delayed_structure();
+}
+
+TEST(ExampleArtifactsTest, BenchPriorityTieNoPreemption) {
+  verify_example_case(fs::path("example") / "bench" / "priority_tie_no_preemption", 512);
+}
+
+TEST(ExampleArtifactsTest, BenchMulticoreNoPreemption) {
+  verify_example_case(fs::path("example") / "bench" / "multicore_no_preemption", 512);
+}
+
+TEST(ExampleArtifactsTest, BenchPreemptionChain) {
+  verify_example_case(fs::path("example") / "bench" / "preemption_chain", 1024);
+}
+
+TEST(ExampleArtifactsTest, BenchLockContention) {
+  verify_example_case(fs::path("example") / "bench" / "lock_contention", 1024);
+}
+
+TEST(ExampleArtifactsTest, BenchLargeLayered) {
+  verify_example_case(fs::path("example") / "bench" / "large_layered", 5000);
 }
