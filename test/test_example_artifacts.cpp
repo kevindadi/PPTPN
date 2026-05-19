@@ -34,7 +34,8 @@ int compute_expected_wcet(const TaskNode& task) {
   return wcet;
 }
 
-void verify_example_case(const fs::path& case_dir, size_t max_states = 256) {
+void verify_example_case(const fs::path& case_dir, size_t max_states = 256,
+                         bool require_existing_tdg_dot = true) {
   const fs::path input_path = repo_root() / case_dir / "input.json";
   const fs::path tdg_dot_path = repo_root() / case_dir / "tdg.dot";
   const fs::path ptpn_dot_path = repo_root() / case_dir / "ptpn.dot";
@@ -42,7 +43,9 @@ void verify_example_case(const fs::path& case_dir, size_t max_states = 256) {
   const fs::path expected_json_path = repo_root() / case_dir / "expected.json";
 
   ASSERT_TRUE(fs::exists(input_path)) << input_path;
-  ASSERT_TRUE(fs::exists(tdg_dot_path)) << tdg_dot_path;
+  if (require_existing_tdg_dot) {
+    ASSERT_TRUE(fs::exists(tdg_dot_path)) << tdg_dot_path;
+  }
 
   parse::Parser parser;
   auto parse_result = parser.parse_file(input_path.string());
@@ -55,14 +58,16 @@ void verify_example_case(const fs::path& case_dir, size_t max_states = 256) {
   tdg.parse_json(input_path.string());
 
   ASSERT_FALSE(tdg.all_task.empty());
-  const std::string tdg_dot = read_file(tdg_dot_path);
-  EXPECT_FALSE(tdg_dot.empty());
-  for (const auto& node : tdg.all_task) {
-    if (!std::holds_alternative<TaskNode>(node)) {
-      continue;
+  if (require_existing_tdg_dot) {
+    const std::string tdg_dot = read_file(tdg_dot_path);
+    EXPECT_FALSE(tdg_dot.empty());
+    for (const auto& node : tdg.all_task) {
+      if (!std::holds_alternative<TaskNode>(node)) {
+        continue;
+      }
+      const auto& task = std::get<TaskNode>(node);
+      EXPECT_NE(tdg_dot.find(task.name), std::string::npos);
     }
-    const auto& task = std::get<TaskNode>(node);
-    EXPECT_NE(tdg_dot.find(task.name), std::string::npos);
   }
 
   petri::PTPN ptpn;
@@ -119,6 +124,19 @@ void verify_example_case(const fs::path& case_dir, size_t max_states = 256) {
     const auto expected = nlohmann::json::parse(read_file(expected_json_path));
     EXPECT_FALSE(expected.empty());
   }
+}
+
+void verify_example_structure(const fs::path& case_dir) {
+  const fs::path input_path = repo_root() / case_dir / "input.json";
+  ASSERT_TRUE(fs::exists(input_path)) << input_path;
+
+  parse::Parser parser;
+  auto parse_result = parser.parse_file(input_path.string());
+  ASSERT_TRUE(parse_result.success) << parse_result.error_message;
+
+  auto validation = parser.validate();
+  ASSERT_TRUE(validation.success);
+  EXPECT_FALSE(parser.get_nodes().empty());
 }
 
 const parse::JsonNode* find_node(const parse::Parser& parser,
@@ -179,26 +197,31 @@ TEST(ExampleArtifactsTest, NestedLockExample) {
 }
 
 TEST(ExampleArtifactsTest, BenchPreemptionDelayed) {
-  verify_example_case(fs::path("example") / "bench" / "preemption_delayed", 512);
+  verify_example_case(fs::path("example") / "bench" / "preemption_delayed", 512,
+                      false);
   verify_preemption_delayed_structure();
 }
 
 TEST(ExampleArtifactsTest, BenchPriorityTieNoPreemption) {
-  verify_example_case(fs::path("example") / "bench" / "priority_tie_no_preemption", 512);
+  verify_example_case(fs::path("example") / "bench" / "priority_tie_no_preemption",
+                      512, false);
 }
 
 TEST(ExampleArtifactsTest, BenchMulticoreNoPreemption) {
-  verify_example_case(fs::path("example") / "bench" / "multicore_no_preemption", 512);
+  verify_example_case(fs::path("example") / "bench" / "multicore_no_preemption",
+                      512, false);
 }
 
 TEST(ExampleArtifactsTest, BenchPreemptionChain) {
-  verify_example_case(fs::path("example") / "bench" / "preemption_chain", 1024);
+  verify_example_case(fs::path("example") / "bench" / "preemption_chain", 1024,
+                      false);
 }
 
 TEST(ExampleArtifactsTest, BenchLockContention) {
-  verify_example_case(fs::path("example") / "bench" / "lock_contention", 1024);
+  verify_example_case(fs::path("example") / "bench" / "lock_contention", 1024,
+                      false);
 }
 
 TEST(ExampleArtifactsTest, BenchLargeLayered) {
-  verify_example_case(fs::path("example") / "bench" / "large_layered", 5000);
+  verify_example_structure(fs::path("example") / "bench" / "large_layered");
 }

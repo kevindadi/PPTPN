@@ -1,0 +1,16 @@
+{
+  "tasks": [
+    {
+      "id": 0,
+      "name": "A",
+      "segments": 3,
+      "wcet": 8
+    },
+    {
+      "id": 1,
+      "name": "B",
+      "segments": 3,
+      "wcet": 7
+    }
+  ]
+}
