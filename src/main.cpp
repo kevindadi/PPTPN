@@ -101,12 +101,13 @@ int main(int argc, char* argv[]) {
   CLI::App app{"PTPN - Priority Timed Petri Net Analyzer"};
 
   string input_file;
-  size_t max_states = numeric_limits<size_t>::max();
+  size_t max_states = 10000;
   string tina_file, romeo_file;
 
   app.add_option("-f,--file", input_file, "Input JSON file")
       ->required(true);
-  app.add_option("-m,--max-states", max_states, "Maximum number of states in reachability graph");
+  app.add_option("-m,--max-states", max_states,
+                 "Maximum number of states in reachability graph (default: 10000)");
   app.add_option("--tina", tina_file, "Export to Tina .net format");
   app.add_option("--romeo", romeo_file, "Export to Romeo XML format");
   app.set_version_flag("-v,--version", "1.0.0");
@@ -197,7 +198,12 @@ int main(int argc, char* argv[]) {
 
   state_class::StateClassReachabilityGraph reachability_graph(ptpn);
   size_t state_count = reachability_graph.build(max_states);
-  spdlog::info("[SCG] Reachability graph built with {} states", state_count);
+  const auto& reachability_stats = reachability_graph.get_statistics();
+  if (reachability_stats.truncated) {
+    spdlog::warn("[SCG] Reachability graph truncated at {} states; use --max-states to raise the bound", max_states);
+  } else {
+    spdlog::info("[SCG] Reachability graph built with {} states", state_count);
+  }
   if (reachability_graph.save_to_dot(state_class_dot_path.string())) {
     spdlog::info("[OUTPUT] State class graph saved to: {}",
                  state_class_dot_path.string());
