@@ -4,10 +4,12 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <functional>
 #include <map>
 #include <set>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <boost/graph/adjacency_list.hpp>
@@ -23,6 +25,9 @@ constexpr double INF_DOUBLE = std::numeric_limits<double>::infinity();
 struct DBMInstrumentation {
   size_t minimize_calls = 0;
 };
+
+struct StateKey;
+struct StateKeyHash;
 
 void reset_dbm_instrumentation();
 [[nodiscard]] DBMInstrumentation get_dbm_instrumentation();
@@ -46,6 +51,7 @@ class DBM {
   void resize(size_t new_size);
   void elapse_time(int delta);
   void reset_clock(size_t clock_idx);
+  void forget_clock(size_t clock_idx);
   void remove_clock(size_t clock_idx);
   [[nodiscard]] DBM restrict_for_firing(size_t transition_id, int alpha,
                                         int beta) const;
@@ -58,6 +64,10 @@ class DBM {
   void prune();
   [[nodiscard]] bool contains(const DBM& other) const;
   [[nodiscard]] std::string to_string() const;
+  [[nodiscard]] const std::vector<int>& raw_matrix() const { return matrix_; }
+  [[nodiscard]] const std::set<size_t>& frozen_clocks() const {
+    return frozen_clocks_;
+  }
   bool operator==(const DBM& other) const;
   bool operator<(const DBM& other) const;
 
@@ -97,6 +107,20 @@ struct StateClass {
 
   [[nodiscard]] StateClass copy() const;
   [[nodiscard]] std::string to_string() const;
+};
+
+struct StateKey {
+  std::vector<int> marking;
+  DBM Z1;
+  DBM Z2;
+
+  bool operator==(const StateKey& other) const {
+    return marking == other.marking && Z1 == other.Z1 && Z2 == other.Z2;
+  }
+};
+
+struct StateKeyHash {
+  size_t operator()(const StateKey& key) const;
 };
 
 struct TransitionEdge {
@@ -154,6 +178,7 @@ class StateClassReachabilityGraph {
     size_t dedup_misses_count;
     size_t transition_enabled_checks;
     size_t dbm_minimize_calls;
+    bool truncated;
 
     Statistics()
         : total_states(0),
@@ -163,7 +188,8 @@ class StateClassReachabilityGraph {
           dedup_hits_count(0),
           dedup_misses_count(0),
           transition_enabled_checks(0),
-          dbm_minimize_calls(0) {}
+          dbm_minimize_calls(0),
+          truncated(false) {}
   };
 
   [[nodiscard]] const Statistics& get_statistics() const { return stats_; }
@@ -237,7 +263,7 @@ class StateClassReachabilityGraph {
   void log_state_class_details(const StateClass& state,
                                const std::string& prefix = "") const;
 
-  std::map<StateClass, SCVertex> state_to_vertex_;
+  std::unordered_map<StateKey, SCVertex, StateKeyHash> state_to_vertex_;
   size_t next_state_id_;
   bool pruning_enabled_ = false;
 };

@@ -14,6 +14,25 @@ namespace {
 
 constexpr int kSyntheticMetaValue = 411;
 
+bool is_helper_transition(const Transition& transition) {
+  return transition.priority == INT_MAX || transition.core < 0;
+}
+
+bool is_immediate_transition(const Transition& transition) {
+  return transition.const_time.first == 0 && transition.const_time.second == 0;
+}
+
+bool should_show_scheduling_meta(const Transition& transition) {
+  if (transition.priority == kSyntheticMetaValue &&
+      transition.core == kSyntheticMetaValue) {
+    return false;
+  }
+  if (is_helper_transition(transition)) {
+    return false;
+  }
+  return true;
+}
+
 std::string escape_dot_string(const std::string& value) {
   std::string escaped;
   escaped.reserve(value.size());
@@ -58,7 +77,7 @@ std::string format_transition_label(const Vertex& vertex) {
   const auto& transition = vertex.as_transition();
   std::string label = vertex.name;
 
-  if (transition.priority != kSyntheticMetaValue || transition.core != kSyntheticMetaValue) {
+  if (should_show_scheduling_meta(transition)) {
     label += "\nπ=" + std::to_string(transition.priority) +
              "  core=" + std::to_string(transition.core);
   }
@@ -93,7 +112,14 @@ std::string vertex_fillcolor(const Vertex& vertex) {
     }
   }
 
-  return vertex.as_transition().suspendable ? "#fce7f3" : "#f3f4f6";
+  const auto& transition = vertex.as_transition();
+  if (transition.suspendable) {
+    return "#fce7f3";
+  }
+  if (is_immediate_transition(transition) && should_show_scheduling_meta(transition)) {
+    return "#fde68a";
+  }
+  return "#e5e7eb";
 }
 
 std::string vertex_color(const Vertex& vertex) {
@@ -109,7 +135,14 @@ std::string vertex_color(const Vertex& vertex) {
     }
   }
 
-  return vertex.as_transition().suspendable ? "#be185d" : "#4b5563";
+  const auto& transition = vertex.as_transition();
+  if (transition.suspendable) {
+    return "#be185d";
+  }
+  if (is_immediate_transition(transition) && should_show_scheduling_meta(transition)) {
+    return "#d97706";
+  }
+  return "#6b7280";
 }
 
 std::string vertex_fontcolor(const Vertex&) {

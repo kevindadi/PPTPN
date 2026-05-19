@@ -11,6 +11,10 @@ namespace state_class {
 namespace {
 constexpr int kNoSchedulingPriority = INT_MAX;
 
+StateKey make_state_key(const StateClass& state) {
+  return {state.marking, state.Z1, state.Z2};
+}
+
 bool has_higher_priority(const petri::Transition& lhs,
                          const petri::Transition& rhs) {
   if (lhs.priority == kNoSchedulingPriority) {
@@ -138,19 +142,24 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
   initial_vertex_ = s0_vertex;
   stats_.total_states++;
 
-  std::map<std::tuple<std::vector<int>, DBM, DBM>, SCVertex> uniq;
-  uniq[{s0.marking, s0.Z1, s0.Z2}] = s0_vertex;
-
   std::queue<StateClass> Q;
   Q.push(s0);
 
   size_t iteration = 0;
-  while (!Q.empty() && stats_.total_states < max_states) {
+  size_t max_queue_size = Q.size();
+  while (!Q.empty()) {
+    if (stats_.total_states >= max_states) {
+      stats_.truncated = true;
+      break;
+    }
+
     iteration++;
     StateClass cur = Q.front();
     Q.pop();
 
     SCVertex u = find_or_add_vertex(cur);
+    const StateClass& graph_cur = boost::get(boost::vertex_name, graph_, u);
+    cur.state_id = graph_cur.state_id;
 
     log_state_class_details(cur,
                             "[State " + std::to_string(cur.state_id) + "] ");
@@ -189,19 +198,18 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
       }
 
       StateClass canonical_nxt = canonicalize(nxt);
-      auto key = std::make_tuple(canonical_nxt.marking, canonical_nxt.Z1,
-                                 canonical_nxt.Z2);
       SCVertex v;
 
-      auto uniq_it = uniq.find(key);
-      if (uniq_it != uniq.end()) {
-        v = uniq_it->second;
+      auto key = make_state_key(canonical_nxt);
+      auto state_it = state_to_vertex_.find(key);
+      if (state_it != state_to_vertex_.end()) {
+        v = state_it->second;
         stats_.dedup_hits_count++;
         debug("  [Existing] Use existing state");
       } else {
         v = find_or_add_vertex(canonical_nxt);
         Q.push(canonical_nxt);
-        uniq[key] = v;
+        max_queue_size = std::max(max_queue_size, Q.size());
         stats_.total_states++;
         stats_.dedup_misses_count++;
         debug("  [New] Add to graph and queue");
@@ -224,6 +232,12 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
 
   stats_.dbm_minimize_calls = get_dbm_instrumentation().minimize_calls;
 
+  if (stats_.truncated) {
+    spdlog::warn(
+        "[STATE] Build truncated at max_states={} with {} states and {} queued states remaining",
+        max_states, stats_.total_states, Q.size());
+  }
+
   info("Build complete: iterations=" + std::to_string(iteration) +
        ", states=" + std::to_string(stats_.total_states) +
        ", transitions=" + std::to_string(stats_.total_transitions) +
@@ -232,7 +246,9 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
        ", is_enabled_checks=" +
        std::to_string(stats_.transition_enabled_checks) +
        ", dbm_minimize_calls=" +
-       std::to_string(stats_.dbm_minimize_calls));
+       std::to_string(stats_.dbm_minimize_calls) +
+       ", max_queue_size=" + std::to_string(max_queue_size) +
+       ", truncated=" + (stats_.truncated ? "true" : "false"));
 
   return stats_.total_states;
 }
@@ -433,6 +449,7 @@ StateClass StateClassReachabilityGraph::canonicalize(
     const StateClass& state) const {
   StateClass canonical = state;
 
+  recompute_suspension(canonical);
   canonical.Z1.minimize();
   canonical.Z2.minimize();
 
@@ -540,8 +557,8 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
       if (clock_idx < state.Z1.size()) {
         int upper = state.Z1.get_constraint(clock_idx, 0);
         int lower = state.Z1.get_constraint(0, clock_idx);
-        if (upper != 0 || lower != 0) {
-          state.Z1.reset_clock(clock_idx);
+        if (upper != INF_TIME || lower != 0) {
+          state.Z1.forget_clock(clock_idx);
           z1_changed = true;
           cleared_count++;
         }
@@ -549,8 +566,8 @@ void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
       if (clock_idx < state.Z2.size()) {
         int upper = state.Z2.get_constraint(clock_idx, 0);
         int lower = state.Z2.get_constraint(0, clock_idx);
-        if (upper != 0 || lower != 0) {
-          state.Z2.reset_clock(clock_idx);
+        if (upper != INF_TIME || lower != 0) {
+          state.Z2.forget_clock(clock_idx);
           z2_changed = true;
         }
       }
@@ -653,7 +670,8 @@ bool StateClassReachabilityGraph::should_prune(
 
 SCVertex StateClassReachabilityGraph::find_or_add_vertex(
     const StateClass& state) {
-  auto it = state_to_vertex_.find(state);
+  auto key = make_state_key(state);
+  auto it = state_to_vertex_.find(key);
   if (it != state_to_vertex_.end()) {
     return it->second;
   }
@@ -661,7 +679,7 @@ SCVertex StateClassReachabilityGraph::find_or_add_vertex(
   StateClass new_state = state;
   new_state.state_id = next_state_id_++;
   SCVertex v = boost::add_vertex(new_state, graph_);
-  state_to_vertex_[new_state] = v;
+  state_to_vertex_.emplace(make_state_key(new_state), v);
   return v;
 }
 
@@ -782,6 +800,13 @@ bool StateClassReachabilityGraph::save_to_json(
     out << "    \"enabled_transitions_count\": "
         << stats_.enabled_transitions_count << ",\n";
     out << "    \"pruned_states_count\": " << stats_.pruned_states_count
+        << ",\n";
+    out << "    \"dedup_hits_count\": " << stats_.dedup_hits_count << ",\n";
+    out << "    \"dedup_misses_count\": " << stats_.dedup_misses_count << ",\n";
+    out << "    \"transition_enabled_checks\": "
+        << stats_.transition_enabled_checks << ",\n";
+    out << "    \"dbm_minimize_calls\": " << stats_.dbm_minimize_calls << ",\n";
+    out << "    \"truncated\": " << (stats_.truncated ? "true" : "false")
         << "\n";
     out << "  }\n";
     out << "}\n";
@@ -901,7 +926,6 @@ bool StateClassReachabilityGraph::maximal_time_elapse(StateClass& state,
 std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_dbm(
     size_t trans_idx, const StateClass& from_state) {
   StateClass to = from_state.copy();
-  to.state_id = next_state_id_++;
 
   const auto& transition = ptpn_.get_transition(trans_idx);
   int alpha = transition.time_interval.earliest;
@@ -993,10 +1017,10 @@ void StateClassReachabilityGraph::compute_enabled_and_clocks(
   for (size_t t : to_remove) {
     size_t clock_idx = t + 1;
     if (clock_idx < state.Z1.size()) {
-      state.Z1.reset_clock(clock_idx);
+      state.Z1.forget_clock(clock_idx);
     }
     if (clock_idx < state.Z2.size()) {
-      state.Z2.reset_clock(clock_idx);
+      state.Z2.forget_clock(clock_idx);
     }
     state.Z1.unfreeze_clock(clock_idx);
     state.Z2.unfreeze_clock(clock_idx);

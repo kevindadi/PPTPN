@@ -8,6 +8,10 @@ namespace state_class {
 
 namespace {
 DBMInstrumentation g_dbm_instrumentation;
+
+void hash_combine(size_t& seed, size_t value) {
+  seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
+}
 }
 
 void reset_dbm_instrumentation() { g_dbm_instrumentation = {}; }
@@ -208,6 +212,47 @@ void DBM::reset_clock(size_t clock_idx) {
   }
 }
 
+void DBM::forget_clock(size_t clock_idx) {
+  check_index(clock_idx, clock_idx);
+
+  if (clock_idx == 0) {
+    return;
+  }
+
+  bool changed = false;
+  for (size_t i = 0; i < clock_count_; ++i) {
+    if (i != clock_idx) {
+      if (matrix_[offset(clock_idx, i)] != INF_TIME) {
+        matrix_[offset(clock_idx, i)] = INF_TIME;
+        changed = true;
+      }
+      if (matrix_[offset(i, clock_idx)] != INF_TIME) {
+        matrix_[offset(i, clock_idx)] = INF_TIME;
+        changed = true;
+      }
+    }
+  }
+
+  if (matrix_[offset(clock_idx, 0)] != INF_TIME) {
+    matrix_[offset(clock_idx, 0)] = INF_TIME;
+    changed = true;
+  }
+  if (matrix_[offset(0, clock_idx)] != 0) {
+    matrix_[offset(0, clock_idx)] = 0;
+    changed = true;
+  }
+  if (matrix_[offset(clock_idx, clock_idx)] != 0) {
+    matrix_[offset(clock_idx, clock_idx)] = 0;
+    changed = true;
+  }
+
+  frozen_clocks_.erase(clock_idx);
+
+  if (changed) {
+    minimize();
+  }
+}
+
 DBM DBM::intersection(const DBM& other) const {
   if (clock_count_ != other.clock_count_) {
     throw std::invalid_argument("DBM sizes must match for intersection");
@@ -312,7 +357,7 @@ bool DBM::operator<(const DBM& other) const {
     }
   }
 
-  return false;
+  return frozen_clocks_ < other.frozen_clocks_;
 }
 
 void DBM::remove_clock(size_t clock_idx) {
@@ -422,8 +467,6 @@ bool StateClass::operator==(const StateClass& other) const {
   if (marking != other.marking) return false;
   if (!(Z1 == other.Z1)) return false;
   if (!(Z2 == other.Z2)) return false;
-  if (enabled != other.enabled) return false;
-  if (suspended != other.suspended) return false;
   return true;
 }
 
@@ -434,13 +477,31 @@ bool StateClass::operator<(const StateClass& other) const {
   if (Z1 < other.Z1) return true;
   if (other.Z1 < Z1) return false;
 
-  if (Z2 < other.Z2) return true;
-  if (other.Z2 < Z2) return false;
+  return Z2 < other.Z2;
+}
 
-  if (enabled < other.enabled) return true;
-  if (other.enabled < enabled) return false;
+size_t StateKeyHash::operator()(const StateKey& key) const {
+  size_t seed = 0;
+  std::hash<int> int_hash;
+  std::hash<size_t> size_hash;
 
-  return suspended < other.suspended;
+  for (int value : key.marking) {
+    hash_combine(seed, int_hash(value));
+  }
+  for (int value : key.Z1.raw_matrix()) {
+    hash_combine(seed, int_hash(value));
+  }
+  for (size_t value : key.Z1.frozen_clocks()) {
+    hash_combine(seed, size_hash(value));
+  }
+  for (int value : key.Z2.raw_matrix()) {
+    hash_combine(seed, int_hash(value));
+  }
+  for (size_t value : key.Z2.frozen_clocks()) {
+    hash_combine(seed, size_hash(value));
+  }
+
+  return seed;
 }
 
 StateClass StateClass::copy() const {

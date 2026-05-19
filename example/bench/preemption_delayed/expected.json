@@ -1,0 +1,8 @@
+{
+  "response_time": {
+    "A": 7,
+    "B": 2,
+    "C": 2
+  },
+  "notes": "A=7 is the expected response time under B's delayed higher-priority preemption; wcet.json remains execution-only."
+}

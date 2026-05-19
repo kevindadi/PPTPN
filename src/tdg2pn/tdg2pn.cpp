@@ -7,6 +7,29 @@ namespace converter {
 namespace {
 constexpr int kNoSchedulingPriority = INT_MAX;
 constexpr int kNoSchedulingCore = -1;
+
+std::string format_core_priority_order(
+    int core_id, const std::vector<std::string>& tasks,
+    const std::unordered_map<std::string, int>& tasks_priority,
+    const std::string& prefix) {
+  std::ostringstream oss;
+  oss << prefix << " Core " << core_id << " priority order: ";
+
+  bool first = true;
+  for (const auto& task : tasks) {
+    if (!first) {
+      oss << " > ";
+    }
+    first = false;
+    oss << task << "(" << tasks_priority.at(task) << ")";
+  }
+
+  if (first) {
+    oss << "(none)";
+  }
+
+  return oss.str();
+}
 }
 
 static void info(const std::string& msg) {
@@ -200,13 +223,9 @@ std::unordered_map<int, std::vector<std::string>> TDG2PN::classify_tdg_priority(
   }
 
   for (auto& [fst, snd] : core_task) {
-    std::stringstream ss;
-    ss << "[TDG2PN] Core: " << fst << " [ ";
-    for (const auto& task : snd) {
-      ss << task << " < ";
-    }
-    ss << " ]";
-    spdlog::info("{}", ss.str());
+    spdlog::info("{}",
+                 format_core_priority_order(fst, snd, tdg.tasks_priority,
+                                            "[TDG2PN]"));
   }
 
   return core_task;
