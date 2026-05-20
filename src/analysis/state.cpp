@@ -491,13 +491,10 @@ size_t StateKeyHash::operator()(const StateKey& key) const {
   for (int value : key.Z1.raw_matrix()) {
     hash_combine(seed, int_hash(value));
   }
-  for (size_t value : key.Z1.frozen_clocks()) {
-    hash_combine(seed, size_hash(value));
-  }
   for (int value : key.Z2.raw_matrix()) {
     hash_combine(seed, int_hash(value));
   }
-  for (size_t value : key.Z2.frozen_clocks()) {
+  for (size_t value : key.suspended) {
     hash_combine(seed, size_hash(value));
   }
 

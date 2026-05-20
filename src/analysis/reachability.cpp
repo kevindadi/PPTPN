@@ -12,7 +12,7 @@ namespace {
 constexpr int kNoSchedulingPriority = INT_MAX;
 
 StateKey make_state_key(const StateClass& state) {
-  return {state.marking, state.Z1, state.Z2};
+  return {state.marking, state.Z1, state.Z2, state.suspended};
 }
 
 bool has_higher_priority(const petri::Transition& lhs,
@@ -186,10 +186,10 @@ StateClassReachabilityGraph::StateClassReachabilityGraph(const petri::PTPN& ptpn
  *   disabled clock:    remove/reset according to TPN enabling semantics
  *
  * This implementation:
- *   StateKey := (marking, canonical Z1, canonical Z2, frozen-clock sets)
+ *   StateKey := (marking, canonical Z1, canonical Z2, suspended-set)
  *   Z1       := non-suspendable / active transition zone
  *   Z2       := suspendable transition zone
- *   frozen   := stopwatch-like suspended clocks that must not advance
+ *   suspended:= suspendable transitions whose clocks are currently frozen
  *
  *   build(max_states):
  *     stats = {}
@@ -216,7 +216,7 @@ StateClassReachabilityGraph::StateClassReachabilityGraph(const petri::PTPN& ptpn
  *           continue
  *
  *         nxt = canonicalize(nxt)
- *         key = StateKey(nxt.marking, nxt.Z1, nxt.Z2, frozen)
+ *         key = StateKey(nxt.marking, nxt.Z1, nxt.Z2, nxt.suspended)
  *
  *         if key in state_to_vertex:
  *           v = state_to_vertex[key]

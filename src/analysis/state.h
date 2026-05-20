@@ -81,6 +81,16 @@ class DBM {
   void initialize_clock(size_t clock_idx);
 };
 
+// Symbolic state used during reachability construction.
+//
+// Semantically it is determined by three components:
+//   1. marking    : discrete Petri-net marking
+//   2. Z1 / Z2    : canonical timing domains for active transitions
+//                   (Z1 for non-suspendable, Z2 for suspendable)
+//   3. suspended  : suspendable transitions whose clocks are currently frozen
+//
+// The enabled set and cumulative_time are derived / auxiliary metadata and are
+// not part of state identity for deduplication.
 struct StateClass {
   std::vector<int> marking;
   DBM Z1;
@@ -113,9 +123,12 @@ struct StateKey {
   std::vector<int> marking;
   DBM Z1;
   DBM Z2;
+  std::set<size_t> suspended;
 
   bool operator==(const StateKey& other) const {
-    return marking == other.marking && Z1 == other.Z1 && Z2 == other.Z2;
+    return marking == other.marking && Z1.raw_matrix() == other.Z1.raw_matrix() &&
+           Z2.raw_matrix() == other.Z2.raw_matrix() &&
+           suspended == other.suspended;
   }
 };
 
