@@ -29,16 +29,23 @@ size_t effective_thread_count(size_t requested, size_t frontier_size) {
     return 1;
   }
 
+  size_t hardware_threads = std::thread::hardware_concurrency();
+  if (hardware_threads == 0) {
+    hardware_threads = 1;
+  }
+
   size_t selected = requested;
   if (selected == 0) {
-    selected = std::thread::hardware_concurrency();
+    selected = std::max<size_t>(1, hardware_threads / 4);
   }
   if (selected == 0) {
     selected = 1;
   }
 
-  constexpr size_t kMaxBuildThreads = 8;
-  return std::max<size_t>(1, std::min({selected, frontier_size, kMaxBuildThreads}));
+  constexpr size_t kMaxAutoBuildThreads = 16;
+  constexpr size_t kMaxRequestedBuildThreads = 16;
+  const size_t cap = requested == 0 ? kMaxAutoBuildThreads : kMaxRequestedBuildThreads;
+  return std::max<size_t>(1, std::min({selected, frontier_size, cap}));
 }
 
 bool has_higher_priority(const petri::Transition& lhs,
