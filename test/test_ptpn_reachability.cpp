@@ -203,6 +203,7 @@ SCVertex target_for_transition(const SCGraph& graph, SCVertex vertex,
 
 }  // namespace
 
+// Expect: constructed places, transition metadata, arcs, and M0 match the diagram.
 TEST(PTPNReachabilityTest, ManualNetConstructionCreatesExpectedMatrices) {
   const auto fixture = build_one_transition_net();
 
@@ -219,6 +220,7 @@ TEST(PTPNReachabilityTest, ManualNetConstructionCreatesExpectedMatrices) {
   EXPECT_EQ(fixture.net.get_marking(), (Marking{1, 0}));
 }
 
+// Expect: run is enabled exactly when ready contains enough tokens.
 TEST(PTPNReachabilityTest, PetriIsEnabledReflectsTokenAvailability) {
   const auto fixture = build_one_transition_net();
 
@@ -229,6 +231,7 @@ TEST(PTPNReachabilityTest, PetriIsEnabledReflectsTokenAvailability) {
   EXPECT_THROW(PTPN::is_enabled({1, 0}, fixture.net, 10), std::out_of_range);
 }
 
+// Expect: firing consumes input tokens, produces output tokens, and respects capacity.
 TEST(PTPNReachabilityTest, PetriFireConsumesAndProducesTokens) {
   const auto fixture = build_one_transition_net();
 
@@ -246,6 +249,7 @@ TEST(PTPNReachabilityTest, PetriFireConsumesAndProducesTokens) {
   EXPECT_EQ(PTPN::fire({1, 1}, capacity_net, produce), (Marking{0, 1}));
 }
 
+// Expect: initial StateClass mirrors M0 and initializes run's Z1 clock to [2,5].
 TEST(PTPNReachabilityTest,
      InitialStateClassContainsInitialMarkingAndEnabledTransitions) {
   const auto fixture = build_one_transition_net();
@@ -265,6 +269,7 @@ TEST(PTPNReachabilityTest,
   EXPECT_EQ(initial.Z1.get_constraint(0, clock_idx), -2);
 }
 
+// Expect: collected enabled transitions match raw Petri token availability.
 TEST(PTPNReachabilityTest, CollectEnabledTransitionsMatchesPetriEnabled) {
   PTPN net;
   const size_t p0 = net.add_place("p0");
@@ -297,6 +302,7 @@ TEST(PTPNReachabilityTest, CollectEnabledTransitionsMatchesPetriEnabled) {
   EXPECT_TRUE(contains(enabled, t2));
 }
 
+// Expect: core 0 selects core0_high; core 1 selects core1_only.
 TEST(PTPNReachabilityTest, SelectPerCoreChoosesHighestPriorityOnEachCore) {
   const auto fixture = build_multi_core_net();
   StateClassReachabilityGraph graph(fixture.net);
@@ -313,6 +319,7 @@ TEST(PTPNReachabilityTest, SelectPerCoreChoosesHighestPriorityOnEachCore) {
   EXPECT_FALSE(contains(chosen, fixture.core0_low));
 }
 
+// Expect: from the initial graph state, high fires and low does not.
 TEST(PTPNReachabilityTest,
      BuildOnlyFiresSelectedTransitionFromInitialStateOnSameCore) {
   const auto fixture = build_priority_same_core_net();
@@ -326,6 +333,7 @@ TEST(PTPNReachabilityTest,
   EXPECT_FALSE(has_outgoing_transition(sc_graph, initial, fixture.low));
 }
 
+// Expect: fire_with_dbm(run) reaches done and removes run from enabled.
 TEST(PTPNReachabilityTest, FireWithDbmUpdatesMarkingAndEnabledSet) {
   const auto fixture = build_one_transition_net();
   StateClassReachabilityGraph graph(fixture.net);
@@ -342,6 +350,7 @@ TEST(PTPNReachabilityTest, FireWithDbmUpdatesMarkingAndEnabledSet) {
   EXPECT_DOUBLE_EQ(firing_time, 2.0);
 }
 
+// Expect: build creates an edge run and a successor marking {ready=0, done=1}.
 TEST(PTPNReachabilityTest,
      BuildCreatesSuccessorStateWithExpectedMarkingAndEdge) {
   const auto fixture = build_one_transition_net();
@@ -358,6 +367,7 @@ TEST(PTPNReachabilityTest,
   EXPECT_FALSE(contains(successor.enabled, fixture.run));
 }
 
+// Expect: the two-step chain reaches terminal marking {p0=0, p1=0, p2=1}.
 TEST(PTPNReachabilityTest,
      SequentialNetReachesExpectedTerminalMarking) {
   // Diagram:
@@ -391,6 +401,7 @@ TEST(PTPNReachabilityTest,
   EXPECT_TRUE(found_terminal);
 }
 
+// Expect: high preempts low; low is recorded as suspended and its clock freezes.
 TEST(PTPNReachabilityTest,
      ApplyPreemptionSuspendsLowerPrioritySuspendableTransition) {
   const auto fixture = build_priority_same_core_net(true);
@@ -413,6 +424,7 @@ TEST(PTPNReachabilityTest,
   EXPECT_TRUE(scheduled.Z2.is_frozen(low_clock));
 }
 
+// Expect: time advances by high's bound, while low remains suspended and frozen.
 TEST(PTPNReachabilityTest,
      MaximalTimeElapseDoesNotAdvanceFrozenSuspendedClock) {
   const auto fixture = build_priority_same_core_net(true);
@@ -438,6 +450,7 @@ TEST(PTPNReachabilityTest,
   EXPECT_TRUE(scheduled.Z2.is_frozen(low_clock));
 }
 
+// Expect: after high fires, low remains enabled but is no longer suspended.
 TEST(PTPNReachabilityTest,
      FiringHigherPriorityTransitionReleasesLowerPrioritySuspension) {
   const auto fixture = build_priority_same_core_net(true);
@@ -468,6 +481,7 @@ TEST(PTPNReachabilityTest,
   EXPECT_DOUBLE_EQ(firing_time, 1.0);
 }
 
+// Expect: an infinite latest bound is represented as INF_TIME and still fires at alpha.
 TEST(PTPNReachabilityTest,
      InfiniteLatestBound) {
   // Diagram:
