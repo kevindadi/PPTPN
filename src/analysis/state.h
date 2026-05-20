@@ -28,6 +28,9 @@ struct DBMInstrumentation {
 
 struct StateKey;
 struct StateKeyHash;
+#ifdef PTPN_ENABLE_TEST_ACCESS
+struct StateClassReachabilityGraphTestAccess;
+#endif
 
 void reset_dbm_instrumentation();
 [[nodiscard]] DBMInstrumentation get_dbm_instrumentation();
@@ -167,6 +170,10 @@ typedef boost::graph_traits<SCGraph>::vertex_descriptor SCVertex;
 typedef boost::graph_traits<SCGraph>::edge_descriptor SCEdge;
 
 class StateClassReachabilityGraph {
+#ifdef PTPN_ENABLE_TEST_ACCESS
+  friend struct StateClassReachabilityGraphTestAccess;
+#endif
+
  public:
   explicit StateClassReachabilityGraph(const petri::PTPN& ptpn);
 
