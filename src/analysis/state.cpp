@@ -1,22 +1,29 @@
 #include "analysis/state.h"
 
 #include <algorithm>
+#include <atomic>
 #include <iomanip>
 #include <stdexcept>
 
 namespace state_class {
 
 namespace {
-DBMInstrumentation g_dbm_instrumentation;
+std::atomic<size_t> g_dbm_minimize_calls{0};
 
 void hash_combine(size_t& seed, size_t value) {
   seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
 }
 }
 
-void reset_dbm_instrumentation() { g_dbm_instrumentation = {}; }
+void reset_dbm_instrumentation() {
+  g_dbm_minimize_calls.store(0, std::memory_order_relaxed);
+}
 
-DBMInstrumentation get_dbm_instrumentation() { return g_dbm_instrumentation; }
+DBMInstrumentation get_dbm_instrumentation() {
+  return {
+      g_dbm_minimize_calls.load(std::memory_order_relaxed),
+  };
+}
 
 DBM::DBM(size_t size) : clock_count_(size), matrix_(size * size, INF_TIME) {
   if (size > 0) {
@@ -88,7 +95,7 @@ bool DBM::is_consistent() const {
 }
 
 void DBM::minimize() {
-  ++g_dbm_instrumentation.minimize_calls;
+  g_dbm_minimize_calls.fetch_add(1, std::memory_order_relaxed);
 
   if (clock_count_ == 0) return;
 

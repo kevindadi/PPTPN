@@ -1,10 +1,12 @@
 #include "analysis/state.h"
 
 #include <algorithm>
+#include <atomic>
 #include <fstream>
 #include <iomanip>
-#include <queue>
 #include <spdlog/spdlog.h>
+#include <thread>
+#include <vector>
 
 namespace state_class {
 
@@ -13,6 +15,30 @@ constexpr int kNoSchedulingPriority = INT_MAX;
 
 StateKey make_state_key(const StateClass& state) {
   return {state.marking, state.Z1, state.Z2, state.suspended};
+}
+
+void add_expansion_stats(StateClassReachabilityGraph::Statistics& target,
+                         const StateExpansionResult& result) {
+  target.enabled_transitions_count += result.enabled_transitions_count;
+  target.pruned_states_count += result.pruned_states_count;
+  target.transition_enabled_checks += result.transition_enabled_checks;
+}
+
+size_t effective_thread_count(size_t requested, size_t frontier_size) {
+  if (frontier_size <= 1) {
+    return 1;
+  }
+
+  size_t selected = requested;
+  if (selected == 0) {
+    selected = std::thread::hardware_concurrency();
+  }
+  if (selected == 0) {
+    selected = 1;
+  }
+
+  constexpr size_t kMaxBuildThreads = 8;
+  return std::max<size_t>(1, std::min({selected, frontier_size, kMaxBuildThreads}));
 }
 
 bool has_higher_priority(const petri::Transition& lhs,
@@ -230,9 +256,16 @@ StateClassReachabilityGraph::StateClassReachabilityGraph(const petri::PTPN& ptpn
  *     return total_states
  */
 size_t StateClassReachabilityGraph::build(size_t max_states) {
+  return build(max_states, 0);
+}
+
+size_t StateClassReachabilityGraph::build(size_t max_states,
+                                          size_t thread_count) {
   stats_ = Statistics();
   reset_dbm_instrumentation();
+  graph_.clear();
   state_to_vertex_.clear();
+  next_state_id_ = 0;
 
   StateClass s0 = canonicalize(create_initial_state_class());
 
@@ -240,100 +273,114 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
   initial_vertex_ = s0_vertex;
   stats_.total_states++;
 
-  std::queue<StateClass> Q;
-  Q.push(s0);
+  std::vector<StateClass> frontier{s0};
 
   size_t iteration = 0;
-  size_t max_queue_size = Q.size();
-  while (!Q.empty()) {
+  size_t max_frontier_size = frontier.size();
+  while (!frontier.empty()) {
     if (stats_.total_states >= max_states) {
       stats_.truncated = true;
       break;
     }
 
     iteration++;
-    StateClass cur = Q.front();
-    Q.pop();
 
-    SCVertex u = find_or_add_vertex(cur);
-    const StateClass& graph_cur = boost::get(boost::vertex_name, graph_, u);
-    cur.state_id = graph_cur.state_id;
-
-    log_state_class_details(cur,
-                            "[State " + std::to_string(cur.state_id) + "] ");
-
-    std::vector<size_t> chosen = select_per_core(cur.enabled);
-    stats_.enabled_transitions_count += chosen.size();
-
-    StateClass scheduled = cur.copy();
-    apply_preemption(chosen, scheduled);
-
-    double dt = 0;
-    maximal_time_elapse(scheduled, dt);
-
-    if (pruning_enabled_ && scheduled.Z1.is_empty()) {
-      debug("  [Prune] Z1 empty, skip");
-      stats_.pruned_states_count++;
-      continue;
-    } else if (!pruning_enabled_ && scheduled.Z1.is_empty()) {
-      debug("  [Warning] Z1 empty but pruning disabled");
+    const size_t worker_count = effective_thread_count(thread_count, frontier.size());
+    std::vector<StateExpansionResult> results(frontier.size());
+    std::vector<petri::PTPN> worker_nets(worker_count, ptpn_);
+    std::vector<StateClassReachabilityGraph> workers;
+    workers.reserve(worker_count);
+    for (size_t i = 0; i < worker_count; ++i) {
+      workers.emplace_back(worker_nets[i]);
+      workers.back().set_pruning_enabled(pruning_enabled_);
     }
 
-    size_t fired_count = 0;
-    for (size_t t : chosen) {
-      auto [ok, nxt, tau] = fire_with_dbm(t, scheduled);
+    if (worker_count == 1) {
+      for (size_t i = 0; i < frontier.size(); ++i) {
+        results[i] = workers[0].expand_state_candidates(frontier[i]);
+      }
+    } else {
+      std::atomic<size_t> next_index{0};
+      std::vector<std::thread> threads;
+      threads.reserve(worker_count);
+      for (size_t worker_id = 0; worker_id < worker_count; ++worker_id) {
+        threads.emplace_back([&, worker_id]() {
+          while (true) {
+            const size_t index = next_index.fetch_add(1, std::memory_order_relaxed);
+            if (index >= frontier.size()) {
+              break;
+            }
+            results[index] = workers[worker_id].expand_state_candidates(frontier[index]);
+          }
+        });
+      }
 
-      if (!ok) {
-        if (pruning_enabled_) {
-          spdlog::debug("  {}: fire failed", format_transitions({t}, false));
-          stats_.pruned_states_count++;
-          continue;
+      for (auto& thread : threads) {
+        thread.join();
+      }
+    }
+
+    std::vector<StateClass> next_frontier;
+
+    for (size_t i = 0; i < frontier.size(); ++i) {
+      StateClass cur = frontier[i];
+      SCVertex u = find_or_add_vertex(cur);
+      const StateClass& graph_cur = boost::get(boost::vertex_name, graph_, u);
+      cur.state_id = graph_cur.state_id;
+
+      log_state_class_details(cur,
+                              "[State " + std::to_string(cur.state_id) + "] ");
+
+      const StateExpansionResult& result = results[i];
+      add_expansion_stats(stats_, result);
+
+      for (const auto& candidate : result.candidates) {
+        auto state_it = state_to_vertex_.find(make_state_key(candidate.state));
+        SCVertex v;
+        if (state_it != state_to_vertex_.end()) {
+          v = state_it->second;
+          stats_.dedup_hits_count++;
+          debug("  [Existing] Use existing state");
+        } else {
+          if (stats_.total_states >= max_states) {
+            stats_.truncated = true;
+            break;
+          }
+
+          v = find_or_add_vertex(candidate.state);
+          next_frontier.push_back(candidate.state);
+          max_frontier_size = std::max(max_frontier_size, next_frontier.size());
+          stats_.total_states++;
+          stats_.dedup_misses_count++;
+          debug("  [New] Add to graph and frontier");
+          log_state_class_details(
+              candidate.state,
+              "[New state " + std::to_string(candidate.state.state_id) + "] ");
         }
 
-        spdlog::debug("  {}: fire failed [pruning disabled]",
-                      format_transitions({t}, false));
-        continue;
+        boost::add_edge(u, v, candidate.edge, graph_);
+        stats_.total_transitions++;
       }
 
-      StateClass canonical_nxt = canonicalize(nxt);
-      SCVertex v;
+      spdlog::debug(
+          "[STATE] State {}: {} candidates, {} fired, frontier size: {}, total states: {}",
+          cur.state_id, result.chosen_count, result.fired_count,
+          next_frontier.size(), stats_.total_states);
 
-      auto key = make_state_key(canonical_nxt);
-      auto state_it = state_to_vertex_.find(key);
-      if (state_it != state_to_vertex_.end()) {
-        v = state_it->second;
-        stats_.dedup_hits_count++;
-        debug("  [Existing] Use existing state");
-      } else {
-        v = find_or_add_vertex(canonical_nxt);
-        Q.push(canonical_nxt);
-        max_queue_size = std::max(max_queue_size, Q.size());
-        stats_.total_states++;
-        stats_.dedup_misses_count++;
-        debug("  [New] Add to graph and queue");
-        log_state_class_details(
-            canonical_nxt,
-            "[New state " + std::to_string(canonical_nxt.state_id) + "] ");
+      if (stats_.truncated) {
+        break;
       }
-
-      TransitionEdge edge(static_cast<int>(t), tau);
-      boost::add_edge(u, v, edge, graph_);
-      stats_.total_transitions++;
-      fired_count++;
     }
 
-    spdlog::debug(
-        "[STATE] State {}: {} candidates, {} fired, queue size: {}, total states: {}",
-        cur.state_id, chosen.size(), fired_count, Q.size(),
-        stats_.total_states);
+    frontier = std::move(next_frontier);
   }
 
   stats_.dbm_minimize_calls = get_dbm_instrumentation().minimize_calls;
 
   if (stats_.truncated) {
     spdlog::warn(
-        "[STATE] Build truncated at max_states={} with {} states and {} queued states remaining",
-        max_states, stats_.total_states, Q.size());
+        "[STATE] Build truncated at max_states={} with {} states and {} frontier states remaining",
+        max_states, stats_.total_states, frontier.size());
   }
 
   info("Build complete: iterations=" + std::to_string(iteration) +
@@ -345,10 +392,62 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
        std::to_string(stats_.transition_enabled_checks) +
        ", dbm_minimize_calls=" +
        std::to_string(stats_.dbm_minimize_calls) +
-       ", max_queue_size=" + std::to_string(max_queue_size) +
+       ", max_frontier_size=" + std::to_string(max_frontier_size) +
        ", truncated=" + (stats_.truncated ? "true" : "false"));
 
   return stats_.total_states;
+}
+
+StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
+    const StateClass& cur) {
+  const size_t enabled_checks_before = stats_.transition_enabled_checks;
+
+  StateExpansionResult result;
+  std::vector<size_t> chosen = select_per_core(cur.enabled);
+  result.chosen_count = chosen.size();
+  result.enabled_transitions_count += chosen.size();
+
+  StateClass scheduled = cur.copy();
+  apply_preemption(chosen, scheduled);
+
+  double dt = 0;
+  maximal_time_elapse(scheduled, dt);
+
+  if (pruning_enabled_ && scheduled.Z1.is_empty()) {
+    debug("  [Prune] Z1 empty, skip");
+    result.pruned_states_count++;
+    result.transition_enabled_checks +=
+        stats_.transition_enabled_checks - enabled_checks_before;
+    return result;
+  } else if (!pruning_enabled_ && scheduled.Z1.is_empty()) {
+    debug("  [Warning] Z1 empty but pruning disabled");
+  }
+
+  const StateKey source_key = make_state_key(cur);
+  for (size_t t : chosen) {
+    auto [ok, nxt, tau] = fire_with_dbm(t, scheduled);
+
+    if (!ok) {
+      if (pruning_enabled_) {
+        spdlog::debug("  {}: fire failed", format_transitions({t}, false));
+        result.pruned_states_count++;
+        continue;
+      }
+
+      spdlog::debug("  {}: fire failed [pruning disabled]",
+                    format_transitions({t}, false));
+      continue;
+    }
+
+    StateClass canonical_nxt = canonicalize(nxt);
+    result.candidates.push_back({source_key, canonical_nxt,
+                                 TransitionEdge(static_cast<int>(t), tau)});
+    result.fired_count++;
+  }
+
+  result.transition_enabled_checks +=
+      stats_.transition_enabled_checks - enabled_checks_before;
+  return result;
 }
 
 StateClass StateClassReachabilityGraph::create_initial_state_class() {
@@ -381,7 +480,8 @@ void StateClassReachabilityGraph::explore_successors(
 
 bool StateClassReachabilityGraph::is_transition_enabled(
     const StateClass& state, size_t trans_idx) const {
-  const_cast<Statistics&>(stats_).transition_enabled_checks++;
+  auto& stats = const_cast<Statistics&>(stats_);
+  stats.transition_enabled_checks++;
   return petri::PTPN::is_enabled(state.marking, ptpn_, trans_idx);
 }
 

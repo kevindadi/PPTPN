@@ -160,6 +160,21 @@ struct TransitionEdge {
   }
 };
 
+struct SuccessorCandidate {
+  StateKey source_key;
+  StateClass state;
+  TransitionEdge edge;
+};
+
+struct StateExpansionResult {
+  std::vector<SuccessorCandidate> candidates;
+  size_t enabled_transitions_count = 0;
+  size_t pruned_states_count = 0;
+  size_t transition_enabled_checks = 0;
+  size_t chosen_count = 0;
+  size_t fired_count = 0;
+};
+
 typedef boost::adjacency_list<
     boost::vecS, boost::vecS, boost::directedS,
     boost::property<boost::vertex_name_t, StateClass>,
@@ -181,6 +196,7 @@ class StateClassReachabilityGraph {
   [[nodiscard]] bool is_pruning_enabled() const { return pruning_enabled_; }
 
   size_t build(size_t max_states = std::numeric_limits<size_t>::max());
+  size_t build(size_t max_states, size_t thread_count);
 
   [[nodiscard]] const SCGraph& get_graph() const { return graph_; }
   [[nodiscard]] SCGraph& get_graph() { return graph_; }
@@ -273,6 +289,7 @@ class StateClassReachabilityGraph {
                     const std::set<StateClass>& visited) const;
 
   SCVertex find_or_add_vertex(const StateClass& state);
+  StateExpansionResult expand_state_candidates(const StateClass& cur);
 
   static std::string format_marking(const std::vector<int>& marking);
   std::string format_transitions(const std::set<size_t>& trans_indices,

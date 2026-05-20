@@ -201,6 +201,28 @@ SCVertex target_for_transition(const SCGraph& graph, SCVertex vertex,
   return vertex;
 }
 
+bool has_marking(const SCGraph& graph, const Marking& marking) {
+  auto [vertex_it, vertex_end] = boost::vertices(graph);
+  for (; vertex_it != vertex_end; ++vertex_it) {
+    const StateClass& state = boost::get(boost::vertex_name, graph, *vertex_it);
+    if (state.marking == marking) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::vector<int> outgoing_transition_ids(const SCGraph& graph, SCVertex vertex) {
+  std::vector<int> ids;
+  auto [edge_it, edge_end] = boost::out_edges(vertex, graph);
+  for (; edge_it != edge_end; ++edge_it) {
+    const auto& edge = boost::get(boost::edge_name, graph, *edge_it);
+    ids.push_back(edge.transition_id);
+  }
+  std::sort(ids.begin(), ids.end());
+  return ids;
+}
+
 }  // namespace
 
 // Expect: constructed places, transition metadata, arcs, and M0 match the diagram.
@@ -508,4 +530,49 @@ TEST(PTPNReachabilityTest,
   EXPECT_TRUE(ok);
   EXPECT_EQ(successor.marking, (Marking{0, 1}));
   EXPECT_DOUBLE_EQ(firing_time, 1.0);
+}
+
+// Expect: parallel build preserves the same initial outgoing transitions and terminal reachability.
+TEST(PTPNReachabilityTest, ParallelBuildMatchesSequentialGraphSummary) {
+  PTPN net;
+  const size_t p0 = net.add_place("p0");
+  const size_t p1 = net.add_place("p1");
+  const size_t p2 = net.add_place("p2");
+  const size_t t0 = net.add_transition("t0", TimeInterval(1, 1), 10, 0);
+  const size_t t1 = net.add_transition("t1", TimeInterval(1, 1), 10, 0);
+  net.set_pre_arc(p0, t0);
+  net.set_post_arc(t0, p1);
+  net.set_pre_arc(p1, t1);
+  net.set_post_arc(t1, p2);
+  net.set_initial_marking({1, 0, 0});
+
+  StateClassReachabilityGraph sequential(net);
+  StateClassReachabilityGraph parallel(net);
+
+  ASSERT_GT(sequential.build(8, 1), 0U);
+  ASSERT_GT(parallel.build(8, 4), 0U);
+
+  EXPECT_EQ(sequential.get_statistics().total_states,
+            parallel.get_statistics().total_states);
+  EXPECT_EQ(sequential.get_statistics().total_transitions,
+            parallel.get_statistics().total_transitions);
+
+  const auto sequential_initial_edges = outgoing_transition_ids(
+      sequential.get_graph(), sequential.get_initial_vertex());
+  const auto parallel_initial_edges = outgoing_transition_ids(
+      parallel.get_graph(), parallel.get_initial_vertex());
+  EXPECT_EQ(sequential_initial_edges, parallel_initial_edges);
+
+  EXPECT_TRUE(has_marking(sequential.get_graph(), Marking{0, 0, 1}));
+  EXPECT_TRUE(has_marking(parallel.get_graph(), Marking{0, 0, 1}));
+}
+
+// Expect: auto-thread build truncates consistently once max_states is reached.
+TEST(PTPNReachabilityTest, ParallelBuildReportsTruncation) {
+  const auto fixture = build_multi_core_net();
+  StateClassReachabilityGraph graph(fixture.net);
+
+  ASSERT_GT(graph.build(1, 0), 0U);
+  EXPECT_TRUE(graph.get_statistics().truncated);
+  EXPECT_EQ(graph.get_statistics().total_states, 1U);
 }
