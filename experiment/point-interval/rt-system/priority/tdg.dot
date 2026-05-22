@@ -1,0 +1,13 @@
+digraph G {
+    F [label = "F\ntask\nprio=96 core=0\n[Exec] [3, 3]\nlocks=none";];
+    E [label = "E\ntask\nprio=98 core=1\n[Exec] [18, 18]\nlocks=none";];
+    A [label = "A\ntask\nprio=97 core=0\n[Exec] [8, 8]\nlocks=none";];
+    D [label = "D\ntask\nprio=97 core=1\n[Exec] [8, 8]\nlocks=none";];
+    C [label = "C\ntask\nprio=99 core=1\n[Exec] [10, 10]\nlocks=none";];
+    B [label = "B\ntask\nprio=98 core=0\n[Exec] [5, 5]\nlocks=none";];
+    A -> B [xlabel = "19";];
+    B -> C [xlabel = "19";];
+    D -> E [xlabel = "19";];
+    E -> C [xlabel = "19";];
+    D -> F [xlabel = "50"; style = "dashed";];
+}
