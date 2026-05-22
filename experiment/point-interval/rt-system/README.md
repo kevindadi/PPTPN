@@ -1,51 +1,63 @@
 # RT-System cross-tool experiment
 
-This experiment aligns three inputs around the same point-interval source model from [tools/PToPNer/examples/RT-System.ppn](../../../tools/PToPNer/examples/RT-System.ppn).
+This experiment starts from the same original real-time DAG motivation as [example/common/input.json](../../../example/common/input.json), then compares how that dependency structure was represented in later hand-modeled Petri-net artifacts.
+
+The known artifact lineage is:
+
+- [example/common/input.json](../../../example/common/input.json): the original DAG-style task-dependency input in this repository
+- [tools/PToPNer/examples/RT-System.ppn](../../../tools/PToPNer/examples/RT-System.ppn): the PToPNer author's manually modeled point-interval Petri-net version
+- [romeo/RT-System.xml](romeo/RT-System.xml): the author-provided Romeo version copied from [hlf-ptopn-100.xml](../../../hlf-ptopn-100.xml)
+
+The important distinction is that the DAG dependency motivation comes from `example/common/input.json`, while the PToPNer and Romeo files are later manual Petri-net encodings that refine the behavior with explicit fork/join, choice, and resource-style structure. The author's exact intermediate modeling steps were not documented.
 
 ## Scope
 
-- point-interval only: every timed transition uses `eft == lft`
+- compare the same RT-style dependency scenario across DAG / PToPNer / Romeo artifacts
+- keep the experiment-local JSON input aligned with the original DAG structure from `example/common/input.json`
 - compare only state-space / reachability outputs
 - ignore the formula blocks from the original PToPNer example
 
 ## Layout
 
 - `ptopner/RT-System.ppn`: trimmed source model with transitions and places only
-- `romeo/RT-System.xml`: hand-written Romeo net using the same place/transition names
-- `priority/input.json`: TDG-style approximation for this repository's JSON-only pipeline
-- `mapping.md`: explicit semantic mapping and approximations
+- `romeo/RT-System.xml`: author-provided Romeo net copied from `hlf-ptopn-100.xml`
+- `priority/input.json`: point-interval DAG version derived directly from `example/common/input.json`
+- `mapping.md`: lineage notes, known correspondences, and approximations
 
-## Exact alignments
+## Authoritative inputs
 
-The following are preserved directly between the original `.ppn` and the experiment-local `.ppn` / Romeo `.xml`:
+For the DAG side, [priority/input.json](priority/input.json) should preserve the original task names, dependency edges, start tasks, end tasks, and periods from [example/common/input.json](../../../example/common/input.json), with only the execution times collapsed to point intervals.
 
-- place names and initial markings
-- transition names
-- preset/postset connectivity
-- fixed firing times
-- explicit resource place `c1` with initial marking `2`
+For the Romeo side of the comparison, [romeo/RT-System.xml](romeo/RT-System.xml) is not a hand-written reconstruction. It is the author-provided XML version of the PToPNer RT-System example, preserved as the experiment-local reference file.
 
-## Static-net vs schedule semantics
+For the PToPNer side, [ptopner/RT-System.ppn](ptopner/RT-System.ppn) remains the local baseline for the point-interval Petri-net model with formulas removed.
 
-- PToPNer and this repository use static net structure to realize preemption-related behavior: resource competition and alternative firing paths are represented explicitly by places and transitions.
-- Romeo expresses priority scheduling through `place/scheduling` parameters, so the same resource-competition topology is kept in the XML while dispatch priority is delegated to Romeo's scheduler semantics.
-- Because of that difference, the Romeo file should not encode priority mainly through transition-local fields; the meaningful priority information is attached to the relevant places through `gamma` / `omega`.
+## How to read the `.ppn` against the original DAG
+
+The `.ppn` should not be read as a literal task-for-task renaming of `A-F`. A more useful reading is:
+
+- the original `A -> B` side is expanded into the upstream corridor around `p1/p2/p3/p4`
+- the original `D -> E` side is expanded into the upstream corridor around `p5/p6/p7/p8`
+- the original completion around `C` is expanded into the final corridor around `p9/p10/p11/p12`
+- extra transitions such as `t6`, `t10`, and `t11` represent manual synchronization / redirection structure that does not exist as standalone nodes in the original DAG
+
+A more explicit best-effort `A-F` to `.ppn` reading is recorded in [mapping.md](mapping.md).
 
 ## Known approximations
 
-- The original formula sections are intentionally dropped.
-- Romeo does not expose a clearly documented direct equivalent of PToPNer's `is_suspend` flag in the vendored DTD/examples. For this experiment, static resource topology is preserved explicitly, while priority ordering is handed to Romeo's scheduling semantics.
-- This repository accepts only TDG JSON at [src/main.cpp](../../../src/main.cpp), so `priority/input.json` is an approximation of the RT-System control flow, not a strict place/transition level encoding. It uses task nodes for all transitions, scaled integer priorities, and precedence edges to preserve the major release/competition structure.
+- The original formula sections are intentionally dropped from the experiment-local `.ppn` copy.
+- The semantic mapping from the original DAG into the author's PToPNer / Romeo nets is only partially known. We know the motivation starts from the DAG dependency pattern, but the exact manual modeling choices for fork/join, branching, and resource-like control were not documented.
+- The experiment-local `priority/input.json` is therefore the DAG-side baseline, not a reverse-engineered Petri-net encoding.
 
-## Priority convention in `priority/input.json`
+## Point-interval convention in `priority/input.json`
 
-PToPNer priorities like `2.1` and `3.2` are scaled by 10 into integers so they fit the current JSON schema:
+The original DAG timings in [example/common/input.json](../../../example/common/input.json) are interval-valued. For this experiment, they are collapsed to point intervals by taking the upper bound of each task's execution-time range:
 
-- `1` -> `10`
-- `2.0` -> `20`
-- `2.1` -> `21`
-- `3.0` -> `30`
-- `3.1` -> `31`
-- `3.2` -> `32`
+- `A: [3, 8] -> [8, 8]`
+- `B: [3, 5] -> [5, 5]`
+- `C: [8, 10] -> [10, 10]`
+- `D: [6, 8] -> [8, 8]`
+- `E: [15, 18] -> [18, 18]`
+- `F: [3, 3] -> [3, 3]`
 
-Timed transitions with original priority `0` stay at low integer priority `1` in the approximation.
+This keeps the original DAG structure intact while making the repository-local input match the experiment's point-interval restriction.
