@@ -26,10 +26,10 @@
     {"id": "F", "type": "task", "priority": 96, "core": 0, "time": [[3, 3]], "locks": []}
   ],
   "edges": [
-    {"source": "A", "target": "B", "label": "19"},
-    {"source": "B", "target": "C", "label": "19"},
-    {"source": "D", "target": "E", "label": "19"},
-    {"source": "E", "target": "C", "label": "19"},
-    {"source": "D", "target": "F", "label": "50", "style": "dashed"}
+    {"source": "A", "target": "B", "label": "1"},
+    {"source": "B", "target": "C", "label": "1"},
+    {"source": "D", "target": "E", "label": "1"},
+    {"source": "E", "target": "C", "label": "1"},
+    {"source": "D", "target": "F", "label": "1"}
   ]
 }
