@@ -1,0 +1,56 @@
+{
+  "graph": {
+    "name": "RTSystemApprox"
+  },
+  "configuration": {
+    "num_cpus": 1,
+    "cores_per_cpu": 1,
+    "shared_locks": [],
+    "policy": "fixed",
+    "start": [
+      {"task": "t1", "tokens": 1},
+      {"task": "t4", "tokens": 1},
+      {"task": "t8", "tokens": 1}
+    ],
+    "end": ["t12"]
+  },
+  "nodes": [
+    {"id": "t1", "type": "task", "priority": 1, "core": 0, "time": [[10, 10]], "locks": []},
+    {"id": "t2", "type": "task", "priority": 10, "core": 0, "time": [[0, 0]], "locks": []},
+    {"id": "t3", "type": "task", "priority": 1, "core": 0, "time": [[30, 30]], "locks": []},
+    {"id": "t4", "type": "task", "priority": 1, "core": 0, "time": [[20, 20]], "locks": []},
+    {"id": "t5", "type": "task", "priority": 21, "core": 0, "time": [[0, 0]], "locks": []},
+    {"id": "t6", "type": "task", "priority": 20, "core": 0, "time": [[0, 0]], "locks": []},
+    {"id": "t7", "type": "task", "priority": 1, "core": 0, "time": [[25, 25]], "locks": []},
+    {"id": "t8", "type": "task", "priority": 1, "core": 0, "time": [[30, 30]], "locks": []},
+    {"id": "t9", "type": "task", "priority": 32, "core": 0, "time": [[0, 0]], "locks": []},
+    {"id": "t10", "type": "task", "priority": 31, "core": 0, "time": [[0, 0]], "locks": []},
+    {"id": "t11", "type": "task", "priority": 30, "core": 0, "time": [[0, 0]], "locks": []},
+    {"id": "t12", "type": "task", "priority": 1, "core": 0, "time": [[20, 20]], "locks": []}
+  ],
+  "edges": [
+    {"source": "t1", "target": "t2"},
+    {"source": "t2", "target": "t3"},
+
+    {"source": "t4", "target": "t5"},
+    {"source": "t5", "target": "t7"},
+
+    {"source": "t8", "target": "t9"},
+    {"source": "t9", "target": "t12"},
+
+    {"source": "t3", "target": "t6"},
+    {"source": "t4", "target": "t6"},
+    {"source": "t6", "target": "t2", "style": "dashed"},
+    {"source": "t6", "target": "t7"},
+
+    {"source": "t3", "target": "t10"},
+    {"source": "t8", "target": "t10"},
+    {"source": "t10", "target": "t2", "style": "dashed"},
+    {"source": "t10", "target": "t12"},
+
+    {"source": "t7", "target": "t11"},
+    {"source": "t8", "target": "t11"},
+    {"source": "t11", "target": "t5", "style": "dashed"},
+    {"source": "t11", "target": "t12"}
+  ]
+}

@@ -1,0 +1,32 @@
+digraph G {
+    t12 [label = "t12\ntask\nprio=1 core=0\n[Exec] [20, 20]\nlocks=none";];
+    t11 [label = "t11\ntask\nprio=30 core=0\n[Exec] [0, 0]\nlocks=none";];
+    t9 [label = "t9\ntask\nprio=32 core=0\n[Exec] [0, 0]\nlocks=none";];
+    t3 [label = "t3\ntask\nprio=1 core=0\n[Exec] [30, 30]\nlocks=none";];
+    t10 [label = "t10\ntask\nprio=31 core=0\n[Exec] [0, 0]\nlocks=none";];
+    t7 [label = "t7\ntask\nprio=1 core=0\n[Exec] [25, 25]\nlocks=none";];
+    t2 [label = "t2\ntask\nprio=10 core=0\n[Exec] [0, 0]\nlocks=none";];
+    t4 [label = "t4\ntask\nprio=1 core=0\n[Exec] [20, 20]\nlocks=none";];
+    t6 [label = "t6\ntask\nprio=20 core=0\n[Exec] [0, 0]\nlocks=none";];
+    t5 [label = "t5\ntask\nprio=21 core=0\n[Exec] [0, 0]\nlocks=none";];
+    t8 [label = "t8\ntask\nprio=1 core=0\n[Exec] [30, 30]\nlocks=none";];
+    t1 [label = "t1\ntask\nprio=1 core=0\n[Exec] [10, 10]\nlocks=none";];
+    t1 -> t2;
+    t2 -> t3;
+    t4 -> t5;
+    t5 -> t7;
+    t8 -> t9;
+    t9 -> t12;
+    t3 -> t6;
+    t4 -> t6;
+    t6 -> t2 [style = "dashed";];
+    t6 -> t7;
+    t3 -> t10;
+    t8 -> t10;
+    t10 -> t2 [style = "dashed";];
+    t10 -> t12;
+    t7 -> t11;
+    t8 -> t11;
+    t11 -> t5 [style = "dashed";];
+    t11 -> t12;
+}
