@@ -102,12 +102,15 @@ int main(int argc, char* argv[]) {
 
   string input_file;
   size_t max_states = 10000;
+  size_t thread_count = 1;
   string tina_file, romeo_file;
 
   app.add_option("-f,--file", input_file, "Input JSON file")
       ->required(true);
   app.add_option("-m,--max-states", max_states,
                  "Maximum number of states in reachability graph (default: 10000)");
+  app.add_option("--threads", thread_count,
+                 "Reachability build thread count (default: 1; use 0 for auto)");
   app.add_option("--tina", tina_file, "Export to Tina .net format");
   app.add_option("--romeo", romeo_file, "Export to Romeo XML format");
   app.set_version_flag("-v,--version", "1.0.0");
@@ -197,7 +200,7 @@ int main(int argc, char* argv[]) {
   }
 
   state_class::StateClassReachabilityGraph reachability_graph(ptpn);
-  size_t state_count = reachability_graph.build(max_states);
+  size_t state_count = reachability_graph.build(max_states, thread_count);
   const auto& reachability_stats = reachability_graph.get_statistics();
   if (reachability_stats.truncated) {
     spdlog::warn("[SCG] Reachability graph truncated at {} states; use --max-states to raise the bound", max_states);
