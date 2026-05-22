@@ -3,8 +3,9 @@
 .DS_Store
 .claude
 
-build/
+build
 main.pdf
 paper
 
 Testing
+tools/romeo-3.10.11/
