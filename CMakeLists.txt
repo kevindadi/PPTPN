@@ -59,6 +59,7 @@ add_library(PTPN_core STATIC
     src/analysis/state.cpp
     src/analysis/reachability.cpp
     src/analysis/reachability_scheduling.cpp
+    src/analysis/reachability_dbm.cpp
 )
 target_include_directories(PTPN_core PUBLIC src)
 target_link_libraries(PTPN_core PUBLIC
