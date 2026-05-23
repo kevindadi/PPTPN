@@ -56,10 +56,9 @@ add_library(PTPN_core STATIC
     src/petri/petri.cpp
     src/petri/graph.cpp
     src/tdg2pn/tdg2pn.cpp
+    src/analysis/dbm.cpp
     src/analysis/state.cpp
-    src/analysis/reachability.cpp
-    src/analysis/reachability_scheduling.cpp
-    src/analysis/reachability_dbm.cpp
+    src/analysis/graph.cpp
 )
 target_include_directories(PTPN_core PUBLIC src)
 target_link_libraries(PTPN_core PUBLIC
