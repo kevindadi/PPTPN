@@ -179,16 +179,24 @@ void DBM::initialize_clock(size_t clock_idx) {
 }
 
 void DBM::elapse_time(int delta) {
-  if (delta <= 0) return;
+  if (delta <= 0 || clock_count_ == 0) return;
 
   bool changed = false;
   for (size_t i = 1; i < clock_count_; ++i) {
-    if (!is_frozen(i)) {
-      int current_upper = matrix_[offset(i, 0)];
-      if (current_upper != INF_TIME) {
-        matrix_[offset(i, 0)] = INF_TIME;
-        changed = true;
-      }
+    if (is_frozen(i)) {
+      continue;
+    }
+
+    const int current_upper = matrix_[offset(i, 0)];
+    if (current_upper != INF_TIME) {
+      matrix_[offset(i, 0)] = current_upper + delta;
+      changed = true;
+    }
+
+    const int current_lower = matrix_[offset(0, i)];
+    if (current_lower != INF_TIME) {
+      matrix_[offset(0, i)] = current_lower - delta;
+      changed = true;
     }
   }
 
@@ -495,14 +503,17 @@ size_t StateKeyHash::operator()(const StateKey& key) const {
   for (int value : key.marking) {
     hash_combine(seed, int_hash(value));
   }
+  for (size_t value : key.enabled) {
+    hash_combine(seed, size_hash(value));
+  }
+  for (size_t value : key.suspended) {
+    hash_combine(seed, size_hash(value));
+  }
   for (int value : key.Z1.raw_matrix()) {
     hash_combine(seed, int_hash(value));
   }
   for (int value : key.Z2.raw_matrix()) {
     hash_combine(seed, int_hash(value));
-  }
-  for (size_t value : key.suspended) {
-    hash_combine(seed, size_hash(value));
   }
 
   return seed;

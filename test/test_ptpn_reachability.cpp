@@ -35,6 +35,11 @@ struct StateClassReachabilityGraphTestAccess {
     graph.apply_preemption(chosen, state);
   }
 
+  static void normalize_scheduling_state(
+      const StateClassReachabilityGraph& graph, StateClass& state) {
+    graph.normalize_scheduling_state(state);
+  }
+
   static bool maximal_time_elapse(const StateClassReachabilityGraph& graph,
                                   StateClass& state, double& dt) {
     return graph.maximal_time_elapse(state, dt);
@@ -530,6 +535,88 @@ TEST(PTPNReachabilityTest,
   EXPECT_TRUE(ok);
   EXPECT_EQ(successor.marking, (Marking{0, 1}));
   EXPECT_DOUBLE_EQ(firing_time, 1.0);
+}
+
+// Expect: DBM time elapse numerically shifts active clock bounds and leaves frozen clocks unchanged.
+TEST(PTPNReachabilityTest, DbmElapseTimeShiftsOnlyActiveClocks) {
+  state_class::DBM dbm(3);
+  dbm.set_constraint(1, 0, 5);
+  dbm.set_constraint(0, 1, -2);
+  dbm.set_constraint(2, 0, 7);
+  dbm.set_constraint(0, 2, -3);
+  dbm.freeze_clock(2);
+
+  dbm.elapse_time(4);
+
+  EXPECT_EQ(dbm.get_constraint(1, 0), 9);
+  EXPECT_EQ(dbm.get_constraint(0, 1), -6);
+  EXPECT_EQ(dbm.get_constraint(2, 0), 7);
+  EXPECT_EQ(dbm.get_constraint(0, 2), -3);
+}
+
+// Expect: normalization keeps only the highest-priority effective transition and marks lower suspendable peers as suspended.
+TEST(PTPNReachabilityTest,
+     NormalizeSchedulingStateComputesEffectiveEnabledAndSuspendedSets) {
+  const auto fixture = build_priority_same_core_net(true);
+  StateClassReachabilityGraph graph(fixture.net);
+  StateClass initial =
+      StateClassReachabilityGraphTestAccess::create_initial_state_class(graph);
+
+  StateClassReachabilityGraphTestAccess::normalize_scheduling_state(graph,
+                                                                    initial);
+
+  EXPECT_TRUE(contains(initial.enabled, fixture.high));
+  EXPECT_FALSE(contains(initial.enabled, fixture.low));
+  EXPECT_TRUE(contains(initial.suspended, fixture.low));
+}
+
+// Expect: normalizing an active suspendable transition drops stale Z1 leftovers and keeps the live waiting domain in Z2.
+TEST(PTPNReachabilityTest,
+     NormalizeSchedulingStateClearsStaleZ1ForActiveSuspendableTransition) {
+  PTPN net;
+  const size_t ready = net.add_place("ready");
+  const size_t done = net.add_place("done");
+  const size_t susp = net.add_transition("susp", TimeInterval(2, 5), 10, 0,
+                                         true);
+  net.set_pre_arc(ready, susp);
+  net.set_post_arc(susp, done);
+  net.set_initial_marking({1, 0});
+
+  StateClassReachabilityGraph graph(net);
+  StateClass initial =
+      StateClassReachabilityGraphTestAccess::create_initial_state_class(graph);
+
+  const size_t clock_idx = susp + 1;
+  initial.Z1.set_constraint(clock_idx, 0, 99);
+  initial.Z1.set_constraint(0, clock_idx, -88);
+
+  StateClassReachabilityGraphTestAccess::normalize_scheduling_state(graph,
+                                                                    initial);
+
+  EXPECT_TRUE(contains(initial.enabled, susp));
+  EXPECT_TRUE(initial.suspended.empty());
+  EXPECT_EQ(initial.Z1.get_constraint(clock_idx, 0), state_class::INF_TIME);
+  EXPECT_EQ(initial.Z1.get_constraint(0, clock_idx), 0);
+  EXPECT_EQ(initial.Z2.get_constraint(clock_idx, 0), 5);
+  EXPECT_EQ(initial.Z2.get_constraint(0, clock_idx), -2);
+}
+
+// Expect: canonicalization preserves the normalized effective-enabled metadata rather than recomputing raw enabledness.
+TEST(PTPNReachabilityTest,
+     CanonicalizePreservesNormalizedSchedulingMetadata) {
+  const auto fixture = build_priority_same_core_net(true);
+  StateClassReachabilityGraph graph(fixture.net);
+  StateClass initial =
+      StateClassReachabilityGraphTestAccess::create_initial_state_class(graph);
+
+  StateClassReachabilityGraphTestAccess::normalize_scheduling_state(graph,
+                                                                    initial);
+  StateClass canonical =
+      StateClassReachabilityGraphTestAccess::canonicalize(graph, initial);
+
+  EXPECT_TRUE(contains(canonical.enabled, fixture.high));
+  EXPECT_FALSE(contains(canonical.enabled, fixture.low));
+  EXPECT_TRUE(contains(canonical.suspended, fixture.low));
 }
 
 // Expect: parallel build preserves the same initial outgoing transitions and terminal reachability.
