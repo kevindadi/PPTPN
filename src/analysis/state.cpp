@@ -213,14 +213,31 @@ void DBM::reset_clock(size_t clock_idx) {
   }
 
   bool changed = false;
-  if (matrix_[offset(clock_idx, 0)] != 0) {
-    matrix_[offset(clock_idx, 0)] = 0;
-    changed = true;
-  }
+
   if (matrix_[offset(0, clock_idx)] != 0) {
     matrix_[offset(0, clock_idx)] = 0;
     changed = true;
   }
+  if (matrix_[offset(clock_idx, 0)] != 0) {
+    matrix_[offset(clock_idx, 0)] = 0;
+    changed = true;
+  }
+
+  for (size_t k = 0; k < clock_count_; ++k) {
+    const int row0 = matrix_[offset(0, k)];
+    if (matrix_[offset(clock_idx, k)] != row0) {
+      matrix_[offset(clock_idx, k)] = row0;
+      changed = true;
+    }
+
+    const int col0 = matrix_[offset(k, 0)];
+    if (matrix_[offset(k, clock_idx)] != col0) {
+      matrix_[offset(k, clock_idx)] = col0;
+      changed = true;
+    }
+  }
+
+  matrix_[offset(clock_idx, clock_idx)] = 0;
 
   if (changed) {
     minimize();

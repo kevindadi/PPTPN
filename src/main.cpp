@@ -104,6 +104,7 @@ int main(int argc, char* argv[]) {
   size_t max_states = 10000;
   size_t thread_count = 1;
   string tina_file, romeo_file;
+  bool debug_mode = false;
 
   app.add_option("-f,--file", input_file, "Input JSON file")
       ->required(true);
@@ -113,9 +114,15 @@ int main(int argc, char* argv[]) {
                  "Reachability build thread count (default: 1; use 0 for auto)");
   app.add_option("--tina", tina_file, "Export to Tina .net format");
   app.add_option("--romeo", romeo_file, "Export to Romeo XML format");
+  app.add_flag("--debug", debug_mode, "Enable debug logging");
   app.set_version_flag("-v,--version", "1.0.0");
 
   CLI11_PARSE(app, argc, argv);
+
+  if (debug_mode) {
+    spdlog::set_level(spdlog::level::debug);
+    spdlog::debug("[MAIN] Debug logging enabled");
+  }
 
   spdlog::info("==========================================");
   spdlog::info("PTPN - Priority Timed Petri Net Analyzer");

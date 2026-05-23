@@ -167,6 +167,7 @@ struct SuccessorCandidate {
   StateKey source_key;
   StateClass state;
   TransitionEdge edge;
+  size_t transition_id = 0;
 };
 
 struct StateExpansionResult {
