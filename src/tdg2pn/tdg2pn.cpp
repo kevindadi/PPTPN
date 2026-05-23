@@ -1,4 +1,4 @@
-#include "tdg2pn/tdg2pn.h"
+#include "tdg2pn.h"
 
 #include <spdlog/spdlog.h>
 
@@ -7,6 +7,12 @@ namespace converter {
 namespace {
 constexpr int kControlTransitionPriority = 0;
 constexpr int kControlTransitionCore = -1;
+constexpr int kTaskPriorityScale = 100;
+constexpr int kTaskExecutionPriorityOffset = 99;
+
+int encode_task_execution_priority(int task_priority) {
+  return task_priority * kTaskPriorityScale + kTaskExecutionPriorityOffset;
+}
 
 std::string format_core_priority_order(
     int core_id, const std::vector<std::string>& tasks,
@@ -74,7 +80,7 @@ void TDG2PN::add_consume_transition(petri::PTPN& ptpn,
   petri::TimeInterval interval(0, 0);
   size_t consume_trans = ptpn.add_transition(task_name + "_consume",
                                              interval, kControlTransitionPriority,
-                                             kNoSchedulingCore, false);
+                                             kControlTransitionCore, false);
   ptpn.set_pre_arc(end_idx, consume_trans, 1);
 }
 
@@ -135,10 +141,10 @@ void TDG2PN::add_periodic_release_bindings(petri::PTPN& ptpn,
       continue;
     }
 
-    size_t random = ptpn.add_place(periodic_task.task + "_cfg_random", 1);
+    size_t random = ptpn.add_place(periodic_task.task + "_period", 1);
     petri::TimeInterval fire_interval(periodic_task.period, periodic_task.period);
-    size_t fire = ptpn.add_transition(periodic_task.task + "_cfg_fire", fire_interval,
-                                      kControlTransitionPriority, kNoSchedulingCore, false);
+    size_t fire = ptpn.add_transition(periodic_task.task + "_fire", fire_interval,
+                                      kControlTransitionPriority, kControlTransitionCore, false);
 
     ptpn.set_initial_marking(random, 1);
     ptpn.set_pre_arc(random, fire, 1);
@@ -229,6 +235,40 @@ std::unordered_map<int, std::vector<std::string>> TDG2PN::classify_tdg_priority(
   }
 
   return core_task;
+}
+
+std::unordered_map<std::string, int> TDG2PN::build_preempt_priorities(
+    const std::vector<std::string>& tasks,
+    const std::unordered_map<std::string, TaskConfig>& tc,
+    int aggressor_priority) {
+  std::unordered_map<std::string, int> priorities;
+  int current_offset = kTaskExecutionPriorityOffset - 1;
+  int previous_victim_priority = std::numeric_limits<int>::min();
+  bool first_group = true;
+
+  for (const auto& task_name : tasks) {
+    const auto task_it = tc.find(task_name);
+    if (task_it == tc.end()) {
+      continue;
+    }
+
+    const int victim_priority = task_it->second.priority;
+    if (victim_priority >= aggressor_priority) {
+      continue;
+    }
+
+    if (first_group) {
+      previous_victim_priority = victim_priority;
+      first_group = false;
+    } else if (victim_priority != previous_victim_priority) {
+      --current_offset;
+      previous_victim_priority = victim_priority;
+    }
+
+    priorities[task_name] = aggressor_priority * kTaskPriorityScale + current_offset;
+  }
+
+  return priorities;
 }
 
 void TDG2PN::transform_vertices(petri::PTPN& ptpn, const tdg::TDG& tdg) {
@@ -560,8 +600,9 @@ std::vector<size_t> TDG2PN::add_execution_chain(petri::PTPN& ptpn,
 
   size_t entry = ptpn.add_place(task_name + "entry", 1);
   petri::TimeInterval get_core_interval(0, 0);
+  const int encoded_priority = encode_task_execution_priority(priority);
   size_t get_core = ptpn.add_transition(task_name + "get_core", get_core_interval,
-                                        priority, core, false);
+                                        encoded_priority, core, false);
   size_t ready = ptpn.add_place(task_name + "ready", 1);
 
   ptpn.set_pre_arc(entry, get_core, 1);
@@ -579,7 +620,7 @@ std::vector<size_t> TDG2PN::add_execution_chain(petri::PTPN& ptpn,
         ? task_name + "exec"
         : task_name + "_exec_" + std::to_string(i + 1);
     petri::TimeInterval exec_interval(start, end);
-    size_t exec = ptpn.add_transition(exec_name, exec_interval, priority, core, false);
+    size_t exec = ptpn.add_transition(exec_name, exec_interval, encoded_priority, core, false);
 
     const bool is_last_segment = (i == times.size() - 1);
     std::string next_place_name = is_last_segment
@@ -597,7 +638,7 @@ std::vector<size_t> TDG2PN::add_execution_chain(petri::PTPN& ptpn,
     if (i < locks.size()) {
       petri::TimeInterval lock_interval(0, 0);
       std::string lock_name = task_name + "_lock_" + std::to_string(i + 1);
-      size_t lock_transition = ptpn.add_transition(lock_name, lock_interval, priority, core, false);
+      size_t lock_transition = ptpn.add_transition(lock_name, lock_interval, encoded_priority, core, false);
       size_t hold_place = ptpn.add_place(task_name + "_hold_" + std::to_string(i + 1), 1);
 
       ptpn.set_pre_arc(current_place, lock_transition, 1);
@@ -632,13 +673,13 @@ void TDG2PN::add_monitor_matrix(petri::PTPN& ptpn, const std::string& task_name,
 
   petri::TimeInterval timed_interval(task_period_time, task_period_time);
   size_t timed = ptpn.add_transition(task_name + "timed", timed_interval,
-                                     kControlTransitionPriority, kNoSchedulingCore, false);
+                                     kControlTransitionPriority, kControlTransitionCore, false);
   size_t ending = ptpn.add_transition(task_name + "ending", petri::TimeInterval(0, 0),
-                                      kControlTransitionPriority, kNoSchedulingCore, false);
+                                      kControlTransitionPriority, kControlTransitionCore, false);
   size_t complete = ptpn.add_transition(task_name + "complete", petri::TimeInterval(0, 0),
-                                        kControlTransitionPriority, kNoSchedulingCore, false);
+                                        kControlTransitionPriority, kControlTransitionCore, false);
   size_t tout = ptpn.add_transition(task_name + "out", petri::TimeInterval(0, 0),
-                                    kControlTransitionPriority, kNoSchedulingCore, false);
+                                    kControlTransitionPriority, kControlTransitionCore, false);
 
   ptpn.set_post_arc(ending, t_end, 1);
   ptpn.set_pre_arc(t_end, complete, 1);
@@ -671,7 +712,7 @@ void TDG2PN::fixed_prior_with_restart(
       [&](const std::string& l_t_name, const std::string& h_t_name,
           const TaskConfig& l_tc, const TaskConfig& h_tc,
           const std::vector<size_t>& l_t_pn, const std::vector<size_t>& h_t_pn,
-          bool /* is_interrupt */) {
+          int preempt_priority, bool /* is_interrupt */) {
         if (l_t_pn.size() < 5 || h_t_pn.size() < 5) {
           spdlog::warn("[TDG2PN] Task chain too short, skipping restart preemption: {} <- {}", l_t_name, h_t_name);
           return;
@@ -691,7 +732,7 @@ void TDG2PN::fixed_prior_with_restart(
                                    std::to_string(ptpn.node_index++);
         petri::TimeInterval preempt_interval(0, 0);
         size_t preempt_trans = ptpn.add_transition(preempt_name, preempt_interval,
-                                                   h_tc.priority, h_tc.core, false);
+                                                   preempt_priority, h_tc.core, false);
 
         ptpn.set_pre_arc(h_entry, preempt_trans, 1);
         ptpn.set_pre_arc(l_preempt_place, preempt_trans, 1);
@@ -721,7 +762,7 @@ void TDG2PN::fixed_prior_with_restart(
                                             std::to_string(ptpn.node_index++);
             petri::TimeInterval lock_preempt_interval(0, 0);
             size_t lock_preempt_trans = ptpn.add_transition(
-                lock_preempt_name, lock_preempt_interval, h_tc.priority, h_tc.core, false);
+                lock_preempt_name, lock_preempt_interval, preempt_priority, h_tc.core, false);
 
             ptpn.set_pre_arc(h_entry, lock_preempt_trans, 1);
             ptpn.set_pre_arc(lock_preempt_place, lock_preempt_trans, 1);
@@ -735,18 +776,27 @@ void TDG2PN::fixed_prior_with_restart(
     spdlog::debug("[TDG2PN] Processing restart preemption for core {}", core_id);
 
     for (size_t i = 0; i < tasks.size(); ++i) {
+      const std::string& h_t_name = tasks[i];
+      const auto h_t_it = tc.find(h_t_name);
+      if (h_t_it == tc.end()) {
+        continue;
+      }
+      const TaskConfig& h_tc = h_t_it->second;
+      const auto preempt_priorities = build_preempt_priorities(tasks, tc, h_tc.priority);
+
       for (size_t j = i + 1; j < tasks.size(); ++j) {
-        const std::string& h_t_name = tasks[i];
         const std::string& l_t_name = tasks[j];
 
         auto l_t_it = tc.find(l_t_name);
-        auto h_t_it = tc.find(h_t_name);
-        if (l_t_it == tc.end() || h_t_it == tc.end()) {
+        if (l_t_it == tc.end()) {
+          continue;
+        }
+        const auto preempt_priority_it = preempt_priorities.find(l_t_name);
+        if (preempt_priority_it == preempt_priorities.end()) {
           continue;
         }
 
         const TaskConfig& l_tc = l_t_it->second;
-        const TaskConfig& h_tc = h_t_it->second;
         if (l_tc.priority == h_tc.priority) {
           continue;
         }
@@ -769,7 +819,8 @@ void TDG2PN::fixed_prior_with_restart(
         }
 
         for (const auto& l_t_pn : {l_t_pns_it->second}) {
-          handle_task_preemption(l_t_name, h_t_name, l_tc, h_tc, l_t_pn, h_t_pn, is_interrupt);
+          handle_task_preemption(l_t_name, h_t_name, l_tc, h_tc, l_t_pn, h_t_pn,
+                                 preempt_priority_it->second, is_interrupt);
         }
       }
     }
@@ -789,7 +840,7 @@ void TDG2PN::fixed_prior_with_resume(
       [&](const std::string& l_t_name, const std::string& h_t_name,
           const TaskConfig& l_tc, const TaskConfig& h_tc,
           const std::vector<size_t>& l_t_pn, const std::vector<size_t>& h_t_pn,
-          bool /* is_interrupt */) {
+          int preempt_priority, bool /* is_interrupt */) {
         if (l_t_pn.size() < 5 || h_t_pn.size() < 5) {
           spdlog::warn("[TDG2PN] Task chain too short, skipping resume preemption: {} <- {}", l_t_name, h_t_name);
           return;
@@ -815,9 +866,9 @@ void TDG2PN::fixed_prior_with_resume(
         size_t suspended_place = ptpn.add_place(suspended_name, 1);
         petri::TimeInterval immediate_interval(0, 0);
         size_t preempt_trans = ptpn.add_transition(preempt_name, immediate_interval,
-                                                   h_tc.priority, h_tc.core, false);
+                                                   preempt_priority, h_tc.core, false);
         size_t resume_trans = ptpn.add_transition(resume_name, immediate_interval,
-                                                  h_tc.priority, h_tc.core, false);
+                                                  kControlTransitionPriority, kControlTransitionCore, false);
         ptpn.node_index++;
 
         ptpn.set_pre_arc(h_entry, preempt_trans, 1);
@@ -856,9 +907,9 @@ void TDG2PN::fixed_prior_with_resume(
 
             size_t lock_suspended_place = ptpn.add_place(lock_suspended_name, 1);
             size_t lock_preempt_trans = ptpn.add_transition(
-                lock_preempt_name, immediate_interval, h_tc.priority, h_tc.core, false);
+                lock_preempt_name, immediate_interval, preempt_priority, h_tc.core, false);
             size_t lock_resume_trans = ptpn.add_transition(
-                lock_resume_name, immediate_interval, h_tc.priority, h_tc.core, false);
+                lock_resume_name, immediate_interval, kControlTransitionPriority, kControlTransitionCore, false);
             ptpn.node_index++;
 
             ptpn.set_pre_arc(h_entry, lock_preempt_trans, 1);
@@ -877,18 +928,27 @@ void TDG2PN::fixed_prior_with_resume(
     spdlog::debug("[TDG2PN] Processing resume preemption for core {}", core_id);
 
     for (size_t i = 0; i < tasks.size(); ++i) {
+      const std::string& h_t_name = tasks[i];
+      const auto h_t_it = tc.find(h_t_name);
+      if (h_t_it == tc.end()) {
+        continue;
+      }
+      const TaskConfig& h_tc = h_t_it->second;
+      const auto preempt_priorities = build_preempt_priorities(tasks, tc, h_tc.priority);
+
       for (size_t j = i + 1; j < tasks.size(); ++j) {
-        const std::string& h_t_name = tasks[i];
         const std::string& l_t_name = tasks[j];
 
         auto l_t_it = tc.find(l_t_name);
-        auto h_t_it = tc.find(h_t_name);
-        if (l_t_it == tc.end() || h_t_it == tc.end()) {
+        if (l_t_it == tc.end()) {
+          continue;
+        }
+        const auto preempt_priority_it = preempt_priorities.find(l_t_name);
+        if (preempt_priority_it == preempt_priorities.end()) {
           continue;
         }
 
         const TaskConfig& l_tc = l_t_it->second;
-        const TaskConfig& h_tc = h_t_it->second;
         if (l_tc.priority == h_tc.priority) {
           continue;
         }
@@ -911,7 +971,8 @@ void TDG2PN::fixed_prior_with_resume(
         }
 
         for (const auto& l_t_pn : {l_t_pns_it->second}) {
-          handle_task_preemption(l_t_name, h_t_name, l_tc, h_tc, l_t_pn, h_t_pn, is_interrupt);
+          handle_task_preemption(l_t_name, h_t_name, l_tc, h_tc, l_t_pn, h_t_pn,
+                                 preempt_priority_it->second, is_interrupt);
         }
       }
     }
