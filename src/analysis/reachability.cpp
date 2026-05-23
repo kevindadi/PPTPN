@@ -785,14 +785,11 @@ void StateClassReachabilityGraph::reconcile_timing_domains(
     const int beta = transition.time_interval.latest == petri::INF
                          ? INF_TIME
                          : transition.time_interval.latest;
-
     const bool became_relevant = (!was_effective && !was_suspended) &&
                                  (is_effective || is_suspended_now);
 
     if (transition.suspendable) {
       if (became_relevant) {
-        state.Z1.unfreeze_clock(clock_idx);
-        state.Z2.unfreeze_clock(clock_idx);
         state.Z2.set_constraint(0, clock_idx, alpha > 0 ? -alpha : 0);
         state.Z2.set_constraint(clock_idx, 0, beta);
       }
@@ -812,10 +809,76 @@ void StateClassReachabilityGraph::reconcile_timing_domains(
         state.Z1.set_constraint(0, clock_idx, alpha > 0 ? -alpha : 0);
         state.Z1.set_constraint(clock_idx, 0, beta);
       }
+
       if (clock_idx < state.Z2.size()) {
         state.Z2.forget_clock(clock_idx);
         state.Z2.unfreeze_clock(clock_idx);
       }
+      state.Z1.unfreeze_clock(clock_idx);
+    }
+  }
+
+  state.Z1.minimize();
+  state.Z2.minimize();
+}
+
+void StateClassReachabilityGraph::rebuild_post_fire_timing_domains(
+    StateClass& state, const StateClass& source_state, size_t fired_transition,
+    const std::set<size_t>& previous_effective_enabled,
+    const std::set<size_t>& previous_suspended) const {
+  const size_t num_transitions = ptpn_.num_transitions();
+
+  if (state.Z1.size() < num_transitions + 1) {
+    state.Z1.resize(num_transitions + 1);
+  }
+  if (state.Z2.size() < num_transitions + 1) {
+    state.Z2.resize(num_transitions + 1);
+  }
+
+  for (size_t t = 0; t < num_transitions; ++t) {
+    const size_t clock_idx = t + 1;
+    const bool was_effective = previous_effective_enabled.find(t) != previous_effective_enabled.end();
+    const bool was_suspended = previous_suspended.find(t) != previous_suspended.end();
+    const bool is_effective = state.enabled.find(t) != state.enabled.end();
+    const bool is_suspended_now = state.suspended.find(t) != state.suspended.end();
+    const bool was_relevant = was_effective || was_suspended;
+    const bool is_relevant = is_effective || is_suspended_now;
+    const bool preserved = t != fired_transition && was_relevant && is_relevant;
+    const auto& transition = ptpn_.get_transition(t);
+
+    if (!is_relevant) {
+      state.Z1.forget_clock(clock_idx);
+      state.Z1.unfreeze_clock(clock_idx);
+      state.Z2.forget_clock(clock_idx);
+      state.Z2.unfreeze_clock(clock_idx);
+      continue;
+    }
+
+    if (transition.suspendable) {
+      state.Z1.forget_clock(clock_idx);
+      state.Z1.unfreeze_clock(clock_idx);
+
+      if (preserved) {
+        source_state.Z2.copy_clock_constraints(clock_idx, state.Z2);
+      } else {
+        state.Z2.reset_clock(clock_idx);
+      }
+
+      if (is_suspended_now) {
+        state.Z2.freeze_clock(clock_idx);
+      } else {
+        state.Z2.unfreeze_clock(clock_idx);
+      }
+    } else {
+      state.Z2.forget_clock(clock_idx);
+      state.Z2.unfreeze_clock(clock_idx);
+
+      if (preserved) {
+        source_state.Z1.copy_clock_constraints(clock_idx, state.Z1);
+      } else {
+        state.Z1.reset_clock(clock_idx);
+      }
+
       state.Z1.unfreeze_clock(clock_idx);
     }
   }
@@ -1318,65 +1381,49 @@ std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_dbm(
   StateClass to = from_state.copy();
 
   const auto& transition = ptpn_.get_transition(trans_idx);
-  int alpha = transition.time_interval.earliest;
-  int beta = transition.time_interval.latest == petri::INF
-                 ? INF_TIME
-                 : transition.time_interval.latest;
-
-  const DBM& targetZ = transition.suspendable ? to.Z2 : to.Z1;
-
-  DBM zcheck = restrict_for_firing(targetZ, trans_idx);
+  const DBM& active_domain = transition.suspendable ? from_state.Z2 : from_state.Z1;
+  DBM firing_zone = restrict_for_firing(active_domain, trans_idx);
 
   if (pruning_enabled_) {
-    if (zcheck.is_empty() || !zcheck.is_consistent()) {
+    if (firing_zone.is_empty() || !firing_zone.is_consistent()) {
       spdlog::debug("    {}: firing window check failed", format_transitions({trans_idx}, false));
       return {false, StateClass(), 0.0};
     }
   } else {
-    if (zcheck.is_empty() || !zcheck.is_consistent()) {
+    if (firing_zone.is_empty() || !firing_zone.is_consistent()) {
       spdlog::debug("    {}: firing window check failed but pruning disabled", format_transitions({trans_idx}, false));
     }
   }
 
-  int delta = 0;
-  if (alpha == 0 && beta == 0) {
-    delta = 0;
-  } else if (alpha == beta) {
-    delta = alpha;
+  double fire_time = from_state.cumulative_time +
+                     compute_firing_time(firing_zone, trans_idx);
+
+  if (transition.suspendable) {
+    to.Z2 = firing_zone;
   } else {
-    delta = alpha;
+    to.Z1 = firing_zone;
   }
 
-  if (delta > 0) {
-    to.Z1.elapse_time(delta);
-    to.Z2.elapse_time(delta);
-    to.cumulative_time += delta;
-  }
+  const std::set<size_t> previous_effective_enabled = from_state.enabled;
+  const std::set<size_t> previous_suspended = from_state.suspended;
 
-  double fire_time = to.cumulative_time;
-
-  to.marking = petri::PTPN::fire(to.marking, ptpn_, trans_idx);
+  to.marking = petri::PTPN::fire(from_state.marking, ptpn_, trans_idx);
 
   if (to.marking.empty()) {
     spdlog::debug("    {}: marking empty after fire", format_transitions({trans_idx}, false));
     return {false, StateClass(), 0.0};
   }
 
-  size_t clock_idx = trans_idx + 1;
-  if (transition.suspendable) {
-    if (clock_idx < to.Z2.size()) {
-      to.Z2.reset_clock(clock_idx);
-      to.Z2.unfreeze_clock(clock_idx);
-    }
-    to.suspended.erase(trans_idx);
-  } else {
-    if (clock_idx < to.Z1.size()) {
-      to.Z1.reset_clock(clock_idx);
-      to.Z1.unfreeze_clock(clock_idx);
-    }
-  }
+  to.cumulative_time = fire_time;
+  const std::vector<size_t> raw_enabled = collect_enabled_transitions(to);
+  to.enabled = compute_effective_enabled(raw_enabled);
+  to.suspended = compute_suspended_transitions(raw_enabled, to.enabled);
 
-  normalize_scheduling_state(to);
+  rebuild_post_fire_timing_domains(to, from_state, trans_idx,
+                                   previous_effective_enabled,
+                                   previous_suspended);
+  reconcile_timing_domains(to, previous_effective_enabled,
+                           previous_suspended);
 
   spdlog::debug("    {}: fired successfully, fire_time = {}", format_transitions({trans_idx}, false), fire_time);
 

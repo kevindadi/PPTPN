@@ -268,6 +268,10 @@ class StateClassReachabilityGraph {
   void reconcile_timing_domains(StateClass& state,
                                 const std::set<size_t>& previous_effective_enabled,
                                 const std::set<size_t>& previous_suspended) const;
+  void rebuild_post_fire_timing_domains(
+      StateClass& state, const StateClass& source_state, size_t fired_transition,
+      const std::set<size_t>& previous_effective_enabled,
+      const std::set<size_t>& previous_suspended) const;
 
   bool maximal_time_elapse(StateClass& state, double& dt) const;
 

@@ -209,6 +209,25 @@ TiedPriorityCoreNet build_tied_priority_core_net() {
   return fixture;
 }
 
+struct ReenableNet {
+  PTPN net;
+  size_t ready;
+  size_t gate;
+  size_t done;
+  size_t trigger;
+  size_t loop;
+};
+
+struct ResumeNet {
+  PTPN net;
+  size_t ready_high;
+  size_t ready_low;
+  size_t done_high;
+  size_t done_low;
+  size_t high;
+  size_t low;
+};
+
 ControlAndTaskNet build_control_and_task_net(bool low_suspendable = false) {
   ControlAndTaskNet fixture;
   fixture.p_task_high = fixture.net.add_place("p_task_high");
@@ -230,6 +249,42 @@ ControlAndTaskNet build_control_and_task_net(bool low_suspendable = false) {
   fixture.net.set_pre_arc(fixture.p_control, fixture.control);
   fixture.net.set_post_arc(fixture.control, fixture.d_control);
   fixture.net.set_initial_marking({1, 1, 1, 0, 0, 0});
+  return fixture;
+}
+
+ReenableNet build_reenable_net() {
+  ReenableNet fixture;
+  fixture.ready = fixture.net.add_place("ready");
+  fixture.gate = fixture.net.add_place("gate");
+  fixture.done = fixture.net.add_place("done");
+  fixture.trigger = fixture.net.add_transition("trigger", TimeInterval(1, 1), 20,
+                                               1, false);
+  fixture.loop = fixture.net.add_transition("loop", TimeInterval(2, 5), 10, 0,
+                                            false);
+  fixture.net.set_pre_arc(fixture.ready, fixture.loop);
+  fixture.net.set_post_arc(fixture.loop, fixture.ready);
+  fixture.net.set_post_arc(fixture.loop, fixture.done);
+  fixture.net.set_pre_arc(fixture.gate, fixture.trigger);
+  fixture.net.set_post_arc(fixture.trigger, fixture.done);
+  fixture.net.set_initial_marking({1, 1, 0});
+  return fixture;
+}
+
+ResumeNet build_resume_net() {
+  ResumeNet fixture;
+  fixture.ready_high = fixture.net.add_place("ready_high");
+  fixture.ready_low = fixture.net.add_place("ready_low");
+  fixture.done_high = fixture.net.add_place("done_high");
+  fixture.done_low = fixture.net.add_place("done_low");
+  fixture.high = fixture.net.add_transition("high", TimeInterval(1, 1), 100, 0,
+                                            false);
+  fixture.low = fixture.net.add_transition("low", TimeInterval(2, 6), 10, 0,
+                                           true);
+  fixture.net.set_pre_arc(fixture.ready_high, fixture.high);
+  fixture.net.set_post_arc(fixture.high, fixture.done_high);
+  fixture.net.set_pre_arc(fixture.ready_low, fixture.low);
+  fixture.net.set_post_arc(fixture.low, fixture.done_low);
+  fixture.net.set_initial_marking({1, 1, 0, 0});
   return fixture;
 }
 
@@ -475,6 +530,53 @@ TEST(PTPNReachabilityTest, FireWithDbmUpdatesMarkingAndEnabledSet) {
   EXPECT_DOUBLE_EQ(firing_time, 2.0);
 }
 
+// Expect: a transition that is still enabled after another firing keeps its accumulated waiting time.
+TEST(PTPNReachabilityTest,
+     FireWithDbmPreservesPersistentEnabledClockProgress) {
+  const auto fixture = build_reenable_net();
+  StateClassReachabilityGraph graph(fixture.net);
+  StateClass initial =
+      StateClassReachabilityGraphTestAccess::create_initial_state_class(graph);
+
+  const size_t loop_clock = fixture.loop + 1;
+  initial.Z1.set_constraint(loop_clock, 0, 4);
+  initial.Z1.set_constraint(0, loop_clock, -3);
+
+  auto [ok, successor, firing_time] =
+      StateClassReachabilityGraphTestAccess::fire_with_dbm(graph,
+                                                          fixture.trigger,
+                                                          initial);
+
+  ASSERT_TRUE(ok);
+  EXPECT_DOUBLE_EQ(firing_time, 1.0);
+  EXPECT_TRUE(contains(successor.enabled, fixture.loop));
+  EXPECT_EQ(successor.Z1.get_constraint(loop_clock, 0), 4);
+  EXPECT_EQ(successor.Z1.get_constraint(0, loop_clock), -3);
+}
+
+// Expect: a fired transition that is immediately re-enabled gets a fresh zero-age clock.
+TEST(PTPNReachabilityTest,
+     FireWithDbmResetsImmediatelyReenabledClockToZero) {
+  const auto fixture = build_reenable_net();
+  StateClassReachabilityGraph graph(fixture.net);
+  StateClass initial =
+      StateClassReachabilityGraphTestAccess::create_initial_state_class(graph);
+
+  const size_t loop_clock = fixture.loop + 1;
+  initial.Z1.set_constraint(loop_clock, 0, 5);
+  initial.Z1.set_constraint(0, loop_clock, -2);
+
+  auto [ok, successor, firing_time] =
+      StateClassReachabilityGraphTestAccess::fire_with_dbm(graph, fixture.loop,
+                                                          initial);
+
+  ASSERT_TRUE(ok);
+  EXPECT_DOUBLE_EQ(firing_time, 2.0);
+  EXPECT_TRUE(contains(successor.enabled, fixture.loop));
+  EXPECT_EQ(successor.Z1.get_constraint(loop_clock, 0), 0);
+  EXPECT_EQ(successor.Z1.get_constraint(0, loop_clock), 0);
+}
+
 // Expect: build creates an edge run and a successor marking {ready=0, done=1}.
 TEST(PTPNReachabilityTest,
      BuildCreatesSuccessorStateWithExpectedMarkingAndEdge) {
@@ -606,7 +708,38 @@ TEST(PTPNReachabilityTest,
   EXPECT_DOUBLE_EQ(firing_time, 1.0);
 }
 
-// Expect: an infinite latest bound is represented as INF_TIME and still fires at alpha.
+// Expect: a resumed suspendable transition keeps its stopwatch progress in Z2.
+TEST(PTPNReachabilityTest,
+     FireWithDbmPreservesResumedSuspendableClockProgress) {
+  const auto fixture = build_resume_net();
+  StateClassReachabilityGraph graph(fixture.net);
+  StateClass initial =
+      StateClassReachabilityGraphTestAccess::create_initial_state_class(graph);
+  auto chosen =
+      StateClassReachabilityGraphTestAccess::select_per_core(graph,
+                                                            initial.enabled);
+
+  StateClass scheduled = initial.copy();
+  StateClassReachabilityGraphTestAccess::apply_preemption(graph, chosen,
+                                                          scheduled);
+
+  const size_t low_clock = fixture.low + 1;
+  scheduled.Z2.set_constraint(low_clock, 0, 6);
+  scheduled.Z2.set_constraint(0, low_clock, -4);
+
+  auto [ok, successor, firing_time] =
+      StateClassReachabilityGraphTestAccess::fire_with_dbm(graph, fixture.high,
+                                                          scheduled);
+
+  ASSERT_TRUE(ok);
+  EXPECT_DOUBLE_EQ(firing_time, 1.0);
+  EXPECT_TRUE(contains(successor.enabled, fixture.low));
+  EXPECT_FALSE(contains(successor.suspended, fixture.low));
+  EXPECT_EQ(successor.Z2.get_constraint(low_clock, 0), 6);
+  EXPECT_EQ(successor.Z2.get_constraint(0, low_clock), -4);
+}
+
+// Expect: an infinite latest bound is represented as INF_TIME and still fires at the DBM-derived earliest time.
 TEST(PTPNReachabilityTest,
      InfiniteLatestBound) {
   // Diagram:
@@ -633,6 +766,27 @@ TEST(PTPNReachabilityTest,
   EXPECT_TRUE(ok);
   EXPECT_EQ(successor.marking, (Marking{0, 1}));
   EXPECT_DOUBLE_EQ(firing_time, 1.0);
+}
+
+// Expect: firing time comes from the restricted DBM lower bound when it exceeds alpha.
+TEST(PTPNReachabilityTest,
+     FireWithDbmUsesRestrictedDbmLowerBoundForFiringTime) {
+  const auto fixture = build_one_transition_net();
+  StateClassReachabilityGraph graph(fixture.net);
+  StateClass initial =
+      StateClassReachabilityGraphTestAccess::create_initial_state_class(graph);
+
+  const size_t clock_idx = fixture.run + 1;
+  initial.Z1.set_constraint(0, clock_idx, -4);
+  initial.Z1.set_constraint(clock_idx, 0, 5);
+
+  auto [ok, successor, firing_time] =
+      StateClassReachabilityGraphTestAccess::fire_with_dbm(graph, fixture.run,
+                                                          initial);
+
+  ASSERT_TRUE(ok);
+  EXPECT_EQ(successor.marking, (Marking{0, 1}));
+  EXPECT_DOUBLE_EQ(firing_time, 4.0);
 }
 
 // Expect: DBM time elapse numerically shifts active clock bounds and leaves frozen clocks unchanged.
