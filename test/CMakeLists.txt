@@ -15,6 +15,7 @@ add_executable(ptpn_test
   test_tdg_export.cpp
   test_example_artifacts.cpp
   test_ptpn_reachability.cpp
+  test_state_class_reachability.cpp
 )
 
 target_link_libraries(ptpn_test

@@ -179,16 +179,24 @@ void DBM::initialize_clock(size_t clock_idx) {
 }
 
 void DBM::elapse_time(int delta) {
-  if (delta <= 0) return;
+  if (delta <= 0 || clock_count_ == 0) return;
 
   bool changed = false;
   for (size_t i = 1; i < clock_count_; ++i) {
-    if (!is_frozen(i)) {
-      int current_upper = matrix_[offset(i, 0)];
-      if (current_upper != INF_TIME) {
-        matrix_[offset(i, 0)] = INF_TIME;
-        changed = true;
-      }
+    if (is_frozen(i)) {
+      continue;
+    }
+
+    const int current_upper = matrix_[offset(i, 0)];
+    if (current_upper != INF_TIME) {
+      matrix_[offset(i, 0)] = current_upper + delta;
+      changed = true;
+    }
+
+    const int current_lower = matrix_[offset(0, i)];
+    if (current_lower != INF_TIME) {
+      matrix_[offset(0, i)] = current_lower - delta;
+      changed = true;
     }
   }
 
@@ -205,14 +213,31 @@ void DBM::reset_clock(size_t clock_idx) {
   }
 
   bool changed = false;
-  if (matrix_[offset(clock_idx, 0)] != 0) {
-    matrix_[offset(clock_idx, 0)] = 0;
-    changed = true;
-  }
+
   if (matrix_[offset(0, clock_idx)] != 0) {
     matrix_[offset(0, clock_idx)] = 0;
     changed = true;
   }
+  if (matrix_[offset(clock_idx, 0)] != 0) {
+    matrix_[offset(clock_idx, 0)] = 0;
+    changed = true;
+  }
+
+  for (size_t k = 0; k < clock_count_; ++k) {
+    const int row0 = matrix_[offset(0, k)];
+    if (matrix_[offset(clock_idx, k)] != row0) {
+      matrix_[offset(clock_idx, k)] = row0;
+      changed = true;
+    }
+
+    const int col0 = matrix_[offset(k, 0)];
+    if (matrix_[offset(k, clock_idx)] != col0) {
+      matrix_[offset(k, clock_idx)] = col0;
+      changed = true;
+    }
+  }
+
+  matrix_[offset(clock_idx, clock_idx)] = 0;
 
   if (changed) {
     minimize();
@@ -495,14 +520,17 @@ size_t StateKeyHash::operator()(const StateKey& key) const {
   for (int value : key.marking) {
     hash_combine(seed, int_hash(value));
   }
+  for (size_t value : key.enabled) {
+    hash_combine(seed, size_hash(value));
+  }
+  for (size_t value : key.suspended) {
+    hash_combine(seed, size_hash(value));
+  }
   for (int value : key.Z1.raw_matrix()) {
     hash_combine(seed, int_hash(value));
   }
   for (int value : key.Z2.raw_matrix()) {
     hash_combine(seed, int_hash(value));
-  }
-  for (size_t value : key.suspended) {
-    hash_combine(seed, size_hash(value));
   }
 
   return seed;

@@ -92,8 +92,9 @@ class DBM {
 //                   (Z1 for non-suspendable, Z2 for suspendable)
 //   3. suspended  : suspendable transitions whose clocks are currently frozen
 //
-// The enabled set and cumulative_time are derived / auxiliary metadata and are
-// not part of state identity for deduplication.
+// The enabled set stores the priority/resource-filtered effective enabled set.
+// The raw Petri enabled set is recomputed from the marking when needed.
+// cumulative_time is auxiliary metadata and is not part of state identity.
 struct StateClass {
   std::vector<int> marking;
   DBM Z1;
@@ -126,12 +127,14 @@ struct StateKey {
   std::vector<int> marking;
   DBM Z1;
   DBM Z2;
+  std::set<size_t> enabled;
   std::set<size_t> suspended;
 
   bool operator==(const StateKey& other) const {
-    return marking == other.marking && Z1.raw_matrix() == other.Z1.raw_matrix() &&
-           Z2.raw_matrix() == other.Z2.raw_matrix() &&
-           suspended == other.suspended;
+    return marking == other.marking && enabled == other.enabled &&
+           suspended == other.suspended &&
+           Z1.raw_matrix() == other.Z1.raw_matrix() &&
+           Z2.raw_matrix() == other.Z2.raw_matrix();
   }
 };
 
@@ -164,6 +167,7 @@ struct SuccessorCandidate {
   StateKey source_key;
   StateClass state;
   TransitionEdge edge;
+  size_t transition_id = 0;
 };
 
 struct StateExpansionResult {
@@ -254,6 +258,20 @@ class StateClassReachabilityGraph {
 
   void apply_preemption(const std::vector<size_t>& chosen,
                         StateClass& state) const;
+
+  void normalize_scheduling_state(StateClass& state) const;
+  std::set<size_t> compute_effective_enabled(
+      const std::vector<size_t>& raw_enabled) const;
+  std::set<size_t> compute_suspended_transitions(
+      const std::vector<size_t>& raw_enabled,
+      const std::set<size_t>& effective_enabled) const;
+  void reconcile_timing_domains(StateClass& state,
+                                const std::set<size_t>& previous_effective_enabled,
+                                const std::set<size_t>& previous_suspended) const;
+  void rebuild_post_fire_timing_domains(
+      StateClass& state, const StateClass& source_state, size_t fired_transition,
+      const std::set<size_t>& previous_effective_enabled,
+      const std::set<size_t>& previous_suspended) const;
 
   bool maximal_time_elapse(StateClass& state, double& dt) const;
 

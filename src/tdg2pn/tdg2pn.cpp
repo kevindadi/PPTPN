@@ -5,7 +5,7 @@
 namespace converter {
 
 namespace {
-constexpr int kNoSchedulingPriority = INT_MAX;
+constexpr int kControlTransitionPriority = 0;
 constexpr int kNoSchedulingCore = -1;
 
 std::string format_core_priority_order(
@@ -73,7 +73,7 @@ void TDG2PN::add_consume_transition(petri::PTPN& ptpn,
                                     size_t end_idx) {
   petri::TimeInterval interval(0, 0);
   size_t consume_trans = ptpn.add_transition(task_name + "_consume",
-                                             interval, kNoSchedulingPriority,
+                                             interval, kControlTransitionPriority,
                                              kNoSchedulingCore, false);
   ptpn.set_pre_arc(end_idx, consume_trans, 1);
 }
@@ -138,7 +138,7 @@ void TDG2PN::add_periodic_release_bindings(petri::PTPN& ptpn,
     size_t random = ptpn.add_place(periodic_task.task + "_cfg_random", 1);
     petri::TimeInterval fire_interval(periodic_task.period, periodic_task.period);
     size_t fire = ptpn.add_transition(periodic_task.task + "_cfg_fire", fire_interval,
-                                      kNoSchedulingPriority, kNoSchedulingCore, false);
+                                      kControlTransitionPriority, kNoSchedulingCore, false);
 
     ptpn.set_initial_marking(random, 1);
     ptpn.set_pre_arc(random, fire, 1);
@@ -375,7 +375,7 @@ void TDG2PN::handle_normal_edge_matrix(petri::PTPN& ptpn,
   const std::string trans_name = source_name + "_to_" + target_name;
   petri::TimeInterval interval(0, 0);
   size_t middle_trans = ptpn.add_transition(trans_name, interval,
-                                            kNoSchedulingPriority,
+                                            kControlTransitionPriority,
                                             kNoSchedulingCore, false);
 
   if (source_node < ptpn.places.size() && target_node < ptpn.places.size()) {
@@ -526,7 +526,7 @@ std::pair<size_t, size_t> TDG2PN::add_node_matrix(petri::PTPN& ptpn,
     petri::TimeInterval interval(0, 0);
     size_t join_trans = ptpn.add_transition("Join" + std::to_string(ptpn.node_index++),
                                             interval,
-                                            kNoSchedulingPriority,
+                                            kControlTransitionPriority,
                                             kNoSchedulingCore,
                                             false);
     return std::make_pair(join_trans, join_trans);
@@ -535,7 +535,7 @@ std::pair<size_t, size_t> TDG2PN::add_node_matrix(petri::PTPN& ptpn,
     petri::TimeInterval interval(0, 0);
     size_t fork_trans = ptpn.add_transition("Fork" + std::to_string(ptpn.node_index++),
                                             interval,
-                                            kNoSchedulingPriority,
+                                            kControlTransitionPriority,
                                             kNoSchedulingCore,
                                             false);
     return std::make_pair(fork_trans, fork_trans);
@@ -632,13 +632,13 @@ void TDG2PN::add_monitor_matrix(petri::PTPN& ptpn, const std::string& task_name,
 
   petri::TimeInterval timed_interval(task_period_time, task_period_time);
   size_t timed = ptpn.add_transition(task_name + "timed", timed_interval,
-                                     kNoSchedulingPriority, kNoSchedulingCore, false);
+                                     kControlTransitionPriority, kNoSchedulingCore, false);
   size_t ending = ptpn.add_transition(task_name + "ending", petri::TimeInterval(0, 0),
-                                      kNoSchedulingPriority, kNoSchedulingCore, false);
+                                      kControlTransitionPriority, kNoSchedulingCore, false);
   size_t complete = ptpn.add_transition(task_name + "complete", petri::TimeInterval(0, 0),
-                                        kNoSchedulingPriority, kNoSchedulingCore, false);
+                                        kControlTransitionPriority, kNoSchedulingCore, false);
   size_t tout = ptpn.add_transition(task_name + "out", petri::TimeInterval(0, 0),
-                                    kNoSchedulingPriority, kNoSchedulingCore, false);
+                                    kControlTransitionPriority, kNoSchedulingCore, false);
 
   ptpn.set_post_arc(ending, t_end, 1);
   ptpn.set_pre_arc(t_end, complete, 1);

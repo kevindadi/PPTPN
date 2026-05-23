@@ -10,47 +10,9 @@
 
 #include "analysis/state.h"
 #include "petri/petri.h"
+#include "test_state_class_test_access.h"
 
 namespace state_class {
-
-struct StateClassReachabilityGraphTestAccess {
-  static StateClass create_initial_state_class(
-      StateClassReachabilityGraph& graph) {
-    return graph.create_initial_state_class();
-  }
-
-  static std::vector<size_t> collect_enabled_transitions(
-      const StateClassReachabilityGraph& graph, const StateClass& state) {
-    return graph.collect_enabled_transitions(state);
-  }
-
-  static std::vector<size_t> select_per_core(
-      const StateClassReachabilityGraph& graph, const std::set<size_t>& enabled) {
-    return graph.select_per_core(enabled);
-  }
-
-  static void apply_preemption(const StateClassReachabilityGraph& graph,
-                               const std::vector<size_t>& chosen,
-                               StateClass& state) {
-    graph.apply_preemption(chosen, state);
-  }
-
-  static bool maximal_time_elapse(const StateClassReachabilityGraph& graph,
-                                  StateClass& state, double& dt) {
-    return graph.maximal_time_elapse(state, dt);
-  }
-
-  static std::tuple<bool, StateClass, double> fire_with_dbm(
-      StateClassReachabilityGraph& graph, size_t trans_idx,
-      const StateClass& state) {
-    return graph.fire_with_dbm(trans_idx, state);
-  }
-
-  static StateClass canonicalize(const StateClassReachabilityGraph& graph,
-                                 const StateClass& state) {
-    return graph.canonicalize(state);
-  }
-};
 
 }  // namespace state_class
 
@@ -134,6 +96,29 @@ struct MultiCoreNet {
   size_t core1_only;
 };
 
+struct TiedPriorityCoreNet {
+  PTPN net;
+  size_t p0_a;
+  size_t p0_b;
+  size_t done_a;
+  size_t done_b;
+  size_t t0_a;
+  size_t t0_b;
+};
+
+struct ControlAndTaskNet {
+  PTPN net;
+  size_t p_task_high;
+  size_t p_task_low;
+  size_t p_control;
+  size_t d_task_high;
+  size_t d_task_low;
+  size_t d_control;
+  size_t task_high;
+  size_t task_low;
+  size_t control;
+};
+
 // Diagram:
 //   p0_high(1) --core0_high[1,1], prio=100, core=0--> d0_high(0)
 //   p0_low(1)  --core0_low[1,1],   prio=10,  core=0--> d0_low(0)
@@ -160,6 +145,103 @@ MultiCoreNet build_multi_core_net() {
   fixture.net.set_pre_arc(fixture.p1, fixture.core1_only);
   fixture.net.set_post_arc(fixture.core1_only, fixture.d1);
   fixture.net.set_initial_marking({1, 1, 1, 0, 0, 0});
+  return fixture;
+}
+
+TiedPriorityCoreNet build_tied_priority_core_net() {
+  TiedPriorityCoreNet fixture;
+  fixture.p0_a = fixture.net.add_place("p0_a");
+  fixture.p0_b = fixture.net.add_place("p0_b");
+  fixture.done_a = fixture.net.add_place("done_a");
+  fixture.done_b = fixture.net.add_place("done_b");
+  fixture.t0_a = fixture.net.add_transition("t0_a", TimeInterval(1, 1), 100, 0,
+                                            false);
+  fixture.t0_b = fixture.net.add_transition("t0_b", TimeInterval(1, 1), 100, 0,
+                                            false);
+  fixture.net.set_pre_arc(fixture.p0_a, fixture.t0_a);
+  fixture.net.set_post_arc(fixture.t0_a, fixture.done_a);
+  fixture.net.set_pre_arc(fixture.p0_b, fixture.t0_b);
+  fixture.net.set_post_arc(fixture.t0_b, fixture.done_b);
+  fixture.net.set_initial_marking({1, 1, 0, 0});
+  return fixture;
+}
+
+struct ReenableNet {
+  PTPN net;
+  size_t ready;
+  size_t gate;
+  size_t done;
+  size_t trigger;
+  size_t loop;
+};
+
+struct ResumeNet {
+  PTPN net;
+  size_t ready_high;
+  size_t ready_low;
+  size_t done_high;
+  size_t done_low;
+  size_t high;
+  size_t low;
+};
+
+ControlAndTaskNet build_control_and_task_net(bool low_suspendable = false) {
+  ControlAndTaskNet fixture;
+  fixture.p_task_high = fixture.net.add_place("p_task_high");
+  fixture.p_task_low = fixture.net.add_place("p_task_low");
+  fixture.p_control = fixture.net.add_place("p_control");
+  fixture.d_task_high = fixture.net.add_place("d_task_high");
+  fixture.d_task_low = fixture.net.add_place("d_task_low");
+  fixture.d_control = fixture.net.add_place("d_control");
+  fixture.task_high = fixture.net.add_transition("task_high", TimeInterval(1, 1),
+                                                 100, 0, false);
+  fixture.task_low = fixture.net.add_transition("task_low", TimeInterval(2, 4), 10,
+                                                0, low_suspendable);
+  fixture.control = fixture.net.add_transition("control", TimeInterval(0, 0), 5,
+                                               -1, false);
+  fixture.net.set_pre_arc(fixture.p_task_high, fixture.task_high);
+  fixture.net.set_post_arc(fixture.task_high, fixture.d_task_high);
+  fixture.net.set_pre_arc(fixture.p_task_low, fixture.task_low);
+  fixture.net.set_post_arc(fixture.task_low, fixture.d_task_low);
+  fixture.net.set_pre_arc(fixture.p_control, fixture.control);
+  fixture.net.set_post_arc(fixture.control, fixture.d_control);
+  fixture.net.set_initial_marking({1, 1, 1, 0, 0, 0});
+  return fixture;
+}
+
+ReenableNet build_reenable_net() {
+  ReenableNet fixture;
+  fixture.ready = fixture.net.add_place("ready");
+  fixture.gate = fixture.net.add_place("gate");
+  fixture.done = fixture.net.add_place("done");
+  fixture.trigger = fixture.net.add_transition("trigger", TimeInterval(1, 1), 20,
+                                               1, false);
+  fixture.loop = fixture.net.add_transition("loop", TimeInterval(2, 5), 10, 0,
+                                            false);
+  fixture.net.set_pre_arc(fixture.ready, fixture.loop);
+  fixture.net.set_post_arc(fixture.loop, fixture.ready);
+  fixture.net.set_post_arc(fixture.loop, fixture.done);
+  fixture.net.set_pre_arc(fixture.gate, fixture.trigger);
+  fixture.net.set_post_arc(fixture.trigger, fixture.done);
+  fixture.net.set_initial_marking({1, 1, 0});
+  return fixture;
+}
+
+ResumeNet build_resume_net() {
+  ResumeNet fixture;
+  fixture.ready_high = fixture.net.add_place("ready_high");
+  fixture.ready_low = fixture.net.add_place("ready_low");
+  fixture.done_high = fixture.net.add_place("done_high");
+  fixture.done_low = fixture.net.add_place("done_low");
+  fixture.high = fixture.net.add_transition("high", TimeInterval(1, 1), 100, 0,
+                                            false);
+  fixture.low = fixture.net.add_transition("low", TimeInterval(2, 6), 10, 0,
+                                           true);
+  fixture.net.set_pre_arc(fixture.ready_high, fixture.high);
+  fixture.net.set_post_arc(fixture.high, fixture.done_high);
+  fixture.net.set_pre_arc(fixture.ready_low, fixture.low);
+  fixture.net.set_post_arc(fixture.low, fixture.done_low);
+  fixture.net.set_initial_marking({1, 1, 0, 0});
   return fixture;
 }
 
@@ -341,6 +423,39 @@ TEST(PTPNReachabilityTest, SelectPerCoreChoosesHighestPriorityOnEachCore) {
   EXPECT_FALSE(contains(chosen, fixture.core0_low));
 }
 
+// Expect: ties on the same task core keep the whole top-priority group.
+TEST(PTPNReachabilityTest, SelectPerCoreKeepsAllHighestPriorityTiesPerCore) {
+  const auto fixture = build_tied_priority_core_net();
+  StateClassReachabilityGraph graph(fixture.net);
+  StateClass initial =
+      StateClassReachabilityGraphTestAccess::create_initial_state_class(graph);
+  const std::set<size_t> enabled(initial.enabled.begin(), initial.enabled.end());
+
+  auto chosen =
+      StateClassReachabilityGraphTestAccess::select_per_core(graph, enabled);
+
+  ASSERT_EQ(chosen.size(), 2U);
+  EXPECT_TRUE(contains(chosen, fixture.t0_a));
+  EXPECT_TRUE(contains(chosen, fixture.t0_b));
+}
+
+// Expect: core=-1 control transitions are preserved alongside per-core task winners.
+TEST(PTPNReachabilityTest, SelectPerCorePreservesControlTransitionsOnCoreMinusOne) {
+  const auto fixture = build_control_and_task_net();
+  StateClassReachabilityGraph graph(fixture.net);
+  StateClass initial =
+      StateClassReachabilityGraphTestAccess::create_initial_state_class(graph);
+  const std::set<size_t> enabled(initial.enabled.begin(), initial.enabled.end());
+
+  auto chosen =
+      StateClassReachabilityGraphTestAccess::select_per_core(graph, enabled);
+
+  ASSERT_EQ(chosen.size(), 2U);
+  EXPECT_TRUE(contains(chosen, fixture.task_high));
+  EXPECT_TRUE(contains(chosen, fixture.control));
+  EXPECT_FALSE(contains(chosen, fixture.task_low));
+}
+
 // Expect: from the initial graph state, high fires and low does not.
 TEST(PTPNReachabilityTest,
      BuildOnlyFiresSelectedTransitionFromInitialStateOnSameCore) {
@@ -370,6 +485,53 @@ TEST(PTPNReachabilityTest, FireWithDbmUpdatesMarkingAndEnabledSet) {
   EXPECT_EQ(successor.marking, (Marking{0, 1}));
   EXPECT_FALSE(contains(successor.enabled, fixture.run));
   EXPECT_DOUBLE_EQ(firing_time, 2.0);
+}
+
+// Expect: a transition that is still enabled after another firing keeps its accumulated waiting time.
+TEST(PTPNReachabilityTest,
+     FireWithDbmPreservesPersistentEnabledClockProgress) {
+  const auto fixture = build_reenable_net();
+  StateClassReachabilityGraph graph(fixture.net);
+  StateClass initial =
+      StateClassReachabilityGraphTestAccess::create_initial_state_class(graph);
+
+  const size_t loop_clock = fixture.loop + 1;
+  initial.Z1.set_constraint(loop_clock, 0, 4);
+  initial.Z1.set_constraint(0, loop_clock, -3);
+
+  auto [ok, successor, firing_time] =
+      StateClassReachabilityGraphTestAccess::fire_with_dbm(graph,
+                                                          fixture.trigger,
+                                                          initial);
+
+  ASSERT_TRUE(ok);
+  EXPECT_DOUBLE_EQ(firing_time, 1.0);
+  EXPECT_TRUE(contains(successor.enabled, fixture.loop));
+  EXPECT_EQ(successor.Z1.get_constraint(loop_clock, 0), 4);
+  EXPECT_EQ(successor.Z1.get_constraint(0, loop_clock), -3);
+}
+
+// Expect: a fired transition that is immediately re-enabled gets a fresh zero-age clock.
+TEST(PTPNReachabilityTest,
+     FireWithDbmResetsImmediatelyReenabledClockToZero) {
+  const auto fixture = build_reenable_net();
+  StateClassReachabilityGraph graph(fixture.net);
+  StateClass initial =
+      StateClassReachabilityGraphTestAccess::create_initial_state_class(graph);
+
+  const size_t loop_clock = fixture.loop + 1;
+  initial.Z1.set_constraint(loop_clock, 0, 5);
+  initial.Z1.set_constraint(0, loop_clock, -2);
+
+  auto [ok, successor, firing_time] =
+      StateClassReachabilityGraphTestAccess::fire_with_dbm(graph, fixture.loop,
+                                                          initial);
+
+  ASSERT_TRUE(ok);
+  EXPECT_DOUBLE_EQ(firing_time, 2.0);
+  EXPECT_TRUE(contains(successor.enabled, fixture.loop));
+  EXPECT_EQ(successor.Z1.get_constraint(loop_clock, 0), 0);
+  EXPECT_EQ(successor.Z1.get_constraint(0, loop_clock), 0);
 }
 
 // Expect: build creates an edge run and a successor marking {ready=0, done=1}.
@@ -503,7 +665,38 @@ TEST(PTPNReachabilityTest,
   EXPECT_DOUBLE_EQ(firing_time, 1.0);
 }
 
-// Expect: an infinite latest bound is represented as INF_TIME and still fires at alpha.
+// Expect: a resumed suspendable transition keeps its stopwatch progress in Z2.
+TEST(PTPNReachabilityTest,
+     FireWithDbmPreservesResumedSuspendableClockProgress) {
+  const auto fixture = build_resume_net();
+  StateClassReachabilityGraph graph(fixture.net);
+  StateClass initial =
+      StateClassReachabilityGraphTestAccess::create_initial_state_class(graph);
+  auto chosen =
+      StateClassReachabilityGraphTestAccess::select_per_core(graph,
+                                                            initial.enabled);
+
+  StateClass scheduled = initial.copy();
+  StateClassReachabilityGraphTestAccess::apply_preemption(graph, chosen,
+                                                          scheduled);
+
+  const size_t low_clock = fixture.low + 1;
+  scheduled.Z2.set_constraint(low_clock, 0, 6);
+  scheduled.Z2.set_constraint(0, low_clock, -4);
+
+  auto [ok, successor, firing_time] =
+      StateClassReachabilityGraphTestAccess::fire_with_dbm(graph, fixture.high,
+                                                          scheduled);
+
+  ASSERT_TRUE(ok);
+  EXPECT_DOUBLE_EQ(firing_time, 1.0);
+  EXPECT_TRUE(contains(successor.enabled, fixture.low));
+  EXPECT_FALSE(contains(successor.suspended, fixture.low));
+  EXPECT_EQ(successor.Z2.get_constraint(low_clock, 0), 6);
+  EXPECT_EQ(successor.Z2.get_constraint(0, low_clock), -4);
+}
+
+// Expect: an infinite latest bound is represented as INF_TIME and still fires at the DBM-derived earliest time.
 TEST(PTPNReachabilityTest,
      InfiniteLatestBound) {
   // Diagram:
@@ -530,6 +723,147 @@ TEST(PTPNReachabilityTest,
   EXPECT_TRUE(ok);
   EXPECT_EQ(successor.marking, (Marking{0, 1}));
   EXPECT_DOUBLE_EQ(firing_time, 1.0);
+}
+
+// Expect: firing time comes from the restricted DBM lower bound when it exceeds alpha.
+TEST(PTPNReachabilityTest,
+     FireWithDbmUsesRestrictedDbmLowerBoundForFiringTime) {
+  const auto fixture = build_one_transition_net();
+  StateClassReachabilityGraph graph(fixture.net);
+  StateClass initial =
+      StateClassReachabilityGraphTestAccess::create_initial_state_class(graph);
+
+  const size_t clock_idx = fixture.run + 1;
+  initial.Z1.set_constraint(0, clock_idx, -4);
+  initial.Z1.set_constraint(clock_idx, 0, 5);
+
+  auto [ok, successor, firing_time] =
+      StateClassReachabilityGraphTestAccess::fire_with_dbm(graph, fixture.run,
+                                                          initial);
+
+  ASSERT_TRUE(ok);
+  EXPECT_EQ(successor.marking, (Marking{0, 1}));
+  EXPECT_DOUBLE_EQ(firing_time, 4.0);
+}
+
+// Expect: DBM time elapse numerically shifts active clock bounds and leaves frozen clocks unchanged.
+TEST(PTPNReachabilityTest, DbmElapseTimeShiftsOnlyActiveClocks) {
+  state_class::DBM dbm(4);
+  dbm.set_constraint(1, 0, 5);
+  dbm.set_constraint(0, 1, -2);
+  dbm.set_constraint(2, 0, 7);
+  dbm.set_constraint(0, 2, -3);
+  dbm.freeze_clock(2);
+
+  dbm.elapse_time(4);
+
+  EXPECT_EQ(dbm.get_constraint(1, 0), 9);
+  EXPECT_EQ(dbm.get_constraint(0, 1), -6);
+  EXPECT_EQ(dbm.get_constraint(2, 0), 7);
+  EXPECT_EQ(dbm.get_constraint(0, 2), -3);
+}
+
+// Expect: reset_clock preserves DBM closure by copying row/col constraints from clock 0,
+// not just zeroing the diagonal.  A stale 10-entry in row/col should be cleared.
+TEST(PTPNReachabilityTest, DbmResetClockClearsStaleRowAndColumnConstraints) {
+  state_class::DBM dbm(4);
+  dbm.set_constraint(1, 0, 5);
+  dbm.set_constraint(0, 1, -2);
+  dbm.set_constraint(1, 2, 10);
+  dbm.set_constraint(3, 1, 10);
+  dbm.set_constraint(2, 0, state_class::INF_TIME);
+  dbm.set_constraint(0, 2, 0);
+
+  dbm.reset_clock(1);
+
+  EXPECT_EQ(dbm.get_constraint(0, 1), 0);
+  EXPECT_EQ(dbm.get_constraint(1, 0), 0);
+  EXPECT_EQ(dbm.get_constraint(1, 2), 0);
+  EXPECT_EQ(dbm.get_constraint(3, 1), state_class::INF_TIME);
+  EXPECT_EQ(dbm.get_constraint(1, 1), 0);
+}
+
+// Expect: normalization keeps only the highest-priority effective transition and marks lower suspendable peers as suspended.
+TEST(PTPNReachabilityTest,
+     NormalizeSchedulingStateComputesEffectiveEnabledAndSuspendedSets) {
+  const auto fixture = build_priority_same_core_net(true);
+  StateClassReachabilityGraph graph(fixture.net);
+  StateClass initial =
+      StateClassReachabilityGraphTestAccess::create_initial_state_class(graph);
+
+  StateClassReachabilityGraphTestAccess::normalize_scheduling_state(graph,
+                                                                    initial);
+
+  EXPECT_TRUE(contains(initial.enabled, fixture.high));
+  EXPECT_FALSE(contains(initial.enabled, fixture.low));
+  EXPECT_TRUE(contains(initial.suspended, fixture.low));
+}
+
+// Expect: control transitions on core=-1 stay effective and do not suspend task transitions.
+TEST(PTPNReachabilityTest,
+     NormalizeSchedulingStateDoesNotTreatControlTransitionsAsTaskPreemption) {
+  const auto fixture = build_control_and_task_net(true);
+  StateClassReachabilityGraph graph(fixture.net);
+  StateClass initial =
+      StateClassReachabilityGraphTestAccess::create_initial_state_class(graph);
+
+  StateClassReachabilityGraphTestAccess::normalize_scheduling_state(graph,
+                                                                    initial);
+
+  EXPECT_TRUE(contains(initial.enabled, fixture.task_high));
+  EXPECT_TRUE(contains(initial.enabled, fixture.control));
+  EXPECT_FALSE(contains(initial.enabled, fixture.task_low));
+  EXPECT_TRUE(contains(initial.suspended, fixture.task_low));
+  EXPECT_FALSE(contains(initial.suspended, fixture.control));
+}
+
+// Expect: normalizing an active suspendable transition drops stale Z1 leftovers and keeps the live waiting domain in Z2.
+TEST(PTPNReachabilityTest,
+     NormalizeSchedulingStateClearsStaleZ1ForActiveSuspendableTransition) {
+  PTPN net;
+  const size_t ready = net.add_place("ready");
+  const size_t done = net.add_place("done");
+  const size_t susp = net.add_transition("susp", TimeInterval(2, 5), 10, 0,
+                                         true);
+  net.set_pre_arc(ready, susp);
+  net.set_post_arc(susp, done);
+  net.set_initial_marking({1, 0});
+
+  StateClassReachabilityGraph graph(net);
+  StateClass initial =
+      StateClassReachabilityGraphTestAccess::create_initial_state_class(graph);
+
+  const size_t clock_idx = susp + 1;
+  initial.Z1.set_constraint(clock_idx, 0, 99);
+  initial.Z1.set_constraint(0, clock_idx, -88);
+
+  StateClassReachabilityGraphTestAccess::normalize_scheduling_state(graph,
+                                                                    initial);
+
+  EXPECT_TRUE(contains(initial.enabled, susp));
+  EXPECT_TRUE(initial.suspended.empty());
+  EXPECT_EQ(initial.Z1.get_constraint(clock_idx, 0), state_class::INF_TIME);
+  EXPECT_EQ(initial.Z1.get_constraint(0, clock_idx), 0);
+  EXPECT_EQ(initial.Z2.get_constraint(clock_idx, 0), 5);
+  EXPECT_EQ(initial.Z2.get_constraint(0, clock_idx), -2);
+}
+
+// Expect: canonicalization preserves the normalized effective-enabled metadata rather than recomputing raw enabledness.
+TEST(PTPNReachabilityTest,
+     CanonicalizePreservesNormalizedSchedulingMetadata) {
+  const auto fixture = build_priority_same_core_net(true);
+  StateClassReachabilityGraph graph(fixture.net);
+  StateClass initial =
+      StateClassReachabilityGraphTestAccess::create_initial_state_class(graph);
+
+  StateClassReachabilityGraphTestAccess::normalize_scheduling_state(graph,
+                                                                    initial);
+  StateClass canonical =
+      StateClassReachabilityGraphTestAccess::canonicalize(graph, initial);
+
+  EXPECT_TRUE(contains(canonical.enabled, fixture.high));
+  EXPECT_FALSE(contains(canonical.enabled, fixture.low));
+  EXPECT_TRUE(contains(canonical.suspended, fixture.low));
 }
 
 // Expect: parallel build preserves the same initial outgoing transitions and terminal reachability.
