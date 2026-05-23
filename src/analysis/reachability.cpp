@@ -11,7 +11,7 @@
 namespace state_class {
 
 namespace {
-constexpr int kNoSchedulingPriority = INT_MAX;
+constexpr int kControlTransitionPriority = 0;
 
 StateKey make_state_key(const StateClass& state) {
   return {state.marking, state.Z1, state.Z2, state.enabled, state.suspended};
@@ -50,10 +50,10 @@ size_t effective_thread_count(size_t requested, size_t frontier_size) {
 
 bool has_higher_priority(const petri::Transition& lhs,
                          const petri::Transition& rhs) {
-  if (lhs.priority == kNoSchedulingPriority) {
+  if (lhs.priority == kControlTransitionPriority && lhs.core < 0) {
     return false;
   }
-  if (rhs.priority == kNoSchedulingPriority) {
+  if (rhs.priority == kControlTransitionPriority && rhs.core < 0) {
     return true;
   }
   return lhs.priority > rhs.priority;
@@ -139,6 +139,66 @@ std::string format_transition_vector(const std::vector<size_t>& trans_indices,
   return result;
 }
 
+std::string format_dbm_bound(int value) {
+  return value == INF_TIME ? "∞" : std::to_string(value);
+}
+
+std::string format_dbm_transition_summary(const DBM& dbm,
+                                          const std::set<size_t>& transitions,
+                                          const petri::PTPN& ptpn) {
+  if (transitions.empty()) {
+    return "(none)";
+  }
+
+  std::ostringstream oss;
+  bool first = true;
+  for (size_t t : transitions) {
+    const size_t clock_idx = t + 1;
+    if (clock_idx >= dbm.size()) {
+      continue;
+    }
+
+    if (!first) {
+      oss << "; ";
+    }
+    first = false;
+
+    const auto& transition = ptpn.get_transition(t);
+    const int lower = -dbm.get_constraint(0, clock_idx);
+    const int upper = dbm.get_constraint(clock_idx, 0);
+    oss << "T" << t << "(" << transition.name << ")"
+        << "[" << lower << ", " << format_dbm_bound(upper) << "]";
+    if (dbm.is_frozen(clock_idx)) {
+      oss << " frozen";
+    }
+  }
+
+  return first ? "(none)" : oss.str();
+}
+
+std::string format_semantic_dbm_summary(const StateClass& state,
+                                        const petri::PTPN& ptpn) {
+  std::set<size_t> active_non_suspendable;
+  std::set<size_t> active_suspendable;
+
+  for (size_t t : state.enabled) {
+    const auto& transition = ptpn.get_transition(t);
+    if (transition.suspendable) {
+      active_suspendable.insert(t);
+    } else {
+      active_non_suspendable.insert(t);
+    }
+  }
+  for (size_t t : state.suspended) {
+    active_suspendable.insert(t);
+  }
+
+  std::ostringstream oss;
+  oss << "Z1=" << format_dbm_transition_summary(state.Z1, active_non_suspendable, ptpn)
+      << " | Z2=" << format_dbm_transition_summary(state.Z2, active_suspendable, ptpn);
+  return oss.str();
+}
+
 std::string StateClassReachabilityGraph::format_places(
     const std::vector<int>& marking) const {
   std::string result = "[";
@@ -170,23 +230,7 @@ void StateClassReachabilityGraph::log_state_class_details(
     spdlog::debug("{}Suspended: {}", prefix, format_transitions(state.suspended));
   }
   spdlog::debug("{}Cumulative time: {}", prefix, state.cumulative_time);
-
-  spdlog::debug("{}Z1 (non-suspendable):", prefix);
-  std::string z1_str = state.Z1.to_string();
-  std::istringstream z1_stream(z1_str);
-  std::string z1_line;
-  while (std::getline(z1_stream, z1_line)) {
-    spdlog::debug("{}  {}", prefix, z1_line);
-  }
-
-  spdlog::debug("{}Z2 (suspendable):", prefix);
-  std::string z2_str = state.Z2.to_string();
-  std::istringstream z2_stream(z2_str);
-  std::string z2_line;
-  while (std::getline(z2_stream, z2_line)) {
-    spdlog::debug("{}  {}", prefix, z2_line);
-  }
-
+  spdlog::debug("{}Timing: {}", prefix, format_semantic_dbm_summary(state, ptpn_));
   spdlog::debug("{}==========================================", prefix);
 }
 

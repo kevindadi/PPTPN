@@ -312,7 +312,7 @@ class PTPN {
     std::vector<size_t> non_scheduling_transitions;
     std::map<int, std::vector<size_t>> transitions_by_core;
     for (size_t t : enabled_transitions) {
-      if (transitions[t].priority == INT_MAX || transitions[t].core < 0) {
+      if (transitions[t].core < 0) {
         non_scheduling_transitions.push_back(t);
         continue;
       }

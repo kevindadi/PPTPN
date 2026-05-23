@@ -15,7 +15,7 @@ namespace {
 constexpr int kSyntheticMetaValue = 411;
 
 bool is_helper_transition(const Transition& transition) {
-  return transition.priority == INT_MAX || transition.core < 0;
+  return transition.core < 0;
 }
 
 bool is_immediate_transition(const Transition& transition) {
@@ -23,8 +23,8 @@ bool is_immediate_transition(const Transition& transition) {
 }
 
 bool should_show_scheduling_meta(const Transition& transition) {
-  if (transition.priority == kSyntheticMetaValue &&
-      transition.core == kSyntheticMetaValue) {
+  if (transition.priority == 0 &&
+      transition.core == -1) {
     return false;
   }
   if (is_helper_transition(transition)) {
