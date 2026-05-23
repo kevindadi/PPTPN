@@ -6,7 +6,7 @@ namespace converter {
 
 namespace {
 constexpr int kControlTransitionPriority = 0;
-constexpr int kNoSchedulingCore = -1;
+constexpr int kControlTransitionCore = -1;
 
 std::string format_core_priority_order(
     int core_id, const std::vector<std::string>& tasks,
@@ -376,7 +376,7 @@ void TDG2PN::handle_normal_edge_matrix(petri::PTPN& ptpn,
   petri::TimeInterval interval(0, 0);
   size_t middle_trans = ptpn.add_transition(trans_name, interval,
                                             kControlTransitionPriority,
-                                            kNoSchedulingCore, false);
+                                            kControlTransitionCore, false);
 
   if (source_node < ptpn.places.size() && target_node < ptpn.places.size()) {
     ptpn.set_pre_arc(source_node, middle_trans, 1);
@@ -527,7 +527,7 @@ std::pair<size_t, size_t> TDG2PN::add_node_matrix(petri::PTPN& ptpn,
     size_t join_trans = ptpn.add_transition("Join" + std::to_string(ptpn.node_index++),
                                             interval,
                                             kControlTransitionPriority,
-                                            kNoSchedulingCore,
+                                            kControlTransitionCore,
                                             false);
     return std::make_pair(join_trans, join_trans);
   } else if (std::holds_alternative<ForkTask>(node_type)) {
@@ -536,7 +536,7 @@ std::pair<size_t, size_t> TDG2PN::add_node_matrix(petri::PTPN& ptpn,
     size_t fork_trans = ptpn.add_transition("Fork" + std::to_string(ptpn.node_index++),
                                             interval,
                                             kControlTransitionPriority,
-                                            kNoSchedulingCore,
+                                            kControlTransitionCore,
                                             false);
     return std::make_pair(fork_trans, fork_trans);
   } else {

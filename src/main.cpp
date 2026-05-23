@@ -113,7 +113,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--threads", thread_count,
                  "Reachability build thread count (default: 1; use 0 for auto)");
   app.add_option("--tina", tina_file, "Export to Tina .net format");
-  app.add_option("--romeo", romeo_file, "Export to Romeo XML format");
+  app.add_option("--romeo", romeo_file, "Export to Romeo CTS format");
   app.add_flag("--debug", debug_mode, "Enable debug logging");
   app.set_version_flag("-v,--version", "1.0.0");
 

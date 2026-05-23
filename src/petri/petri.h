@@ -18,6 +18,7 @@
 namespace petri {
 
 constexpr int INF = std::numeric_limits<int>::max();
+constexpr int kControlTransitionCore = -1;
 
 struct TimeInterval {
   int earliest;
