@@ -55,7 +55,7 @@ std::string quote_dot_string(const std::string& value) {
 }
 
 std::string format_int_or_infinity(int value) {
-  return value == std::numeric_limits<int>::max() ? "inf" : std::to_string(value);
+  return value == std::numeric_limits<int>::max() ? "∞" : std::to_string(value);
 }
 
 std::string format_place_label(const ExportPlace& place) {
@@ -71,7 +71,7 @@ std::string format_transition_label(const ExportTransition& transition) {
   std::string label = transition.name;
 
   if (should_show_scheduling_meta(transition)) {
-    label += "\npi=" + std::to_string(transition.priority) +
+    label += "\nπ=" + std::to_string(transition.priority) +
              "  core=" + std::to_string(transition.core);
   }
 

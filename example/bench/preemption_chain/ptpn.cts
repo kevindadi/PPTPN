@@ -3,70 +3,70 @@
 typedef int place; 
 
 initially { 
-place P1_0=0, P2_1=0, P3_2=0, P4_3=1, P5_4=0, P6_5=0, P7_6=0, P8_7=0, P9_8=0, P10_9=1, P11_10=0, P12_11=0, P13_12=1, P14_13=0, P15_14=0, P16_15=0, P17_16=0, P18_17=0, P19_18=1, P20_19=1, P21_20=1; }
+place Dentry=0, Dready=0, Dexit=0, C2entry=1, C2ready=0, C2exit=0, Bentry=0, Bready=0, Bexit=0, C1entry=1, C1ready=0, C1exit=0, Aentry=1, Aready=0, Aexit=0, B_suspended_D_0=0, A_suspended_D_1=0, A_suspended_B_2=0, core0=1, core1=1, core2=1; }
 
- transition [priority=3099, intermediate { P1_0 = P1_0 - 1 , P19_18 = P19_18 - 1; }]  T1_0 [0,0]
-      when (P1_0 >= 1 and P19_18 >= 1)
-      { P1_0 = P1_0 - 1 , P2_1 = P2_1 + 1 , P19_18 = P19_18 - 1;  }
- transition [priority=3099, intermediate { P2_1 = P2_1 - 1; }]  T2_1 [2,3]
-      when (P2_1 >= 1)
-      { P2_1 = P2_1 - 1 , P3_2 = P3_2 + 1 , P19_18 = P19_18 + 1;  }
- transition [priority=1099, intermediate { P4_3 = P4_3 - 1 , P21_20 = P21_20 - 1; }]  T3_2 [0,0]
-      when (P4_3 >= 1 and P21_20 >= 1)
-      { P4_3 = P4_3 - 1 , P5_4 = P5_4 + 1 , P21_20 = P21_20 - 1;  }
- transition [priority=1099, intermediate { P5_4 = P5_4 - 1; }]  T4_3 [5,5]
-      when (P5_4 >= 1)
-      { P5_4 = P5_4 - 1 , P6_5 = P6_5 + 1 , P21_20 = P21_20 + 1;  }
- transition [priority=2099, intermediate { P7_6 = P7_6 - 1 , P19_18 = P19_18 - 1; }]  T5_4 [0,0]
-      when (P7_6 >= 1 and P19_18 >= 1)
-      { P7_6 = P7_6 - 1 , P8_7 = P8_7 + 1 , P19_18 = P19_18 - 1;  }
- transition [priority=2099, intermediate { P8_7 = P8_7 - 1; }]  T6_5 [1,2]
-      when (P8_7 >= 1)
-      { P8_7 = P8_7 - 1 , P9_8 = P9_8 + 1 , P19_18 = P19_18 + 1;  }
- transition [priority=1099, intermediate { P10_9 = P10_9 - 1 , P20_19 = P20_19 - 1; }]  T7_6 [0,0]
-      when (P10_9 >= 1 and P20_19 >= 1)
-      { P10_9 = P10_9 - 1 , P11_10 = P11_10 + 1 , P20_19 = P20_19 - 1;  }
- transition [priority=1099, intermediate { P11_10 = P11_10 - 1; }]  T8_7 [2,2]
-      when (P11_10 >= 1)
-      { P11_10 = P11_10 - 1 , P12_11 = P12_11 + 1 , P20_19 = P20_19 + 1;  }
- transition [priority=1099, intermediate { P13_12 = P13_12 - 1 , P19_18 = P19_18 - 1; }]  T9_8 [0,0]
-      when (P13_12 >= 1 and P19_18 >= 1)
-      { P13_12 = P13_12 - 1 , P14_13 = P14_13 + 1 , P19_18 = P19_18 - 1;  }
- transition [priority=1099, intermediate { P14_13 = P14_13 - 1; }]  T10_9 [8,10]
-      when (P14_13 >= 1)
-      { P14_13 = P14_13 - 1 , P15_14 = P15_14 + 1 , P19_18 = P19_18 + 1;  }
- transition [priority=0, intermediate { P12_11 = P12_11 - 1; }]  T11_10 [0,0]
-      when (P12_11 >= 1)
-      { P7_6 = P7_6 + 1 , P12_11 = P12_11 - 1;  }
- transition [priority=0, intermediate { P6_5 = P6_5 - 1; }]  T12_11 [0,0]
-      when (P6_5 >= 1)
-      { P1_0 = P1_0 + 1 , P6_5 = P6_5 - 1;  }
- transition [priority=0, intermediate { P15_14 = P15_14 - 1; }]  T13_12 [0,0]
-      when (P15_14 >= 1)
-      { P15_14 = P15_14 - 1;  }
- transition [priority=0, intermediate { P9_8 = P9_8 - 1; }]  T14_13 [0,0]
-      when (P9_8 >= 1)
-      { P9_8 = P9_8 - 1;  }
- transition [priority=0, intermediate { P3_2 = P3_2 - 1; }]  T15_14 [0,0]
-      when (P3_2 >= 1)
-      { P3_2 = P3_2 - 1;  }
- transition [priority=3098, intermediate { P1_0 = P1_0 - 1 , P8_7 = P8_7 - 1; }]  T16_15 [0,0]
-      when (P1_0 >= 1 and P8_7 >= 1)
-      { P1_0 = P1_0 - 1 , P2_1 = P2_1 + 1 , P8_7 = P8_7 - 1 , P16_15 = P16_15 + 1;  }
- transition [priority=0, intermediate { P3_2 = P3_2 - 1 , P16_15 = P16_15 - 1; }]  T17_16 [0,0]
-      when (P3_2 >= 1 and P16_15 >= 1)
-      { P3_2 = P3_2 - 1 , P8_7 = P8_7 + 1 , P16_15 = P16_15 - 1;  }
- transition [priority=3097, intermediate { P1_0 = P1_0 - 1 , P14_13 = P14_13 - 1; }]  T18_17 [0,0]
-      when (P1_0 >= 1 and P14_13 >= 1)
-      { P1_0 = P1_0 - 1 , P2_1 = P2_1 + 1 , P14_13 = P14_13 - 1 , P17_16 = P17_16 + 1;  }
- transition [priority=0, intermediate { P3_2 = P3_2 - 1 , P17_16 = P17_16 - 1; }]  T19_18 [0,0]
-      when (P3_2 >= 1 and P17_16 >= 1)
-      { P3_2 = P3_2 - 1 , P14_13 = P14_13 + 1 , P17_16 = P17_16 - 1;  }
- transition [priority=2098, intermediate { P7_6 = P7_6 - 1 , P14_13 = P14_13 - 1; }]  T20_19 [0,0]
-      when (P7_6 >= 1 and P14_13 >= 1)
-      { P7_6 = P7_6 - 1 , P8_7 = P8_7 + 1 , P14_13 = P14_13 - 1 , P18_17 = P18_17 + 1;  }
- transition [priority=0, intermediate { P9_8 = P9_8 - 1 , P18_17 = P18_17 - 1; }]  T21_20 [0,0]
-      when (P9_8 >= 1 and P18_17 >= 1)
-      { P9_8 = P9_8 - 1 , P14_13 = P14_13 + 1 , P18_17 = P18_17 - 1;  }
+ transition [priority=3099, intermediate { Dentry = Dentry - 1 , core0 = core0 - 1; }]  Dget_core [0,0]
+      when (Dentry >= 1 and core0 >= 1)
+      { Dentry = Dentry - 1 , Dready = Dready + 1 , core0 = core0 - 1;  }
+ transition [priority=3099, intermediate { Dready = Dready - 1; }]  Dexec [2,3]
+      when (Dready >= 1)
+      { Dready = Dready - 1 , Dexit = Dexit + 1 , core0 = core0 + 1;  }
+ transition [priority=1099, intermediate { C2entry = C2entry - 1 , core2 = core2 - 1; }]  C2get_core [0,0]
+      when (C2entry >= 1 and core2 >= 1)
+      { C2entry = C2entry - 1 , C2ready = C2ready + 1 , core2 = core2 - 1;  }
+ transition [priority=1099, intermediate { C2ready = C2ready - 1; }]  C2exec [5,5]
+      when (C2ready >= 1)
+      { C2ready = C2ready - 1 , C2exit = C2exit + 1 , core2 = core2 + 1;  }
+ transition [priority=2099, intermediate { Bentry = Bentry - 1 , core0 = core0 - 1; }]  Bget_core [0,0]
+      when (Bentry >= 1 and core0 >= 1)
+      { Bentry = Bentry - 1 , Bready = Bready + 1 , core0 = core0 - 1;  }
+ transition [priority=2099, intermediate { Bready = Bready - 1; }]  Bexec [1,2]
+      when (Bready >= 1)
+      { Bready = Bready - 1 , Bexit = Bexit + 1 , core0 = core0 + 1;  }
+ transition [priority=1099, intermediate { C1entry = C1entry - 1 , core1 = core1 - 1; }]  C1get_core [0,0]
+      when (C1entry >= 1 and core1 >= 1)
+      { C1entry = C1entry - 1 , C1ready = C1ready + 1 , core1 = core1 - 1;  }
+ transition [priority=1099, intermediate { C1ready = C1ready - 1; }]  C1exec [2,2]
+      when (C1ready >= 1)
+      { C1ready = C1ready - 1 , C1exit = C1exit + 1 , core1 = core1 + 1;  }
+ transition [priority=1099, intermediate { Aentry = Aentry - 1 , core0 = core0 - 1; }]  Aget_core [0,0]
+      when (Aentry >= 1 and core0 >= 1)
+      { Aentry = Aentry - 1 , Aready = Aready + 1 , core0 = core0 - 1;  }
+ transition [priority=1099, intermediate { Aready = Aready - 1; }]  Aexec [8,10]
+      when (Aready >= 1)
+      { Aready = Aready - 1 , Aexit = Aexit + 1 , core0 = core0 + 1;  }
+ transition [priority=0, intermediate { C1exit = C1exit - 1; }]  C1_to_B [0,0]
+      when (C1exit >= 1)
+      { Bentry = Bentry + 1 , C1exit = C1exit - 1;  }
+ transition [priority=0, intermediate { C2exit = C2exit - 1; }]  C2_to_D [0,0]
+      when (C2exit >= 1)
+      { Dentry = Dentry + 1 , C2exit = C2exit - 1;  }
+ transition [priority=0, intermediate { Aexit = Aexit - 1; }]  A_consume [0,0]
+      when (Aexit >= 1)
+      { Aexit = Aexit - 1;  }
+ transition [priority=0, intermediate { Bexit = Bexit - 1; }]  B_consume [0,0]
+      when (Bexit >= 1)
+      { Bexit = Bexit - 1;  }
+ transition [priority=0, intermediate { Dexit = Dexit - 1; }]  D_consume [0,0]
+      when (Dexit >= 1)
+      { Dexit = Dexit - 1;  }
+ transition [priority=3098, intermediate { Dentry = Dentry - 1 , Bready = Bready - 1; }]  D_resume_preempt_B_0 [0,0]
+      when (Dentry >= 1 and Bready >= 1)
+      { Dentry = Dentry - 1 , Dready = Dready + 1 , Bready = Bready - 1 , B_suspended_D_0 = B_suspended_D_0 + 1;  }
+ transition [priority=0, intermediate { Dexit = Dexit - 1 , B_suspended_D_0 = B_suspended_D_0 - 1; }]  B_resume_D_0 [0,0]
+      when (Dexit >= 1 and B_suspended_D_0 >= 1)
+      { Dexit = Dexit - 1 , Bready = Bready + 1 , B_suspended_D_0 = B_suspended_D_0 - 1;  }
+ transition [priority=3097, intermediate { Dentry = Dentry - 1 , Aready = Aready - 1; }]  D_resume_preempt_A_1 [0,0]
+      when (Dentry >= 1 and Aready >= 1)
+      { Dentry = Dentry - 1 , Dready = Dready + 1 , Aready = Aready - 1 , A_suspended_D_1 = A_suspended_D_1 + 1;  }
+ transition [priority=0, intermediate { Dexit = Dexit - 1 , A_suspended_D_1 = A_suspended_D_1 - 1; }]  A_resume_D_1 [0,0]
+      when (Dexit >= 1 and A_suspended_D_1 >= 1)
+      { Dexit = Dexit - 1 , Aready = Aready + 1 , A_suspended_D_1 = A_suspended_D_1 - 1;  }
+ transition [priority=2098, intermediate { Bentry = Bentry - 1 , Aready = Aready - 1; }]  B_resume_preempt_A_2 [0,0]
+      when (Bentry >= 1 and Aready >= 1)
+      { Bentry = Bentry - 1 , Bready = Bready + 1 , Aready = Aready - 1 , A_suspended_B_2 = A_suspended_B_2 + 1;  }
+ transition [priority=0, intermediate { Bexit = Bexit - 1 , A_suspended_B_2 = A_suspended_B_2 - 1; }]  A_resume_B_2 [0,0]
+      when (Bexit >= 1 and A_suspended_B_2 >= 1)
+      { Bexit = Bexit - 1 , Aready = Aready + 1 , A_suspended_B_2 = A_suspended_B_2 - 1;  }
 
 graph [passed=eq]

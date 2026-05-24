@@ -28,7 +28,7 @@ PetriExportModel build_export_model(const petri::PTPN& ptpn) {
   for (size_t p = 0; p < ptpn.num_places(); ++p) {
     const auto& place = ptpn.get_place(p);
     model.places.push_back({
-        place.id.empty() ? "p" + std::to_string(p) : place.id,
+        place.name,
         place.name,
         p < marking.size() ? marking[p] : 0,
         place.capacity,
@@ -40,7 +40,7 @@ PetriExportModel build_export_model(const petri::PTPN& ptpn) {
   for (size_t t = 0; t < ptpn.num_transitions(); ++t) {
     const auto& transition = ptpn.get_transition(t);
     model.transitions.push_back({
-        transition.id.empty() ? "t" + std::to_string(t) : transition.id,
+        transition.name,
         transition.name,
         transition.time_interval.earliest,
         transition.time_interval.latest == petri::INF

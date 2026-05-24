@@ -75,6 +75,7 @@ target_link_libraries(PTPN_core PUBLIC
 
 # Main executable
 add_executable(PTPN src/main.cpp)
+target_include_directories(PTPN PUBLIC src)
 target_link_libraries(PTPN PRIVATE PTPN_core CLI11::CLI11)
 
 # Test subdirectory
