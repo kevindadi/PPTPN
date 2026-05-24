@@ -22,7 +22,7 @@ JSON -> Parser -> TDG -> TDG2PN -> PTPN -> Analysis
 | --- | --- | --- |
 | JSON parser | [src/json/](src/json/) | Parses and validates TDG JSON input |
 | TDG | [src/tdg/](src/tdg/) | Task dependency graph model |
-| PTPN | [src/petri/](src/petri/) | Petri net data structures and DOT export |
+| PTPN | [src/petri/](src/petri/) | Petri net data structures and multi-format export (DOT, Romeo CTS) |
 | TDG2PN | [src/tdg2pn/](src/tdg2pn/) | TDG-to-PTPN lowering |
 | Analysis | [src/analysis/](src/analysis/) | Reachability and state-class analysis |
 | Tests | [test/](test/) | Unit and integration tests |
@@ -68,17 +68,16 @@ Common options:
 | --- | --- |
 | `-f, --file` | Input JSON file |
 | `-m, --max-states` | Maximum number of states in reachability analysis |
-| `-e, --export-dot` | Export TDG DOT output |
-| `--tina` | Export Tina `.net` format |
-| `--romeo` | Export Romeo XML format |
+| `--tina <path>` | Export Tina `.net` format (not implemented yet) |
+| `--romeo <path>` | Export Romeo CTS format |
 | `-v, --version` | Show version |
 
 Examples:
 
 ```bash
-./build/PTPN -f example/common.json
-./build/PTPN -f example/common.json --export-dot
-./build/PTPN -f example/common.json -m 1000
+./build/PTPN -f example/common/input.json
+./build/PTPN -f example/common/input.json --romeo example/common/ptpn.cts
+./build/PTPN -f example/common/input.json -m 1000
 ```
 
 ## Input documentation
@@ -91,7 +90,8 @@ Examples:
 Typical generated files:
 
 - `ptpn.dot`: exported PTPN graph
-- optional TDG DOT export when `--export-dot` is enabled
+- `ptpn.cts`: optional Romeo CTS export
+- optional TDG DOT export when enabled by the CLI
 
 ## Requirements
 
