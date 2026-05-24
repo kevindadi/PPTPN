@@ -1,165 +1,108 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<romeo-cts>
-  <net>
-    <place id="0" name="TaskCentry" initial="0" capacity="1"/>
-    <place id="1" name="TaskCready" initial="0" capacity="1"/>
-    <place id="2" name="TaskC_seg_1_done" initial="0" capacity="1"/>
-    <place id="3" name="TaskC_hold_1" initial="0" capacity="1"/>
-    <place id="4" name="TaskC_seg_2_done" initial="0" capacity="1"/>
-    <place id="5" name="TaskC_hold_2" initial="0" capacity="1"/>
-    <place id="6" name="TaskC_seg_3_done" initial="0" capacity="1"/>
-    <place id="7" name="TaskC_seg_4_done" initial="0" capacity="1"/>
-    <place id="8" name="TaskCexit" initial="0" capacity="1"/>
-    <place id="9" name="TaskBentry" initial="0" capacity="1"/>
-    <place id="10" name="TaskBready" initial="0" capacity="1"/>
-    <place id="11" name="TaskB_seg_1_done" initial="0" capacity="1"/>
-    <place id="12" name="TaskB_hold_1" initial="0" capacity="1"/>
-    <place id="13" name="TaskB_seg_2_done" initial="0" capacity="1"/>
-    <place id="14" name="TaskB_hold_2" initial="0" capacity="1"/>
-    <place id="15" name="TaskB_seg_3_done" initial="0" capacity="1"/>
-    <place id="16" name="TaskB_seg_4_done" initial="0" capacity="1"/>
-    <place id="17" name="TaskBexit" initial="0" capacity="1"/>
-    <place id="18" name="TaskAentry" initial="0" capacity="1"/>
-    <place id="19" name="TaskAready" initial="0" capacity="1"/>
-    <place id="20" name="TaskA_seg_1_done" initial="0" capacity="1"/>
-    <place id="21" name="TaskA_hold_1" initial="0" capacity="1"/>
-    <place id="22" name="TaskA_seg_2_done" initial="0" capacity="1"/>
-    <place id="23" name="TaskA_hold_2" initial="0" capacity="1"/>
-    <place id="24" name="TaskA_seg_3_done" initial="0" capacity="1"/>
-    <place id="25" name="TaskA_seg_4_done" initial="0" capacity="1"/>
-    <place id="26" name="TaskAexit" initial="0" capacity="1"/>
-    <place id="27" name="TaskA_period" initial="1" capacity="1"/>
-    <place id="28" name="TaskC_period" initial="1" capacity="1"/>
-    <place id="29" name="TaskA_suspended_TaskC_0" initial="0" capacity="1"/>
-    <place id="30" name="TaskA_lock_suspended_TaskC_1" initial="0" capacity="1"/>
-    <place id="31" name="core0" initial="4" capacity="4"/>
-    <place id="32" name="core1" initial="4" capacity="4"/>
-    <place id="33" name="mutex1" initial="1" capacity="1"/>
-    <place id="34" name="mutex2" initial="1" capacity="1"/>
-    <place id="35" name="spin1" initial="1" capacity="1"/>
-    <transition id="0" name="TaskCget_core" priority="9999" earliest="0" latest="0" suspendable="false"/>
-    <transition id="1" name="TaskC_exec_1" priority="9999" earliest="0" latest="10" suspendable="false"/>
-    <transition id="2" name="TaskC_lock_1" priority="9999" earliest="0" latest="0" suspendable="false"/>
-    <transition id="3" name="TaskC_exec_2" priority="9999" earliest="10" latest="20" suspendable="false"/>
-    <transition id="4" name="TaskC_lock_2" priority="9999" earliest="0" latest="0" suspendable="false"/>
-    <transition id="5" name="TaskC_exec_3" priority="9999" earliest="20" latest="30" suspendable="false"/>
-    <transition id="6" name="TaskC_exec_4" priority="9999" earliest="30" latest="40" suspendable="false"/>
-    <transition id="7" name="TaskC_exec_5" priority="9999" earliest="40" latest="80" suspendable="false"/>
-    <transition id="8" name="TaskBget_core" priority="9899" earliest="0" latest="0" suspendable="false"/>
-    <transition id="9" name="TaskB_exec_1" priority="9899" earliest="0" latest="5" suspendable="false"/>
-    <transition id="10" name="TaskB_lock_1" priority="9899" earliest="0" latest="0" suspendable="false"/>
-    <transition id="11" name="TaskB_exec_2" priority="9899" earliest="5" latest="10" suspendable="false"/>
-    <transition id="12" name="TaskB_lock_2" priority="9899" earliest="0" latest="0" suspendable="false"/>
-    <transition id="13" name="TaskB_exec_3" priority="9899" earliest="10" latest="15" suspendable="true"/>
-    <transition id="14" name="TaskB_exec_4" priority="9899" earliest="15" latest="20" suspendable="false"/>
-    <transition id="15" name="TaskB_exec_5" priority="9899" earliest="20" latest="30" suspendable="false"/>
-    <transition id="16" name="TaskAget_core" priority="9799" earliest="0" latest="0" suspendable="false"/>
-    <transition id="17" name="TaskA_exec_1" priority="9799" earliest="0" latest="10" suspendable="true"/>
-    <transition id="18" name="TaskA_lock_1" priority="9799" earliest="0" latest="0" suspendable="false"/>
-    <transition id="19" name="TaskA_exec_2" priority="9799" earliest="10" latest="20" suspendable="false"/>
-    <transition id="20" name="TaskA_lock_2" priority="9799" earliest="0" latest="0" suspendable="false"/>
-    <transition id="21" name="TaskA_exec_3" priority="9799" earliest="20" latest="30" suspendable="false"/>
-    <transition id="22" name="TaskA_exec_4" priority="9799" earliest="30" latest="40" suspendable="false"/>
-    <transition id="23" name="TaskA_exec_5" priority="9799" earliest="40" latest="100" suspendable="false"/>
-    <transition id="24" name="TaskA_to_TaskB" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <transition id="25" name="TaskB_to_TaskC" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <transition id="26" name="TaskA_fire" priority="0" earliest="100" latest="100" suspendable="false"/>
-    <transition id="27" name="TaskC_fire" priority="0" earliest="200" latest="200" suspendable="false"/>
-    <transition id="28" name="TaskC_consume" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <transition id="29" name="TaskC_resume_preempt_TaskA_0" priority="9998" earliest="0" latest="0" suspendable="false"/>
-    <transition id="30" name="TaskA_resume_TaskC_0" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <transition id="31" name="TaskC_resume_lock_preempt_TaskA_1" priority="9998" earliest="0" latest="0" suspendable="false"/>
-    <transition id="32" name="TaskA_lock_resume_TaskC_1" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <arc source="0" target="0" weight="1"/>
-    <arc source="0" target="29" weight="1"/>
-    <arc source="0" target="31" weight="1"/>
-    <arc source="1" target="1" weight="1"/>
-    <arc source="2" target="2" weight="1"/>
-    <arc source="2" target="30" weight="1"/>
-    <arc source="2" target="32" weight="1"/>
-    <arc source="3" target="3" weight="1"/>
-    <arc source="4" target="4" weight="1"/>
-    <arc source="5" target="5" weight="1"/>
-    <arc source="6" target="6" weight="1"/>
-    <arc source="7" target="7" weight="1"/>
-    <arc source="8" target="28" weight="1"/>
-    <arc source="9" target="8" weight="1"/>
-    <arc source="10" target="9" weight="1"/>
-    <arc source="11" target="10" weight="1"/>
-    <arc source="12" target="11" weight="1"/>
-    <arc source="13" target="12" weight="1"/>
-    <arc source="14" target="13" weight="1"/>
-    <arc source="15" target="14" weight="1"/>
-    <arc source="16" target="15" weight="1"/>
-    <arc source="17" target="25" weight="1"/>
-    <arc source="18" target="16" weight="1"/>
-    <arc source="19" target="17" weight="1"/>
-    <arc source="19" target="29" weight="1"/>
-    <arc source="20" target="18" weight="1"/>
-    <arc source="21" target="19" weight="1"/>
-    <arc source="22" target="20" weight="1"/>
-    <arc source="23" target="21" weight="1"/>
-    <arc source="24" target="22" weight="1"/>
-    <arc source="24" target="31" weight="1"/>
-    <arc source="25" target="23" weight="1"/>
-    <arc source="26" target="24" weight="1"/>
-    <arc source="27" target="26" weight="1"/>
-    <arc source="28" target="27" weight="1"/>
-    <arc source="29" target="30" weight="1"/>
-    <arc source="30" target="32" weight="1"/>
-    <arc source="31" target="0" weight="1"/>
-    <arc source="31" target="16" weight="1"/>
-    <arc source="32" target="8" weight="1"/>
-    <arc source="33" target="4" weight="1"/>
-    <arc source="33" target="18" weight="1"/>
-    <arc source="34" target="2" weight="1"/>
-    <arc source="34" target="12" weight="1"/>
-    <arc source="35" target="10" weight="1"/>
-    <arc source="35" target="20" weight="1"/>
-    <arc source="0" target="1" weight="1"/>
-    <arc source="1" target="2" weight="1"/>
-    <arc source="2" target="3" weight="1"/>
-    <arc source="3" target="4" weight="1"/>
-    <arc source="4" target="5" weight="1"/>
-    <arc source="5" target="6" weight="1"/>
-    <arc source="5" target="33" weight="1"/>
-    <arc source="6" target="7" weight="1"/>
-    <arc source="6" target="34" weight="1"/>
-    <arc source="7" target="8" weight="1"/>
-    <arc source="7" target="31" weight="1"/>
-    <arc source="8" target="10" weight="1"/>
-    <arc source="9" target="11" weight="1"/>
-    <arc source="10" target="12" weight="1"/>
-    <arc source="11" target="13" weight="1"/>
-    <arc source="12" target="14" weight="1"/>
-    <arc source="13" target="15" weight="1"/>
-    <arc source="13" target="34" weight="1"/>
-    <arc source="14" target="16" weight="1"/>
-    <arc source="14" target="35" weight="1"/>
-    <arc source="15" target="17" weight="1"/>
-    <arc source="15" target="32" weight="1"/>
-    <arc source="16" target="19" weight="1"/>
-    <arc source="17" target="20" weight="1"/>
-    <arc source="18" target="21" weight="1"/>
-    <arc source="19" target="22" weight="1"/>
-    <arc source="20" target="23" weight="1"/>
-    <arc source="21" target="24" weight="1"/>
-    <arc source="21" target="35" weight="1"/>
-    <arc source="22" target="25" weight="1"/>
-    <arc source="22" target="33" weight="1"/>
-    <arc source="23" target="26" weight="1"/>
-    <arc source="23" target="31" weight="1"/>
-    <arc source="24" target="9" weight="1"/>
-    <arc source="25" target="0" weight="1"/>
-    <arc source="26" target="18" weight="1"/>
-    <arc source="26" target="27" weight="1"/>
-    <arc source="27" target="0" weight="1"/>
-    <arc source="27" target="28" weight="1"/>
-    <arc source="29" target="1" weight="1"/>
-    <arc source="29" target="29" weight="1"/>
-    <arc source="30" target="19" weight="1"/>
-    <arc source="31" target="1" weight="1"/>
-    <arc source="31" target="30" weight="1"/>
-    <arc source="32" target="24" weight="1"/>
-  </net>
-</romeo-cts>
+// TPN name=PTPN
+
+typedef int place; 
+
+initially { 
+place P1_0=0, P2_1=0, P3_2=0, P4_3=0, P5_4=0, P6_5=0, P7_6=0, P8_7=0, P9_8=0, P10_9=0, P11_10=0, P12_11=0, P13_12=0, P14_13=0, P15_14=0, P16_15=0, P17_16=0, P18_17=0, P19_18=0, P20_19=0, P21_20=0, P22_21=0, P23_22=0, P24_23=0, P25_24=0, P26_25=0, P27_26=0, P28_27=1, P29_28=1, P30_29=0, P31_30=0, P32_31=4, P33_32=4, P34_33=1, P35_34=1, P36_35=1; }
+
+ transition [priority=9999, intermediate { P1_0 = P1_0 - 1 , P32_31 = P32_31 - 1; }]  T1_0 [0,0]
+      when (P1_0 >= 1 and P32_31 >= 1)
+      { P1_0 = P1_0 - 1 , P2_1 = P2_1 + 1 , P32_31 = P32_31 - 1;  }
+ transition [priority=9999, intermediate { P2_1 = P2_1 - 1; }]  T2_1 [0,10]
+      when (P2_1 >= 1)
+      { P2_1 = P2_1 - 1 , P3_2 = P3_2 + 1;  }
+ transition [priority=9999, intermediate { P3_2 = P3_2 - 1 , P35_34 = P35_34 - 1; }]  T3_2 [0,0]
+      when (P3_2 >= 1 and P35_34 >= 1)
+      { P3_2 = P3_2 - 1 , P4_3 = P4_3 + 1 , P35_34 = P35_34 - 1;  }
+ transition [priority=9999, intermediate { P4_3 = P4_3 - 1; }]  T4_3 [10,20]
+      when (P4_3 >= 1)
+      { P4_3 = P4_3 - 1 , P5_4 = P5_4 + 1;  }
+ transition [priority=9999, intermediate { P5_4 = P5_4 - 1 , P34_33 = P34_33 - 1; }]  T5_4 [0,0]
+      when (P5_4 >= 1 and P34_33 >= 1)
+      { P5_4 = P5_4 - 1 , P6_5 = P6_5 + 1 , P34_33 = P34_33 - 1;  }
+ transition [priority=9999, intermediate { P6_5 = P6_5 - 1; }]  T6_5 [20,30]
+      when (P6_5 >= 1)
+      { P6_5 = P6_5 - 1 , P7_6 = P7_6 + 1 , P34_33 = P34_33 + 1;  }
+ transition [priority=9999, intermediate { P7_6 = P7_6 - 1; }]  T7_6 [30,40]
+      when (P7_6 >= 1)
+      { P7_6 = P7_6 - 1 , P8_7 = P8_7 + 1 , P35_34 = P35_34 + 1;  }
+ transition [priority=9999, intermediate { P8_7 = P8_7 - 1; }]  T8_7 [40,80]
+      when (P8_7 >= 1)
+      { P8_7 = P8_7 - 1 , P9_8 = P9_8 + 1 , P32_31 = P32_31 + 1;  }
+ transition [priority=9899, intermediate { P10_9 = P10_9 - 1 , P33_32 = P33_32 - 1; }]  T9_8 [0,0]
+      when (P10_9 >= 1 and P33_32 >= 1)
+      { P10_9 = P10_9 - 1 , P11_10 = P11_10 + 1 , P33_32 = P33_32 - 1;  }
+ transition [priority=9899, intermediate { P11_10 = P11_10 - 1; }]  T10_9 [0,5]
+      when (P11_10 >= 1)
+      { P11_10 = P11_10 - 1 , P12_11 = P12_11 + 1;  }
+ transition [priority=9899, intermediate { P12_11 = P12_11 - 1 , P36_35 = P36_35 - 1; }]  T11_10 [0,0]
+      when (P12_11 >= 1 and P36_35 >= 1)
+      { P12_11 = P12_11 - 1 , P13_12 = P13_12 + 1 , P36_35 = P36_35 - 1;  }
+ transition [priority=9899, intermediate { P13_12 = P13_12 - 1; }]  T12_11 [5,10]
+      when (P13_12 >= 1)
+      { P13_12 = P13_12 - 1 , P14_13 = P14_13 + 1;  }
+ transition [priority=9899, intermediate { P14_13 = P14_13 - 1 , P35_34 = P35_34 - 1; }]  T13_12 [0,0]
+      when (P14_13 >= 1 and P35_34 >= 1)
+      { P14_13 = P14_13 - 1 , P15_14 = P15_14 + 1 , P35_34 = P35_34 - 1;  }
+ transition [priority=9899, intermediate { P15_14 = P15_14 - 1; }]  T14_13 [10,15]
+      when (P15_14 >= 1)
+      { P15_14 = P15_14 - 1 , P16_15 = P16_15 + 1 , P35_34 = P35_34 + 1;  }
+ transition [priority=9899, intermediate { P16_15 = P16_15 - 1; }]  T15_14 [15,20]
+      when (P16_15 >= 1)
+      { P16_15 = P16_15 - 1 , P17_16 = P17_16 + 1 , P36_35 = P36_35 + 1;  }
+ transition [priority=9899, intermediate { P17_16 = P17_16 - 1; }]  T16_15 [20,30]
+      when (P17_16 >= 1)
+      { P17_16 = P17_16 - 1 , P18_17 = P18_17 + 1 , P33_32 = P33_32 + 1;  }
+ transition [priority=9799, intermediate { P19_18 = P19_18 - 1 , P32_31 = P32_31 - 1; }]  T17_16 [0,0]
+      when (P19_18 >= 1 and P32_31 >= 1)
+      { P19_18 = P19_18 - 1 , P20_19 = P20_19 + 1 , P32_31 = P32_31 - 1;  }
+ transition [priority=9799, intermediate { P20_19 = P20_19 - 1; }]  T18_17 [0,10]
+      when (P20_19 >= 1)
+      { P20_19 = P20_19 - 1 , P21_20 = P21_20 + 1;  }
+ transition [priority=9799, intermediate { P21_20 = P21_20 - 1 , P34_33 = P34_33 - 1; }]  T19_18 [0,0]
+      when (P21_20 >= 1 and P34_33 >= 1)
+      { P21_20 = P21_20 - 1 , P22_21 = P22_21 + 1 , P34_33 = P34_33 - 1;  }
+ transition [priority=9799, intermediate { P22_21 = P22_21 - 1; }]  T20_19 [10,20]
+      when (P22_21 >= 1)
+      { P22_21 = P22_21 - 1 , P23_22 = P23_22 + 1;  }
+ transition [priority=9799, intermediate { P23_22 = P23_22 - 1 , P36_35 = P36_35 - 1; }]  T21_20 [0,0]
+      when (P23_22 >= 1 and P36_35 >= 1)
+      { P23_22 = P23_22 - 1 , P24_23 = P24_23 + 1 , P36_35 = P36_35 - 1;  }
+ transition [priority=9799, intermediate { P24_23 = P24_23 - 1; }]  T22_21 [20,30]
+      when (P24_23 >= 1)
+      { P24_23 = P24_23 - 1 , P25_24 = P25_24 + 1 , P36_35 = P36_35 + 1;  }
+ transition [priority=9799, intermediate { P25_24 = P25_24 - 1; }]  T23_22 [30,40]
+      when (P25_24 >= 1)
+      { P25_24 = P25_24 - 1 , P26_25 = P26_25 + 1 , P34_33 = P34_33 + 1;  }
+ transition [priority=9799, intermediate { P26_25 = P26_25 - 1; }]  T24_23 [40,100]
+      when (P26_25 >= 1)
+      { P26_25 = P26_25 - 1 , P27_26 = P27_26 + 1 , P32_31 = P32_31 + 1;  }
+ transition [priority=0, intermediate { P27_26 = P27_26 - 1; }]  T25_24 [0,0]
+      when (P27_26 >= 1)
+      { P10_9 = P10_9 + 1 , P27_26 = P27_26 - 1;  }
+ transition [priority=0, intermediate { P18_17 = P18_17 - 1; }]  T26_25 [0,0]
+      when (P18_17 >= 1)
+      { P1_0 = P1_0 + 1 , P18_17 = P18_17 - 1;  }
+ transition [priority=0, intermediate { P28_27 = P28_27 - 1; }]  T27_26 [100,100]
+      when (P28_27 >= 1)
+      { P19_18 = P19_18 + 1 , P28_27 = P28_27 - 1 + 1;  }
+ transition [priority=0, intermediate { P29_28 = P29_28 - 1; }]  T28_27 [200,200]
+      when (P29_28 >= 1)
+      { P1_0 = P1_0 + 1 , P29_28 = P29_28 - 1 + 1;  }
+ transition [priority=0, intermediate { P9_8 = P9_8 - 1; }]  T29_28 [0,0]
+      when (P9_8 >= 1)
+      { P9_8 = P9_8 - 1;  }
+ transition [priority=9998, intermediate { P1_0 = P1_0 - 1 , P20_19 = P20_19 - 1; }]  T30_29 [0,0]
+      when (P1_0 >= 1 and P20_19 >= 1)
+      { P1_0 = P1_0 - 1 , P2_1 = P2_1 + 1 , P20_19 = P20_19 - 1 , P30_29 = P30_29 + 1;  }
+ transition [priority=0, intermediate { P3_2 = P3_2 - 1 , P30_29 = P30_29 - 1; }]  T31_30 [0,0]
+      when (P3_2 >= 1 and P30_29 >= 1)
+      { P3_2 = P3_2 - 1 , P20_19 = P20_19 + 1 , P30_29 = P30_29 - 1;  }
+ transition [priority=9998, intermediate { P1_0 = P1_0 - 1 , P25_24 = P25_24 - 1; }]  T32_31 [0,0]
+      when (P1_0 >= 1 and P25_24 >= 1)
+      { P1_0 = P1_0 - 1 , P2_1 = P2_1 + 1 , P25_24 = P25_24 - 1 , P31_30 = P31_30 + 1;  }
+ transition [priority=0, intermediate { P3_2 = P3_2 - 1 , P31_30 = P31_30 - 1; }]  T33_32 [0,0]
+      when (P3_2 >= 1 and P31_30 >= 1)
+      { P3_2 = P3_2 - 1 , P25_24 = P25_24 + 1 , P31_30 = P31_30 - 1;  }
+
+graph [passed=eq]

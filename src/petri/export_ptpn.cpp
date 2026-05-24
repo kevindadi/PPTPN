@@ -1,10 +1,11 @@
 #include "petri/export_ptpn.h"
 
+#include <iostream>
 #include <limits>
 #include <spdlog/spdlog.h>
 
 namespace petri::exporting {
-
+  
 namespace {
 
 PlaceKind detect_place_kind(const std::string& name) {

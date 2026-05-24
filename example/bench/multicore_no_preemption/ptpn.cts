@@ -1,48 +1,36 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<romeo-cts>
-  <net>
-    <place id="0" name="Bentry" initial="0" capacity="1"/>
-    <place id="1" name="Bready" initial="0" capacity="1"/>
-    <place id="2" name="Bexit" initial="0" capacity="1"/>
-    <place id="3" name="Centry" initial="1" capacity="1"/>
-    <place id="4" name="Cready" initial="0" capacity="1"/>
-    <place id="5" name="Cexit" initial="0" capacity="1"/>
-    <place id="6" name="Aentry" initial="1" capacity="1"/>
-    <place id="7" name="Aready" initial="0" capacity="1"/>
-    <place id="8" name="Aexit" initial="0" capacity="1"/>
-    <place id="9" name="core0" initial="1" capacity="1"/>
-    <place id="10" name="core1" initial="1" capacity="1"/>
-    <place id="11" name="core2" initial="1" capacity="1"/>
-    <transition id="0" name="Bget_core" priority="10099" earliest="0" latest="0" suspendable="false"/>
-    <transition id="1" name="Bexec" priority="10099" earliest="2" latest="3" suspendable="false"/>
-    <transition id="2" name="Cget_core" priority="1099" earliest="0" latest="0" suspendable="false"/>
-    <transition id="3" name="Cexec" priority="1099" earliest="1" latest="1" suspendable="false"/>
-    <transition id="4" name="Aget_core" priority="1099" earliest="0" latest="0" suspendable="false"/>
-    <transition id="5" name="Aexec" priority="1099" earliest="4" latest="6" suspendable="false"/>
-    <transition id="6" name="C_to_B" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <transition id="7" name="A_consume" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <transition id="8" name="B_consume" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <arc source="0" target="0" weight="1"/>
-    <arc source="1" target="1" weight="1"/>
-    <arc source="2" target="8" weight="1"/>
-    <arc source="3" target="2" weight="1"/>
-    <arc source="4" target="3" weight="1"/>
-    <arc source="5" target="6" weight="1"/>
-    <arc source="6" target="4" weight="1"/>
-    <arc source="7" target="5" weight="1"/>
-    <arc source="8" target="7" weight="1"/>
-    <arc source="9" target="4" weight="1"/>
-    <arc source="10" target="0" weight="1"/>
-    <arc source="11" target="2" weight="1"/>
-    <arc source="0" target="1" weight="1"/>
-    <arc source="1" target="2" weight="1"/>
-    <arc source="1" target="10" weight="1"/>
-    <arc source="2" target="4" weight="1"/>
-    <arc source="3" target="5" weight="1"/>
-    <arc source="3" target="11" weight="1"/>
-    <arc source="4" target="7" weight="1"/>
-    <arc source="5" target="8" weight="1"/>
-    <arc source="5" target="9" weight="1"/>
-    <arc source="6" target="0" weight="1"/>
-  </net>
-</romeo-cts>
+// TPN name=PTPN
+
+typedef int place; 
+
+initially { 
+place P1_0=0, P2_1=0, P3_2=0, P4_3=1, P5_4=0, P6_5=0, P7_6=1, P8_7=0, P9_8=0, P10_9=1, P11_10=1, P12_11=1; }
+
+ transition [priority=10099, intermediate { P1_0 = P1_0 - 1 , P11_10 = P11_10 - 1; }]  T1_0 [0,0]
+      when (P1_0 >= 1 and P11_10 >= 1)
+      { P1_0 = P1_0 - 1 , P2_1 = P2_1 + 1 , P11_10 = P11_10 - 1;  }
+ transition [priority=10099, intermediate { P2_1 = P2_1 - 1; }]  T2_1 [2,3]
+      when (P2_1 >= 1)
+      { P2_1 = P2_1 - 1 , P3_2 = P3_2 + 1 , P11_10 = P11_10 + 1;  }
+ transition [priority=1099, intermediate { P4_3 = P4_3 - 1 , P12_11 = P12_11 - 1; }]  T3_2 [0,0]
+      when (P4_3 >= 1 and P12_11 >= 1)
+      { P4_3 = P4_3 - 1 , P5_4 = P5_4 + 1 , P12_11 = P12_11 - 1;  }
+ transition [priority=1099, intermediate { P5_4 = P5_4 - 1; }]  T4_3 [1,1]
+      when (P5_4 >= 1)
+      { P5_4 = P5_4 - 1 , P6_5 = P6_5 + 1 , P12_11 = P12_11 + 1;  }
+ transition [priority=1099, intermediate { P7_6 = P7_6 - 1 , P10_9 = P10_9 - 1; }]  T5_4 [0,0]
+      when (P7_6 >= 1 and P10_9 >= 1)
+      { P7_6 = P7_6 - 1 , P8_7 = P8_7 + 1 , P10_9 = P10_9 - 1;  }
+ transition [priority=1099, intermediate { P8_7 = P8_7 - 1; }]  T6_5 [4,6]
+      when (P8_7 >= 1)
+      { P8_7 = P8_7 - 1 , P9_8 = P9_8 + 1 , P10_9 = P10_9 + 1;  }
+ transition [priority=0, intermediate { P6_5 = P6_5 - 1; }]  T7_6 [0,0]
+      when (P6_5 >= 1)
+      { P1_0 = P1_0 + 1 , P6_5 = P6_5 - 1;  }
+ transition [priority=0, intermediate { P9_8 = P9_8 - 1; }]  T8_7 [0,0]
+      when (P9_8 >= 1)
+      { P9_8 = P9_8 - 1;  }
+ transition [priority=0, intermediate { P3_2 = P3_2 - 1; }]  T9_8 [0,0]
+      when (P3_2 >= 1)
+      { P3_2 = P3_2 - 1;  }
+
+graph [passed=eq]

@@ -8,7 +8,8 @@
 
 #include "petri/petri.h"
 
-namespace petri::exporting {
+namespace petri {
+namespace exporting {
 
 enum class PlaceKind {
   NORMAL,
@@ -57,7 +58,7 @@ struct PetriExportModel {
 };
 
 PetriExportModel build_export_model(const petri::PTPN& ptpn);
-
+}
 }  // namespace petri::exporting
 
 #endif  // PETRI_EXPORT_PETRI_H

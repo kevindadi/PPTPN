@@ -1,159 +1,105 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<romeo-cts>
-  <net>
-    <place id="0" name="Fentry" initial="0" capacity="1"/>
-    <place id="1" name="Fready" initial="0" capacity="1"/>
-    <place id="2" name="Fexit" initial="0" capacity="1"/>
-    <place id="3" name="Eentry" initial="0" capacity="1"/>
-    <place id="4" name="Eready" initial="0" capacity="1"/>
-    <place id="5" name="Eexit" initial="0" capacity="1"/>
-    <place id="6" name="Aentry" initial="1" capacity="1"/>
-    <place id="7" name="Aready" initial="0" capacity="1"/>
-    <place id="8" name="Aexit" initial="0" capacity="1"/>
-    <place id="9" name="Dentry" initial="1" capacity="1"/>
-    <place id="10" name="Dready" initial="0" capacity="1"/>
-    <place id="11" name="Dexit" initial="0" capacity="1"/>
-    <place id="12" name="Centry" initial="0" capacity="1"/>
-    <place id="13" name="Cready" initial="0" capacity="1"/>
-    <place id="14" name="Cexit" initial="0" capacity="1"/>
-    <place id="15" name="Bentry" initial="0" capacity="1"/>
-    <place id="16" name="Bready" initial="0" capacity="1"/>
-    <place id="17" name="Bexit" initial="0" capacity="1"/>
-    <place id="18" name="A_period" initial="1" capacity="1"/>
-    <place id="19" name="D_period" initial="1" capacity="1"/>
-    <place id="20" name="E_suspended_C_0" initial="0" capacity="1"/>
-    <place id="21" name="D_suspended_C_1" initial="0" capacity="1"/>
-    <place id="22" name="D_suspended_E_2" initial="0" capacity="1"/>
-    <place id="23" name="A_suspended_B_3" initial="0" capacity="1"/>
-    <place id="24" name="F_suspended_B_4" initial="0" capacity="1"/>
-    <place id="25" name="F_suspended_A_5" initial="0" capacity="1"/>
-    <place id="26" name="core0" initial="1" capacity="1"/>
-    <place id="27" name="core1" initial="1" capacity="1"/>
-    <transition id="0" name="Fget_core" priority="9699" earliest="0" latest="0" suspendable="false"/>
-    <transition id="1" name="Fexec" priority="9699" earliest="3" latest="3" suspendable="true"/>
-    <transition id="2" name="Eget_core" priority="9899" earliest="0" latest="0" suspendable="false"/>
-    <transition id="3" name="Eexec" priority="9899" earliest="15" latest="18" suspendable="true"/>
-    <transition id="4" name="Aget_core" priority="9799" earliest="0" latest="0" suspendable="false"/>
-    <transition id="5" name="Aexec" priority="9799" earliest="3" latest="8" suspendable="true"/>
-    <transition id="6" name="Dget_core" priority="9799" earliest="0" latest="0" suspendable="false"/>
-    <transition id="7" name="Dexec" priority="9799" earliest="6" latest="8" suspendable="true"/>
-    <transition id="8" name="Cget_core" priority="9999" earliest="0" latest="0" suspendable="false"/>
-    <transition id="9" name="Cexec" priority="9999" earliest="8" latest="10" suspendable="false"/>
-    <transition id="10" name="Bget_core" priority="9899" earliest="0" latest="0" suspendable="false"/>
-    <transition id="11" name="Bexec" priority="9899" earliest="3" latest="5" suspendable="false"/>
-    <transition id="12" name="A_to_B" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <transition id="13" name="B_to_C" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <transition id="14" name="D_to_E" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <transition id="15" name="E_to_C" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <transition id="16" name="A_fire" priority="0" earliest="100" latest="100" suspendable="false"/>
-    <transition id="17" name="D_fire" priority="0" earliest="50" latest="50" suspendable="false"/>
-    <transition id="18" name="C_consume" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <transition id="19" name="F_consume" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <transition id="20" name="C_resume_preempt_E_0" priority="9998" earliest="0" latest="0" suspendable="false"/>
-    <transition id="21" name="E_resume_C_0" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <transition id="22" name="C_resume_preempt_D_1" priority="9997" earliest="0" latest="0" suspendable="false"/>
-    <transition id="23" name="D_resume_C_1" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <transition id="24" name="E_resume_preempt_D_2" priority="9898" earliest="0" latest="0" suspendable="false"/>
-    <transition id="25" name="D_resume_E_2" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <transition id="26" name="B_resume_preempt_A_3" priority="9898" earliest="0" latest="0" suspendable="false"/>
-    <transition id="27" name="A_resume_B_3" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <transition id="28" name="B_resume_preempt_F_4" priority="9897" earliest="0" latest="0" suspendable="false"/>
-    <transition id="29" name="F_resume_B_4" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <transition id="30" name="A_resume_preempt_F_5" priority="9798" earliest="0" latest="0" suspendable="false"/>
-    <transition id="31" name="F_resume_A_5" priority="0" earliest="0" latest="0" suspendable="false"/>
-    <arc source="0" target="0" weight="1"/>
-    <arc source="1" target="1" weight="1"/>
-    <arc source="1" target="28" weight="1"/>
-    <arc source="1" target="30" weight="1"/>
-    <arc source="2" target="19" weight="1"/>
-    <arc source="3" target="2" weight="1"/>
-    <arc source="3" target="24" weight="1"/>
-    <arc source="4" target="3" weight="1"/>
-    <arc source="4" target="20" weight="1"/>
-    <arc source="5" target="15" weight="1"/>
-    <arc source="5" target="25" weight="1"/>
-    <arc source="6" target="4" weight="1"/>
-    <arc source="6" target="30" weight="1"/>
-    <arc source="7" target="5" weight="1"/>
-    <arc source="7" target="26" weight="1"/>
-    <arc source="8" target="12" weight="1"/>
-    <arc source="8" target="31" weight="1"/>
-    <arc source="9" target="6" weight="1"/>
-    <arc source="10" target="7" weight="1"/>
-    <arc source="10" target="22" weight="1"/>
-    <arc source="10" target="24" weight="1"/>
-    <arc source="11" target="14" weight="1"/>
-    <arc source="12" target="8" weight="1"/>
-    <arc source="12" target="20" weight="1"/>
-    <arc source="12" target="22" weight="1"/>
-    <arc source="13" target="9" weight="1"/>
-    <arc source="14" target="18" weight="1"/>
-    <arc source="14" target="21" weight="1"/>
-    <arc source="14" target="23" weight="1"/>
-    <arc source="15" target="10" weight="1"/>
-    <arc source="15" target="26" weight="1"/>
-    <arc source="15" target="28" weight="1"/>
-    <arc source="16" target="11" weight="1"/>
-    <arc source="17" target="13" weight="1"/>
-    <arc source="17" target="27" weight="1"/>
-    <arc source="17" target="29" weight="1"/>
-    <arc source="18" target="16" weight="1"/>
-    <arc source="19" target="17" weight="1"/>
-    <arc source="20" target="21" weight="1"/>
-    <arc source="21" target="23" weight="1"/>
-    <arc source="22" target="25" weight="1"/>
-    <arc source="23" target="27" weight="1"/>
-    <arc source="24" target="29" weight="1"/>
-    <arc source="25" target="31" weight="1"/>
-    <arc source="26" target="0" weight="1"/>
-    <arc source="26" target="4" weight="1"/>
-    <arc source="26" target="10" weight="1"/>
-    <arc source="27" target="2" weight="1"/>
-    <arc source="27" target="6" weight="1"/>
-    <arc source="27" target="8" weight="1"/>
-    <arc source="0" target="1" weight="1"/>
-    <arc source="1" target="2" weight="1"/>
-    <arc source="1" target="26" weight="1"/>
-    <arc source="2" target="4" weight="1"/>
-    <arc source="3" target="5" weight="1"/>
-    <arc source="3" target="27" weight="1"/>
-    <arc source="4" target="7" weight="1"/>
-    <arc source="5" target="8" weight="1"/>
-    <arc source="5" target="26" weight="1"/>
-    <arc source="6" target="10" weight="1"/>
-    <arc source="7" target="11" weight="1"/>
-    <arc source="7" target="27" weight="1"/>
-    <arc source="8" target="13" weight="1"/>
-    <arc source="9" target="14" weight="1"/>
-    <arc source="9" target="27" weight="1"/>
-    <arc source="10" target="16" weight="1"/>
-    <arc source="11" target="17" weight="1"/>
-    <arc source="11" target="26" weight="1"/>
-    <arc source="12" target="15" weight="1"/>
-    <arc source="13" target="12" weight="1"/>
-    <arc source="14" target="3" weight="1"/>
-    <arc source="15" target="12" weight="1"/>
-    <arc source="16" target="6" weight="1"/>
-    <arc source="16" target="18" weight="1"/>
-    <arc source="17" target="9" weight="1"/>
-    <arc source="17" target="19" weight="1"/>
-    <arc source="20" target="13" weight="1"/>
-    <arc source="20" target="20" weight="1"/>
-    <arc source="21" target="4" weight="1"/>
-    <arc source="22" target="13" weight="1"/>
-    <arc source="22" target="21" weight="1"/>
-    <arc source="23" target="10" weight="1"/>
-    <arc source="24" target="4" weight="1"/>
-    <arc source="24" target="22" weight="1"/>
-    <arc source="25" target="10" weight="1"/>
-    <arc source="26" target="16" weight="1"/>
-    <arc source="26" target="23" weight="1"/>
-    <arc source="27" target="7" weight="1"/>
-    <arc source="28" target="16" weight="1"/>
-    <arc source="28" target="24" weight="1"/>
-    <arc source="29" target="1" weight="1"/>
-    <arc source="30" target="7" weight="1"/>
-    <arc source="30" target="25" weight="1"/>
-    <arc source="31" target="1" weight="1"/>
-  </net>
-</romeo-cts>
+// TPN name=PTPN
+
+typedef int place; 
+
+initially { 
+place P1_0=0, P2_1=0, P3_2=0, P4_3=0, P5_4=0, P6_5=0, P7_6=1, P8_7=0, P9_8=0, P10_9=1, P11_10=0, P12_11=0, P13_12=0, P14_13=0, P15_14=0, P16_15=0, P17_16=0, P18_17=0, P19_18=1, P20_19=1, P21_20=0, P22_21=0, P23_22=0, P24_23=0, P25_24=0, P26_25=0, P27_26=1, P28_27=1; }
+
+ transition [priority=9699, intermediate { P1_0 = P1_0 - 1 , P27_26 = P27_26 - 1; }]  T1_0 [0,0]
+      when (P1_0 >= 1 and P27_26 >= 1)
+      { P1_0 = P1_0 - 1 , P2_1 = P2_1 + 1 , P27_26 = P27_26 - 1;  }
+ transition [priority=9699, intermediate { P2_1 = P2_1 - 1; }]  T2_1 [3,3]
+      when (P2_1 >= 1)
+      { P2_1 = P2_1 - 1 , P3_2 = P3_2 + 1 , P27_26 = P27_26 + 1;  }
+ transition [priority=9899, intermediate { P4_3 = P4_3 - 1 , P28_27 = P28_27 - 1; }]  T3_2 [0,0]
+      when (P4_3 >= 1 and P28_27 >= 1)
+      { P4_3 = P4_3 - 1 , P5_4 = P5_4 + 1 , P28_27 = P28_27 - 1;  }
+ transition [priority=9899, intermediate { P5_4 = P5_4 - 1; }]  T4_3 [15,18]
+      when (P5_4 >= 1)
+      { P5_4 = P5_4 - 1 , P6_5 = P6_5 + 1 , P28_27 = P28_27 + 1;  }
+ transition [priority=9799, intermediate { P7_6 = P7_6 - 1 , P27_26 = P27_26 - 1; }]  T5_4 [0,0]
+      when (P7_6 >= 1 and P27_26 >= 1)
+      { P7_6 = P7_6 - 1 , P8_7 = P8_7 + 1 , P27_26 = P27_26 - 1;  }
+ transition [priority=9799, intermediate { P8_7 = P8_7 - 1; }]  T6_5 [3,8]
+      when (P8_7 >= 1)
+      { P8_7 = P8_7 - 1 , P9_8 = P9_8 + 1 , P27_26 = P27_26 + 1;  }
+ transition [priority=9799, intermediate { P10_9 = P10_9 - 1 , P28_27 = P28_27 - 1; }]  T7_6 [0,0]
+      when (P10_9 >= 1 and P28_27 >= 1)
+      { P10_9 = P10_9 - 1 , P11_10 = P11_10 + 1 , P28_27 = P28_27 - 1;  }
+ transition [priority=9799, intermediate { P11_10 = P11_10 - 1; }]  T8_7 [6,8]
+      when (P11_10 >= 1)
+      { P11_10 = P11_10 - 1 , P12_11 = P12_11 + 1 , P28_27 = P28_27 + 1;  }
+ transition [priority=9999, intermediate { P13_12 = P13_12 - 1 , P28_27 = P28_27 - 1; }]  T9_8 [0,0]
+      when (P13_12 >= 1 and P28_27 >= 1)
+      { P13_12 = P13_12 - 1 , P14_13 = P14_13 + 1 , P28_27 = P28_27 - 1;  }
+ transition [priority=9999, intermediate { P14_13 = P14_13 - 1; }]  T10_9 [8,10]
+      when (P14_13 >= 1)
+      { P14_13 = P14_13 - 1 , P15_14 = P15_14 + 1 , P28_27 = P28_27 + 1;  }
+ transition [priority=9899, intermediate { P16_15 = P16_15 - 1 , P27_26 = P27_26 - 1; }]  T11_10 [0,0]
+      when (P16_15 >= 1 and P27_26 >= 1)
+      { P16_15 = P16_15 - 1 , P17_16 = P17_16 + 1 , P27_26 = P27_26 - 1;  }
+ transition [priority=9899, intermediate { P17_16 = P17_16 - 1; }]  T12_11 [3,5]
+      when (P17_16 >= 1)
+      { P17_16 = P17_16 - 1 , P18_17 = P18_17 + 1 , P27_26 = P27_26 + 1;  }
+ transition [priority=0, intermediate { P9_8 = P9_8 - 1; }]  T13_12 [0,0]
+      when (P9_8 >= 1)
+      { P9_8 = P9_8 - 1 , P16_15 = P16_15 + 1;  }
+ transition [priority=0, intermediate { P18_17 = P18_17 - 1; }]  T14_13 [0,0]
+      when (P18_17 >= 1)
+      { P13_12 = P13_12 + 1 , P18_17 = P18_17 - 1;  }
+ transition [priority=0, intermediate { P12_11 = P12_11 - 1; }]  T15_14 [0,0]
+      when (P12_11 >= 1)
+      { P4_3 = P4_3 + 1 , P12_11 = P12_11 - 1;  }
+ transition [priority=0, intermediate { P6_5 = P6_5 - 1; }]  T16_15 [0,0]
+      when (P6_5 >= 1)
+      { P6_5 = P6_5 - 1 , P13_12 = P13_12 + 1;  }
+ transition [priority=0, intermediate { P19_18 = P19_18 - 1; }]  T17_16 [100,100]
+      when (P19_18 >= 1)
+      { P7_6 = P7_6 + 1 , P19_18 = P19_18 - 1 + 1;  }
+ transition [priority=0, intermediate { P20_19 = P20_19 - 1; }]  T18_17 [50,50]
+      when (P20_19 >= 1)
+      { P10_9 = P10_9 + 1 , P20_19 = P20_19 - 1 + 1;  }
+ transition [priority=0, intermediate { P15_14 = P15_14 - 1; }]  T19_18 [0,0]
+      when (P15_14 >= 1)
+      { P15_14 = P15_14 - 1;  }
+ transition [priority=0, intermediate { P3_2 = P3_2 - 1; }]  T20_19 [0,0]
+      when (P3_2 >= 1)
+      { P3_2 = P3_2 - 1;  }
+ transition [priority=9998, intermediate { P5_4 = P5_4 - 1 , P13_12 = P13_12 - 1; }]  T21_20 [0,0]
+      when (P5_4 >= 1 and P13_12 >= 1)
+      { P5_4 = P5_4 - 1 , P13_12 = P13_12 - 1 , P14_13 = P14_13 + 1 , P21_20 = P21_20 + 1;  }
+ transition [priority=0, intermediate { P15_14 = P15_14 - 1 , P21_20 = P21_20 - 1; }]  T22_21 [0,0]
+      when (P15_14 >= 1 and P21_20 >= 1)
+      { P5_4 = P5_4 + 1 , P15_14 = P15_14 - 1 , P21_20 = P21_20 - 1;  }
+ transition [priority=9997, intermediate { P11_10 = P11_10 - 1 , P13_12 = P13_12 - 1; }]  T23_22 [0,0]
+      when (P11_10 >= 1 and P13_12 >= 1)
+      { P11_10 = P11_10 - 1 , P13_12 = P13_12 - 1 , P14_13 = P14_13 + 1 , P22_21 = P22_21 + 1;  }
+ transition [priority=0, intermediate { P15_14 = P15_14 - 1 , P22_21 = P22_21 - 1; }]  T24_23 [0,0]
+      when (P15_14 >= 1 and P22_21 >= 1)
+      { P11_10 = P11_10 + 1 , P15_14 = P15_14 - 1 , P22_21 = P22_21 - 1;  }
+ transition [priority=9898, intermediate { P4_3 = P4_3 - 1 , P11_10 = P11_10 - 1; }]  T25_24 [0,0]
+      when (P4_3 >= 1 and P11_10 >= 1)
+      { P4_3 = P4_3 - 1 , P5_4 = P5_4 + 1 , P11_10 = P11_10 - 1 , P23_22 = P23_22 + 1;  }
+ transition [priority=0, intermediate { P6_5 = P6_5 - 1 , P23_22 = P23_22 - 1; }]  T26_25 [0,0]
+      when (P6_5 >= 1 and P23_22 >= 1)
+      { P6_5 = P6_5 - 1 , P11_10 = P11_10 + 1 , P23_22 = P23_22 - 1;  }
+ transition [priority=9898, intermediate { P8_7 = P8_7 - 1 , P16_15 = P16_15 - 1; }]  T27_26 [0,0]
+      when (P8_7 >= 1 and P16_15 >= 1)
+      { P8_7 = P8_7 - 1 , P16_15 = P16_15 - 1 , P17_16 = P17_16 + 1 , P24_23 = P24_23 + 1;  }
+ transition [priority=0, intermediate { P18_17 = P18_17 - 1 , P24_23 = P24_23 - 1; }]  T28_27 [0,0]
+      when (P18_17 >= 1 and P24_23 >= 1)
+      { P8_7 = P8_7 + 1 , P18_17 = P18_17 - 1 , P24_23 = P24_23 - 1;  }
+ transition [priority=9897, intermediate { P2_1 = P2_1 - 1 , P16_15 = P16_15 - 1; }]  T29_28 [0,0]
+      when (P2_1 >= 1 and P16_15 >= 1)
+      { P2_1 = P2_1 - 1 , P16_15 = P16_15 - 1 , P17_16 = P17_16 + 1 , P25_24 = P25_24 + 1;  }
+ transition [priority=0, intermediate { P18_17 = P18_17 - 1 , P25_24 = P25_24 - 1; }]  T30_29 [0,0]
+      when (P18_17 >= 1 and P25_24 >= 1)
+      { P2_1 = P2_1 + 1 , P18_17 = P18_17 - 1 , P25_24 = P25_24 - 1;  }
+ transition [priority=9798, intermediate { P2_1 = P2_1 - 1 , P7_6 = P7_6 - 1; }]  T31_30 [0,0]
+      when (P2_1 >= 1 and P7_6 >= 1)
+      { P2_1 = P2_1 - 1 , P7_6 = P7_6 - 1 , P8_7 = P8_7 + 1 , P26_25 = P26_25 + 1;  }
+ transition [priority=0, intermediate { P9_8 = P9_8 - 1 , P26_25 = P26_25 - 1; }]  T32_31 [0,0]
+      when (P9_8 >= 1 and P26_25 >= 1)
+      { P2_1 = P2_1 + 1 , P9_8 = P9_8 - 1 , P26_25 = P26_25 - 1;  }
+
+graph [passed=eq]

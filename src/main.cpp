@@ -25,7 +25,7 @@
 #include "tdg/tdg.h"
 #include "petri/petri.h"
 #include "petri/export_dot.h"
-#include "petri/export_petri.h"
+#include "petri/export_ptpn.h"
 #include "petri/export_romeo.h"
 #include "tdg2pn/tdg2pn.h"
 #include "analysis/state.h"
