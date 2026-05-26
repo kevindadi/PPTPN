@@ -309,6 +309,100 @@ TEST_F(TdgExportTest, FixedPriorityResumePreemptionRestoresLowTaskToPreemptionPo
   EXPECT_EQ(ptpn.get_post_matrix()[resume_transition][low_ready], 1);
 }
 
+TEST_F(TdgExportTest, FixedPriorityResumePreemptionUsesSamePriorityForEqualVictimBand) {
+  std::string json = R"({
+    "graph": {"name": "FixedPriorityResumeEqualVictims"},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": [],
+      "policy": "fixed_prior_with_resume"
+    },
+    "nodes": [
+      {"id": "A", "type": "task", "priority": 96, "core": 0, "time": [[1, 1]], "locks": []},
+      {"id": "B", "type": "task", "priority": 98, "core": 0, "time": [[1, 1]], "locks": []},
+      {"id": "D", "type": "task", "priority": 98, "core": 0, "time": [[1, 1]], "locks": []},
+      {"id": "C", "type": "task", "priority": 99, "core": 0, "time": [[1, 1]], "locks": []}
+    ],
+    "edges": []
+  })";
+
+  TDG tdg;
+  tdg.parse_json_string(json);
+
+  petri::PTPN ptpn;
+  converter::TDG2PN::transform(tdg, ptpn);
+
+  int preempt_b_priority = -1;
+  int preempt_d_priority = -1;
+  int preempt_a_priority = -1;
+
+  for (const auto& transition : ptpn.transitions) {
+    if (transition.name.find("C_resume_preempt_B") != std::string::npos) {
+      preempt_b_priority = transition.priority;
+    }
+    if (transition.name.find("C_resume_preempt_D") != std::string::npos) {
+      preempt_d_priority = transition.priority;
+    }
+    if (transition.name.find("C_resume_preempt_A") != std::string::npos) {
+      preempt_a_priority = transition.priority;
+    }
+  }
+
+  ASSERT_NE(preempt_b_priority, -1);
+  ASSERT_NE(preempt_d_priority, -1);
+  ASSERT_NE(preempt_a_priority, -1);
+  EXPECT_EQ(preempt_b_priority, preempt_d_priority);
+  EXPECT_GT(preempt_b_priority, preempt_a_priority);
+}
+
+TEST_F(TdgExportTest, FixedPriorityRestartPreemptionUsesSamePriorityForEqualVictimBand) {
+  std::string json = R"({
+    "graph": {"name": "FixedPriorityRestartEqualVictims"},
+    "configuration": {
+      "num_cpus": 1,
+      "cores_per_cpu": 1,
+      "shared_locks": [],
+      "policy": "fixed_prior_with_restart"
+    },
+    "nodes": [
+      {"id": "A", "type": "task", "priority": 96, "core": 0, "time": [[1, 1]], "locks": []},
+      {"id": "B", "type": "task", "priority": 98, "core": 0, "time": [[1, 1]], "locks": []},
+      {"id": "D", "type": "task", "priority": 98, "core": 0, "time": [[1, 1]], "locks": []},
+      {"id": "C", "type": "task", "priority": 99, "core": 0, "time": [[1, 1]], "locks": []}
+    ],
+    "edges": []
+  })";
+
+  TDG tdg;
+  tdg.parse_json_string(json);
+
+  petri::PTPN ptpn;
+  converter::TDG2PN::transform(tdg, ptpn);
+
+  int preempt_b_priority = -1;
+  int preempt_d_priority = -1;
+  int preempt_a_priority = -1;
+
+  for (const auto& transition : ptpn.transitions) {
+    if (transition.name.find("C_restart_preempt_B") != std::string::npos) {
+      preempt_b_priority = transition.priority;
+    }
+    if (transition.name.find("C_restart_preempt_D") != std::string::npos) {
+      preempt_d_priority = transition.priority;
+    }
+    if (transition.name.find("C_restart_preempt_A") != std::string::npos) {
+      preempt_a_priority = transition.priority;
+    }
+  }
+
+  ASSERT_NE(preempt_b_priority, -1);
+  ASSERT_NE(preempt_d_priority, -1);
+  ASSERT_NE(preempt_a_priority, -1);
+  EXPECT_EQ(preempt_b_priority, preempt_d_priority);
+  EXPECT_GT(preempt_b_priority, preempt_a_priority);
+}
+
 TEST_F(TdgExportTest, FixedPriorityVariantsDoNotAddSpinLockPreemptionPaths) {
   std::string restart_json = R"({
     "graph": {"name": "SpinRestart"},

@@ -1,10 +1,12 @@
 #ifndef TDG2PN_H
 #define TDG2PN_H
 
+#include <cstddef>
 #include <map>
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "../types/types.h"
@@ -19,10 +21,14 @@ class TDG2PN {
 
  private:
   static std::unordered_map<int, std::vector<std::string>> classify_tdg_priority(const tdg::TDG& tdg);
+  static std::unordered_map<std::string, int> build_preempt_priorities(
+      const std::vector<std::string>& tasks,
+      const std::unordered_map<std::string, TaskConfig>& tc,
+      int aggressor_priority);
   static void transform_vertices(petri::PTPN& ptpn, const tdg::TDG& tdg);
   static void transform_edges(petri::PTPN& ptpn, const tdg::TDG& tdg);
   static std::pair<size_t, size_t> add_node_matrix(petri::PTPN& ptpn, const NodeType& node_type);
-  static std::pair<size_t, size_t> add_task_node_matrix(petri::PTPN& ptpn, const ::TaskNode& task);
+  static std::pair<size_t, size_t> add_task_node_matrix(petri::PTPN& ptpn, const TaskNode& task);
   static std::vector<size_t> add_execution_chain(petri::PTPN& ptpn,
                                                  const std::string& task_name,
                                                  const std::vector<std::pair<int, int>>& times,

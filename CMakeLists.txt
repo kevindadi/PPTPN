@@ -54,11 +54,13 @@ add_library(PTPN_core STATIC
     src/json/json.cpp
     src/tdg/tdg.cpp
     src/petri/petri.cpp
-    src/petri/graph.cpp
+    src/petri/export_ptpn.cpp
+    src/petri/export_dot.cpp
+    src/petri/export_romeo.cpp
     src/tdg2pn/tdg2pn.cpp
+    src/analysis/dbm.cpp
     src/analysis/state.cpp
-    src/analysis/reachability.cpp
-    src/analysis/reachability_scheduling.cpp
+    src/analysis/graph.cpp
 )
 target_include_directories(PTPN_core PUBLIC src)
 target_link_libraries(PTPN_core PUBLIC
@@ -73,6 +75,7 @@ target_link_libraries(PTPN_core PUBLIC
 
 # Main executable
 add_executable(PTPN src/main.cpp)
+target_include_directories(PTPN PUBLIC src)
 target_link_libraries(PTPN PRIVATE PTPN_core CLI11::CLI11)
 
 # Test subdirectory

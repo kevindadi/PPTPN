@@ -6,7 +6,9 @@
 
 #include "analysis/state.h"
 #include "json/json.h"
-#include "petri/graph.h"
+#include "petri/export_dot.h"
+#include "petri/export_ptpn.h"
+#include "petri/export_romeo.h"
 #include "petri/petri.h"
 #include "tdg/tdg.h"
 #include "tdg2pn/tdg2pn.h"
@@ -75,10 +77,24 @@ void verify_example_case(const fs::path& case_dir, size_t max_states = 256,
   EXPECT_GT(ptpn.num_places(), 0U);
   EXPECT_GT(ptpn.num_transitions(), 0U);
 
-  graph::GraphPTPN graph_ptpn(ptpn);
-  ASSERT_TRUE(graph_ptpn.save_to_dot(ptpn_dot_path.string()));
+  auto export_model = petri::exporting::build_export_model(ptpn);
+  ASSERT_TRUE(petri::exporting::save_to_dot(export_model, ptpn_dot_path.string()));
   const std::string ptpn_dot = read_file(ptpn_dot_path);
   EXPECT_FALSE(ptpn_dot.empty());
+
+  const fs::path romeo_cts_path = repo_root() / case_dir / "ptpn.cts";
+  ASSERT_TRUE(petri::exporting::save_to_romeo_cts(export_model, romeo_cts_path.string()));
+  const std::string romeo_cts = read_file(romeo_cts_path);
+  EXPECT_FALSE(romeo_cts.empty());
+  EXPECT_NE(romeo_cts.find("typedef int place"), std::string::npos);
+  EXPECT_NE(romeo_cts.find("initially"), std::string::npos);
+  EXPECT_NE(romeo_cts.find("transition ["), std::string::npos);
+  EXPECT_NE(romeo_cts.find("priority="), std::string::npos);
+  EXPECT_EQ(romeo_cts.find("core="), std::string::npos);
+  EXPECT_NE(romeo_cts.find("when ("), std::string::npos);
+  EXPECT_NE(romeo_cts.find("intermediate"), std::string::npos);
+  EXPECT_NE(romeo_cts.find("graph [passed=eq]"), std::string::npos);
+  EXPECT_EQ(romeo_cts.find("<romeo-cts"), std::string::npos);
 
   state_class::StateClassReachabilityGraph reachability_graph(ptpn);
   const size_t state_count = reachability_graph.build(max_states);

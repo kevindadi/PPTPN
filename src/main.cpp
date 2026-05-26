@@ -24,7 +24,9 @@
 #include "json/json.h"
 #include "tdg/tdg.h"
 #include "petri/petri.h"
-#include "petri/graph.h"
+#include "petri/export_dot.h"
+#include "petri/export_ptpn.h"
+#include "petri/export_romeo.h"
 #include "tdg2pn/tdg2pn.h"
 #include "analysis/state.h"
 
@@ -113,7 +115,7 @@ int main(int argc, char* argv[]) {
   app.add_option("--threads", thread_count,
                  "Reachability build thread count (default: 1; use 0 for auto)");
   app.add_option("--tina", tina_file, "Export to Tina .net format");
-  app.add_option("--romeo", romeo_file, "Export to Romeo XML format");
+  app.add_option("--romeo", romeo_file, "Export to Romeo CTS format");
   app.add_flag("--debug", debug_mode, "Enable debug logging");
   app.set_version_flag("-v,--version", "1.0.0");
 
@@ -199,8 +201,8 @@ int main(int argc, char* argv[]) {
 
   cout << ptpn.to_string();
 
-  graph::GraphPTPN graph_ptpn(ptpn);
-  if (graph_ptpn.save_to_dot(ptpn_dot_path.string())) {
+  auto export_model = petri::exporting::build_export_model(ptpn);
+  if (petri::exporting::save_to_dot(export_model, ptpn_dot_path.string())) {
     spdlog::info("[OUTPUT] PTPN saved to: {}", ptpn_dot_path.string());
   } else {
     spdlog::warn("[OUTPUT] Failed to save PTPN");
@@ -233,7 +235,11 @@ int main(int argc, char* argv[]) {
   }
 
   if (!romeo_file.empty()) {
-    spdlog::info("[OUTPUT] Romeo export not implemented");
+    if (petri::exporting::save_to_romeo_cts(export_model, romeo_file)) {
+      spdlog::info("[OUTPUT] Romeo CTS exported to: {}", romeo_file);
+    } else {
+      spdlog::warn("[OUTPUT] Failed to export Romeo CTS");
+    }
   }
 
   auto end_time = chrono::high_resolution_clock::now();
