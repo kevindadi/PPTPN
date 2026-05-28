@@ -11,9 +11,10 @@
 #include <algorithm>
 #include <atomic>
 
+#include "clock_state.h"
+
 namespace state_class {
 
-constexpr int INF_TIME = std::numeric_limits<int>::max();
 constexpr double INF_DOUBLE = std::numeric_limits<double>::infinity();
 
 struct DBMInstrumentation {
