@@ -53,17 +53,6 @@ size_t effective_thread_count(size_t requested, size_t frontier_size) {
   return std::max<size_t>(1, std::min({selected, frontier_size, cap}));
 }
 
-bool has_higher_priority(const petri::Transition& lhs,
-                         const petri::Transition& rhs) {
-  if (lhs.priority == kControlTransitionPriority && lhs.core < 0) {
-    return false;
-  }
-  if (rhs.priority == kControlTransitionPriority && rhs.core < 0) {
-    return true;
-  }
-  return lhs.priority > rhs.priority;
-}
-
 std::string format_transition_vector(const std::vector<size_t>& trans_indices,
                                      const petri::PTPN& ptpn,
                                      bool detailed = true) {
@@ -723,12 +712,9 @@ StateClass StateClassReachabilityGraph::create_initial_state() {
   return initial;
 }
 
-void StateClassReachabilityGraph::explore_successors(
-    const StateClass& current_state, std::set<StateClass>& visited) {}
-
-// =======================================================================
-// 辅助方法（保留兼容性）
-// =======================================================================
+// ===================================================================
+// 辅助方法
+// ===================================================================
 
 bool StateClassReachabilityGraph::is_transition_enabled(
     const StateClass& state, size_t trans_idx) const {
@@ -761,205 +747,49 @@ std::pair<int, int> StateClassReachabilityGraph::get_transition_time_bounds(
 
 std::vector<size_t> StateClassReachabilityGraph::select_per_core(
     const std::set<size_t>& enabled) const {
-  std::map<int, std::vector<size_t>> per_core_group;
-  std::map<int, int> per_core_best_priority;
-
-  for (size_t t : enabled) {
-    const auto& transition = ptpn_.get_transition(t);
-    int core = transition.core;
-    if (core < 0) {
-      continue;
-    }
-
-    auto it = per_core_best_priority.find(core);
-    if (it == per_core_best_priority.end() ||
-        transition.priority > it->second) {
-      per_core_best_priority[core] = transition.priority;
-      per_core_group[core] = {t};
-    } else if (transition.priority == it->second) {
-      per_core_group[core].push_back(t);
-    }
-  }
-
-  std::vector<size_t> chosen;
-  for (const auto& [core, group] : per_core_group) {
-    for (size_t t : group) {
-      chosen.push_back(t);
-    }
-  }
-
-  for (size_t t : enabled) {
-    const auto& transition = ptpn_.get_transition(t);
-    if (transition.core < 0) {
-      chosen.push_back(t);
-    }
-  }
-
-  return chosen;
+  std::set<size_t> result = SchedulingAlgorithms::select_active_per_core(enabled, ptpn_);
+  return std::vector<size_t>(result.begin(), result.end());
 }
 
 void StateClassReachabilityGraph::apply_preemption(
     const std::vector<size_t>& chosen, StateClass& state) const {
-  state.suspended.clear();
+  // 使用新的调度算法处理抢占
+  std::set<size_t> active = SchedulingAlgorithms::select_active_per_core(
+      state.enabled, ptpn_);
+  std::set<size_t> suspended = SchedulingAlgorithms::compute_suspended(
+      state.enabled, active, ptpn_);
+  state.active = active;
+  state.suspended = suspended;
 
-  const size_t num_transitions = ptpn_.num_transitions();
-  for (size_t u = 0; u < num_transitions; ++u) {
-    const auto& transition_u = ptpn_.get_transition(u);
-
-    if (!transition_u.suspendable) {
-      continue;
-    }
-
-    for (size_t t : chosen) {
-      const auto& transition_t = ptpn_.get_transition(t);
-
-      if (transition_t.core == transition_u.core &&
-          has_higher_priority(transition_t, transition_u)) {
-        state.suspended.insert(u);
-        spdlog::debug("    {}: preempted by {}, freeze",
-                      format_transitions({u}, false),
-                      format_transitions({t}, false));
-        break;
-      }
+  // 更新时钟状态
+  for (size_t t : state.active) {
+    if (t < state.clocks.size()) {
+      state.clocks[t].state = ClockState::ACTIVE;
     }
   }
-}
-
-bool StateClassReachabilityGraph::is_suspended(
-    size_t trans_idx, const std::vector<size_t>& enabled) const {
-  const auto& transition = ptpn_.get_transition(trans_idx);
-
-  if (!transition.suspendable) {
-    return false;
-  }
-
-  for (size_t other_t : enabled) {
-    if (other_t == trans_idx) {
-      continue;
-    }
-
-    const auto& other_trans = ptpn_.get_transition(other_t);
-    if (other_trans.core == transition.core && !other_trans.suspendable &&
-        has_higher_priority(other_trans, transition)) {
-      return true;
+  for (size_t t : state.suspended) {
+    if (t < state.clocks.size()) {
+      state.clocks[t].state = ClockState::SUSPENDED;
     }
   }
-
-  return false;
 }
 
 std::set<size_t> StateClassReachabilityGraph::compute_effective_enabled(
     const std::vector<size_t>& raw_enabled) const {
-  std::set<size_t> raw_enabled_set(raw_enabled.begin(), raw_enabled.end());
-  std::vector<size_t> chosen = select_per_core(raw_enabled_set);
-  return std::set<size_t>(chosen.begin(), chosen.end());
+  std::set<size_t> raw_set(raw_enabled.begin(), raw_enabled.end());
+  return SchedulingAlgorithms::select_active_per_core(raw_set, ptpn_);
 }
 
 std::set<size_t> StateClassReachabilityGraph::compute_suspended_transitions(
     const std::vector<size_t>& raw_enabled,
     const std::set<size_t>& effective_enabled) const {
-  std::set<size_t> suspended;
-  for (size_t t : raw_enabled) {
-    if (effective_enabled.find(t) != effective_enabled.end()) {
-      continue;
-    }
-
-    const auto& transition = ptpn_.get_transition(t);
-    if (!transition.suspendable) {
-      continue;
-    }
-    if (transition.core < 0) {
-      continue;
-    }
-
-    for (size_t chosen : effective_enabled) {
-      const auto& chosen_transition = ptpn_.get_transition(chosen);
-      if (chosen_transition.core < 0) {
-        continue;
-      }
-      if (chosen_transition.core == transition.core &&
-          has_higher_priority(chosen_transition, transition)) {
-        suspended.insert(t);
-        break;
-      }
-    }
-  }
-  return suspended;
-}
-
-void StateClassReachabilityGraph::reconcile_timing_domains(
-    StateClass& state,
-    const std::set<size_t>& previous_effective_enabled,
-    const std::set<size_t>& previous_suspended) const {
-  // 已弃用：使用新的 clocks/active/suspended 结构
-  // 此方法保留用于兼容性
-}
-
-void StateClassReachabilityGraph::rebuild_post_fire_timing_domains(
-    StateClass& state, const StateClass& source_state, size_t fired_transition,
-    const std::set<size_t>& previous_effective_enabled,
-    const std::set<size_t>& previous_suspended) const {
-  // 已弃用：使用新的 clocks/active/suspended 结构
-  // 此方法保留用于兼容性
+  std::set<size_t> raw_set(raw_enabled.begin(), raw_enabled.end());
+  return SchedulingAlgorithms::compute_suspended(raw_set, effective_enabled, ptpn_);
 }
 
 bool StateClassReachabilityGraph::maximal_time_elapse(StateClass& state, double& dt) const {
-  // 使用新的 advance_time 替代
   dt = advance_time(state);
   return dt > 0;
-}
-
-std::pair<DBM, DBM> StateClassReachabilityGraph::time_advance(
-    const StateClass& state) const {
-  // 已弃用：使用新的 advance_time
-  // 返回空 DBM
-  return {DBM(1), DBM(1)};
-}
-
-bool StateClassReachabilityGraph::check_dbm_time_intersection(
-    const DBM& z1, size_t trans_idx) const {
-  // 已弃用：使用 fire_with_time 中的时钟检查
-  return true;
-}
-
-DBM StateClassReachabilityGraph::restrict_for_firing(const DBM& z,
-                                                     size_t trans_idx) const {
-  // 已弃用：使用新的时钟约束检查
-  return DBM(1);
-}
-
-double StateClassReachabilityGraph::compute_firing_time(
-    const DBM& z1_up, size_t trans_idx) const {
-  // 已弃用：使用 fire_with_time 中的计算
-  const auto& transition = ptpn_.get_transition(trans_idx);
-  return static_cast<double>(transition.time_interval.earliest);
-}
-
-void StateClassReachabilityGraph::recompute_suspension(StateClass& state) const {
-  recompute_enabled_sets(state);
-}
-
-DBM StateClassReachabilityGraph::get_invariants_for(
-    const std::vector<int>& marking) const {
-  size_t num_transitions = ptpn_.num_transitions();
-  DBM invariants(num_transitions + 1);
-  return invariants;
-}
-
-StateClass StateClassReachabilityGraph::fire_transition(const StateClass& state,
-                                                        size_t trans_idx,
-                                                        double firing_time) {
-  auto [ok, new_state, tau] = fire_with_time(trans_idx, state);
-  if (ok) {
-    new_state.cumulative_time = state.cumulative_time + firing_time - tau;
-    return new_state;
-  }
-  return StateClass();
-}
-
-void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
-  // 已弃用：使用 recompute_enabled_sets
-  recompute_enabled_sets(state);
 }
 
 std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_dbm(
@@ -971,16 +801,24 @@ void StateClassReachabilityGraph::compute_enabled_and_clocks(StateClass& state) 
   recompute_enabled_sets(state);
 }
 
-bool StateClassReachabilityGraph::should_prune(
-    const StateClass& state,
-    const std::set<StateClass>& visited) const {
-  // 使用新的 active 集合检查
-  if (state.active.empty()) {
-    spdlog::info("    State {} pruned due to no active transitions", state.state_id);
-    return true;
-  }
+bool StateClassReachabilityGraph::is_suspended(
+    size_t trans_idx, const std::vector<size_t>& enabled) const {
+  const auto& trans = ptpn_.get_transition(trans_idx);
+  if (!trans.suspendable) return false;
 
-  return visited.find(state) != visited.end();
+  for (size_t other_t : enabled) {
+    if (other_t == trans_idx) continue;
+    const auto& other_trans = ptpn_.get_transition(other_t);
+    if (other_trans.core == trans.core && other_trans.suspendable &&
+        other_trans.priority > trans.priority) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void StateClassReachabilityGraph::recompute_suspension(StateClass& state) const {
+  recompute_enabled_sets(state);
 }
 
 // =======================================================================

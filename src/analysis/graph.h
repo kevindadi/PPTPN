@@ -269,7 +269,6 @@ class StateClassReachabilityGraph {
     size_t dedup_hits_count = 0;
     size_t dedup_misses_count = 0;
     size_t transition_enabled_checks = 0;
-    size_t dbm_minimize_calls = 0;
     bool truncated = false;
   };
 
@@ -294,11 +293,6 @@ class StateClassReachabilityGraph {
 
   CanonicalizationMode canonicalization_mode_ = CanonicalizationMode::EQUALITY;
 
-  StateClass create_initial_state_class();
-
-  void explore_successors(const StateClass& current_state,
-                         std::set<StateClass>& visited);
-
   [[nodiscard]] bool is_transition_enabled(const StateClass& state,
                                           size_t trans_idx) const;
 
@@ -306,23 +300,14 @@ class StateClassReachabilityGraph {
                                                  size_t trans_idx) const;
 
   std::vector<size_t> select_per_core(const std::set<size_t>& enabled) const;
-
   void apply_preemption(const std::vector<size_t>& chosen,
                        StateClass& state) const;
 
-  void normalize_scheduling_state(StateClass& state) const;
   std::set<size_t> compute_effective_enabled(
       const std::vector<size_t>& raw_enabled) const;
   std::set<size_t> compute_suspended_transitions(
       const std::vector<size_t>& raw_enabled,
       const std::set<size_t>& effective_enabled) const;
-  void reconcile_timing_domains(StateClass& state,
-                                const std::set<size_t>& previous_effective_enabled,
-                                const std::set<size_t>& previous_suspended) const;
-  void rebuild_post_fire_timing_domains(
-      StateClass& state, const StateClass& source_state, size_t fired_transition,
-      const std::set<size_t>& previous_effective_enabled,
-      const std::set<size_t>& previous_suspended) const;
 
   bool maximal_time_elapse(StateClass& state, double& dt) const;
 
@@ -331,29 +316,11 @@ class StateClassReachabilityGraph {
 
   void compute_enabled_and_clocks(StateClass& state);
 
-  std::pair<DBM, DBM> time_advance(const StateClass& state) const;
-
   bool is_suspended(size_t trans_idx, const std::vector<size_t>& enabled) const;
 
-  bool check_dbm_time_intersection(const DBM& z1, size_t trans_idx) const;
-
-  DBM restrict_for_firing(const DBM& z, size_t trans_idx) const;
-
-  double compute_firing_time(const DBM& z1_up, size_t trans_idx) const;
-
   void recompute_suspension(StateClass& state) const;
-
-  DBM get_invariants_for(const std::vector<int>& marking) const;
-
-  StateClass fire_transition(const StateClass& state, size_t trans_idx,
-                             double firing_time);
-
-  void update_dbm_constraints(StateClass& state);
   std::vector<size_t> collect_enabled_transitions(
       const StateClass& state) const;
-
-  bool should_prune(const StateClass& state,
-                    const std::set<StateClass>& visited) const;
 
   SCVertex find_or_add_vertex(const StateClass& state);
   StateExpansionResult expand_state_candidates(const StateClass& cur);
