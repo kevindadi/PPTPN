@@ -61,6 +61,8 @@ add_library(PTPN_core STATIC
     src/analysis/dbm.cpp
     src/analysis/state.cpp
     src/analysis/graph.cpp
+    src/analysis/canonicalization.cpp
+    src/analysis/scheduling.cpp
 )
 target_include_directories(PTPN_core PUBLIC src)
 target_link_libraries(PTPN_core PUBLIC

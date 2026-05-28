@@ -28,6 +28,7 @@
 #include "petri/export_ptpn.h"
 #include "petri/export_romeo.h"
 #include "tdg2pn/tdg2pn.h"
+#include "analysis/graph.h"
 #include "analysis/state.h"
 
 using namespace std;
@@ -107,6 +108,7 @@ int main(int argc, char* argv[]) {
   size_t thread_count = 1;
   string tina_file, romeo_file;
   bool debug_mode = false;
+  string canonicalization_mode = "equality";
 
   app.add_option("-f,--file", input_file, "Input JSON file")
       ->required(true);
@@ -117,6 +119,9 @@ int main(int argc, char* argv[]) {
   app.add_option("--tina", tina_file, "Export to Tina .net format");
   app.add_option("--romeo", romeo_file, "Export to Romeo CTS format");
   app.add_flag("--debug", debug_mode, "Enable debug logging");
+  app.add_option("--canonicalization", canonicalization_mode,
+                 "Canonicalization mode: equality, max-lower, or intersection (default: equality)")
+      ->check(CLI::IsMember({"equality", "max-lower", "intersection"}));
   app.set_version_flag("-v,--version", "1.0.0");
 
   CLI11_PARSE(app, argc, argv);
@@ -129,6 +134,14 @@ int main(int argc, char* argv[]) {
   spdlog::info("==========================================");
   spdlog::info("PTPN - Priority Timed Petri Net Analyzer");
   spdlog::info("==========================================");
+
+  state_class::CanonicalizationMode canonicalization =
+      state_class::CanonicalizationMode::EQUALITY;
+  if (canonicalization_mode == "max-lower") {
+    canonicalization = state_class::CanonicalizationMode::MAX_LOWER_BOUND;
+  } else if (canonicalization_mode == "intersection") {
+    canonicalization = state_class::CanonicalizationMode::INTERSECTION;
+  }
 
   size_t initial_memory = get_memory_usage();
   auto start_time = chrono::high_resolution_clock::now();
@@ -209,6 +222,8 @@ int main(int argc, char* argv[]) {
   }
 
   state_class::StateClassReachabilityGraph reachability_graph(ptpn);
+  reachability_graph.set_canonicalization_mode(canonicalization);
+  spdlog::info("[SCG] Canonicalization mode: {}", canonicalization_mode);
   size_t state_count = reachability_graph.build(max_states, thread_count);
   const auto& reachability_stats = reachability_graph.get_statistics();
   if (reachability_stats.truncated) {

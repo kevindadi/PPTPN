@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 
+#include "analysis/graph.h"
 #include "analysis/state.h"
 #include "json/json.h"
 #include "petri/export_dot.h"
