@@ -137,7 +137,7 @@ class StateClassReachabilityGraph {
    * 从 PTPN 的初始标识创建 StateClass。
    * 内部调用 create_initial_state_class()。
    */
-  [[nodiscard]] StateClass create_initial_state() const;
+  [[nodiscard]] StateClass create_initial_state();
 
   // =======================================================================
   // 核心算法 - 适配新的 StateClass 结构（clocks/active/suspended）

@@ -10,13 +10,16 @@
 #include <vector>
 #include <cmath>
 
+#include "scheduling.h"
+
 namespace state_class {
 
 namespace {
 constexpr int kControlTransitionPriority = 0;
 
+// State key helper using new clocks/active/suspended structure
 StateKey make_state_key(const StateClass& state) {
-  return {state.marking, state.Z1, state.Z2, state.enabled, state.suspended};
+  return {state.marking, state.clocks, state.enabled, state.suspended};
 }
 
 void add_expansion_stats(StateClassReachabilityGraph::Statistics& target,
@@ -90,64 +93,36 @@ std::string format_transition_vector(const std::vector<size_t>& trans_indices,
   return result;
 }
 
-std::string format_dbm_bound(int value) {
-  return value == INF_TIME ? "inf" : std::to_string(value);
-}
-
-std::string format_dbm_transition_summary(const DBM& dbm,
-                                          const std::set<size_t>& transitions,
-                                          const petri::PTPN& ptpn) {
-  if (transitions.empty()) {
-    return "(none)";
-  }
-
+std::string format_transition_clock_summary(const StateClass& state,
+                                           const petri::PTPN& ptpn) {
   std::ostringstream oss;
   bool first = true;
-  for (size_t t : transitions) {
-    const size_t clock_idx = t + 1;
-    if (clock_idx >= dbm.size()) {
-      continue;
-    }
 
-    if (!first) {
-      oss << "; ";
-    }
+  for (size_t t : state.enabled) {
+    if (t >= state.clocks.size()) continue;
+
+    if (!first) oss << "; ";
     first = false;
 
-    const auto& transition = ptpn.get_transition(t);
-    const int lower = -dbm.get_constraint(0, clock_idx);
-    const int upper = dbm.get_constraint(clock_idx, 0);
-    oss << "T" << t << "(" << transition.name << ")"
-        << "[" << lower << ", " << format_dbm_bound(upper) << "]";
-    if (dbm.is_frozen(clock_idx)) {
-      oss << " frozen";
+    const auto& trans = ptpn.get_transition(t);
+    const auto& clock = state.clocks[t];
+    std::string state_str;
+    switch (clock.state) {
+      case ClockState::UNACTIVE: state_str = "UNACTIVE"; break;
+      case ClockState::ACTIVE: state_str = "ACTIVE"; break;
+      case ClockState::SUSPENDED: state_str = "SUSPENDED"; break;
     }
+
+    std::string ub_str = (clock.upper_bound == INF_TIME)
+                             ? "inf"
+                             : std::to_string(clock.upper_bound);
+
+    oss << "T" << t << "(" << trans.name << ")"
+        << "[" << clock.lower_bound << ", " << ub_str << "]"
+        << "@" << state_str;
   }
 
   return first ? "(none)" : oss.str();
-}
-
-std::string format_semantic_dbm_summary(const StateClass& state,
-                                        const petri::PTPN& ptpn) {
-  std::set<size_t> active_non_suspendable;
-  std::set<size_t> active_suspendable;
-
-  for (size_t t : state.enabled) {
-    const auto& transition = ptpn.get_transition(t);
-    if (transition.suspendable) {
-      active_suspendable.insert(t);
-    } else {
-      active_non_suspendable.insert(t);
-    }
-  }
-  for (size_t t : state.suspended) {
-    active_suspendable.insert(t);
-  }
-
-  std::ostringstream oss;
-  oss << "Z1=" << format_dbm_transition_summary(state.Z1, active_non_suspendable, ptpn)
-      << " | Z2=" << format_dbm_transition_summary(state.Z2, active_suspendable, ptpn);
-  return oss.str();
 }
 
 }  // namespace
@@ -161,6 +136,7 @@ static void info(const std::string& msg) {
 }
 
 // ===== StateClassReachabilityGraph Implementation =====
+
 std::string StateClassReachabilityGraph::format_marking(
     const std::vector<int>& marking) {
   std::string result = "[";
@@ -229,11 +205,12 @@ void StateClassReachabilityGraph::log_state_class_details(
   spdlog::debug("{}========== State Class Details: ID={} ==========", prefix, state.state_id);
   spdlog::debug("{}Places: {}", prefix, format_places(state.marking));
   spdlog::debug("{}Enabled: {}", prefix, format_transitions(state.enabled));
+  spdlog::debug("{}Active: {}", prefix, format_transitions(state.active));
   if (!state.suspended.empty()) {
     spdlog::debug("{}Suspended: {}", prefix, format_transitions(state.suspended));
   }
+  spdlog::debug("{}Clocks: {}", prefix, format_transition_clock_summary(state, ptpn_));
   spdlog::debug("{}Cumulative time: {}", prefix, state.cumulative_time);
-  spdlog::debug("{}Timing: {}", prefix, format_semantic_dbm_summary(state, ptpn_));
   spdlog::debug("{}==========================================", prefix);
 }
 
@@ -247,12 +224,12 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
 size_t StateClassReachabilityGraph::build(size_t max_states,
                                           size_t thread_count) {
   stats_ = Statistics();
-  reset_dbm_instrumentation();
   graph_.clear();
   state_to_vertex_.clear();
   next_state_id_ = 0;
 
-  StateClass s0 = canonicalize(create_initial_state_class());
+  StateClass s0 = create_initial_state();
+  s0 = canonicalize(s0, s0);
 
   SCVertex s0_vertex = find_or_add_vertex(s0);
   initial_vertex_ = s0_vertex;
@@ -373,8 +350,6 @@ size_t StateClassReachabilityGraph::build(size_t max_states,
     frontier = std::move(next_frontier);
   }
 
-  stats_.dbm_minimize_calls = get_dbm_instrumentation().minimize_calls;
-
   if (stats_.truncated) {
     spdlog::warn(
         "[STATE] Build truncated at max_states={} with {} states and {} frontier states remaining",
@@ -388,8 +363,6 @@ size_t StateClassReachabilityGraph::build(size_t max_states,
        ", dedup_misses=" + std::to_string(stats_.dedup_misses_count) +
        ", is_enabled_checks=" +
        std::to_string(stats_.transition_enabled_checks) +
-       ", dbm_minimize_calls=" +
-       std::to_string(stats_.dbm_minimize_calls) +
        ", max_frontier_size=" + std::to_string(max_frontier_size) +
        ", truncated=" + (stats_.truncated ? "true" : "false"));
 
@@ -401,29 +374,37 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
   const size_t enabled_checks_before = stats_.transition_enabled_checks;
 
   StateExpansionResult result;
-  StateClass scheduled = cur.copy();
-  normalize_scheduling_state(scheduled);
 
+  // 复制状态并重新计算调度
+  StateClass scheduled = cur.copy();
+  recompute_enabled_sets(scheduled);
+
+  // 从 enabled 集合中选择要考虑的变迁
   std::vector<size_t> chosen(scheduled.enabled.begin(), scheduled.enabled.end());
   result.chosen_count = chosen.size();
   result.enabled_transitions_count += chosen.size();
 
+  // 时间推进（只推进 active 时钟，suspended 冻结）
   double dt = 0;
-  maximal_time_elapse(scheduled, dt);
+  advance_time(scheduled);
+  dt = scheduled.cumulative_time - cur.cumulative_time;
 
-  if (pruning_enabled_ && scheduled.Z1.is_empty()) {
-    debug("  [Prune] Z1 empty, skip");
+  spdlog::debug("  Time advanced by: {} (cumulative: {})", dt, scheduled.cumulative_time);
+
+  // 检查是否有活跃时钟（死锁检测）
+  if (pruning_enabled_ && scheduled.active.empty()) {
+    debug("  [Prune] No active transitions, skip");
     result.pruned_states_count++;
     result.transition_enabled_checks +=
         stats_.transition_enabled_checks - enabled_checks_before;
     return result;
-  } else if (!pruning_enabled_ && scheduled.Z1.is_empty()) {
-    debug("  [Warning] Z1 empty but pruning disabled");
   }
 
   const StateKey source_key = make_state_key(cur);
+
+  // 对每个候选变迁尝试激发
   for (size_t t : chosen) {
-    auto [ok, nxt, tau] = fire_with_dbm(t, scheduled);
+    auto [ok, nxt, tau] = fire_with_time(t, scheduled);
 
     if (!ok) {
       if (pruning_enabled_) {
@@ -437,7 +418,8 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
       continue;
     }
 
-    StateClass canonical_nxt = canonicalize(nxt);
+    // 使用规范化模式合并状态
+    StateClass canonical_nxt = canonicalize(nxt, nxt);
     result.candidates.push_back({source_key, canonical_nxt,
                                  TransitionEdge(static_cast<int>(t), tau), t});
     result.fired_count++;
@@ -448,24 +430,292 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
   return result;
 }
 
-StateClass StateClassReachabilityGraph::create_initial_state_class() {
+// =======================================================================
+// 核心算法实现
+// =======================================================================
+
+double StateClassReachabilityGraph::advance_time(StateClass& state) const {
+  // 1. 找到 active 集合中最紧的时间上界
+  int min_ub = INF_TIME;
+  for (size_t t : state.active) {
+    if (t < state.clocks.size()) {
+      min_ub = std::min(min_ub, state.clocks[t].upper_bound);
+    }
+  }
+
+  // 2. 如果没有上界或上界 <= 0，返回 0（死锁）
+  if (min_ub == INF_TIME || min_ub <= 0) {
+    return 0.0;
+  }
+
+  // 3. 所有 active 时钟流逝 min_ub
+  for (size_t t : state.active) {
+    if (t < state.clocks.size()) {
+      state.clocks[t].lower_bound += min_ub;
+      state.clocks[t].upper_bound += min_ub;
+    }
+  }
+  // suspended 时钟保持不变（冻结）
+
+  // 4. 累计时间
+  state.cumulative_time += min_ub;
+
+  spdlog::debug("  advance_time: dt={}, new cumulative={}", min_ub, state.cumulative_time);
+
+  return static_cast<double>(min_ub);
+}
+
+std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_time(
+    size_t t, const StateClass& from) const {
+  // 检查时钟是否在有效状态
+  if (t >= from.clocks.size()) {
+    return {false, StateClass(), 0.0};
+  }
+
+  const auto& clock = from.clocks[t];
+  if (clock.state == ClockState::UNACTIVE) {
+    return {false, StateClass(), 0.0};
+  }
+
+  const auto& trans = ptpn_.get_transition(t);
+  int alpha = trans.time_interval.earliest;
+  int beta = (trans.time_interval.latest == petri::INF)
+                 ? INF_TIME
+                 : trans.time_interval.latest;
+
+  // 计算触发时间：max(earliest, lower_bound)
+  int firing_lower = std::max(alpha, clock.lower_bound);
+
+  // 检查窗口是否有效
+  if (beta != INF_TIME && firing_lower > beta) {
+    if (pruning_enabled_) {
+      spdlog::debug("  {}: firing time {} > latest {}, skip",
+                    format_transitions({t}, false), firing_lower, beta);
+    }
+    return {false, StateClass(), 0.0};
+  }
+
+  // 激发时间
+  double fire_time = static_cast<double>(firing_lower);
+
+  // 生成新状态
+  StateClass to = from.copy();
+  to.marking = petri::PTPN::fire(from.marking, ptpn_, t);
+
+  if (to.marking.empty()) {
+    spdlog::debug("  {}: marking empty after fire", format_transitions({t}, false));
+    return {false, StateClass(), 0.0};
+  }
+
+  // 更新时钟：激发后重置该变迁的时钟
+  // 上界设为 beta（latest），下界从 0 开始
+  if (t < to.clocks.size()) {
+    to.clocks[t].lower_bound = 0;
+    to.clocks[t].upper_bound = beta;
+    to.clocks[t].state = ClockState::UNACTIVE;  // 刚激发的变迁暂时设为 UNACTIVE
+  }
+
+  // 累计时间
+  to.cumulative_time = from.cumulative_time + fire_time;
+
+  // 重新计算使能/活跃/挂起集合
+  recompute_enabled_sets(to);
+
+  spdlog::debug("  {}: fired successfully @time {}, new cumulative={}",
+                format_transitions({t}, false), fire_time, to.cumulative_time);
+
+  return {true, to, fire_time};
+}
+
+void StateClassReachabilityGraph::recompute_enabled_sets(StateClass& state) const {
+  recompute_enabled_sets_from_marking(state.marking, state);
+}
+
+void StateClassReachabilityGraph::recompute_enabled_sets_from_marking(
+    const std::vector<int>& marking, StateClass& state) const {
+  // 1. 从 marking 计算原始使能变迁
+  std::vector<size_t> raw_enabled;
+  const size_t num_transitions = ptpn_.num_transitions();
+
+  for (size_t t = 0; t < num_transitions; ++t) {
+    if (petri::PTPN::is_enabled(marking, ptpn_, t)) {
+      raw_enabled.push_back(t);
+    }
+  }
+
+  std::set<size_t> raw_set(raw_enabled.begin(), raw_enabled.end());
+
+  // 2. 确保 clocks 大小正确
+  if (state.clocks.size() < num_transitions) {
+    state.clocks.resize(num_transitions);
+  }
+
+  // 3. 初始化新使能变迁的时钟
+  for (size_t t : raw_enabled) {
+    if (t < state.clocks.size()) {
+      // 如果时钟是 UNACTIVE，初始化它
+      if (state.clocks[t].state == ClockState::UNACTIVE) {
+        const auto& trans = ptpn_.get_transition(t);
+        int beta = (trans.time_interval.latest == petri::INF)
+                      ? INF_TIME
+                      : trans.time_interval.latest;
+        state.clocks[t].lower_bound = 0;
+        state.clocks[t].upper_bound = beta;
+        // 默认设为 ACTIVE（如果没有更高优先级抢占）
+      }
+    }
+  }
+
+  // 4. 使用调度算法选择 active 和 suspended
+  state.enabled = std::set<size_t>(raw_enabled.begin(), raw_enabled.end());
+
+  // 使用 SchedulingAlgorithms::select_active_per_core
+  std::set<size_t> active_set = SchedulingAlgorithms::select_active_per_core(
+      state.enabled, ptpn_);
+
+  // 使用 SchedulingAlgorithms::compute_suspended
+  std::set<size_t> suspended_set = SchedulingAlgorithms::compute_suspended(
+      state.enabled, active_set, ptpn_);
+
+  // 5. 更新集合
+  state.active = active_set;
+  state.suspended = suspended_set;
+
+  // 6. 更新时钟状态
+  // active 时钟设为 ACTIVE
+  for (size_t t : state.active) {
+    if (t < state.clocks.size()) {
+      if (state.clocks[t].state != ClockState::ACTIVE) {
+        state.clocks[t].state = ClockState::ACTIVE;
+      }
+    }
+  }
+
+  // suspended 时钟设为 SUSPENDED（保持冻结值）
+  for (size_t t : state.suspended) {
+    if (t < state.clocks.size()) {
+      if (state.clocks[t].state != ClockState::SUSPENDED) {
+        state.clocks[t].state = ClockState::SUSPENDED;
+      }
+    }
+  }
+
+  spdlog::debug("  recompute_enabled: enabled={}, active={}, suspended={}",
+                state.enabled.size(), state.active.size(), state.suspended.size());
+}
+
+// =======================================================================
+// 调度相关（使用 SchedulingAlgorithms）
+// =======================================================================
+
+std::set<size_t> StateClassReachabilityGraph::select_active_per_core(
+    const std::set<size_t>& enabled) const {
+  return SchedulingAlgorithms::select_active_per_core(enabled, ptpn_);
+}
+
+std::set<size_t> StateClassReachabilityGraph::compute_suspended(
+    const std::set<size_t>& enabled,
+    const std::set<size_t>& active) const {
+  return SchedulingAlgorithms::compute_suspended(enabled, active, ptpn_);
+}
+
+// =======================================================================
+// 抢占/恢复语义
+// =======================================================================
+
+void StateClassReachabilityGraph::suspend_transition(size_t t, StateClass& state) const {
+  if (state.clocks[t].state != ClockState::ACTIVE) {
+    return;
+  }
+
+  state.active.erase(t);
+  state.suspended.insert(t);
+  state.clocks[t].state = ClockState::SUSPENDED;
+
+  spdlog::debug("  suspend_transition: T{} now frozen", t);
+}
+
+void StateClassReachabilityGraph::restore_transition(size_t t, StateClass& state) const {
+  if (state.clocks[t].state != ClockState::SUSPENDED) {
+    return;
+  }
+
+  state.suspended.erase(t);
+  state.active.insert(t);
+  state.clocks[t].state = ClockState::ACTIVE;
+
+  spdlog::debug("  restore_transition: T{} resumed", t);
+}
+
+// =======================================================================
+// 规范化
+// =======================================================================
+
+StateClass StateClassReachabilityGraph::canonicalize(
+    const StateClass& a, const StateClass& b) const {
+  return ::state_class::canonicalize(a, b, canonicalization_mode_);
+}
+
+bool StateClassReachabilityGraph::are_equivalent(
+    const StateClass& a, const StateClass& b) const {
+  return ::state_class::are_equivalent(a, b, canonicalization_mode_);
+}
+
+void StateClassReachabilityGraph::set_canonicalization_mode(CanonicalizationMode mode) {
+  canonicalization_mode_ = mode;
+}
+
+CanonicalizationMode StateClassReachabilityGraph::get_canonicalization_mode() const {
+  return canonicalization_mode_;
+}
+
+void StateClassReachabilityGraph::set_pruning_enabled(bool enabled) {
+  pruning_enabled_ = enabled;
+}
+
+// =======================================================================
+// 状态工厂
+// =======================================================================
+
+StateClass StateClassReachabilityGraph::create_initial_state() {
   StateClass initial;
   initial.marking = ptpn_.get_marking();
-  initial.state_id = next_state_id_++;
   initial.cumulative_time = 0.0;
 
-  size_t num_transitions = ptpn_.num_transitions();
+  const size_t num_transitions = ptpn_.num_transitions();
+  initial.clocks.resize(num_transitions);
+  initial.state_id = next_state_id_++;
 
-  initial.Z1.resize(num_transitions + 1);
-  initial.Z2.resize(num_transitions + 1);
+  // 初始化调度状态
+  recompute_enabled_sets(initial);
 
-  normalize_scheduling_state(initial);
+  // 设置初始时钟状态
+  for (size_t t : initial.enabled) {
+    if (t < initial.clocks.size()) {
+      const auto& trans = ptpn_.get_transition(t);
+      int beta = (trans.time_interval.latest == petri::INF)
+                    ? INF_TIME
+                    : trans.time_interval.latest;
+      initial.clocks[t].lower_bound = 0;
+      initial.clocks[t].upper_bound = beta;
+
+      // 根据 active/suspended 设置状态
+      if (initial.active.count(t)) {
+        initial.clocks[t].state = ClockState::ACTIVE;
+      } else if (initial.suspended.count(t)) {
+        initial.clocks[t].state = ClockState::SUSPENDED;
+      } else {
+        initial.clocks[t].state = ClockState::UNACTIVE;
+      }
+    }
+  }
 
   log_state_class_details(initial, "[Initial] ");
 
   debug("[STATE] Create initial state:");
   spdlog::debug("  Marking: {}", format_marking(initial.marking));
   spdlog::debug("  Enabled: {}", format_transitions(initial.enabled));
+  spdlog::debug("  Active: {}", format_transitions(initial.active));
   if (!initial.suspended.empty()) {
     spdlog::debug("  Suspended: {}", format_transitions(initial.suspended));
   }
@@ -475,6 +725,10 @@ StateClass StateClassReachabilityGraph::create_initial_state_class() {
 
 void StateClassReachabilityGraph::explore_successors(
     const StateClass& current_state, std::set<StateClass>& visited) {}
+
+// =======================================================================
+// 辅助方法（保留兼容性）
+// =======================================================================
 
 bool StateClassReachabilityGraph::is_transition_enabled(
     const StateClass& state, size_t trans_idx) const {
@@ -504,8 +758,6 @@ std::pair<int, int> StateClassReachabilityGraph::get_transition_time_bounds(
 
   return {earliest, latest};
 }
-
-// ===== Scheduling =====
 
 std::vector<size_t> StateClassReachabilityGraph::select_per_core(
     const std::set<size_t>& enabled) const {
@@ -543,20 +795,6 @@ std::vector<size_t> StateClassReachabilityGraph::select_per_core(
     }
   }
 
-  spdlog::debug("  Per-core scheduling groups ({} total):", chosen.size());
-  for (const auto& [core, group] : per_core_group) {
-    spdlog::debug("    Core {}: {} transition(s)", core, group.size());
-  }
-  int control_count = 0;
-  for (size_t t : enabled) {
-    if (ptpn_.get_transition(t).core < 0) {
-      control_count++;
-    }
-  }
-  if (control_count > 0) {
-    spdlog::debug("    Core -1 (control): {} transition(s)", control_count);
-  }
-
   return chosen;
 }
 
@@ -564,7 +802,7 @@ void StateClassReachabilityGraph::apply_preemption(
     const std::vector<size_t>& chosen, StateClass& state) const {
   state.suspended.clear();
 
-  size_t num_transitions = ptpn_.num_transitions();
+  const size_t num_transitions = ptpn_.num_transitions();
   for (size_t u = 0; u < num_transitions; ++u) {
     const auto& transition_u = ptpn_.get_transition(u);
 
@@ -578,14 +816,6 @@ void StateClassReachabilityGraph::apply_preemption(
       if (transition_t.core == transition_u.core &&
           has_higher_priority(transition_t, transition_u)) {
         state.suspended.insert(u);
-
-        size_t clock_idx = u + 1;
-        if (clock_idx < state.Z1.size() && clock_idx < state.Z2.size()) {
-          state.Z1.copy_clock_constraints(clock_idx, state.Z2);
-          state.Z1.freeze_clock(clock_idx);
-          state.Z2.freeze_clock(clock_idx);
-        }
-
         spdlog::debug("    {}: preempted by {}, freeze",
                       format_transitions({u}, false),
                       format_transitions({t}, false));
@@ -616,169 +846,6 @@ bool StateClassReachabilityGraph::is_suspended(
   }
 
   return false;
-}
-
-bool StateClassReachabilityGraph::maximal_time_elapse(StateClass& state,
-                                                      double& dt) const {
-  int ub_star = INF_TIME;
-
-  size_t num_clocks = state.Z1.size();
-  size_t num_transitions = ptpn_.num_transitions();
-
-  for (size_t i = 1; i < num_clocks && i <= num_transitions; ++i) {
-    if (state.Z1.is_frozen(i)) {
-      continue;
-    }
-
-    int ub = state.Z1.get_constraint(i, 0);
-    if (ub != INF_TIME && ub < ub_star) {
-      ub_star = ub;
-    }
-  }
-
-  num_clocks = state.Z2.size();
-  for (size_t i = 1; i < num_clocks && i <= num_transitions; ++i) {
-    if (state.Z2.is_frozen(i)) {
-      continue;
-    }
-
-    int ub = state.Z2.get_constraint(i, 0);
-    if (ub != INF_TIME && ub < ub_star) {
-      ub_star = ub;
-    }
-  }
-
-  if (ub_star == INF_TIME || ub_star <= 0) {
-    dt = 0;
-    return false;
-  }
-
-  state.Z1.elapse_time(ub_star);
-  state.Z2.elapse_time(ub_star);
-  state.cumulative_time += ub_star;
-  dt = ub_star;
-
-  spdlog::debug("  Maximal time elapse: dt = {}", dt);
-
-  return true;
-}
-
-// ===== DBM / Timing Domain =====
-
-std::pair<DBM, DBM> StateClassReachabilityGraph::time_advance(
-    const StateClass& state) const {
-  DBM z1_up = state.Z1;
-  DBM z2_up = state.Z2;
-
-  DBM invariants = get_invariants_for(state.marking);
-
-  size_t num_clocks = z1_up.size();
-  size_t num_transitions = ptpn_.num_transitions();
-
-  size_t relaxed_count = 0;
-
-  for (size_t i = 1; i < num_clocks && i <= num_transitions; ++i) {
-    size_t trans_idx = i - 1;
-
-    bool is_enabled = false;
-    if (trans_idx < num_transitions) {
-      is_enabled = petri::PTPN::is_enabled(state.marking, ptpn_, trans_idx);
-    }
-
-    if (!is_enabled) {
-      continue;
-    }
-
-    if (z1_up.is_frozen(i)) {
-      spdlog::debug("    Clock{}({}): frozen, skip", i,
-                    format_transitions({trans_idx}, false));
-      continue;
-    }
-
-    const auto& transition = ptpn_.get_transition(trans_idx);
-    bool is_exact_time =
-        (transition.time_interval.earliest == transition.time_interval.latest &&
-         transition.time_interval.latest != petri::INF);
-
-    if (is_exact_time && !transition.suspendable) {
-      spdlog::debug("    Clock{}({}): exact time constraint", i,
-                    format_transitions({trans_idx}, false));
-      continue;
-    }
-
-    int current_upper = z1_up.get_constraint(i, 0);
-    if (current_upper != INF_TIME) {
-      z1_up.set_constraint(i, 0, INF_TIME);
-      relaxed_count++;
-      spdlog::debug("    Clock{}({}): relaxed {} -> INF", i,
-                    format_transitions({trans_idx}, false), current_upper);
-    }
-  }
-
-  spdlog::debug("  Time advance: relaxed {} clocks", relaxed_count);
-
-  if (invariants.size() > 0 && z1_up.size() == invariants.size()) {
-    z1_up = z1_up.intersection(invariants);
-  }
-
-  z1_up.minimize();
-  z2_up.minimize();
-
-  return {z1_up, z2_up};
-}
-
-bool StateClassReachabilityGraph::check_dbm_time_intersection(
-    const DBM& z1, size_t trans_idx) const {
-  size_t clock_idx = trans_idx + 1;
-  if (clock_idx >= z1.size()) {
-    return false;
-  }
-
-  DBM restricted = restrict_for_firing(z1, trans_idx);
-  return !restricted.is_empty();
-}
-
-DBM StateClassReachabilityGraph::restrict_for_firing(const DBM& z,
-                                                     size_t trans_idx) const {
-  const auto& transition = ptpn_.get_transition(trans_idx);
-  int alpha = transition.time_interval.earliest;
-  int beta = transition.time_interval.latest == petri::INF
-                 ? INF_TIME
-                 : transition.time_interval.latest;
-
-  return z.restrict_for_firing(trans_idx, alpha, beta);
-}
-
-double StateClassReachabilityGraph::compute_firing_time(
-    const DBM& z1_up, size_t trans_idx) const {
-  const auto& transition = ptpn_.get_transition(trans_idx);
-
-  size_t clock_idx = trans_idx + 1;
-  if (clock_idx >= z1_up.size()) {
-    return static_cast<double>(transition.time_interval.earliest);
-  }
-
-  int alpha = transition.time_interval.earliest;
-  int beta = transition.time_interval.latest == petri::INF
-                 ? INF_TIME
-                 : transition.time_interval.latest;
-
-  int dbm_lower = -z1_up.get_constraint(0, clock_idx);
-  int firing_time_int = std::max(alpha, dbm_lower);
-
-  if (beta != INF_TIME && firing_time_int > beta) {
-    firing_time_int = beta;
-  }
-
-  return static_cast<double>(firing_time_int);
-}
-
-StateClass StateClassReachabilityGraph::canonicalize(
-    const StateClass& state) const {
-  StateClass canonical = state;
-  canonical.Z1.minimize();
-  canonical.Z2.minimize();
-  return canonical;
 }
 
 std::set<size_t> StateClassReachabilityGraph::compute_effective_enabled(
@@ -824,358 +891,103 @@ void StateClassReachabilityGraph::reconcile_timing_domains(
     StateClass& state,
     const std::set<size_t>& previous_effective_enabled,
     const std::set<size_t>& previous_suspended) const {
-  const size_t num_transitions = ptpn_.num_transitions();
-
-  if (state.Z1.size() < num_transitions + 1) {
-    state.Z1.resize(num_transitions + 1);
-  }
-  if (state.Z2.size() < num_transitions + 1) {
-    state.Z2.resize(num_transitions + 1);
-  }
-
-  std::vector<bool> relevant_flags(num_transitions, false);
-  for (size_t t : state.enabled) {
-    relevant_flags[t] = true;
-  }
-  for (size_t t : state.suspended) {
-    relevant_flags[t] = true;
-  }
-
-  for (size_t t = 0; t < num_transitions; ++t) {
-    const size_t clock_idx = t + 1;
-    const bool was_effective =
-        previous_effective_enabled.find(t) != previous_effective_enabled.end();
-    const bool was_suspended =
-        previous_suspended.find(t) != previous_suspended.end();
-    const bool is_effective = state.enabled.find(t) != state.enabled.end();
-    const bool is_suspended_now = state.suspended.find(t) != state.suspended.end();
-    const bool is_relevant = relevant_flags[t];
-
-    if (!is_relevant) {
-      if (clock_idx < state.Z1.size()) {
-        state.Z1.forget_clock(clock_idx);
-        state.Z1.unfreeze_clock(clock_idx);
-      }
-      if (clock_idx < state.Z2.size()) {
-        state.Z2.forget_clock(clock_idx);
-        state.Z2.unfreeze_clock(clock_idx);
-      }
-      continue;
-    }
-
-    const auto& transition = ptpn_.get_transition(t);
-    const int alpha = transition.time_interval.earliest;
-    const int beta = transition.time_interval.latest == petri::INF
-                         ? INF_TIME
-                         : transition.time_interval.latest;
-    const bool became_relevant = (!was_effective && !was_suspended) &&
-                                 (is_effective || is_suspended_now);
-
-    if (transition.suspendable) {
-      if (became_relevant) {
-        state.Z2.set_constraint(0, clock_idx, alpha > 0 ? -alpha : 0);
-        state.Z2.set_constraint(clock_idx, 0, beta);
-      }
-
-      if (clock_idx < state.Z1.size()) {
-        state.Z1.forget_clock(clock_idx);
-        state.Z1.unfreeze_clock(clock_idx);
-      }
-
-      if (is_suspended_now) {
-        state.Z2.freeze_clock(clock_idx);
-      } else {
-        state.Z2.unfreeze_clock(clock_idx);
-      }
-    } else if (is_effective) {
-      if (became_relevant) {
-        state.Z1.set_constraint(0, clock_idx, alpha > 0 ? -alpha : 0);
-        state.Z1.set_constraint(clock_idx, 0, beta);
-      }
-
-      if (clock_idx < state.Z2.size()) {
-        state.Z2.forget_clock(clock_idx);
-        state.Z2.unfreeze_clock(clock_idx);
-      }
-      state.Z1.unfreeze_clock(clock_idx);
-    }
-  }
-
-  state.Z1.minimize();
-  state.Z2.minimize();
+  // 已弃用：使用新的 clocks/active/suspended 结构
+  // 此方法保留用于兼容性
 }
 
 void StateClassReachabilityGraph::rebuild_post_fire_timing_domains(
     StateClass& state, const StateClass& source_state, size_t fired_transition,
     const std::set<size_t>& previous_effective_enabled,
     const std::set<size_t>& previous_suspended) const {
-  const size_t num_transitions = ptpn_.num_transitions();
-
-  if (state.Z1.size() < num_transitions + 1) {
-    state.Z1.resize(num_transitions + 1);
-  }
-  if (state.Z2.size() < num_transitions + 1) {
-    state.Z2.resize(num_transitions + 1);
-  }
-
-  for (size_t t = 0; t < num_transitions; ++t) {
-    const size_t clock_idx = t + 1;
-    const bool was_effective =
-        previous_effective_enabled.find(t) != previous_effective_enabled.end();
-    const bool was_suspended =
-        previous_suspended.find(t) != previous_suspended.end();
-    const bool is_effective = state.enabled.find(t) != state.enabled.end();
-    const bool is_suspended_now = state.suspended.find(t) != state.suspended.end();
-    const bool was_relevant = was_effective || was_suspended;
-    const bool is_relevant = is_effective || is_suspended_now;
-    const bool preserved = t != fired_transition && was_relevant && is_relevant;
-    const auto& transition = ptpn_.get_transition(t);
-
-    if (!is_relevant) {
-      state.Z1.forget_clock(clock_idx);
-      state.Z1.unfreeze_clock(clock_idx);
-      state.Z2.forget_clock(clock_idx);
-      state.Z2.unfreeze_clock(clock_idx);
-      continue;
-    }
-
-    if (transition.suspendable) {
-      state.Z1.forget_clock(clock_idx);
-      state.Z1.unfreeze_clock(clock_idx);
-
-      if (preserved) {
-        source_state.Z2.copy_clock_constraints(clock_idx, state.Z2);
-      } else {
-        state.Z2.reset_clock(clock_idx);
-      }
-
-      if (is_suspended_now) {
-        state.Z2.freeze_clock(clock_idx);
-      } else {
-        state.Z2.unfreeze_clock(clock_idx);
-      }
-    } else {
-      state.Z2.forget_clock(clock_idx);
-      state.Z2.unfreeze_clock(clock_idx);
-
-      if (preserved) {
-        source_state.Z1.copy_clock_constraints(clock_idx, state.Z1);
-      } else {
-        state.Z1.reset_clock(clock_idx);
-      }
-
-      state.Z1.unfreeze_clock(clock_idx);
-    }
-  }
-
-  state.Z1.minimize();
-  state.Z2.minimize();
+  // 已弃用：使用新的 clocks/active/suspended 结构
+  // 此方法保留用于兼容性
 }
 
-void StateClassReachabilityGraph::normalize_scheduling_state(
-    StateClass& state) const {
-  const std::set<size_t> previous_effective_enabled = state.enabled;
-  const std::set<size_t> previous_suspended = state.suspended;
-
-  const std::vector<size_t> raw_enabled = collect_enabled_transitions(state);
-  state.enabled = compute_effective_enabled(raw_enabled);
-  state.suspended =
-      compute_suspended_transitions(raw_enabled, state.enabled);
-
-  spdlog::debug("  Raw enabled: {}",
-                format_transition_vector(raw_enabled, ptpn_));
-  spdlog::debug("  Effective enabled: {}",
-                format_transitions(state.enabled));
-  spdlog::debug("  Suspended: {}",
-                format_transitions(state.suspended));
-
-  reconcile_timing_domains(state, previous_effective_enabled,
-                           previous_suspended);
+bool StateClassReachabilityGraph::maximal_time_elapse(StateClass& state, double& dt) const {
+  // 使用新的 advance_time 替代
+  dt = advance_time(state);
+  return dt > 0;
 }
 
-void StateClassReachabilityGraph::recompute_suspension(
-    StateClass& state) const {
-  normalize_scheduling_state(state);
+std::pair<DBM, DBM> StateClassReachabilityGraph::time_advance(
+    const StateClass& state) const {
+  // 已弃用：使用新的 advance_time
+  // 返回空 DBM
+  return {DBM(1), DBM(1)};
+}
+
+bool StateClassReachabilityGraph::check_dbm_time_intersection(
+    const DBM& z1, size_t trans_idx) const {
+  // 已弃用：使用 fire_with_time 中的时钟检查
+  return true;
+}
+
+DBM StateClassReachabilityGraph::restrict_for_firing(const DBM& z,
+                                                     size_t trans_idx) const {
+  // 已弃用：使用新的时钟约束检查
+  return DBM(1);
+}
+
+double StateClassReachabilityGraph::compute_firing_time(
+    const DBM& z1_up, size_t trans_idx) const {
+  // 已弃用：使用 fire_with_time 中的计算
+  const auto& transition = ptpn_.get_transition(trans_idx);
+  return static_cast<double>(transition.time_interval.earliest);
+}
+
+void StateClassReachabilityGraph::recompute_suspension(StateClass& state) const {
+  recompute_enabled_sets(state);
 }
 
 DBM StateClassReachabilityGraph::get_invariants_for(
     const std::vector<int>& marking) const {
   size_t num_transitions = ptpn_.num_transitions();
   DBM invariants(num_transitions + 1);
-
   return invariants;
 }
 
 StateClass StateClassReachabilityGraph::fire_transition(const StateClass& state,
                                                         size_t trans_idx,
                                                         double firing_time) {
-  spdlog::debug("    Fire transition {} @time {}", format_transitions({trans_idx}, false), firing_time);
-
-  StateClass new_state = state;
-
-  new_state.marking = petri::PTPN::fire(state.marking, ptpn_, trans_idx);
-
-  spdlog::debug("      Marking: {} -> {}", format_marking(state.marking), format_marking(new_state.marking));
-
-  new_state.cumulative_time = state.cumulative_time + firing_time;
-
-  const auto& transition = ptpn_.get_transition(trans_idx);
-  size_t clock_idx = trans_idx + 1;
-
-  if (transition.suspendable) {
-    spdlog::debug("      Reset Z2 clock {}", clock_idx);
-    new_state.Z2.reset_clock(clock_idx);
-  } else {
-    spdlog::debug("      Reset Z1 clock {}", clock_idx);
-    new_state.Z1.reset_clock(clock_idx);
+  auto [ok, new_state, tau] = fire_with_time(trans_idx, state);
+  if (ok) {
+    new_state.cumulative_time = state.cumulative_time + firing_time - tau;
+    return new_state;
   }
-
-  update_dbm_constraints(new_state);
-
-  return new_state;
+  return StateClass();
 }
 
 void StateClassReachabilityGraph::update_dbm_constraints(StateClass& state) {
-  size_t num_transitions = ptpn_.num_transitions();
+  // 已弃用：使用 recompute_enabled_sets
+  recompute_enabled_sets(state);
+}
 
-  if (state.Z1.size() < num_transitions + 1) {
-    state.Z1.resize(num_transitions + 1);
-  }
-  if (state.Z2.size() < num_transitions + 1) {
-    state.Z2.resize(num_transitions + 1);
-  }
+std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_dbm(
+    size_t trans_idx, const StateClass& from_state) {
+  return fire_with_time(trans_idx, from_state);
+}
 
-  std::vector<size_t> enabled = collect_enabled_transitions(state);
-  std::vector<bool> enabled_flags(num_transitions, false);
-  for (size_t t : enabled) {
-    enabled_flags[t] = true;
-  }
-
-  bool z1_changed = false;
-  bool z2_changed = false;
-  size_t cleared_count = 0;
-  size_t initialized_count = 0;
-
-  for (size_t t = 0; t < num_transitions; ++t) {
-    if (!enabled_flags[t]) {
-      size_t clock_idx = t + 1;
-
-      if (clock_idx < state.Z1.size()) {
-        int upper = state.Z1.get_constraint(clock_idx, 0);
-        int lower = state.Z1.get_constraint(0, clock_idx);
-        if (upper != INF_TIME || lower != 0) {
-          state.Z1.forget_clock(clock_idx);
-          z1_changed = true;
-          cleared_count++;
-        }
-      }
-      if (clock_idx < state.Z2.size()) {
-        int upper = state.Z2.get_constraint(clock_idx, 0);
-        int lower = state.Z2.get_constraint(0, clock_idx);
-        if (upper != INF_TIME || lower != 0) {
-          state.Z2.forget_clock(clock_idx);
-          z2_changed = true;
-        }
-      }
-
-      state.Z1.unfreeze_clock(clock_idx);
-      state.Z2.unfreeze_clock(clock_idx);
-    }
-  }
-
-  if (cleared_count > 0) {
-    spdlog::debug("    Cleared {} clocks", cleared_count);
-  }
-
-  for (size_t trans_idx : enabled) {
-    const auto& transition = ptpn_.get_transition(trans_idx);
-    size_t clock_idx = trans_idx + 1;
-
-    bool clock_just_reset = false;
-    bool clock_exists = false;
-
-    if (transition.suspendable) {
-      if (clock_idx < state.Z2.size()) {
-        clock_exists = true;
-        int upper = state.Z2.get_constraint(clock_idx, 0);
-        int lower = -state.Z2.get_constraint(0, clock_idx);
-        if (upper == INF_TIME && lower == 0) {
-          clock_just_reset = true;
-        }
-      }
-    } else {
-      if (clock_idx < state.Z1.size()) {
-        clock_exists = true;
-        int upper = state.Z1.get_constraint(clock_idx, 0);
-        int lower = -state.Z1.get_constraint(0, clock_idx);
-        if (upper == INF_TIME && lower == 0) {
-          clock_just_reset = true;
-        }
-      }
-    }
-
-    if (!clock_exists || clock_just_reset) {
-      initialized_count++;
-      std::string latest_str = transition.time_interval.latest == petri::INF
-          ? "inf"
-          : std::to_string(transition.time_interval.latest);
-      spdlog::debug("    Initialize{} clock: [{}, {}]",
-                    format_transitions({trans_idx}, false),
-                    transition.time_interval.earliest,
-                    latest_str);
-
-      if (transition.suspendable) {
-        if (transition.time_interval.earliest > 0) {
-          state.Z2.set_constraint(0, clock_idx, -transition.time_interval.earliest);
-        } else {
-          state.Z2.set_constraint(0, clock_idx, 0);
-        }
-        if (transition.time_interval.latest != petri::INF) {
-          state.Z2.set_constraint(clock_idx, 0, transition.time_interval.latest);
-        } else {
-          state.Z2.set_constraint(clock_idx, 0, INF_TIME);
-        }
-        z2_changed = true;
-      } else {
-        if (transition.time_interval.earliest > 0) {
-          state.Z1.set_constraint(0, clock_idx, -transition.time_interval.earliest);
-        } else {
-          state.Z1.set_constraint(0, clock_idx, 0);
-        }
-        if (transition.time_interval.latest != petri::INF) {
-          state.Z1.set_constraint(clock_idx, 0, transition.time_interval.latest);
-        } else {
-          state.Z1.set_constraint(clock_idx, 0, INF_TIME);
-        }
-        z1_changed = true;
-      }
-    }
-  }
-
-  if (initialized_count > 0) {
-    spdlog::debug("    Initialized {} new enabled clocks", initialized_count);
-  }
-
-  if (z1_changed) {
-    state.Z1.minimize();
-  }
-  if (z2_changed) {
-    state.Z2.minimize();
-  }
+void StateClassReachabilityGraph::compute_enabled_and_clocks(StateClass& state) {
+  recompute_enabled_sets(state);
 }
 
 bool StateClassReachabilityGraph::should_prune(
-    const StateClass& state, const std::set<StateClass>& visited) const {
-  if (state.Z1.is_empty() || state.Z2.is_empty()) {
-    spdlog::info("    State {} pruned due to empty Z1/Z2", state.state_id);
+    const StateClass& state,
+    const std::set<StateClass>& visited) const {
+  // 使用新的 active 集合检查
+  if (state.active.empty()) {
+    spdlog::info("    State {} pruned due to no active transitions", state.state_id);
     return true;
   }
 
   return visited.find(state) != visited.end();
 }
 
-SCVertex StateClassReachabilityGraph::find_or_add_vertex(
-    const StateClass& state) {
+// =======================================================================
+// 持久化
+// =======================================================================
+
+SCVertex StateClassReachabilityGraph::find_or_add_vertex(const StateClass& state) {
   auto key = make_state_key(state);
   auto it = state_to_vertex_.find(key);
   if (it != state_to_vertex_.end()) {
@@ -1213,7 +1025,8 @@ bool StateClassReachabilityGraph::save_to_dot(
         out << state.marking[i];
       }
       out << "]\\n";
-      out << "Time: " << state.cumulative_time;
+      out << "Active: " << state.active.size() << "\\n";
+      out << "Time: " << std::fixed << std::setprecision(2) << state.cumulative_time;
       out << "\"];\n";
     }
 
@@ -1269,6 +1082,7 @@ bool StateClassReachabilityGraph::save_to_json(
         out << state.marking[i];
       }
       out << "],\n";
+      out << "      \"active_count\": " << state.active.size() << ",\n";
       out << "      \"cumulative_time\": " << std::fixed << std::setprecision(2)
           << state.cumulative_time << "\n";
       out << "    }";
@@ -1311,7 +1125,6 @@ bool StateClassReachabilityGraph::save_to_json(
     out << "    \"dedup_misses_count\": " << stats_.dedup_misses_count << ",\n";
     out << "    \"transition_enabled_checks\": "
         << stats_.transition_enabled_checks << ",\n";
-    out << "    \"dbm_minimize_calls\": " << stats_.dbm_minimize_calls << ",\n";
     out << "    \"truncated\": " << (stats_.truncated ? "true" : "false")
         << "\n";
     out << "  }\n";
@@ -1322,66 +1135,6 @@ bool StateClassReachabilityGraph::save_to_json(
   } catch (...) {
     return false;
   }
-}
-
-std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_dbm(
-    size_t trans_idx, const StateClass& from_state) {
-  StateClass to = from_state.copy();
-
-  const auto& transition = ptpn_.get_transition(trans_idx);
-  const DBM& active_domain = transition.suspendable ? from_state.Z2 : from_state.Z1;
-  DBM firing_zone = restrict_for_firing(active_domain, trans_idx);
-
-  if (pruning_enabled_) {
-    if (firing_zone.is_empty() || !firing_zone.is_consistent()) {
-      spdlog::debug("    {}: firing window check failed", format_transitions({trans_idx}, false));
-      return {false, StateClass(), 0.0};
-    }
-  } else {
-    if (firing_zone.is_empty() || !firing_zone.is_consistent()) {
-      spdlog::debug("    {}: firing window check failed but pruning disabled", format_transitions({trans_idx}, false));
-    }
-  }
-
-  double fire_time = from_state.cumulative_time +
-                     compute_firing_time(firing_zone, trans_idx);
-
-  if (transition.suspendable) {
-    to.Z2 = firing_zone;
-  } else {
-    to.Z1 = firing_zone;
-  }
-
-  const std::set<size_t> previous_effective_enabled = from_state.enabled;
-  const std::set<size_t> previous_suspended = from_state.suspended;
-
-  to.marking = petri::PTPN::fire(from_state.marking, ptpn_, trans_idx);
-
-  if (to.marking.empty()) {
-    spdlog::debug("    {}: marking empty after fire", format_transitions({trans_idx}, false));
-    return {false, StateClass(), 0.0};
-  }
-
-  to.cumulative_time = fire_time;
-  const std::vector<size_t> raw_enabled = collect_enabled_transitions(to);
-  to.enabled = compute_effective_enabled(raw_enabled);
-  to.suspended = compute_suspended_transitions(raw_enabled, to.enabled);
-
-  rebuild_post_fire_timing_domains(to, from_state, trans_idx,
-                                   previous_effective_enabled,
-                                   previous_suspended);
-  reconcile_timing_domains(to, previous_effective_enabled,
-                           previous_suspended);
-
-  spdlog::debug("    {}: fired successfully, fire_time = {}", format_transitions({trans_idx}, false), fire_time);
-
-  return {true, to, fire_time};
-}
-
-void StateClassReachabilityGraph::compute_enabled_and_clocks(
-    StateClass& state) {
-  normalize_scheduling_state(state);
-  spdlog::debug("    Compute enabled and clocks: {} enabled", state.enabled.size());
 }
 
 }  // namespace state_class
