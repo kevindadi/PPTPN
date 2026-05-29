@@ -877,7 +877,8 @@ void TDG2PN::fixed_prior_with_resume(
         ptpn.set_post_arc(preempt_trans, suspended_place, 1);
 
         ptpn.set_pre_arc(suspended_place, resume_trans, 1);
-        ptpn.set_pre_arc(h_exit, resume_trans, 1);
+        // 恢复时高优先级任务的 exit token 不被消费，任务链保持完整
+        ptpn.set_post_arc(resume_trans, h_exit, 1);
         ptpn.set_post_arc(resume_trans, l_preempt_place, 1);
 
         if (!l_tc.locks.empty()) {
@@ -918,7 +919,6 @@ void TDG2PN::fixed_prior_with_resume(
             ptpn.set_post_arc(lock_preempt_trans, lock_suspended_place, 1);
 
             ptpn.set_pre_arc(lock_suspended_place, lock_resume_trans, 1);
-            ptpn.set_pre_arc(h_exit, lock_resume_trans, 1);
             ptpn.set_post_arc(lock_resume_trans, lock_preempt_place, 1);
           }
         }

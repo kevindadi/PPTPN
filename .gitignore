@@ -7,6 +7,7 @@ build
 main.pdf
 paper
 docs/superpowers
+docs/ptpn-format-semantics.md
 
 Testing
 tools/romeo-3.10.11/

@@ -368,8 +368,8 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
   StateClass scheduled = cur.copy();
   recompute_enabled_sets(scheduled);
 
-  // 从 enabled 集合中选择要考虑的变迁
-  std::vector<size_t> chosen(scheduled.enabled.begin(), scheduled.enabled.end());
+  // 从 active 集合中选择要考虑的变迁
+  std::vector<size_t> chosen(scheduled.active.begin(), scheduled.active.end());
   result.chosen_count = chosen.size();
   result.enabled_transitions_count += chosen.size();
 
@@ -462,7 +462,7 @@ std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_time
   }
 
   const auto& clock = from.clocks[t];
-  if (clock.state == ClockState::UNACTIVE) {
+  if (clock.state != ClockState::ACTIVE || from.active.count(t) == 0) {
     return {false, StateClass(), 0.0};
   }
 
