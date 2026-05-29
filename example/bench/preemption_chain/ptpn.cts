@@ -53,20 +53,20 @@ place Dentry=0, Dready=0, Dexit=0, C2entry=1, C2ready=0, C2exit=0, Bentry=0, Bre
  transition [priority=3098, intermediate { Dentry = Dentry - 1 , Bready = Bready - 1; }]  D_resume_preempt_B_0 [0,0]
       when (Dentry >= 1 and Bready >= 1)
       { Dentry = Dentry - 1 , Dready = Dready + 1 , Bready = Bready - 1 , B_suspended_D_0 = B_suspended_D_0 + 1;  }
- transition [priority=0, intermediate { Dexit = Dexit - 1 , B_suspended_D_0 = B_suspended_D_0 - 1; }]  B_resume_D_0 [0,0]
-      when (Dexit >= 1 and B_suspended_D_0 >= 1)
-      { Dexit = Dexit - 1 , Bready = Bready + 1 , B_suspended_D_0 = B_suspended_D_0 - 1;  }
+ transition [priority=0, intermediate { B_suspended_D_0 = B_suspended_D_0 - 1; }]  B_resume_D_0 [0,0]
+      when (B_suspended_D_0 >= 1)
+      { Dexit = Dexit + 1 , Bready = Bready + 1 , B_suspended_D_0 = B_suspended_D_0 - 1;  }
  transition [priority=3097, intermediate { Dentry = Dentry - 1 , Aready = Aready - 1; }]  D_resume_preempt_A_1 [0,0]
       when (Dentry >= 1 and Aready >= 1)
       { Dentry = Dentry - 1 , Dready = Dready + 1 , Aready = Aready - 1 , A_suspended_D_1 = A_suspended_D_1 + 1;  }
- transition [priority=0, intermediate { Dexit = Dexit - 1 , A_suspended_D_1 = A_suspended_D_1 - 1; }]  A_resume_D_1 [0,0]
-      when (Dexit >= 1 and A_suspended_D_1 >= 1)
-      { Dexit = Dexit - 1 , Aready = Aready + 1 , A_suspended_D_1 = A_suspended_D_1 - 1;  }
+ transition [priority=0, intermediate { A_suspended_D_1 = A_suspended_D_1 - 1; }]  A_resume_D_1 [0,0]
+      when (A_suspended_D_1 >= 1)
+      { Dexit = Dexit + 1 , Aready = Aready + 1 , A_suspended_D_1 = A_suspended_D_1 - 1;  }
  transition [priority=2098, intermediate { Bentry = Bentry - 1 , Aready = Aready - 1; }]  B_resume_preempt_A_2 [0,0]
       when (Bentry >= 1 and Aready >= 1)
       { Bentry = Bentry - 1 , Bready = Bready + 1 , Aready = Aready - 1 , A_suspended_B_2 = A_suspended_B_2 + 1;  }
- transition [priority=0, intermediate { Bexit = Bexit - 1 , A_suspended_B_2 = A_suspended_B_2 - 1; }]  A_resume_B_2 [0,0]
-      when (Bexit >= 1 and A_suspended_B_2 >= 1)
-      { Bexit = Bexit - 1 , Aready = Aready + 1 , A_suspended_B_2 = A_suspended_B_2 - 1;  }
+ transition [priority=0, intermediate { A_suspended_B_2 = A_suspended_B_2 - 1; }]  A_resume_B_2 [0,0]
+      when (A_suspended_B_2 >= 1)
+      { Bexit = Bexit + 1 , Aready = Aready + 1 , A_suspended_B_2 = A_suspended_B_2 - 1;  }
 
 graph [passed=eq]

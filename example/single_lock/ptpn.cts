@@ -68,14 +68,14 @@ place TaskCentry=0, TaskCready=0, TaskC_seg_1_done=0, TaskC_hold_1=0, TaskC_seg_
  transition [priority=9998, intermediate { TaskCentry = TaskCentry - 1 , TaskAready = TaskAready - 1; }]  TaskC_resume_preempt_TaskA_0 [0,0]
       when (TaskCentry >= 1 and TaskAready >= 1)
       { TaskCentry = TaskCentry - 1 , TaskCready = TaskCready + 1 , TaskAready = TaskAready - 1 , TaskA_suspended_TaskC_0 = TaskA_suspended_TaskC_0 + 1;  }
- transition [priority=0, intermediate { TaskC_seg_1_done = TaskC_seg_1_done - 1 , TaskA_suspended_TaskC_0 = TaskA_suspended_TaskC_0 - 1; }]  TaskA_resume_TaskC_0 [0,0]
-      when (TaskC_seg_1_done >= 1 and TaskA_suspended_TaskC_0 >= 1)
-      { TaskC_seg_1_done = TaskC_seg_1_done - 1 , TaskAready = TaskAready + 1 , TaskA_suspended_TaskC_0 = TaskA_suspended_TaskC_0 - 1;  }
+ transition [priority=0, intermediate { TaskA_suspended_TaskC_0 = TaskA_suspended_TaskC_0 - 1; }]  TaskA_resume_TaskC_0 [0,0]
+      when (TaskA_suspended_TaskC_0 >= 1)
+      { TaskC_seg_1_done = TaskC_seg_1_done + 1 , TaskAready = TaskAready + 1 , TaskA_suspended_TaskC_0 = TaskA_suspended_TaskC_0 - 1;  }
  transition [priority=9998, intermediate { TaskCentry = TaskCentry - 1 , TaskA_hold_1 = TaskA_hold_1 - 1; }]  TaskC_resume_lock_preempt_TaskA_1 [0,0]
       when (TaskCentry >= 1 and TaskA_hold_1 >= 1)
       { TaskCentry = TaskCentry - 1 , TaskCready = TaskCready + 1 , TaskA_hold_1 = TaskA_hold_1 - 1 , TaskA_lock_suspended_TaskC_1 = TaskA_lock_suspended_TaskC_1 + 1;  }
- transition [priority=0, intermediate { TaskC_seg_1_done = TaskC_seg_1_done - 1 , TaskA_lock_suspended_TaskC_1 = TaskA_lock_suspended_TaskC_1 - 1; }]  TaskA_lock_resume_TaskC_1 [0,0]
-      when (TaskC_seg_1_done >= 1 and TaskA_lock_suspended_TaskC_1 >= 1)
-      { TaskC_seg_1_done = TaskC_seg_1_done - 1 , TaskA_hold_1 = TaskA_hold_1 + 1 , TaskA_lock_suspended_TaskC_1 = TaskA_lock_suspended_TaskC_1 - 1;  }
+ transition [priority=0, intermediate { TaskA_lock_suspended_TaskC_1 = TaskA_lock_suspended_TaskC_1 - 1; }]  TaskA_lock_resume_TaskC_1 [0,0]
+      when (TaskA_lock_suspended_TaskC_1 >= 1)
+      { TaskA_hold_1 = TaskA_hold_1 + 1 , TaskA_lock_suspended_TaskC_1 = TaskA_lock_suspended_TaskC_1 - 1;  }
 
 graph [passed=eq]

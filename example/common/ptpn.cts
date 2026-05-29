@@ -68,38 +68,38 @@ place Fentry=0, Fready=0, Fexit=0, Eentry=0, Eready=0, Eexit=0, Aentry=1, Aready
  transition [priority=9998, intermediate { Eready = Eready - 1 , Centry = Centry - 1; }]  C_resume_preempt_E_0 [0,0]
       when (Eready >= 1 and Centry >= 1)
       { Eready = Eready - 1 , Centry = Centry - 1 , Cready = Cready + 1 , E_suspended_C_0 = E_suspended_C_0 + 1;  }
- transition [priority=0, intermediate { Cexit = Cexit - 1 , E_suspended_C_0 = E_suspended_C_0 - 1; }]  E_resume_C_0 [0,0]
-      when (Cexit >= 1 and E_suspended_C_0 >= 1)
-      { Eready = Eready + 1 , Cexit = Cexit - 1 , E_suspended_C_0 = E_suspended_C_0 - 1;  }
+ transition [priority=0, intermediate { E_suspended_C_0 = E_suspended_C_0 - 1; }]  E_resume_C_0 [0,0]
+      when (E_suspended_C_0 >= 1)
+      { Eready = Eready + 1 , Cexit = Cexit + 1 , E_suspended_C_0 = E_suspended_C_0 - 1;  }
  transition [priority=9997, intermediate { Dready = Dready - 1 , Centry = Centry - 1; }]  C_resume_preempt_D_1 [0,0]
       when (Dready >= 1 and Centry >= 1)
       { Dready = Dready - 1 , Centry = Centry - 1 , Cready = Cready + 1 , D_suspended_C_1 = D_suspended_C_1 + 1;  }
- transition [priority=0, intermediate { Cexit = Cexit - 1 , D_suspended_C_1 = D_suspended_C_1 - 1; }]  D_resume_C_1 [0,0]
-      when (Cexit >= 1 and D_suspended_C_1 >= 1)
-      { Dready = Dready + 1 , Cexit = Cexit - 1 , D_suspended_C_1 = D_suspended_C_1 - 1;  }
+ transition [priority=0, intermediate { D_suspended_C_1 = D_suspended_C_1 - 1; }]  D_resume_C_1 [0,0]
+      when (D_suspended_C_1 >= 1)
+      { Dready = Dready + 1 , Cexit = Cexit + 1 , D_suspended_C_1 = D_suspended_C_1 - 1;  }
  transition [priority=9898, intermediate { Eentry = Eentry - 1 , Dready = Dready - 1; }]  E_resume_preempt_D_2 [0,0]
       when (Eentry >= 1 and Dready >= 1)
       { Eentry = Eentry - 1 , Eready = Eready + 1 , Dready = Dready - 1 , D_suspended_E_2 = D_suspended_E_2 + 1;  }
- transition [priority=0, intermediate { Eexit = Eexit - 1 , D_suspended_E_2 = D_suspended_E_2 - 1; }]  D_resume_E_2 [0,0]
-      when (Eexit >= 1 and D_suspended_E_2 >= 1)
-      { Eexit = Eexit - 1 , Dready = Dready + 1 , D_suspended_E_2 = D_suspended_E_2 - 1;  }
+ transition [priority=0, intermediate { D_suspended_E_2 = D_suspended_E_2 - 1; }]  D_resume_E_2 [0,0]
+      when (D_suspended_E_2 >= 1)
+      { Eexit = Eexit + 1 , Dready = Dready + 1 , D_suspended_E_2 = D_suspended_E_2 - 1;  }
  transition [priority=9898, intermediate { Aready = Aready - 1 , Bentry = Bentry - 1; }]  B_resume_preempt_A_3 [0,0]
       when (Aready >= 1 and Bentry >= 1)
       { Aready = Aready - 1 , Bentry = Bentry - 1 , Bready = Bready + 1 , A_suspended_B_3 = A_suspended_B_3 + 1;  }
- transition [priority=0, intermediate { Bexit = Bexit - 1 , A_suspended_B_3 = A_suspended_B_3 - 1; }]  A_resume_B_3 [0,0]
-      when (Bexit >= 1 and A_suspended_B_3 >= 1)
-      { Aready = Aready + 1 , Bexit = Bexit - 1 , A_suspended_B_3 = A_suspended_B_3 - 1;  }
+ transition [priority=0, intermediate { A_suspended_B_3 = A_suspended_B_3 - 1; }]  A_resume_B_3 [0,0]
+      when (A_suspended_B_3 >= 1)
+      { Aready = Aready + 1 , Bexit = Bexit + 1 , A_suspended_B_3 = A_suspended_B_3 - 1;  }
  transition [priority=9897, intermediate { Fready = Fready - 1 , Bentry = Bentry - 1; }]  B_resume_preempt_F_4 [0,0]
       when (Fready >= 1 and Bentry >= 1)
       { Fready = Fready - 1 , Bentry = Bentry - 1 , Bready = Bready + 1 , F_suspended_B_4 = F_suspended_B_4 + 1;  }
- transition [priority=0, intermediate { Bexit = Bexit - 1 , F_suspended_B_4 = F_suspended_B_4 - 1; }]  F_resume_B_4 [0,0]
-      when (Bexit >= 1 and F_suspended_B_4 >= 1)
-      { Fready = Fready + 1 , Bexit = Bexit - 1 , F_suspended_B_4 = F_suspended_B_4 - 1;  }
+ transition [priority=0, intermediate { F_suspended_B_4 = F_suspended_B_4 - 1; }]  F_resume_B_4 [0,0]
+      when (F_suspended_B_4 >= 1)
+      { Fready = Fready + 1 , Bexit = Bexit + 1 , F_suspended_B_4 = F_suspended_B_4 - 1;  }
  transition [priority=9798, intermediate { Fready = Fready - 1 , Aentry = Aentry - 1; }]  A_resume_preempt_F_5 [0,0]
       when (Fready >= 1 and Aentry >= 1)
       { Fready = Fready - 1 , Aentry = Aentry - 1 , Aready = Aready + 1 , F_suspended_A_5 = F_suspended_A_5 + 1;  }
- transition [priority=0, intermediate { Aexit = Aexit - 1 , F_suspended_A_5 = F_suspended_A_5 - 1; }]  F_resume_A_5 [0,0]
-      when (Aexit >= 1 and F_suspended_A_5 >= 1)
-      { Fready = Fready + 1 , Aexit = Aexit - 1 , F_suspended_A_5 = F_suspended_A_5 - 1;  }
+ transition [priority=0, intermediate { F_suspended_A_5 = F_suspended_A_5 - 1; }]  F_resume_A_5 [0,0]
+      when (F_suspended_A_5 >= 1)
+      { Fready = Fready + 1 , Aexit = Aexit + 1 , F_suspended_A_5 = F_suspended_A_5 - 1;  }
 
 graph [passed=eq]

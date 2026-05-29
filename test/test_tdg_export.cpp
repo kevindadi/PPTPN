@@ -305,7 +305,8 @@ TEST_F(TdgExportTest, FixedPriorityResumePreemptionRestoresLowTaskToPreemptionPo
   EXPECT_EQ(ptpn.get_post_matrix()[preempt_transition][suspended_place], 1);
 
   EXPECT_EQ(ptpn.get_pre_matrix()[suspended_place][resume_transition], 1);
-  EXPECT_EQ(ptpn.get_pre_matrix()[high_exit][resume_transition], 1);
+  // 恢复时高优先级任务的 exit token 不被消费，任务链保持完整
+  EXPECT_EQ(ptpn.get_post_matrix()[resume_transition][high_exit], 1);
   EXPECT_EQ(ptpn.get_post_matrix()[resume_transition][low_ready], 1);
 }
 
