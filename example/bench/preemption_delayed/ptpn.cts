@@ -37,6 +37,6 @@ place Bentry=0, Bready=0, Bexit=0, Centry=1, Cready=0, Cexit=0, Aentry=1, Aready
       { Bentry = Bentry - 1 , Bready = Bready + 1 , Aready = Aready - 1 , A_suspended_B_0 = A_suspended_B_0 + 1;  }
  transition [priority=0, intermediate { Bexit = Bexit - 1 , A_suspended_B_0 = A_suspended_B_0 - 1; }]  A_resume_B_0 [0,0]
       when (Bexit >= 1 and A_suspended_B_0 >= 1)
-      { Bexit = Bexit - 1 , Aready = Aready + 1 , A_suspended_B_0 = A_suspended_B_0 - 1;  }
+      { Bready = Bready + 1 , Bexit = Bexit - 1 + 1 , Aready = Aready + 1 , A_suspended_B_0 = A_suspended_B_0 - 1;  }
 
 graph [passed=eq]

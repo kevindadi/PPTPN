@@ -15,8 +15,6 @@
 
 namespace state_class {
 
-constexpr double INF_DOUBLE = std::numeric_limits<double>::infinity();
-
 struct DBMInstrumentation {
   size_t minimize_calls = 0;
 };

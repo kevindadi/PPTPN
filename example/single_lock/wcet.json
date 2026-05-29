@@ -11,12 +11,6 @@
       "name": "TaskB",
       "segments": 3,
       "wcet": 30
-    },
-    {
-      "id": 2,
-      "name": "TaskC",
-      "segments": 3,
-      "wcet": 120
     }
   ]
 }

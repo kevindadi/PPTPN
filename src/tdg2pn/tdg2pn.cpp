@@ -840,7 +840,7 @@ void TDG2PN::fixed_prior_with_resume(
       [&](const std::string& l_t_name, const std::string& h_t_name,
           const TaskConfig& l_tc, const TaskConfig& h_tc,
           const std::vector<size_t>& l_t_pn, const std::vector<size_t>& h_t_pn,
-          int preempt_priority, bool /* is_interrupt */) {
+          int preempt_priority, bool is_interrupt) {
         if (l_t_pn.size() < 5 || h_t_pn.size() < 5) {
           spdlog::warn("[TDG2PN] Task chain too short, skipping resume preemption: {} <- {}", l_t_name, h_t_name);
           return;
@@ -878,50 +878,38 @@ void TDG2PN::fixed_prior_with_resume(
 
         ptpn.set_pre_arc(suspended_place, resume_trans, 1);
         ptpn.set_pre_arc(h_exit, resume_trans, 1);
+        ptpn.set_post_arc(resume_trans, h_exit, 1);
         ptpn.set_post_arc(resume_trans, l_preempt_place, 1);
+      };
 
-        if (!l_tc.locks.empty()) {
-          constexpr size_t MIN_CHAIN_LENGTH = 9;
-          if (l_t_pn.size() < MIN_CHAIN_LENGTH) {
-            spdlog::debug("[TDG2PN] Task chain too short for lock resume preemption: {}", l_t_name);
-            return;
-          }
+  auto handle_lock_preempt =
+      [&](const std::string& l_t_name, const std::string& h_t_name,
+          const TaskConfig& h_tc, const std::vector<size_t>& l_t_pn,
+          size_t l_preempt_place, int preempt_priority,
+          size_t h_entry, size_t h_ready, size_t h_exit) {
+        std::string lock_suspended_name = l_t_name + "_lock_suspended_" + h_t_name + "_" +
+                                          std::to_string(ptpn.node_index);
+        std::string lock_preempt_name = h_t_name + "_resume_lock_preempt_" + l_t_name + "_" +
+                                        std::to_string(ptpn.node_index);
+        std::string lock_resume_name = l_t_name + "_lock_resume_" + h_t_name + "_" +
+                                       std::to_string(ptpn.node_index);
+        size_t lock_suspended_place = ptpn.add_place(lock_suspended_name, 1);
+        petri::TimeInterval immediate_interval(0, 0);
+        size_t lock_preempt_trans = ptpn.add_transition(
+            lock_preempt_name, immediate_interval, preempt_priority, h_tc.core, false);
+        size_t lock_resume_trans = ptpn.add_transition(
+            lock_resume_name, immediate_interval, kControlTransitionPriority, kControlTransitionCore, false);
+        ptpn.node_index++;
 
-          for (size_t i = 0; i < l_tc.locks.size(); ++i) {
-            if (l_tc.locks[i].find("spin") != std::string::npos) {
-              break;
-            }
+        ptpn.set_pre_arc(h_entry, lock_preempt_trans, 1);
+        ptpn.set_pre_arc(l_preempt_place, lock_preempt_trans, 1);
+        ptpn.set_post_arc(lock_preempt_trans, h_ready, 1);
+        ptpn.set_post_arc(lock_preempt_trans, lock_suspended_place, 1);
 
-            size_t idx = l_t_pn.size() - 2 - 2 * (i + 1);
-            if (idx < ptpn.transitions.size()) {
-              ptpn.transitions[idx].suspendable = true;
-            }
-
-            const size_t lock_preempt_place = l_t_pn[idx - 1];
-            std::string lock_suspended_name = l_t_name + "_lock_suspended_" + h_t_name + "_" +
-                                              std::to_string(ptpn.node_index);
-            std::string lock_preempt_name = h_t_name + "_resume_lock_preempt_" + l_t_name + "_" +
-                                            std::to_string(ptpn.node_index);
-            std::string lock_resume_name = l_t_name + "_lock_resume_" + h_t_name + "_" +
-                                           std::to_string(ptpn.node_index);
-
-            size_t lock_suspended_place = ptpn.add_place(lock_suspended_name, 1);
-            size_t lock_preempt_trans = ptpn.add_transition(
-                lock_preempt_name, immediate_interval, preempt_priority, h_tc.core, false);
-            size_t lock_resume_trans = ptpn.add_transition(
-                lock_resume_name, immediate_interval, kControlTransitionPriority, kControlTransitionCore, false);
-            ptpn.node_index++;
-
-            ptpn.set_pre_arc(h_entry, lock_preempt_trans, 1);
-            ptpn.set_pre_arc(lock_preempt_place, lock_preempt_trans, 1);
-            ptpn.set_post_arc(lock_preempt_trans, h_ready, 1);
-            ptpn.set_post_arc(lock_preempt_trans, lock_suspended_place, 1);
-
-            ptpn.set_pre_arc(lock_suspended_place, lock_resume_trans, 1);
-            ptpn.set_pre_arc(h_exit, lock_resume_trans, 1);
-            ptpn.set_post_arc(lock_resume_trans, lock_preempt_place, 1);
-          }
-        }
+        ptpn.set_pre_arc(lock_suspended_place, lock_resume_trans, 1);
+        ptpn.set_pre_arc(h_exit, lock_resume_trans, 1);
+        ptpn.set_post_arc(lock_resume_trans, h_exit, 1);
+        ptpn.set_post_arc(lock_resume_trans, l_preempt_place, 1);
       };
 
   for (const auto& [core_id, tasks] : core_task) {
@@ -962,6 +950,12 @@ void TDG2PN::fixed_prior_with_resume(
         }
 
         const std::vector<size_t>& h_t_pn = h_t_pns_it->second;
+        const std::vector<size_t>& l_t_pn = l_t_pns_it->second;
+
+        if (l_t_pn.size() < 5 || h_t_pn.size() < 5) {
+          continue;
+        }
+
         bool is_interrupt = false;
         auto node_type_it = nodes_type.find(h_t_name);
         if (node_type_it != nodes_type.end() &&
@@ -970,9 +964,51 @@ void TDG2PN::fixed_prior_with_resume(
           is_interrupt = (task.task_type == TaskType::INTERRUPT);
         }
 
-        for (const auto& l_t_pn : {l_t_pns_it->second}) {
-          handle_task_preemption(l_t_name, h_t_name, l_tc, h_tc, l_t_pn, h_t_pn,
-                                 preempt_priority_it->second, is_interrupt);
+        // 基本抢占路径（从 ready place）
+        handle_task_preemption(l_t_name, h_t_name, l_tc, h_tc, l_t_pn, h_t_pn,
+                               preempt_priority_it->second, is_interrupt);
+
+        // 锁相关的抢占路径（遍历锁链中所有可抢占的库所）
+        if (!l_tc.locks.empty()) {
+          size_t num_locks = l_tc.locks.size();
+
+          // 如果所有锁都是 spin，则跳过锁抢占路径建模
+          // 因为持有 spin 期间不能被抢占
+          bool all_spin = true;
+          for (const auto& lock : l_tc.locks) {
+            if (lock.find("spin") == std::string::npos) {
+              all_spin = false;
+              break;
+            }
+          }
+          if (!all_spin) {
+            // 计算不可挂起的 exec 变迁索引 (spin 持有期)
+            // exec 变迁在锁链索引 5 + 4*i + 2 = 7 + 4*i
+            std::set<size_t> non_suspendable_exec_indices;
+            for (size_t i = 0; i < num_locks; ++i) {
+              if (l_tc.locks[i].find("spin") != std::string::npos) {
+                non_suspendable_exec_indices.insert(5 + 4 * i + 2);
+              }
+            }
+
+            const size_t h_entry = h_t_pn[0];
+            const size_t h_ready = h_t_pn[2];
+            const size_t h_exit = h_t_pn.back();
+
+            // 遍历锁链中所有 place (从索引 4 开始，seg1_done)
+            for (size_t chain_idx = 4; chain_idx + 1 < l_t_pn.size(); chain_idx += 2) {
+              // exec 变迁索引 = chain_idx + 1
+              // 如果这个 exec 变迁是不可挂起的（spin 持有期），跳过
+              if (non_suspendable_exec_indices.count(chain_idx + 1)) {
+                continue;
+              }
+
+              const size_t place = l_t_pn[chain_idx];
+              handle_lock_preempt(l_t_name, h_t_name, h_tc, l_t_pn,
+                                 place, preempt_priority_it->second,
+                                 h_entry, h_ready, h_exit);
+            }
+          }
         }
       }
     }

@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include "analysis/graph.h"
 #include "analysis/scheduling.h"
 #include "petri/petri.h"
 
@@ -258,6 +259,23 @@ TEST_F(SchedulingTest, ComputeSuspendedWithHigherPriority) {
   EXPECT_EQ(result.size(), 2);
   EXPECT_TRUE(result.count(1));
   EXPECT_TRUE(result.count(2));
+}
+
+TEST_F(SchedulingTest, SuspendedTransitionCannotFireWithTime) {
+  PTPN ptpn = create_priority_test_ptpn();
+  state_class::StateClassReachabilityGraph graph(ptpn);
+  state_class::StateClass state = graph.create_initial_state();
+
+  ASSERT_TRUE(state.enabled.count(1));
+  ASSERT_FALSE(state.active.count(1));
+  ASSERT_TRUE(state.suspended.count(1));
+  ASSERT_EQ(state.clocks[1].state, state_class::ClockState::SUSPENDED);
+
+  auto [ok, next, firing_time] = graph.fire_with_time(1, state);
+
+  EXPECT_FALSE(ok);
+  EXPECT_TRUE(next.marking.empty());
+  EXPECT_DOUBLE_EQ(firing_time, 0.0);
 }
 
 TEST_F(SchedulingTest, EmptyEnabled) {

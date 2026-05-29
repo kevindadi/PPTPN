@@ -95,11 +95,17 @@ edge [fontname="Helvetica", color="#9ca3af", arrowsize=0.7];
 "C2_to_D" -> "Dentry" [label="", color="#9ca3af", penwidth="1.0"];
 "D_resume_preempt_B_0" -> "Dready" [label="", color="#9ca3af", penwidth="1.0"];
 "D_resume_preempt_B_0" -> "B_suspended_D_0" [label="", color="#9ca3af", penwidth="1.0"];
+"B_resume_D_0" -> "Dready" [label="", color="#9ca3af", penwidth="1.0"];
+"B_resume_D_0" -> "Dexit" [label="", color="#9ca3af", penwidth="1.0"];
 "B_resume_D_0" -> "Bready" [label="", color="#9ca3af", penwidth="1.0"];
 "D_resume_preempt_A_1" -> "Dready" [label="", color="#9ca3af", penwidth="1.0"];
 "D_resume_preempt_A_1" -> "A_suspended_D_1" [label="", color="#9ca3af", penwidth="1.0"];
+"A_resume_D_1" -> "Dready" [label="", color="#9ca3af", penwidth="1.0"];
+"A_resume_D_1" -> "Dexit" [label="", color="#9ca3af", penwidth="1.0"];
 "A_resume_D_1" -> "Aready" [label="", color="#9ca3af", penwidth="1.0"];
 "B_resume_preempt_A_2" -> "Bready" [label="", color="#9ca3af", penwidth="1.0"];
 "B_resume_preempt_A_2" -> "A_suspended_B_2" [label="", color="#9ca3af", penwidth="1.0"];
+"A_resume_B_2" -> "Bready" [label="", color="#9ca3af", penwidth="1.0"];
+"A_resume_B_2" -> "Bexit" [label="", color="#9ca3af", penwidth="1.0"];
 "A_resume_B_2" -> "Aready" [label="", color="#9ca3af", penwidth="1.0"];
 }

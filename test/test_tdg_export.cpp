@@ -305,7 +305,9 @@ TEST_F(TdgExportTest, FixedPriorityResumePreemptionRestoresLowTaskToPreemptionPo
   EXPECT_EQ(ptpn.get_post_matrix()[preempt_transition][suspended_place], 1);
 
   EXPECT_EQ(ptpn.get_pre_matrix()[suspended_place][resume_transition], 1);
+  // 恢复时消耗 high_exit，但额外产生一个，使 token 数守恒（净效果为 0）
   EXPECT_EQ(ptpn.get_pre_matrix()[high_exit][resume_transition], 1);
+  EXPECT_EQ(ptpn.get_post_matrix()[resume_transition][high_exit], 1);
   EXPECT_EQ(ptpn.get_post_matrix()[resume_transition][low_ready], 1);
 }
 
