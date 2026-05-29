@@ -1,0 +1,27 @@
+digraph ReachabilityGraph {
+  rankdir=LR;
+  node [shape=box];
+
+  s0 [label="State 0\\nM: c1=2 p1=1 p5=1 p9=1\\nenabled: t1@10, t4@20, t8@30"];
+  s1 [label="State 1\\nM: c1=2 p5=1 p9=1 p2=1\\nenabled: t2@0, t4@10, t8@20"];
+  s2 [label="State 2\\nM: c1=1 p5=1 p9=1 p3=1\\nenabled: t3@30, t4@10, t8@20"];
+  s3 [label="State 3\\nM: c1=1 p9=1 p3=1 p6=1\\nenabled: t3@20, t5@0, t6@0, t8@10"];
+  s4 [label="State 4\\nM: p9=1 p3=1 p7=1\\nenabled: t3@20, t7@25, t8@10"];
+  s5 [label="State 5\\nM: p3=1 p7=1 p10=1\\nenabled: t3@10, t7@15, t10@0, t11@0"];
+  s6 [label="State 6\\nM: p7=1 p2=1 p11=1\\nenabled: t7@15, t12@20"];
+  s7 [label="State 7\\nM: p2=1 p11=1 c1=1 p8=1\\nenabled: t2@0, t12@5"];
+  s8 [label="State 8\\nM: p11=1 p8=1 p3=1\\nenabled: t3@10, t12@5"];
+  s9 [label="State 9\\nM: p8=1 p3=1 c1=1 p12=1\\nenabled: t3@5"];
+  s10 [label="State 10\\nM: p8=1 c1=2 p12=1 p4=1\\nenabled: "];
+
+  s0 -> s1 [label="+10"];
+  s1 -> s2 [label="+0"];
+  s2 -> s3 [label="+10"];
+  s3 -> s4 [label="+0"];
+  s4 -> s5 [label="+10"];
+  s5 -> s6 [label="+0"];
+  s6 -> s7 [label="+15"];
+  s7 -> s8 [label="+0"];
+  s8 -> s9 [label="+5"];
+  s9 -> s10 [label="+5"];
+}

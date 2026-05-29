@@ -20,6 +20,8 @@ The important distinction is that the DAG dependency motivation comes from `exam
 ## Layout
 
 - `ptopner/RT-System.ppn`: trimmed source model with transitions and places only
+- `ptopner/reachability-graph.dot`: PToPNer reachability graph (DOT, default `ptopner graph` output)
+- `ptopner/reachability-graph.json`: same graph in JSON (`ptopner graph --format json`)
 - `romeo/RT-System.xml`: author-provided Romeo net copied from `hlf-ptopn-100.xml`
 - `priority/input.json`: point-interval DAG version derived directly from `example/common/input.json`
 - `mapping.md`: lineage notes, known correspondences, and approximations
