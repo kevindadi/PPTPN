@@ -6,7 +6,7 @@
     "num_cpus": 2,
     "cores_per_cpu": 4,
     "shared_locks": ["mutex1", "spin1", "mutex2"],
-    "periodic": [{"task": "TaskA", "period": 100}, {"task": "TaskC", "period": 200}]
+    "periodic": []
   },
   "nodes": [
     {
@@ -21,21 +21,12 @@
       "id": "TaskB",
       "type": "task",
       "priority": 98,
-      "core": 1,
+      "core": 0,
       "time": [[0, 5], [5, 10], [10, 15], [15, 20], [20, 30]],
       "locks": ["spin1", "mutex2"]
-    },
-    {
-      "id": "TaskC",
-      "type": "task",
-      "priority": 99,
-      "core": 0,
-      "time": [[0, 10], [10, 20], [20, 30], [30, 40], [40, 80]],
-      "locks": ["mutex2", "mutex1"]
     }
   ],
   "edges": [
-    {"source": "TaskA", "target": "TaskB", "label": "10"},
-    {"source": "TaskB", "target": "TaskC", "label": "20"}
+    {"source": "TaskA", "target": "TaskB", "label": "10"}
   ]
 }
