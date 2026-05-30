@@ -9,6 +9,7 @@ compile_commands.json
 paper
 docs/superpowers
 docs/ptpn-format-semantics.md
+**.dot
 
 Testing
 tools/romeo-3.10.11/

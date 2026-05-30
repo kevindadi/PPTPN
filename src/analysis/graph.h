@@ -160,13 +160,16 @@ class StateClassReachabilityGraph {
 
 
   /**
-   * select_active_per_core - 选择每个核心上最高优先级变迁
-   *
-   * @param enabled 使能变迁集合
-   * @return 每个核心上应激活的最高优先级变迁集合
+   * select_active_per_core - 每个核心上最高优先级变迁集合（可并列）
    */
   std::set<size_t> select_active_per_core(
       const std::set<size_t>& enabled) const;
+
+  /**
+   * compute_firing_time - 变迁在当前状态下的最早可发生时间；不可发生返回 -1
+   */
+  [[nodiscard]] int compute_firing_time(const StateClass& state,
+                                        size_t transition) const;
 
   /**
    * compute_suspended - 计算应该挂起的变迁集合

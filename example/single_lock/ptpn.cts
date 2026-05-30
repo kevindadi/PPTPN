@@ -46,24 +46,24 @@ place TaskBentry=0, TaskBready=0, TaskB_seg_1_done=0, TaskB_hold_1=0, TaskB_seg_
       { TaskBentry = TaskBentry - 1 , TaskBready = TaskBready + 1 , TaskAready = TaskAready - 1 , TaskA_suspended_TaskB_0 = TaskA_suspended_TaskB_0 + 1;  }
  transition [priority=0, intermediate { TaskB_seg_1_done = TaskB_seg_1_done - 1 , TaskA_suspended_TaskB_0 = TaskA_suspended_TaskB_0 - 1; }]  TaskA_resume_TaskB_0 [0,0]
       when (TaskB_seg_1_done >= 1 and TaskA_suspended_TaskB_0 >= 1)
-      { TaskBready = TaskBready + 1 , TaskB_seg_1_done = TaskB_seg_1_done - 1 + 1 , TaskAready = TaskAready + 1 , TaskA_suspended_TaskB_0 = TaskA_suspended_TaskB_0 - 1;  }
+      { TaskB_seg_1_done = TaskB_seg_1_done - 1 + 1 , TaskAready = TaskAready + 1 , TaskA_suspended_TaskB_0 = TaskA_suspended_TaskB_0 - 1;  }
  transition [priority=9898, intermediate { TaskBentry = TaskBentry - 1 , TaskA_seg_1_done = TaskA_seg_1_done - 1; }]  TaskB_resume_lock_preempt_TaskA_1 [0,0]
       when (TaskBentry >= 1 and TaskA_seg_1_done >= 1)
       { TaskBentry = TaskBentry - 1 , TaskBready = TaskBready + 1 , TaskA_seg_1_done = TaskA_seg_1_done - 1 , TaskA_lock_suspended_TaskB_1 = TaskA_lock_suspended_TaskB_1 + 1;  }
- transition [priority=0, intermediate { TaskB_seg_1_done = TaskB_seg_1_done - 1 , TaskA_lock_suspended_TaskB_1 = TaskA_lock_suspended_TaskB_1 - 1; }]  TaskA_lock_resume_TaskB_1 [0,0]
-      when (TaskB_seg_1_done >= 1 and TaskA_lock_suspended_TaskB_1 >= 1)
-      { TaskBready = TaskBready + 1 , TaskB_seg_1_done = TaskB_seg_1_done - 1 + 1 , TaskA_seg_1_done = TaskA_seg_1_done + 1 , TaskA_lock_suspended_TaskB_1 = TaskA_lock_suspended_TaskB_1 - 1;  }
+ transition [priority=0, intermediate { TaskBexit = TaskBexit - 1 , TaskA_lock_suspended_TaskB_1 = TaskA_lock_suspended_TaskB_1 - 1; }]  TaskA_lock_resume_TaskB_1 [0,0]
+      when (TaskBexit >= 1 and TaskA_lock_suspended_TaskB_1 >= 1)
+      { TaskBexit = TaskBexit - 1 + 1 , TaskA_seg_1_done = TaskA_seg_1_done + 1 , TaskA_lock_suspended_TaskB_1 = TaskA_lock_suspended_TaskB_1 - 1;  }
  transition [priority=9898, intermediate { TaskBentry = TaskBentry - 1 , TaskA_hold_1 = TaskA_hold_1 - 1; }]  TaskB_resume_lock_preempt_TaskA_2 [0,0]
       when (TaskBentry >= 1 and TaskA_hold_1 >= 1)
       { TaskBentry = TaskBentry - 1 , TaskBready = TaskBready + 1 , TaskA_hold_1 = TaskA_hold_1 - 1 , TaskA_lock_suspended_TaskB_2 = TaskA_lock_suspended_TaskB_2 + 1;  }
- transition [priority=0, intermediate { TaskB_seg_1_done = TaskB_seg_1_done - 1 , TaskA_lock_suspended_TaskB_2 = TaskA_lock_suspended_TaskB_2 - 1; }]  TaskA_lock_resume_TaskB_2 [0,0]
-      when (TaskB_seg_1_done >= 1 and TaskA_lock_suspended_TaskB_2 >= 1)
-      { TaskBready = TaskBready + 1 , TaskB_seg_1_done = TaskB_seg_1_done - 1 + 1 , TaskA_hold_1 = TaskA_hold_1 + 1 , TaskA_lock_suspended_TaskB_2 = TaskA_lock_suspended_TaskB_2 - 1;  }
+ transition [priority=0, intermediate { TaskBexit = TaskBexit - 1 , TaskA_lock_suspended_TaskB_2 = TaskA_lock_suspended_TaskB_2 - 1; }]  TaskA_lock_resume_TaskB_2 [0,0]
+      when (TaskBexit >= 1 and TaskA_lock_suspended_TaskB_2 >= 1)
+      { TaskBexit = TaskBexit - 1 + 1 , TaskA_hold_1 = TaskA_hold_1 + 1 , TaskA_lock_suspended_TaskB_2 = TaskA_lock_suspended_TaskB_2 - 1;  }
  transition [priority=9898, intermediate { TaskBentry = TaskBentry - 1 , TaskA_seg_2_done = TaskA_seg_2_done - 1; }]  TaskB_resume_lock_preempt_TaskA_3 [0,0]
       when (TaskBentry >= 1 and TaskA_seg_2_done >= 1)
       { TaskBentry = TaskBentry - 1 , TaskBready = TaskBready + 1 , TaskA_seg_2_done = TaskA_seg_2_done - 1 , TaskA_lock_suspended_TaskB_3 = TaskA_lock_suspended_TaskB_3 + 1;  }
- transition [priority=0, intermediate { TaskB_seg_1_done = TaskB_seg_1_done - 1 , TaskA_lock_suspended_TaskB_3 = TaskA_lock_suspended_TaskB_3 - 1; }]  TaskA_lock_resume_TaskB_3 [0,0]
-      when (TaskB_seg_1_done >= 1 and TaskA_lock_suspended_TaskB_3 >= 1)
-      { TaskBready = TaskBready + 1 , TaskB_seg_1_done = TaskB_seg_1_done - 1 + 1 , TaskA_seg_2_done = TaskA_seg_2_done + 1 , TaskA_lock_suspended_TaskB_3 = TaskA_lock_suspended_TaskB_3 - 1;  }
+ transition [priority=0, intermediate { TaskBexit = TaskBexit - 1 , TaskA_lock_suspended_TaskB_3 = TaskA_lock_suspended_TaskB_3 - 1; }]  TaskA_lock_resume_TaskB_3 [0,0]
+      when (TaskBexit >= 1 and TaskA_lock_suspended_TaskB_3 >= 1)
+      { TaskBexit = TaskBexit - 1 + 1 , TaskA_seg_2_done = TaskA_seg_2_done + 1 , TaskA_lock_suspended_TaskB_3 = TaskA_lock_suspended_TaskB_3 - 1;  }
 
 graph [passed=eq]

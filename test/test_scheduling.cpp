@@ -289,6 +289,37 @@ TEST_F(SchedulingTest, EmptyEnabled) {
   EXPECT_TRUE(suspended.empty());
 }
 
+TEST_F(SchedulingTest, SelectActivePerCoreIncludesPriorityTies) {
+  PTPN ptpn;
+
+  ptpn.add_place("P0");
+  ptpn.add_transition("T0", TimeInterval(1, 5), 100, 0, true);
+  ptpn.add_transition("T1", TimeInterval(2, 8), 100, 0, true);
+  ptpn.add_transition("T2", TimeInterval(3, 10), 60, 0, true);
+
+  ptpn.set_pre_arc(0, 0, 1);
+  ptpn.set_pre_arc(0, 1, 1);
+  ptpn.set_pre_arc(0, 2, 1);
+  ptpn.set_post_arc(0, 0, 1);
+  ptpn.set_post_arc(1, 0, 1);
+  ptpn.set_post_arc(2, 0, 1);
+  ptpn.set_initial_marking({1});
+
+  std::set<size_t> enabled = {0, 1, 2};
+  auto result = SchedulingAlgorithms::select_active_per_core(enabled, ptpn);
+
+  EXPECT_EQ(result.size(), 2);
+  EXPECT_TRUE(result.count(0));
+  EXPECT_TRUE(result.count(1));
+  EXPECT_FALSE(result.count(2));
+}
+
+TEST_F(SchedulingTest, SelectOneTransitionPrefersHigherPriority) {
+  std::set<size_t> schedulable = {0, 2, 4};
+  const size_t chosen = SchedulingAlgorithms::select_one_transition(schedulable, ptpn_);
+  EXPECT_EQ(chosen, 0);
+}
+
 TEST_F(SchedulingTest, AllTransitionsSameCore) {
   // 创建一个所有变迁都在同一核心的 PTPN
   PTPN ptpn;

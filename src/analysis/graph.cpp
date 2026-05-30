@@ -357,29 +357,44 @@ size_t StateClassReachabilityGraph::build(size_t max_states,
   return stats_.total_states;
 }
 
+int StateClassReachabilityGraph::compute_firing_time(const StateClass& state,
+                                                    size_t t) const {
+  if (t >= state.clocks.size()) {
+    return -1;
+  }
+
+  if (!state.enabled.count(t) || state.suspended.count(t)) {
+    return -1;
+  }
+
+  const auto& clock = state.clocks[t];
+  if (clock.state == ClockState::SUSPENDED) {
+    return -1;
+  }
+
+  const auto& trans = ptpn_.get_transition(t);
+  const int alpha = trans.time_interval.earliest;
+  const int beta = (trans.time_interval.latest == petri::INF)
+                       ? INF_TIME
+                       : trans.time_interval.latest;
+  const int firing_lower = std::max(alpha, clock.lower_bound);
+
+  if (beta != INF_TIME && firing_lower > beta) {
+    return -1;
+  }
+
+  return firing_lower;
+}
+
 StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
     const StateClass& cur) {
   const size_t enabled_checks_before = stats_.transition_enabled_checks;
 
   StateExpansionResult result;
 
-  // 复制状态并重新计算调度
   StateClass scheduled = cur.copy();
   recompute_enabled_sets(scheduled);
 
-  // 从 active 集合中选择要考虑的变迁
-  std::vector<size_t> chosen(scheduled.active.begin(), scheduled.active.end());
-  result.chosen_count = chosen.size();
-  result.enabled_transitions_count += chosen.size();
-
-  // 时间推进（只推进 active 时钟，suspended 冻结）
-  double dt = 0;
-  advance_time(scheduled);
-  dt = scheduled.cumulative_time - cur.cumulative_time;
-
-  spdlog::debug("  Time advanced by: {} (cumulative: {})", dt, scheduled.cumulative_time);
-
-  // 检查是否有活跃时钟（死锁检测）
   if (pruning_enabled_ && scheduled.active.empty()) {
     debug("  [Prune] No active transitions, skip");
     result.pruned_states_count++;
@@ -388,30 +403,73 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
     return result;
   }
 
+  // 1. 在 enabled \ suspended 上按时钟筛选（先于优先级）：取 tau_min
+  int tau_min = INF_TIME;
+  for (size_t t : scheduled.enabled) {
+    const int tau = compute_firing_time(scheduled, t);
+    if (tau >= 0) {
+      tau_min = std::min(tau_min, tau);
+    }
+  }
+
+  if (tau_min == INF_TIME) {
+    if (pruning_enabled_) {
+      result.pruned_states_count++;
+    }
+    result.transition_enabled_checks +=
+        stats_.transition_enabled_checks - enabled_checks_before;
+    return result;
+  }
+
+  std::set<size_t> firable_now;
+  for (size_t t : scheduled.enabled) {
+    const int tau = compute_firing_time(scheduled, t);
+    if (tau == tau_min) {
+      firable_now.insert(t);
+    }
+  }
+
+  // 2. 在 firable_now 上按核心取最高优先级集合（可并列；控制变迁 core<0 全部保留）
+  const std::set<size_t> schedulable =
+      SchedulingAlgorithms::select_active_per_core(firable_now, ptpn_);
+  result.chosen_count = schedulable.size();
+  result.enabled_transitions_count += schedulable.size();
+
+  if (schedulable.empty()) {
+    if (pruning_enabled_) {
+      result.pruned_states_count++;
+    }
+    result.transition_enabled_checks +=
+        stats_.transition_enabled_checks - enabled_checks_before;
+    return result;
+  }
+
+  // 3. 从 schedulable 中选择一个变迁发生
+  const size_t chosen = SchedulingAlgorithms::select_one_transition(schedulable, ptpn_);
   const StateKey source_key = make_state_key(cur);
 
-  // 对每个候选变迁尝试激发
-  for (size_t t : chosen) {
-    auto [ok, nxt, tau] = fire_with_time(t, scheduled);
+  spdlog::debug("  Earliest firing time: {}, firable_now={}, schedulable={}, chosen={}",
+                tau_min, firable_now.size(), schedulable.size(),
+                format_transitions({chosen}, false));
 
-    if (!ok) {
-      if (pruning_enabled_) {
-        spdlog::debug("  {}: fire failed", format_transitions({t}, false));
-        result.pruned_states_count++;
-        continue;
-      }
-
+  auto [ok, nxt, tau] = fire_with_time(chosen, scheduled);
+  if (!ok) {
+    if (pruning_enabled_) {
+      spdlog::debug("  {}: fire failed", format_transitions({chosen}, false));
+      result.pruned_states_count++;
+    } else {
       spdlog::debug("  {}: fire failed [pruning disabled]",
-                    format_transitions({t}, false));
-      continue;
+                    format_transitions({chosen}, false));
     }
-
-    // 使用规范化模式合并状态
-    StateClass canonical_nxt = canonicalize(nxt, nxt);
-    result.candidates.push_back({source_key, canonical_nxt,
-                                 TransitionEdge(static_cast<int>(t), tau), t});
-    result.fired_count++;
+    result.transition_enabled_checks +=
+        stats_.transition_enabled_checks - enabled_checks_before;
+    return result;
   }
+
+  StateClass canonical_nxt = canonicalize(nxt, nxt);
+  result.candidates.push_back({source_key, canonical_nxt,
+                               TransitionEdge(static_cast<int>(chosen), tau), chosen});
+  result.fired_count = 1;
 
   result.transition_enabled_checks +=
       stats_.transition_enabled_checks - enabled_checks_before;
@@ -460,8 +518,12 @@ std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_time
     return {false, StateClass(), 0.0};
   }
 
+  if (!from.enabled.count(t) || from.suspended.count(t)) {
+    return {false, StateClass(), 0.0};
+  }
+
   const auto& clock = from.clocks[t];
-  if (clock.state != ClockState::ACTIVE || from.active.count(t) == 0) {
+  if (clock.state == ClockState::SUSPENDED) {
     return {false, StateClass(), 0.0};
   }
 

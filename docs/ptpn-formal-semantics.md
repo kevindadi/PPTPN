@@ -97,25 +97,33 @@ t\in E(M) \iff \forall p\in{}^\bullet t,\; M(p)\ge W(p,t)
 E_k=\{t\in E\mid c(t)=k\}
 \]
 
-若 `E_k` 非空，则：
+若 `E_k` 非空，则取该核心上**所有**达到最大优先级的变迁（允许并列）：
 
 \[
 X_k=\{t\in E_k\mid \pi(t)=\max_{u\in E_k}\pi(u)\}
 \]
 
-无核心控制集合：
+无核心控制集合（逻辑核心 `c=-1`，与任务核心并列）：
 
 \[
 E_{ctrl}=\{t\in E\mid c(t)<0\}
 \]
 
+在用于调度筛选的候选集 `F` 上，控制变迁凡在 `F` 中则全部进入 `X`：
+
+\[
+X \supseteq F \cap E_{ctrl}
+\]
+
 最终：
 
 \[
-X=E_{ctrl}\cup\bigcup_{k\ge0}X_k
+X=E_{ctrl}\cap F\;\cup\;\bigcup_{k\ge0}(X_k\cap F)
 \]
 
-因此 `X` 可以包含多个变迁：例如 core0 的最高优先级任务、core1 的最高优先级任务，以及若干控制变迁。**但状态类图中的一条边只发生 `X` 中的一个变迁**；从同一状态发出的多条边是不同的非确定性选择，不表示这些变迁同时发生。
+其中 `F` 见下一节：先按时钟取最早可发生时间，再施加优先级过滤。
+
+`X` 可含多个变迁（多核并列最高优先级、控制变迁等），但**单步展开只从 `X` 中选择一个变迁发生**，产生一个后继状态。
 
 ---
 
@@ -137,62 +145,57 @@ st_t := SUSPENDED
 
 ---
 
-## 7. 时间推进
+## 7. 时钟优先于优先级
 
-只有 `X` 中的 ACTIVE 变迁推进时钟；`R` 中的 SUSPENDED 变迁冻结。
+展开后继时**不再**先对 `X` 做全局 `min(ub)` 时间推进，再并行尝试所有变迁。
 
-当前实现使用最大时间推进策略：
-
-\[
-\Delta = \min_{t\in X} ub_t
-\]
-
-若 `X` 为空，或 `Δ` 不可推进，则没有时间推进。否则：
-
-\[
-\forall t\in X:\; lb_t:=lb_t+\Delta,\quad ub_t:=ub_t+\Delta
-\]
-
-\[
-\forall t\in R:\; C(t)\text{ 保持不变}
-\]
-
----
-
-## 8. 单步发生规则
-
-从状态 `S` 展开后继时：
-
-1. 由 `M` 计算 `E`。
-2. 由 `E` 计算 `X` 和 `R`。
-3. 只推进 `X` 中 ACTIVE 变迁的时钟。
-4. 对 `X` 中每个变迁分别尝试发生，生成多条备选边。
-
-变迁 `t` 可以在状态 `S` 中发生，当且仅当：
-
-\[
-t\in X \land st_t=ACTIVE \land \max(\alpha(t),lb_t)\le\beta(t)
-\]
-
-发生时间记为：
+对每个使能且未挂起的变迁 `t\in E\setminus R`，定义最早可发生时间：
 
 \[
 \tau(t)=\max(\alpha(t),lb_t)
 \]
 
-发生效果：
+仅当 `st_t=ACTIVE` 且 \(\tau(t)\le\beta(t)\) 时，变迁在时钟上可发生。
+
+取全局最早时刻：
 
 \[
-M'=M-{}^\bullet t+t^\bullet
+\tau_{\min}=\min_{t\in E\setminus R}\tau(t)
 \]
 
-发生后的 `t` 时钟重置为 `UNACTIVE`，然后根据新标识重新计算 `E'`,`X'`,`R'`。
+时钟可行集：
+
+\[
+F=\{t\in E\setminus R\mid \tau(t)=\tau_{\min}\}
+\]
+
+**先筛选 `F`，再在 `F` 上按 §5 取每核最高优先级集合（可并列）得到 \(X'\subseteq F\)。** 例如 `T_1` 为 `[0,0]`、`T_2` 为 `[3,5]` 且同核时，即使 \(\pi(T_2)>\pi(T_1)\)，仍有 \(\tau(T_1)=0<\tau(T_2)=3\)，故先发生 `T_1`。
+
+`R` 中 SUSPENDED 变迁时钟冻结，不参与上述 \(\tau_{\min}\) 计算。
+
+---
+
+## 8. 单步发生规则
+
+从状态 `S` 展开一个后继时：
+
+1. 由 `M` 计算 `E`，再得 `X`（active）与 `R`（suspended）。
+2. 在 `X` 上计算 \(\tau(t)\)，得到 \(F=\{t\mid \tau(t)=\tau_{\min}\}\)。
+3. 在 `F` 上按核心取最高优先级集合 \(X'\)（控制变迁 `c<0` 在 `F\) 中则全部保留）。
+4. **从 \(X'\) 中只选一个变迁 \(t^\*\) 发生**（实现上：全局最高 \(\pi\)，并列取最小编号）。
+5. 发生时间 \(\tau^\*=\tau(t^\*)\)；标识更新 \(M'=M-{}^\bullet t^\*+t^{*\bullet}\)；重算 \(E',X',R'\)。
+
+变迁可被选入 \(t^\*\) 的必要条件：
+
+\[
+t\in X' \land st_t=ACTIVE \land \max(\alpha(t),lb_t)\le\beta(t)
+\]
 
 重要约束：
 
-- `SUSPENDED` 变迁不能发生，即使它仍在 `E` 中。
-- 不在 `X` 中的变迁不能发生，即使它在 `E` 中。
-- 同一状态多条出边是不同的单步选择；每条边只消费/产生一次 token。
+- `SUSPENDED` 变迁不能发生。
+- 不在 `X`（active）中的变迁不能发生。
+- **每个源状态在展开算法的一次迭代中只产生一个直接后继**（一条出边、一次单步发生）。
 
 ---
 
@@ -348,26 +351,15 @@ s2 -- T6@0.00 --> s5
 ```text
 expand(S):
   E := { t | enabled(M,t) }
+  X := per_core_max_priority_set(E)   // 每核所有 max-pi 变迁；c<0 控制变迁全保留
+  R := suspend(E, X)
 
-  X := { coreless control transitions in E }
-  for each core k:
-    add all highest-priority transitions in { t in E | c(t)=k } to X
+  tau_min := min { tau(t) | t in X, ACTIVE, tau(t) <= beta(t) }
+  F := { t in X | tau(t) = tau_min }
+  X_prime := per_core_max_priority_set(F)
 
-  R := {}
-  for each t in E \ X:
-    if suspendable(t) and exists a in X on same core with pi(a) > pi(t):
-      R.add(t)
-      freeze clock(t)
-
-  advance clocks of ACTIVE transitions in X
-  keep clocks of SUSPENDED transitions in R unchanged
-
-  successors := {}
-  for each t in X:
-    if clock_state(t)==ACTIVE and max(alpha(t), lb_t) <= beta(t):
-      successors.add(fire_one_transition(S,t))
-
-  return successors
+  t_star := choose_one(X_prime)      // 最高 pi，并列取最小编号
+  return { fire_one_transition(S, t_star) }
 ```
 
-这也是本次修复后代码应满足的核心不变量：`fire_one_transition` 只能接受 `t ∈ X` 且 `clock_state(t)==ACTIVE` 的变迁。
+核心不变量：`fire_one_transition` 只接受 `t ∈ X'` 且 `clock_state(t)==ACTIVE`；**时钟筛选（`F`）优先于优先级筛选（`X'`）**。
