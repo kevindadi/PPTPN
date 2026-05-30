@@ -403,7 +403,7 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
     return result;
   }
 
-  // 1. 在 enabled \ suspended 上按时钟筛选（先于优先级）：取 tau_min
+  // 1. 在 enabled \ suspended 上按时钟筛选（先于优先级）:取 tau_min
   int tau_min = INF_TIME;
   for (size_t t : scheduled.enabled) {
     const int tau = compute_firing_time(scheduled, t);
@@ -429,7 +429,7 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
     }
   }
 
-  // 2. 在 firable_now 上按核心取最高优先级集合（可并列；控制变迁 core<0 全部保留）
+  // 2. 在 firable_now 上按核心取最高优先级集合（可并列;控制变迁 core<0 全部保留）
   const std::set<size_t> schedulable =
       SchedulingAlgorithms::select_active_per_core(firable_now, ptpn_);
   result.chosen_count = schedulable.size();
@@ -489,7 +489,7 @@ double StateClassReachabilityGraph::advance_time(StateClass& state) const {
     }
   }
 
-  // 2. 如果没有上界或上界 <= 0，返回 0（死锁）
+  // 2. 如果没有上界或上界 <= 0,返回 0（死锁）
   if (min_ub == INF_TIME || min_ub <= 0) {
     return 0.0;
   }
@@ -533,7 +533,7 @@ std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_time
                  ? INF_TIME
                  : trans.time_interval.latest;
 
-  // 计算触发时间：max(earliest, lower_bound)
+  // 计算触发时间:max(earliest, lower_bound)
   int firing_lower = std::max(alpha, clock.lower_bound);
 
   // 检查窗口是否有效
@@ -557,8 +557,8 @@ std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_time
     return {false, StateClass(), 0.0};
   }
 
-  // 更新时钟：激发后重置该变迁的时钟
-  // 上界设为 beta（latest），下界从 0 开始
+  // 更新时钟:激发后重置该变迁的时钟
+  // 上界设为 beta（latest）,下界从 0 开始
   if (t < to.clocks.size()) {
     to.clocks[t].lower_bound = 0;
     to.clocks[t].upper_bound = beta;
@@ -603,7 +603,7 @@ void StateClassReachabilityGraph::recompute_enabled_sets_from_marking(
   // 3. 初始化新使能变迁的时钟
   for (size_t t : raw_enabled) {
     if (t < state.clocks.size()) {
-      // 如果时钟是 UNACTIVE，初始化它
+      // 如果时钟是 UNACTIVE,初始化它
       if (state.clocks[t].state == ClockState::UNACTIVE) {
         const auto& trans = ptpn_.get_transition(t);
         int beta = (trans.time_interval.latest == petri::INF)

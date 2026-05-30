@@ -74,6 +74,10 @@ add_library(PTPN_core STATIC
     src/petri/export_dot.cpp
     src/petri/export_romeo.cpp
     src/tdg2pn/tdg2pn.cpp
+    src/tdg2ptopner/validate.cpp
+    src/tdg2ptopner/export_ppn.cpp
+    src/tdg2ptopner/ptpn_to_ppn.cpp
+    src/tdg2ptopner/tdg2ptopner.cpp
     src/analysis/dbm.cpp
     src/analysis/state.cpp
     src/analysis/graph.cpp

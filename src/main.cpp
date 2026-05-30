@@ -27,6 +27,10 @@
 #include "petri/export_ptpn.h"
 #include "petri/export_romeo.h"
 #include "tdg2pn/tdg2pn.h"
+#include "tdg2ptopner/validate.h"
+#include "tdg2ptopner/export_ppn.h"
+#include "tdg2ptopner/ptpn_to_ppn.h"
+#include "tdg2ptopner/tdg2ptopner.h"
 #include "analysis/graph.h"
 
 
@@ -105,7 +109,7 @@ int main(int argc, char* argv[]) {
   string input_file;
   size_t max_states = 10000;
   size_t thread_count = 1;
-  string tina_file, romeo_file;
+  string tina_file, romeo_file, ppn_file;
   bool debug_mode = false;
   string canonicalization_mode = "equality";
 
@@ -117,6 +121,7 @@ int main(int argc, char* argv[]) {
                  "Reachability build thread count (default: 1; use 0 for auto)");
   app.add_option("--tina", tina_file, "Export to Tina .net format");
   app.add_option("--romeo", romeo_file, "Export to Romeo CTS format");
+  app.add_option("--ppn", ppn_file, "Export to PToPNer .ppn format");
   app.add_flag("--debug", debug_mode, "Enable debug logging");
   app.add_option("--canonicalization", canonicalization_mode,
                  "Canonicalization mode: equality, max-lower, or intersection (default: equality)")
@@ -203,6 +208,23 @@ int main(int argc, char* argv[]) {
 
   spdlog::info("\n[STATS] TDG Parsing: {} ms, {} KB", tdg_duration.count(), tdg_memory);
 
+  if (!ppn_file.empty()) {
+    const auto ppn_validation = ptopner_export::validate_for_ptopner(tdg);
+    if (!ppn_validation.ok) {
+      cerr << "ERROR: PToPNer export validation failed:" << endl;
+      for (const auto& err : ppn_validation.errors) {
+        cerr << "  - " << err << endl;
+      }
+      return 1;
+    }
+    if (!ppn_validation.warnings.empty()) {
+      cout << "PToPNer export warnings:" << endl;
+      for (const auto& warn : ppn_validation.warnings) {
+        cout << "  - " << warn << endl;
+      }
+    }
+  }
+
   // Transform to PTPN
   spdlog::info("\n[PTPN] Converting to PTPN...");
   petri::PTPN ptpn;
@@ -210,6 +232,20 @@ int main(int argc, char* argv[]) {
   spdlog::info("[PTPN] PTPN conversion completed");
   spdlog::info("  Places: {}", ptpn.num_places());
   spdlog::info("  Transitions: {}", ptpn.num_transitions());
+
+  if (!ppn_file.empty()) {
+    try {
+      const auto model = ptopner_export::ptpn_to_ppn_model(ptpn);
+      if (!ptopner_export::export_ppn(model, ppn_file)) {
+        cerr << "ERROR: Failed to write PToPNer .ppn file: " << ppn_file << endl;
+        return 1;
+      }
+      spdlog::info("[OUTPUT] PToPNer .ppn exported to: {}", ppn_file);
+    } catch (const std::exception& e) {
+      cerr << "ERROR: PToPNer export failed: " << e.what() << endl;
+      return 1;
+    }
+  }
 
   cout << ptpn.to_string();
 

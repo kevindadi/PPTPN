@@ -25,7 +25,7 @@ StateClass canonicalize(const StateClass& a, const StateClass& b,
 
     switch (mode) {
       case CanonicalizationMode::EQUALITY:
-        // 完全相等：直接使用 a 的时钟
+        // 完全相等:直接使用 a 的时钟
         cr = ca;
         break;
 
@@ -41,7 +41,7 @@ StateClass canonicalize(const StateClass& a, const StateClass& b,
         // 取约束交集
         cr.lower_bound = std::max(ca.lower_bound, cb.lower_bound);
         cr.upper_bound = std::min(ca.upper_bound, cb.upper_bound);
-        // 只有当两个状态相同时才保留该状态，否则降级
+        // 只有当两个状态相同时才保留该状态,否则降级
         cr.state = (ca.state == cb.state) ? ca.state : ClockState::UNACTIVE;
         break;
     }
@@ -50,7 +50,7 @@ StateClass canonicalize(const StateClass& a, const StateClass& b,
   }
 
   // 合并 enabled, active, suspended 集合
-  // 对于 active 和 suspended，取交集；对于 enabled，取并集
+  // 对于 active 和 suspended,取交集;对于 enabled,取并集
   std::set_union(a.enabled.begin(), a.enabled.end(),
                  b.enabled.begin(), b.enabled.end(),
                  std::inserter(result.enabled, result.enabled.end()));
@@ -91,7 +91,7 @@ bool are_equivalent(const StateClass& a, const StateClass& b,
       break;
 
     case CanonicalizationMode::MAX_LOWER_BOUND:
-      // 检查每个时钟：下界相同且上界相同（忽略状态差异）
+      // 检查每个时钟:下界相同且上界相同（忽略状态差异）
       for (size_t i = 0; i < a.clocks.size(); ++i) {
         if (a.clocks[i].lower_bound != b.clocks[i].lower_bound ||
             a.clocks[i].upper_bound != b.clocks[i].upper_bound) {
@@ -102,7 +102,7 @@ bool are_equivalent(const StateClass& a, const StateClass& b,
       break;
 
     case CanonicalizationMode::INTERSECTION:
-      // 检查每个时钟：下界相同且上界相同
+      // 检查每个时钟:下界相同且上界相同
       for (size_t i = 0; i < a.clocks.size(); ++i) {
         if (a.clocks[i].lower_bound != b.clocks[i].lower_bound ||
             a.clocks[i].upper_bound != b.clocks[i].upper_bound) {

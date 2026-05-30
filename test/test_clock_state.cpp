@@ -43,7 +43,7 @@ TEST_F(TransitionClockTest, MakeActive) {
 }
 
 TEST_F(TransitionClockTest, MakeSuspended) {
-  // 当前时间 3，原始 WCET 为 10
+  // 当前时间 3,原始 WCET 为 10
   TransitionClock tc = TransitionClock::make_suspended(3, 10);
 
   EXPECT_EQ(tc.lower_bound, 3);
@@ -109,7 +109,7 @@ TEST_F(TransitionClockTest, ToString) {
 }
 
 TEST_F(TransitionClockTest, SuspendedPreservesOriginalWcet) {
-  // 挂起时，原始的 WCET 信息需要保留
+  // 挂起时,原始的 WCET 信息需要保留
   // 下界被设置为挂起时的当前时间
   int current_time = 7;
   int original_wcet = 15;
@@ -123,8 +123,8 @@ TEST_F(TransitionClockTest, SuspendedPreservesOriginalWcet) {
 }
 
 TEST_F(TransitionClockTest, ClockStateEnumValues) {
-  // 验证枚举的实际值（测试实现的行为，不是假设）
-  // 枚举值取决于编译器，可以验证状态之间的顺序关系
+  // 验证枚举的实际值（测试实现的行为,不是假设）
+  // 枚举值取决于编译器,可以验证状态之间的顺序关系
   ClockState states[] = {ClockState::UNACTIVE, ClockState::ACTIVE, ClockState::SUSPENDED};
 
   // 验证三个状态都存在且不相等

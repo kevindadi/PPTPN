@@ -5,16 +5,16 @@
  * @file ptpn_analysis.h
  * @brief 公开的 PTPN 可达性分析接口
  *
- * 本文件提供对 PTPN（Priority Time Petri Net）可达性分析的高层封装。
- * 用户通过此类接口进行状态空间构建和分析。
+ * 本文件提供对 PTPN（Priority Time Petri Net）可达性分析的高层封装.
+ * 用户通过此类接口进行状态空间构建和分析.
  *
- * 核心设计：
+ * 核心设计:
  * - 使用 StateClass（clocks/active/suspended）替代旧的 Z1/Z2 结构
- * - 支持三种规范化模式：EQUALITY / MAX_LOWER_BOUND / INTERSECTION
- * - 时间推进仅作用于 active 时钟，suspended 时钟自动冻结
+ * - 支持三种规范化模式:EQUALITY / MAX_LOWER_BOUND / INTERSECTION
+ * - 时间推进仅作用于 active 时钟,suspended 时钟自动冻结
  * - 抢占/恢复语义显式管理
  *
- * 使用示例：
+ * 使用示例:
  * @code
  *   PTPNAnalyzer analyzer(ptpn);
  *   analyzer.set_canonicalization_mode(CanonicalizationMode::MAX_LOWER_BOUND);
@@ -40,21 +40,21 @@ namespace state_class {
 /**
  * PTPNAnalyzer - PTPN 可达性分析器
  *
- * 封装 StateClassReachabilityGraph，提供高层分析和持久化接口。
- * 所有底层可达性算法由 StateClassReachabilityGraph 实现。
+ * 封装 StateClassReachabilityGraph,提供高层分析和持久化接口.
+ * 所有底层可达性算法由 StateClassReachabilityGraph 实现.
  */
 class PTPNAnalyzer {
  public:
 
   /**
-   * 构造分析器。
+   * 构造分析器.
    *
    * @param ptpn PTPN 网（拷贝构造）
    */
   explicit PTPNAnalyzer(const petri::PTPN& ptpn);
 
   /**
-   * 构造分析器（移动语义）。
+   * 构造分析器（移动语义）.
    *
    * @param ptpn PTPN 网（移动构造）
    */
@@ -68,24 +68,24 @@ class PTPNAnalyzer {
   PTPNAnalyzer& operator=(PTPNAnalyzer&& other) noexcept;
 
   /**
-   * 设置规范化模式。
+   * 设置规范化模式.
    *
    * @param mode EQUALITY（默认）/ MAX_LOWER_BOUND / INTERSECTION
    */
   void set_canonicalization_mode(CanonicalizationMode mode);
 
   /**
-   * 获取当前规范化模式。
+   * 获取当前规范化模式.
    */
   [[nodiscard]] CanonicalizationMode get_canonicalization_mode() const;
 
   /**
-   * 启用/禁用状态剪枝（默认禁用）。
+   * 启用/禁用状态剪枝（默认禁用）.
    */
   void set_pruning_enabled(bool enabled);
 
   /**
-   * 查询剪枝是否启用。
+   * 查询剪枝是否启用.
    */
   [[nodiscard]] bool is_pruning_enabled() const;
 
@@ -108,27 +108,27 @@ class PTPNAnalyzer {
   size_t build(size_t max_states, size_t thread_count);
 
   /**
-   * 获取底层可达性图（Boost.Graph）。
+   * 获取底层可达性图（Boost.Graph）.
    */
   [[nodiscard]] const SCGraph& get_graph() const;
 
   /**
-   * 获取初始状态顶点。
+   * 获取初始状态顶点.
    */
   [[nodiscard]] SCVertex get_initial_vertex() const;
 
   /**
-   * 获取状态数量。
+   * 获取状态数量.
    */
   [[nodiscard]] size_t state_count() const;
 
   /**
-   * 获取迁移数量。
+   * 获取迁移数量.
    */
   [[nodiscard]] size_t transition_count() const;
 
   /**
-   * 获取统计信息。
+   * 获取统计信息.
    */
   [[nodiscard]] const typename StateClassReachabilityGraph::Statistics&
   get_statistics() const;
@@ -136,7 +136,7 @@ class PTPNAnalyzer {
   /**
    * advance_time - 时间推进
    *
-   * 推进所有 active 时钟。suspended 时钟保持冻结。
+   * 推进所有 active 时钟.suspended 时钟保持冻结.
    *
    * @param state 当前状态（就地修改）
    * @return 推进的时间量
@@ -217,7 +217,7 @@ class PTPNAnalyzer {
   /**
    * create_initial_state - 创建初始状态
    *
-   * 从 PTPN 的初始标识创建 StateClass。
+   * 从 PTPN 的初始标识创建 StateClass.
    */
   [[nodiscard]] StateClass create_initial_state() const;
 

@@ -17,6 +17,7 @@ add_executable(ptpn_test
   test_clock_state.cpp
   test_canonicalization.cpp
   test_scheduling.cpp
+  test_tdg2ptopner.cpp
 )
 
 target_link_libraries(ptpn_test

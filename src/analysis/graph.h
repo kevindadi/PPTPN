@@ -38,13 +38,13 @@ typedef boost::graph_traits<SCGraph>::edge_descriptor SCEdge;
 // 状态可达图
 //
 // StateClassReachabilityGraph 在新的 StateClass 结构（clocks/active/suspended）
-// 基础上构建可达性图。核心算法:
+// 基础上构建可达性图.核心算法:
 //
 //   1. advance_time()       - 时间推进（仅 active 时钟）
 //   2. fire_with_time()     - 变迁激发（带时间）
 //   3. recompute_enabled_sets() - 重新计算使能/活跃/挂起集合
 //
-// 规范化模式（CanonicalizationMode）控制状态合并策略：
+// 规范化模式（CanonicalizationMode）控制状态合并策略:
 //   EQUALITY       - 标识、时钟完全相等才合并
 //   MAX_LOWER_BOUND - 取最大下界
 //   INTERSECTION   - 取约束交集
@@ -72,14 +72,14 @@ class StateClassReachabilityGraph {
   explicit StateClassReachabilityGraph(const petri::PTPN& ptpn);
 
   /**
-   * 设置规范化模式。
+   * 设置规范化模式.
    *
    * @param mode EQUALITY / MAX_LOWER_BOUND / INTERSECTION
    */
   void set_canonicalization_mode(CanonicalizationMode mode);
 
   /**
-   * 获取当前规范化模式。
+   * 获取当前规范化模式.
    */
   [[nodiscard]] CanonicalizationMode get_canonicalization_mode() const;
 
@@ -92,7 +92,7 @@ class StateClassReachabilityGraph {
   size_t build(size_t max_states = std::numeric_limits<size_t>::max());
 
   /**
-   * 构建可达性图。
+   * 构建可达性图.
    *
    * @param max_states 最大状态数限制
    * @param thread_count 线程数（0 = 自动）
@@ -112,13 +112,13 @@ class StateClassReachabilityGraph {
   /**
    * advance_time - 时间推进
    *
-   * 找到 active 集合中最紧的时间上界（min_ub），推进所有 active 时钟。
-   * suspended 时钟保持冻结。
+   * 找到 active 集合中最紧的时间上界（min_ub）,推进所有 active 时钟.
+   * suspended 时钟保持冻结.
    *
    * @param state 当前状态（就地修改）
-   * @return 推进的时间量（秒），0 表示死锁（无 active 变迁）
+   * @return 推进的时间量（秒）,0 表示死锁（无 active 变迁）
    *
-   * 算法：
+   * 算法:
    *   1. min_ub = min(clocks[t].upper_bound) for t in active
    *   2. if min_ub == INF or min_ub <= 0: return 0
    *   3. for t in active: clocks[t].lower_bound += min_ub; clocks[t].upper_bound += min_ub
@@ -130,7 +130,7 @@ class StateClassReachabilityGraph {
   /**
    * fire_with_time - 带时间的变迁激发
    *
-   * 检查时钟是否在有效时间窗口内，计算触发时间，生成新状态。
+   * 检查时钟是否在有效时间窗口内,计算触发时间,生成新状态.
    *
    * @param t 变迁索引
    * @param from 起始状态
@@ -142,8 +142,8 @@ class StateClassReachabilityGraph {
   /**
    * recompute_enabled_sets - 重新计算使能/活跃/挂起集合
    *
-   * 根据当前 marking，从 Petri 网重新计算使能变迁，
-   * 然后通过调度算法确定 active 和 suspended 集合。
+   * 根据当前 marking,从 Petri 网重新计算使能变迁,
+   * 然后通过调度算法确定 active 和 suspended 集合.
    *
    * @param state 当前状态（就地修改 marking 域）
    */
@@ -166,7 +166,7 @@ class StateClassReachabilityGraph {
       const std::set<size_t>& enabled) const;
 
   /**
-   * compute_firing_time - 变迁在当前状态下的最早可发生时间；不可发生返回 -1
+   * compute_firing_time - 变迁在当前状态下的最早可发生时间;不可发生返回 -1
    */
   [[nodiscard]] int compute_firing_time(const StateClass& state,
                                         size_t transition) const;
@@ -200,7 +200,7 @@ class StateClassReachabilityGraph {
   /**
    * suspend_transition - 挂起变迁
    *
-   * 将变迁 t 从 active 移到 suspended，时钟状态设为 SUSPENDED（冻结）。
+   * 将变迁 t 从 active 移到 suspended,时钟状态设为 SUSPENDED（冻结）.
    *
    * @param t 变迁索引
    * @param state 目标状态
@@ -210,7 +210,7 @@ class StateClassReachabilityGraph {
   /**
    * restore_transition - 恢复变迁
    *
-   * 将变迁 t 从 suspended 移回 active，时钟状态设为 ACTIVE（继续流逝）。
+   * 将变迁 t 从 suspended 移回 active,时钟状态设为 ACTIVE（继续流逝）.
    *
    * @param t 变迁索引
    * @param state 目标状态

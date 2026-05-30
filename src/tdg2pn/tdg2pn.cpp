@@ -973,7 +973,7 @@ void TDG2PN::fixed_prior_with_resume(
         if (!l_tc.locks.empty()) {
           size_t num_locks = l_tc.locks.size();
 
-          // 如果所有锁都是 spin，则跳过锁抢占路径建模
+          // 如果所有锁都是 spin,则跳过锁抢占路径建模
           // 因为持有 spin 期间不能被抢占
           bool all_spin = true;
           for (const auto& lock : l_tc.locks) {
@@ -996,10 +996,10 @@ void TDG2PN::fixed_prior_with_resume(
             const size_t h_ready = h_t_pn[2];
             const size_t h_exit = h_t_pn.back();
 
-            // 遍历锁链中所有 place (从索引 4 开始，seg1_done)
+            // 遍历锁链中所有 place (从索引 4 开始,seg1_done)
             for (size_t chain_idx = 4; chain_idx + 1 < l_t_pn.size(); chain_idx += 2) {
               // exec 变迁索引 = chain_idx + 1
-              // 如果这个 exec 变迁是不可挂起的（spin 持有期），跳过
+              // 如果这个 exec 变迁是不可挂起的（spin 持有期）,跳过
               if (non_suspendable_exec_indices.count(chain_idx + 1)) {
                 continue;
               }

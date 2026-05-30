@@ -97,12 +97,12 @@ TEST_F(CanonicalizationTest, IntersectionMode) {
 
   EXPECT_EQ(result.marking, state_a_.marking);
 
-  // INTERSECTION 模式：取最大下界、最小上界
+  // INTERSECTION 模式:取最大下界、最小上界
   // 时钟 0: max(0,0)=0, min(5,6)=5
   EXPECT_EQ(result.clocks[0].lower_bound, 0);
   EXPECT_EQ(result.clocks[0].upper_bound, 5);
 
-  // 时钟 1: a 有状态 SUSPENDED，b 有状态 SUSPENDED -> 状态相同
+  // 时钟 1: a 有状态 SUSPENDED,b 有状态 SUSPENDED -> 状态相同
   EXPECT_EQ(result.clocks[1].state, ClockState::SUSPENDED);
 }
 
@@ -183,7 +183,7 @@ TEST_F(CanonicalizationTest, AreEquivalentDifferentClocks) {
 }
 
 TEST_F(CanonicalizationTest, AreEquivalentMaxLowerBoundMode) {
-  // MAX_LOWER_BOUND 模式下，只要 lower 和 upper 相同就等价（忽略状态）
+  // MAX_LOWER_BOUND 模式下,只要 lower 和 upper 相同就等价（忽略状态）
   StateClass s1;
   s1.marking = {1, 1};
   s1.clocks.resize(2);
@@ -200,7 +200,7 @@ TEST_F(CanonicalizationTest, AreEquivalentMaxLowerBoundMode) {
 }
 
 TEST_F(CanonicalizationTest, AreEquivalentDifferentLowerBound) {
-  // MAX_LOWER_BOUND 模式下，lower 不同就不等价
+  // MAX_LOWER_BOUND 模式下,lower 不同就不等价
   StateClass s1;
   s1.marking = {1, 1};
   s1.clocks.resize(2);
@@ -239,7 +239,7 @@ TEST_F(CanonicalizationTest, DifferentClockSizes) {
   s2.marking = {1};
   s2.clocks.resize(2);
 
-  // 时钟数量不同，are_equivalent 应该返回 false
+  // 时钟数量不同,are_equivalent 应该返回 false
   EXPECT_FALSE(state_class::are_equivalent(s1, s2, CanonicalizationMode::EQUALITY));
 }
 

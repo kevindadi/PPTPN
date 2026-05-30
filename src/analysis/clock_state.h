@@ -10,8 +10,8 @@ constexpr int INF_TIME = std::numeric_limits<int>::max();
 
 enum class ClockState {
   UNACTIVE,   // 不在任何集合中（不活跃）
-  ACTIVE,     // 正在执行，时钟正常流逝
-  SUSPENDED   // 被挂起，时钟冻结
+  ACTIVE,     // 正在执行,时钟正常流逝
+  SUSPENDED   // 被挂起,时钟冻结
 };
 
 struct TransitionClock {
