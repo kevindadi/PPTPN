@@ -44,9 +44,21 @@ FetchContent_Declare(cli11
 )
 FetchContent_MakeAvailable(cli11)
 
+# spdlog (FetchContent avoids vcpkg pkg-config dependency on Linux)
+FetchContent_Declare(spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG v1.15.3
+)
+FetchContent_MakeAvailable(spdlog)
+
+# fmt (spdlog dependency, also used directly)
+FetchContent_Declare(fmt
+    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+    GIT_TAG 11.2.0
+)
+FetchContent_MakeAvailable(fmt)
+
 find_package(Boost REQUIRED COMPONENTS graph filesystem thread date_time)
-find_package(spdlog REQUIRED)
-find_package(fmt REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 message(STATUS "Boost include dir: ${Boost_INCLUDE_DIRS}")
 

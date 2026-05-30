@@ -3,6 +3,9 @@
     "CMAKE_TOOLCHAIN_FILE": "${env:HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake",
     "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
   },
+  "cmake.environment": {
+    "VCPKG_ROOT": "${env:HOME}/vcpkg"
+  },
   "cmake.buildDirectory": "${workspaceFolder}/build",
   "cmake.generator": "Ninja",
   "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
