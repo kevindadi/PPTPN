@@ -36,11 +36,7 @@
 #include "graph.h"
 
 namespace state_class {
-
-// =============================================================================
-// PTPN 分析器 - 公开接口
-// =============================================================================
-
+  
 /**
  * PTPNAnalyzer - PTPN 可达性分析器
  *
@@ -49,9 +45,6 @@ namespace state_class {
  */
 class PTPNAnalyzer {
  public:
-  // =======================================================================
-  // 构造与配置
-  // =======================================================================
 
   /**
    * 构造分析器。
@@ -73,10 +66,6 @@ class PTPNAnalyzer {
   PTPNAnalyzer& operator=(const PTPNAnalyzer& other);
   PTPNAnalyzer(PTPNAnalyzer&& other) noexcept;
   PTPNAnalyzer& operator=(PTPNAnalyzer&& other) noexcept;
-
-  // =======================================================================
-  // 配置接口（转发到 StateClassReachabilityGraph）
-  // =======================================================================
 
   /**
    * 设置规范化模式。
@@ -100,10 +89,6 @@ class PTPNAnalyzer {
    */
   [[nodiscard]] bool is_pruning_enabled() const;
 
-  // =======================================================================
-  // 分析入口
-  // =======================================================================
-
   /**
    * build - 构建可达性图（串行）
    *
@@ -121,10 +106,6 @@ class PTPNAnalyzer {
    * @return 实际构建的状态数
    */
   size_t build(size_t max_states, size_t thread_count);
-
-  // =======================================================================
-  // 查询接口（转发到底层图）
-  // =======================================================================
 
   /**
    * 获取底层可达性图（Boost.Graph）。
@@ -151,10 +132,6 @@ class PTPNAnalyzer {
    */
   [[nodiscard]] const typename StateClassReachabilityGraph::Statistics&
   get_statistics() const;
-
-  // =======================================================================
-  // 单步操作（转发到 StateClassReachabilityGraph）
-  // =======================================================================
 
   /**
    * advance_time - 时间推进
@@ -189,10 +166,6 @@ class PTPNAnalyzer {
   void recompute_enabled_sets_from_marking(
       const std::vector<int>& marking, StateClass& state) const;
 
-  // =======================================================================
-  // 调度操作
-  // =======================================================================
-
   /**
    * select_active_per_core - 选择每个核心上最高优先级变迁
    */
@@ -215,10 +188,6 @@ class PTPNAnalyzer {
    */
   void restore_transition(size_t t, StateClass& state) const;
 
-  // =======================================================================
-  // 规范化
-  // =======================================================================
-
   /**
    * canonicalize - 规范化两个状态
    */
@@ -228,10 +197,6 @@ class PTPNAnalyzer {
    * are_equivalent - 检查两个状态是否等价
    */
   bool are_equivalent(const StateClass& a, const StateClass& b) const;
-
-  // =======================================================================
-  // 持久化
-  // =======================================================================
 
   /**
    * save_to_dot - 保存为 Graphviz DOT 格式
@@ -248,10 +213,6 @@ class PTPNAnalyzer {
    * @return 是否成功
    */
   bool save_to_json(const std::string& file_path) const;
-
-  // =======================================================================
-  // 工厂方法（辅助）
-  // =======================================================================
 
   /**
    * create_initial_state - 创建初始状态
@@ -279,10 +240,6 @@ class PTPNAnalyzer {
   std::unique_ptr<petri::PTPN> ptpn_;
   std::unique_ptr<StateClassReachabilityGraph> graph_;
 };
-
-// =============================================================================
-// 实现（模板/内联方法）
-// =============================================================================
 
 inline PTPNAnalyzer::PTPNAnalyzer(const petri::PTPN& ptpn)
     : ptpn_(std::make_unique<petri::PTPN>(ptpn)),

@@ -1,4 +1,22 @@
 cmake_minimum_required(VERSION 3.27)
+
+# vcpkg toolchain must be set before project()
+if(DEFINED ENV{VCPKG_ROOT})
+    set(VCPKG_ROOT $ENV{VCPKG_ROOT})
+elseif(DEFINED ENV{VCPKG_INSTALLATION_ROOT})
+    set(VCPKG_ROOT $ENV{VCPKG_INSTALLATION_ROOT})
+elseif(EXISTS "$ENV{HOME}/vcpkg")
+    set(VCPKG_ROOT "$ENV{HOME}/vcpkg")
+elseif(EXISTS "/Users/kevin/vcpkg")
+    set(VCPKG_ROOT "/Users/kevin/vcpkg")
+endif()
+
+if(VCPKG_ROOT AND EXISTS "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
+    message(STATUS "Using vcpkg from: ${VCPKG_ROOT}")
+    set(CMAKE_TOOLCHAIN_FILE "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        CACHE STRING "Vcpkg toolchain file")
+endif()
+
 project(PTPN)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -7,20 +25,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Suppress warnings from dependencies with older cmake_minimum_required
 cmake_policy(SET CMP0167 NEW)
 cmake_policy(SET CMP0057 NEW)
-
-# Use vcpkg for dependencies
-if(DEFINED ENV{VCPKG_ROOT})
-    set(VCPKG_ROOT $ENV{VCPKG_ROOT})
-elseif(DEFINED ENV{VCPKG_INSTALLATION_ROOT})
-    set(VCPKG_ROOT $ENV{VCPKG_INSTALLATION_ROOT})
-elseif(EXISTS "/Users/kevin/vcpkg")
-    set(VCPKG_ROOT "/Users/kevin/vcpkg")
-endif()
-
-if(VCPKG_ROOT AND EXISTS "${VCPKG_ROOT}/vcpkg")
-    message(STATUS "Using vcpkg from: ${VCPKG_ROOT}")
-    set(CMAKE_TOOLCHAIN_FILE "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "Vcpkg toolchain")
-endif()
 
 # FetchContent for dependencies
 include(FetchContent)
@@ -82,3 +86,15 @@ target_link_libraries(PTPN PRIVATE PTPN_core CLI11::CLI11)
 
 # Test subdirectory
 add_subdirectory(test)
+
+# Expose compile_commands.json at repo root for IDE/clangd
+if(CMAKE_EXPORT_COMPILE_COMMANDS)
+    set(_compile_commands_link "${CMAKE_SOURCE_DIR}/compile_commands.json")
+    if(NOT EXISTS "${_compile_commands_link}")
+        file(CREATE_LINK
+            "${CMAKE_BINARY_DIR}/compile_commands.json"
+            "${_compile_commands_link}"
+            SYMBOLIC
+        )
+    endif()
+endif()

@@ -1,0 +1,10 @@
+{
+  "dependencies": [
+    "boost-graph",
+    "boost-filesystem",
+    "boost-thread",
+    "boost-date-time",
+    "spdlog",
+    "fmt"
+  ]
+}

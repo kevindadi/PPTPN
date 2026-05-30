@@ -1,7 +1,7 @@
-.vscode
 .cache
 .DS_Store
 .claude
+.cursor
 
 build
 main.pdf

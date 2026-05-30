@@ -22,7 +22,7 @@
 namespace state_class {
 
 // =============================================================================
-// Boost.Graph type aliases (保留对 Boost.Graph 的依赖)
+// Boost.Graph type aliases
 // =============================================================================
 
 typedef boost::adjacency_list<
@@ -69,15 +69,6 @@ class StateClassReachabilityGraph {
 #endif
 
  public:
-  // =======================================================================
-  // 构造函数与配置
-  // =======================================================================
-
-  /**
-   * 构造可达性图。
-   *
-   * @param ptpn PTPN 网（引用，内部不复制）
-   */
   explicit StateClassReachabilityGraph(const petri::PTPN& ptpn);
 
   /**
@@ -92,27 +83,16 @@ class StateClassReachabilityGraph {
    */
   [[nodiscard]] CanonicalizationMode get_canonicalization_mode() const;
 
-  /**
-   * 启用/禁用剪枝。
-   */
+
   void set_pruning_enabled(bool enabled);
 
   [[nodiscard]] bool is_pruning_enabled() const { return pruning_enabled_; }
 
-  // =======================================================================
-  // 构建与查询
-  // =======================================================================
 
-  /**
-   * 构建可达性图（串行）。
-   *
-   * @param max_states 最大状态数限制（默认无限制）
-   * @return 实际构建的状态数
-   */
   size_t build(size_t max_states = std::numeric_limits<size_t>::max());
 
   /**
-   * 构建可达性图（并行）。
+   * 构建可达性图。
    *
    * @param max_states 最大状态数限制
    * @param thread_count 线程数（0 = 自动）
@@ -120,28 +100,14 @@ class StateClassReachabilityGraph {
    */
   size_t build(size_t max_states, size_t thread_count);
 
-  /**
-   * 获取底层 Boost 图。
-   */
+
   [[nodiscard]] const SCGraph& get_graph() const { return graph_; }
   [[nodiscard]] SCGraph& get_graph() { return graph_; }
 
-  /**
-   * 获取初始状态顶点。
-   */
-  [[nodiscard]] SCVertex get_initial_vertex() const { return initial_vertex_; }
 
-  /**
-   * create_initial_state - 创建初始状态（公开工厂方法）
-   *
-   * 从 PTPN 的初始标识创建 StateClass。
-   * 内部调用 create_initial_state_class()。
-   */
+  [[nodiscard]] SCVertex get_initial_vertex() const { return initial_vertex_; }
   [[nodiscard]] StateClass create_initial_state();
 
-  // =======================================================================
-  // 核心算法 - 适配新的 StateClass 结构（clocks/active/suspended）
-  // =======================================================================
 
   /**
    * advance_time - 时间推进
@@ -192,9 +158,6 @@ class StateClassReachabilityGraph {
   void recompute_enabled_sets_from_marking(const std::vector<int>& marking,
                                            StateClass& state) const;
 
-  // =======================================================================
-  // 调度相关（使用 SchedulingAlgorithms）
-  // =======================================================================
 
   /**
    * select_active_per_core - 选择每个核心上最高优先级变迁
@@ -215,9 +178,6 @@ class StateClassReachabilityGraph {
   std::set<size_t> compute_suspended(const std::set<size_t>& enabled,
                                      const std::set<size_t>& active) const;
 
-  // =======================================================================
-  // 规范化
-  // =======================================================================
 
   /**
    * canonicalize - 规范化两个状态
@@ -233,9 +193,6 @@ class StateClassReachabilityGraph {
    */
   bool are_equivalent(const StateClass& a, const StateClass& b) const;
 
-  // =======================================================================
-  // 抢占/恢复语义
-  // =======================================================================
 
   /**
    * suspend_transition - 挂起变迁
@@ -257,9 +214,6 @@ class StateClassReachabilityGraph {
    */
   void restore_transition(size_t t, StateClass& state) const;
 
-  // =======================================================================
-  // 统计分析
-  // =======================================================================
 
   struct Statistics {
     size_t total_states = 0;
@@ -274,16 +228,10 @@ class StateClassReachabilityGraph {
 
   [[nodiscard]] const Statistics& get_statistics() const { return stats_; }
 
-  // =======================================================================
-  // 持久化
-  // =======================================================================
 
   bool save_to_dot(const std::string& file_path) const;
   bool save_to_json(const std::string& file_path) const;
 
-  // =======================================================================
-  // 私有成员（保留给 graph.cpp 实现）
-  // =======================================================================
 
  private:
   const petri::PTPN& ptpn_;
