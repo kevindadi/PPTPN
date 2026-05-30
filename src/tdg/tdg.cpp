@@ -1,7 +1,11 @@
 #include "tdg/tdg.h"
 
 #include <spdlog/spdlog.h>
-#include <set>
+
+#include <algorithm>
+#include <fstream>
+#include <sstream>
+#include <stdexcept>
 
 #include "../json/json.h"
 
@@ -9,6 +13,7 @@ namespace tdg {
 
 namespace {
 
+// Logs per-core task priority ordering for debugging and diagnostics.
 std::string format_core_priority_order(
     int core_id, const std::vector<std::string>& tasks,
     const std::unordered_map<std::string, int>& tasks_priority,
@@ -32,104 +37,109 @@ std::string format_core_priority_order(
   return oss.str();
 }
 
-}  // namespace
+// Registers a parsed node into the TDG lookup tables.
+void register_node(TDG& tdg, const NodeType& node_type, bool log_node) {
+  visit_node(node_type, [&](const auto& node) {
+    using Node = std::decay_t<decltype(node)>;
 
-void add_parsed_node(tdg::TDG& tdg, const NodeType& node_type, bool log_node) {
-  if (std::holds_alternative<TaskNode>(node_type)) {
-    const auto& task = std::get<TaskNode>(node_type);
-    tdg.all_task.emplace_back(node_type);
-    tdg.tasks_priority.insert({task.name, task.priority});
-    tdg.nodes_type.insert({task.name, node_type});
-    tdg.vertexes_type.insert({task.name, TDGVertexType::TASK});
-    tdg.tasks_type.insert({task.name, TaskType::NORMAL});
+    if constexpr (std::is_same_v<Node, TaskNode>) {
+      tdg.all_task.emplace_back(node_type);
+      tdg.tasks_priority.emplace(node.name, node.priority);
+      tdg.nodes_type.emplace(node.name, node_type);
+      tdg.vertexes_type.emplace(node.name, TDGVertexType::TASK);
+      tdg.tasks_type.emplace(node.name, TaskType::NORMAL);
 
-    for (const auto& lock : task.lock) {
-      tdg.lock_set.insert(lock);
-      tdg.task_locks_map[task.name].push_back(lock);
+      for (const auto& lock : node.lock) {
+        tdg.lock_set.insert(lock);
+        tdg.task_locks_map[node.name].push_back(lock);
+      }
+
+      if (log_node) {
+        spdlog::info("[TDG] Node '{}' -> task (priority={}, core={})",
+                     node.name, node.priority, node.core);
+      }
+      return;
     }
 
-    if (log_node) {
-      spdlog::info("[TDG] Node '{}' -> task (priority={}, core={})",
-                   task.name, task.priority, task.core);
+    if constexpr (std::is_same_v<Node, ForkTask>) {
+      tdg.nodes_type.emplace(node.name, node_type);
+      tdg.vertexes_type.emplace(node.name, TDGVertexType::FORK);
+      if (log_node) {
+        spdlog::info("[TDG] Node '{}' -> fork", node.name);
+      }
+      return;
     }
-  } else if (std::holds_alternative<ForkTask>(node_type)) {
-    const auto& task = std::get<ForkTask>(node_type);
-    tdg.nodes_type.insert({task.name, node_type});
-    tdg.vertexes_type.insert({task.name, TDGVertexType::FORK});
-    if (log_node) {
-      spdlog::info("[TDG] Node '{}' -> fork", task.name);
+
+    if constexpr (std::is_same_v<Node, JoinTask>) {
+      tdg.nodes_type.emplace(node.name, node_type);
+      tdg.vertexes_type.emplace(node.name, TDGVertexType::JOIN);
+      if (log_node) {
+        spdlog::info("[TDG] Node '{}' -> join", node.name);
+      }
+      return;
     }
-  } else if (std::holds_alternative<JoinTask>(node_type)) {
-    const auto& task = std::get<JoinTask>(node_type);
-    tdg.nodes_type.insert({task.name, node_type});
-    tdg.vertexes_type.insert({task.name, TDGVertexType::JOIN});
-    if (log_node) {
-      spdlog::info("[TDG] Node '{}' -> join", task.name);
+
+    if constexpr (std::is_same_v<Node, EmptyTask>) {
+      tdg.nodes_type.emplace(node.name, node_type);
+      tdg.vertexes_type.emplace(node.name, TDGVertexType::EMPTY);
+      if (log_node) {
+        spdlog::info("[TDG] Node '{}' -> empty", node.name);
+      }
     }
-  } else if (std::holds_alternative<EmptyTask>(node_type)) {
-    const auto& task = std::get<EmptyTask>(node_type);
-    tdg.nodes_type.insert({task.name, node_type});
-    tdg.vertexes_type.insert({task.name, TDGVertexType::EMPTY});
-    if (log_node) {
-      spdlog::info("[TDG] Node '{}' -> empty", task.name);
-    }
+  });
+}
+
+// Populates TDG fields from a successfully parsed JSON graph.
+void load_from_parser(TDG& tdg, const parse::Parser& parser, bool log_nodes) {
+  tdg.num_cpus = parser.get_num_cpus();
+  tdg.cores_per_cpu = parser.get_cores_per_cpu();
+  tdg.policy = parser.get_policy();
+  tdg.start_tasks = parser.get_start_tasks();
+  tdg.end_tasks = parser.get_end_tasks();
+  tdg.periodic_tasks = parser.get_periodic_tasks();
+
+  for (const auto& json_node : parser.get_nodes()) {
+    register_node(tdg, json_node.to_node_type(), log_nodes);
+  }
+
+  tdg.tdg_edges.clear();
+  tdg.tdg_edges.reserve(parser.get_edges().size());
+  for (const auto& edge : parser.get_edges()) {
+    tdg.tdg_edges.push_back({edge.source, edge.target, edge.label, edge.style});
+    spdlog::debug("[TDG] Edge: {} -> {} (style={})", edge.source, edge.target,
+                  edge.style);
   }
 }
+
+}  // namespace
 
 void TDG::parse_json(const std::string& json_file) {
   spdlog::info("[TDG] Starting JSON parsing: {}", json_file);
 
   parse::Parser parser;
-  auto result = parser.parse_file(json_file);
-
+  const auto result = parser.parse_file(json_file);
   if (!result.success) {
     spdlog::error("[TDG] JSON parsing failed: {}", result.error_message);
     return;
   }
 
-  num_cpus = parser.get_num_cpus();
-  cores_per_cpu = parser.get_cores_per_cpu();
-  policy = parser.get_policy();
-  start_tasks = parser.get_start_tasks();
-  end_tasks = parser.get_end_tasks();
-  periodic_tasks = parser.get_periodic_tasks();
+  spdlog::info("[TDG] Configuration: {} CPUs, {} cores per CPU",
+               parser.get_num_cpus(), parser.get_cores_per_cpu());
 
-  spdlog::info("[TDG] Configuration: {} CPUs, {} cores per CPU", num_cpus, cores_per_cpu);
+  load_from_parser(*this, parser, /*log_nodes=*/true);
 
-  for (const auto& json_node : parser.get_nodes()) {
-    add_parsed_node(*this, json_node.to_node_type(), true);
-  }
-
-  for (const auto& edge : parser.get_edges()) {
-    tdg_edges.emplace_back(edge.source, edge.target, edge.label, edge.style);
-    spdlog::debug("[TDG] Edge: {} -> {} (style={})", edge.source, edge.target, edge.style);
-  }
-
-  spdlog::info("[TDG] JSON parsing completed: {} nodes, {} edges", nodes_type.size(), tdg_edges.size());
+  spdlog::info("[TDG] JSON parsing completed: {} nodes, {} edges",
+               nodes_type.size(), tdg_edges.size());
 }
 
 void TDG::parse_json_string(const std::string& json_content) {
   parse::Parser parser;
-  auto result = parser.parse_string(json_content);
-
+  const auto result = parser.parse_string(json_content);
   if (!result.success) {
     throw std::runtime_error("JSON parsing failed: " + result.error_message);
   }
 
-  num_cpus = parser.get_num_cpus();
-  cores_per_cpu = parser.get_cores_per_cpu();
-  policy = parser.get_policy();
-  start_tasks = parser.get_start_tasks();
-  end_tasks = parser.get_end_tasks();
-  periodic_tasks = parser.get_periodic_tasks();
-
-  for (const auto& json_node : parser.get_nodes()) {
-    add_parsed_node(*this, json_node.to_node_type(), false);
-  }
-
-  for (const auto& edge : parser.get_edges()) {
-    tdg_edges.emplace_back(edge.source, edge.target, edge.label, edge.style);
-  }
+  load_from_parser(*this, parser, /*log_nodes=*/false);
 }
 
 std::string TDG::to_dot_string() const {
@@ -143,18 +153,17 @@ std::string TDG::to_dot_string() const {
   }
 
   for (const auto& edge : tdg_edges) {
-    std::string source, target, label, style;
-    std::tie(source, target, label, style) = edge;
-
-    oss << "    " << source << " -> " << target;
-    if (!label.empty() || !style.empty()) {
+    oss << "    " << edge.source << " -> " << edge.target;
+    if (!edge.label.empty() || !edge.style.empty()) {
       oss << " [";
-      if (!label.empty()) {
-        oss << "xlabel = \"" << label << "\"";
+      if (!edge.label.empty()) {
+        oss << "xlabel = \"" << edge.label << "\"";
       }
-      if (!style.empty()) {
-        if (!label.empty()) oss << "; ";
-        oss << "style = \"" << style << "\"";
+      if (!edge.style.empty()) {
+        if (!edge.label.empty()) {
+          oss << "; ";
+        }
+        oss << "style = \"" << edge.style << "\"";
       }
       oss << ";]";
     }
@@ -174,36 +183,34 @@ void TDG::export_to_dot(const std::string& output_path) {
     return;
   }
 
-  std::string dot_content = to_dot_string();
-  file << dot_content;
-  file.close();
+  file << to_dot_string();
 
-  spdlog::info("[DOT] Exported {} nodes, {} edges to {}", nodes_type.size(), tdg_edges.size(), output_path);
+  spdlog::info("[DOT] Exported {} nodes, {} edges to {}", nodes_type.size(),
+               tdg_edges.size(), output_path);
 }
 
 std::unordered_map<int, std::vector<std::string>> TDG::classify_priority() {
   std::unordered_map<int, std::vector<std::string>> core_task;
 
   for (const auto& task : all_task) {
-    if (std::holds_alternative<TaskNode>(task)) {
-      auto result = std::get<TaskNode>(task);
-      TaskConfig tc = {result.core, result.priority, result.time, result.lock};
-      tasks_config.insert({result.name, tc});
-      core_task[result.core].push_back(result.name);
-    } else {
-      continue;
+    if (const auto* task_node = as_task_node(task)) {
+      tasks_config.emplace(task_node->name,
+                           TaskConfig{task_node->core, task_node->priority,
+                                      task_node->time, task_node->lock});
+      core_task[task_node->core].push_back(task_node->name);
     }
   }
 
-  for (auto& [fst, snd] : core_task) {
-    std::sort(snd.begin(), snd.end(), [&](const std::string& t1, const std::string& t2) {
-      return tasks_priority[t1] > tasks_priority[t2];
-    });
+  for (auto& [core_id, tasks] : core_task) {
+    std::sort(tasks.begin(), tasks.end(),
+              [&](const std::string& left, const std::string& right) {
+                return tasks_priority.at(left) > tasks_priority.at(right);
+              });
   }
 
-  for (auto& [fst, snd] : core_task) {
-    spdlog::info("{}",
-                 format_core_priority_order(fst, snd, tasks_priority, "[TDG]"));
+  for (const auto& [core_id, tasks] : core_task) {
+    spdlog::info("{}", format_core_priority_order(core_id, tasks, tasks_priority,
+                                                  "[TDG]"));
   }
 
   return core_task;

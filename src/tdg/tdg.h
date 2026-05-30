@@ -1,7 +1,6 @@
 #ifndef TDG_H
 #define TDG_H
 
-#include <fstream>
 #include <map>
 #include <set>
 #include <string>
@@ -33,7 +32,7 @@ class TDG {
   std::set<std::string> lock_set;
   std::map<std::string, std::vector<std::string>> task_locks_map;
   std::unordered_map<std::string, TaskConfig> tasks_config;
-  std::vector<std::tuple<std::string, std::string, std::string, std::string>> tdg_edges;
+  std::vector<TdgEdge> tdg_edges;
 
   void parse_json(const std::string& json_file);
   void parse_json_string(const std::string& json_content);

@@ -8,6 +8,8 @@
 #include <variant>
 #include <vector>
 
+#include <functional>
+
 enum class TaskType { NORMAL, PERIOD, APERIOD, INTERRUPT };
 
 // 实时系统调度策略
@@ -77,5 +79,50 @@ struct PeriodicBinding {
   std::string task;
   int period = 0;
 };
+
+// Directed edge in a task dependency graph, mirroring the JSON edge object.
+struct TdgEdge {
+  std::string source;
+  std::string target;
+  std::string label;
+  std::string style;
+
+  [[nodiscard]] bool is_self_loop() const { return source == target; }
+  [[nodiscard]] bool is_dashed() const {
+    return style.find("dashed") != std::string::npos;
+  }
+  [[nodiscard]] bool leaves(const std::string& node) const {
+    return source == node && target != node;
+  }
+  [[nodiscard]] bool enters(const std::string& node) const {
+    return target == node && source != node;
+  }
+};
+
+// Returns a pointer to the embedded TaskNode, or nullptr for non-task nodes.
+inline const TaskNode* as_task_node(const NodeType& node) {
+  if (std::holds_alternative<TaskNode>(node)) {
+    return &std::get<TaskNode>(node);
+  }
+  return nullptr;
+}
+
+inline TaskNode* as_task_node(NodeType& node) {
+  if (std::holds_alternative<TaskNode>(node)) {
+    return &std::get<TaskNode>(node);
+  }
+  return nullptr;
+}
+
+inline bool is_fork_or_join(const NodeType& node) {
+  return std::holds_alternative<ForkTask>(node) ||
+         std::holds_alternative<JoinTask>(node);
+}
+
+// Applies a visitor to each NodeType alternative (C++17 std::visit wrapper).
+template <typename Visitor>
+decltype(auto) visit_node(const NodeType& node, Visitor&& visitor) {
+  return std::visit(std::forward<Visitor>(visitor), node);
+}
 
 #endif  // TYPES_H

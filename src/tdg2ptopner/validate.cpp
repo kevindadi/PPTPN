@@ -85,9 +85,7 @@ size_t estimate_places(const tdg::TDG& tdg) {
     }
   }
   for (const auto& edge : tdg.tdg_edges) {
-    std::string source, target, label, style;
-    std::tie(source, target, label, style) = edge;
-    if (is_self_loop_edge(source, target)) {
+    if (edge.is_self_loop()) {
       places += 4;
     }
   }
@@ -108,13 +106,11 @@ size_t estimate_transitions(const tdg::TDG& tdg) {
   }
 
   for (const auto& edge : tdg.tdg_edges) {
-    std::string source, target, label, style;
-    std::tie(source, target, label, style) = edge;
-    if (is_self_loop_edge(source, target)) {
+    if (edge.is_self_loop()) {
       transitions += 4;
       continue;
     }
-    if (is_dashed_edge(style)) {
+    if (edge.is_dashed()) {
       continue;
     }
     transitions += 1;
@@ -146,15 +142,9 @@ size_t estimate_transitions(const tdg::TDG& tdg) {
     if (!std::holds_alternative<TaskNode>(node_type)) {
       continue;
     }
-    bool has_successor = false;
-    for (const auto& edge : tdg.tdg_edges) {
-      std::string source, target, label, style;
-      std::tie(source, target, label, style) = edge;
-      if (source == vertex_name && target != vertex_name) {
-        has_successor = true;
-        break;
-      }
-    }
+    const bool has_successor = std::any_of(
+        tdg.tdg_edges.begin(), tdg.tdg_edges.end(),
+        [&](const TdgEdge& edge) { return edge.leaves(vertex_name); });
     if (!has_successor) {
       consume_tasks.insert(vertex_name);
     }
@@ -179,10 +169,8 @@ void validate_size_limits(const tdg::TDG& tdg, PtopnerValidationResult& result) 
 
 void validate_warnings(const tdg::TDG& tdg, PtopnerValidationResult& result) {
   for (const auto& edge : tdg.tdg_edges) {
-    std::string source, target, label, style;
-    std::tie(source, target, label, style) = edge;
-    if (is_dashed_edge(style)) {
-      result.warnings.push_back("虚线边 " + source + " -> " + target +
+    if (edge.is_dashed()) {
+      result.warnings.push_back("虚线边 " + edge.source + " -> " + edge.target +
                                 " 将被忽略（与 tdg2pn 一致）");
     }
   }

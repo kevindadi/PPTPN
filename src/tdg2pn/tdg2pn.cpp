@@ -1,18 +1,48 @@
 #include "tdg2pn.h"
 
 #include <algorithm>
+#include <limits>
 #include <spdlog/spdlog.h>
+#include <sstream>
 
 namespace converter {
 
 namespace {
+
 constexpr int kControlTransitionPriority = 0;
 constexpr int kControlTransitionCore = -1;
 constexpr int kTaskPriorityScale = 100;
 constexpr int kTaskExecutionPriorityOffset = 99;
 
+// Indices into the per-task place/transition chain stored in node_pn_map.
+struct TaskChainLayout {
+  static constexpr size_t kEntry = 0;
+  static constexpr size_t kGetCore = 1;
+  static constexpr size_t kReady = 2;
+  static constexpr size_t kFirstExec = 3;
+  static constexpr size_t kFirstSegDone = 4;
+  static constexpr size_t kMinLength = 5;
+
+  static size_t lock_acquire_transition(size_t lock_index) {
+    return 5 + 4 * lock_index;
+  }
+
+  static size_t lock_release_transition(size_t chain_length, size_t lock_index) {
+    return chain_length - 4 - 2 * lock_index;
+  }
+};
+
 int encode_task_execution_priority(int task_priority) {
   return task_priority * kTaskPriorityScale + kTaskExecutionPriorityOffset;
+}
+
+petri::TimeInterval immediate_interval() { return petri::TimeInterval(0, 0); }
+
+size_t add_control_transition(petri::PTPN& ptpn, const std::string& name,
+                              const petri::TimeInterval& interval =
+                                  petri::TimeInterval(0, 0)) {
+  return ptpn.add_transition(name, interval, kControlTransitionPriority,
+                             kControlTransitionCore, /*suspendable=*/false);
 }
 
 std::string format_core_priority_order(
@@ -37,51 +67,30 @@ std::string format_core_priority_order(
 
   return oss.str();
 }
-}
 
-static void info(const std::string& msg) {
-  spdlog::info("[TDG2PN] {}", msg);
-}
-
-static void warn(const std::string& msg) {
-  spdlog::warn("[TDG2PN] {}", msg);
-}
-
-static void error(const std::string& msg) {
-  spdlog::error("[TDG2PN] {}", msg);
-}
+}  // namespace
 
 bool TDG2PN::has_non_self_successor(const tdg::TDG& tdg,
                                     const std::string& task_name) {
-  for (const auto& edge : tdg.tdg_edges) {
-    std::string source, target, label, style;
-    std::tie(source, target, label, style) = edge;
-    if (source == task_name && target != task_name) {
-      return true;
-    }
-  }
-  return false;
+  return std::any_of(tdg.tdg_edges.begin(), tdg.tdg_edges.end(),
+                     [&](const TdgEdge& edge) {
+                       return edge.leaves(task_name);
+                     });
 }
 
 bool TDG2PN::has_self_loop_release(const tdg::TDG& tdg,
                                    const std::string& task_name) {
-  for (const auto& edge : tdg.tdg_edges) {
-    std::string source, target, label, style;
-    std::tie(source, target, label, style) = edge;
-    if (source == task_name && target == task_name) {
-      return true;
-    }
-  }
-  return false;
+  return std::any_of(tdg.tdg_edges.begin(), tdg.tdg_edges.end(),
+                     [&](const TdgEdge& edge) {
+                       return edge.source == task_name && edge.is_self_loop();
+                     });
 }
 
 void TDG2PN::add_consume_transition(petri::PTPN& ptpn,
                                     const std::string& task_name,
                                     size_t end_idx) {
-  petri::TimeInterval interval(0, 0);
-  size_t consume_trans = ptpn.add_transition(task_name + "_consume",
-                                             interval, kControlTransitionPriority,
-                                             kControlTransitionCore, false);
+  const size_t consume_trans =
+      add_control_transition(ptpn, task_name + "_consume");
   ptpn.set_pre_arc(end_idx, consume_trans, 1);
 }
 
@@ -89,7 +98,8 @@ void TDG2PN::add_start_bindings(petri::PTPN& ptpn, const tdg::TDG& tdg) {
   for (const auto& start_binding : tdg.start_tasks) {
     const auto node_it = ptpn.node_start_end_map.find(start_binding.task);
     if (node_it == ptpn.node_start_end_map.end()) {
-      warn("[TDG2PN] Start task not found in node map: " + start_binding.task);
+      spdlog::warn("[TDG2PN] Start task not found in node map: {}",
+                   start_binding.task);
       continue;
     }
     if (start_binding.tokens <= 0) {
@@ -103,10 +113,7 @@ void TDG2PN::add_end_consumers(petri::PTPN& ptpn, const tdg::TDG& tdg) {
   std::set<std::string> consume_tasks;
 
   for (const auto& [vertex_name, node_type] : tdg.nodes_type) {
-    if (!std::holds_alternative<TaskNode>(node_type)) {
-      continue;
-    }
-    if (!has_non_self_successor(tdg, vertex_name)) {
+    if (as_task_node(node_type) && !has_non_self_successor(tdg, vertex_name)) {
       consume_tasks.insert(vertex_name);
     }
   }
@@ -116,7 +123,7 @@ void TDG2PN::add_end_consumers(petri::PTPN& ptpn, const tdg::TDG& tdg) {
   for (const auto& task_name : consume_tasks) {
     const auto node_it = ptpn.node_start_end_map.find(task_name);
     if (node_it == ptpn.node_start_end_map.end()) {
-      warn("[TDG2PN] End task not found in node map: " + task_name);
+      spdlog::warn("[TDG2PN] End task not found in node map: {}", task_name);
       continue;
     }
     add_consume_transition(ptpn, task_name, node_it->second.second);
@@ -132,53 +139,55 @@ void TDG2PN::add_periodic_release_bindings(petri::PTPN& ptpn,
 
     const auto node_it = ptpn.node_start_end_map.find(periodic_task.task);
     const auto type_it = tdg.nodes_type.find(periodic_task.task);
-    if (node_it == ptpn.node_start_end_map.end() || type_it == tdg.nodes_type.end()) {
-      warn("[TDG2PN] Periodic task not found for release binding: " + periodic_task.task);
+    if (node_it == ptpn.node_start_end_map.end() ||
+        type_it == tdg.nodes_type.end()) {
+      spdlog::warn("[TDG2PN] Periodic task not found for release binding: {}",
+                   periodic_task.task);
       continue;
     }
 
-    if (!std::holds_alternative<TaskNode>(type_it->second)) {
-      warn("[TDG2PN] Periodic release requested for non-task node: " + periodic_task.task);
+    if (!as_task_node(type_it->second)) {
+      spdlog::warn("[TDG2PN] Periodic release requested for non-task node: {}",
+                   periodic_task.task);
       continue;
     }
 
-    size_t random = ptpn.add_place(periodic_task.task + "_period", 1);
-    petri::TimeInterval fire_interval(periodic_task.period, periodic_task.period);
-    size_t fire = ptpn.add_transition(periodic_task.task + "_fire", fire_interval,
-                                      kControlTransitionPriority, kControlTransitionCore, false);
+    const size_t period_place =
+        ptpn.add_place(periodic_task.task + "_period", 1);
+    const size_t fire = add_control_transition(
+        ptpn, periodic_task.task + "_fire",
+        petri::TimeInterval(periodic_task.period, periodic_task.period));
 
-    ptpn.set_initial_marking(random, 1);
-    ptpn.set_pre_arc(random, fire, 1);
-    ptpn.set_post_arc(fire, random, 1);
+    ptpn.set_initial_marking(period_place, 1);
+    ptpn.set_pre_arc(period_place, fire, 1);
+    ptpn.set_post_arc(fire, period_place, 1);
     ptpn.set_post_arc(fire, node_it->second.first, 1);
   }
 }
 
 void TDG2PN::transform(const tdg::TDG& tdg, petri::PTPN& ptpn) {
   try {
-    info("[TDG2PN] Starting TDG to PTPN transformation...");
+    spdlog::info("[TDG2PN] Starting TDG to PTPN transformation");
 
-    // Store reference data for priority classification
     ptpn.node_start_end_map.clear();
     ptpn.node_pn_map.clear();
     ptpn.cpus_place.clear();
     ptpn.locks_place.clear();
     ptpn.node_index = 0;
 
-    // Build tasks_config from tdg
     std::unordered_map<std::string, TaskConfig> tasks_config;
-    for (const auto& task : tdg.all_task) {
-      if (std::holds_alternative<TaskNode>(task)) {
-        auto result = std::get<TaskNode>(task);
-        TaskConfig tc = {result.core, result.priority, result.time, result.lock};
-        tasks_config.insert({result.name, tc});
+    for (const auto& node : tdg.all_task) {
+      if (const auto* task = as_task_node(node)) {
+        tasks_config.emplace(task->name,
+                             TaskConfig{task->core, task->priority, task->time,
+                                        task->lock});
       }
     }
 
-    info("[TDG2PN] Transforming vertices...");
+    spdlog::info("[TDG2PN] Transforming vertices");
     transform_vertices(ptpn, tdg);
 
-    info("[TDG2PN] Transforming edges...");
+    spdlog::info("[TDG2PN] Transforming edges");
     transform_edges(ptpn, tdg);
 
     add_start_bindings(ptpn, tdg);
@@ -187,25 +196,25 @@ void TDG2PN::transform(const tdg::TDG& tdg, petri::PTPN& ptpn) {
 
     if (tdg.policy == SchedulePolicy::FIXED ||
         tdg.policy == SchedulePolicy::FIXED_PRIOR_WITH_RESUME) {
-      info("[TDG2PN] Creating fixed-priority resume preemption relations...");
-      auto core_task = classify_tdg_priority(tdg);
+      spdlog::info("[TDG2PN] Creating fixed-priority resume preemption relations");
+      const auto core_task = classify_tdg_priority(tdg);
       fixed_prior_with_resume(ptpn, core_task, tasks_config, tdg.nodes_type);
     } else if (tdg.policy == SchedulePolicy::FIXED_PRIOR_WITH_RESTART) {
-      info("[TDG2PN] Creating fixed-priority restart preemption relations...");
-      auto core_task = classify_tdg_priority(tdg);
+      spdlog::info("[TDG2PN] Creating fixed-priority restart preemption relations");
+      const auto core_task = classify_tdg_priority(tdg);
       fixed_prior_with_restart(ptpn, core_task, tasks_config, tdg.nodes_type);
     } else {
-      info("[TDG2PN] Skipping preemption expansion for non-fixed policy");
+      spdlog::info("[TDG2PN] Skipping preemption expansion for non-fixed policy");
     }
 
-    info("[TDG2PN] Adding resources and bindings...");
+    spdlog::info("[TDG2PN] Adding resources and bindings");
     add_resources_and_bindings_matrix(ptpn, tdg);
 
     spdlog::info("[TDG2PN] TDG transformation completed: {} places, {} transitions",
                  ptpn.places.size(), ptpn.transitions.size());
 
     if (!ptpn.verify_structure()) {
-      warn("[TDG2PN] Structure verification failed, continuing anyway");
+      spdlog::warn("[TDG2PN] Structure verification failed, continuing anyway");
     }
   } catch (const std::exception& e) {
     spdlog::error("[TDG2PN] Failed to transform TDG to PTPN: {}", e.what());
@@ -213,26 +222,23 @@ void TDG2PN::transform(const tdg::TDG& tdg, petri::PTPN& ptpn) {
   }
 }
 
-std::unordered_map<int, std::vector<std::string>> TDG2PN::classify_tdg_priority(const tdg::TDG& tdg) {
+std::unordered_map<int, std::vector<std::string>> TDG2PN::classify_tdg_priority(
+    const tdg::TDG& tdg) {
   std::unordered_map<int, std::vector<std::string>> core_task;
 
-  for (const auto& task : tdg.all_task) {
-    if (std::holds_alternative<TaskNode>(task)) {
-      const auto& result = std::get<TaskNode>(task);
-      core_task[result.core].push_back(result.name);
+  for (const auto& node : tdg.all_task) {
+    if (const auto* task = as_task_node(node)) {
+      core_task[task->core].push_back(task->name);
     }
   }
 
   for (auto& [core_id, tasks] : core_task) {
-    std::sort(tasks.begin(), tasks.end(), [&](const std::string& t1, const std::string& t2) {
-      return tdg.tasks_priority.at(t1) > tdg.tasks_priority.at(t2);
-    });
-  }
-
-  for (auto& [fst, snd] : core_task) {
-    spdlog::info("{}",
-                 format_core_priority_order(fst, snd, tdg.tasks_priority,
-                                            "[TDG2PN]"));
+    std::sort(tasks.begin(), tasks.end(),
+              [&](const std::string& left, const std::string& right) {
+                return tdg.tasks_priority.at(left) > tdg.tasks_priority.at(right);
+              });
+    spdlog::info("{}", format_core_priority_order(core_id, tasks,
+                                                  tdg.tasks_priority, "[TDG2PN]"));
   }
 
   return core_task;
@@ -277,47 +283,43 @@ void TDG2PN::transform_vertices(petri::PTPN& ptpn, const tdg::TDG& tdg) {
     spdlog::debug("[TDG2PN] Processing vertex: {}", vertex_name);
 
     try {
-      auto [start_idx, end_idx] = add_node_matrix(ptpn, node_type);
-      ptpn.node_start_end_map[vertex_name] = std::make_pair(start_idx, end_idx);
+      const auto [start_idx, end_idx] = add_node_matrix(ptpn, node_type);
+      ptpn.node_start_end_map[vertex_name] = {start_idx, end_idx};
 
-      bool is_leaf = true;
-      for (const auto& edge : tdg.tdg_edges) {
-        std::string source, target, label, style;
-        std::tie(source, target, label, style) = edge;
-        if (source == vertex_name && target != vertex_name) {
-          is_leaf = false;
-          break;
-        }
-      }
+      const bool is_leaf =
+          !std::any_of(tdg.tdg_edges.begin(), tdg.tdg_edges.end(),
+                       [&](const TdgEdge& edge) {
+                         return edge.leaves(vertex_name);
+                       });
 
-      if (is_leaf && std::holds_alternative<TaskNode>(node_type)) {
-        spdlog::debug("[TDG2PN] Leaf task will get consume transition later: {}", vertex_name);
+      if (is_leaf && as_task_node(node_type)) {
+        spdlog::debug("[TDG2PN] Leaf task will get consume transition later: {}",
+                      vertex_name);
       }
     } catch (const std::exception& e) {
-      spdlog::error("[TDG2PN] Failed to transform vertex {}: {}", vertex_name, e.what());
+      spdlog::error("[TDG2PN] Failed to transform vertex {}: {}", vertex_name,
+                    e.what());
       throw;
     }
   }
-  info("[TDG2PN] Vertex transformation completed");
+
+  spdlog::info("[TDG2PN] Vertex transformation completed");
 }
 
 void TDG2PN::transform_edges(petri::PTPN& ptpn, const tdg::TDG& tdg) {
   for (const auto& edge : tdg.tdg_edges) {
     try {
-      std::string source_name, target_name, label, style;
-      std::tie(source_name, target_name, label, style) = edge;
-
-      if (is_self_loop_edge(source_name, target_name)) {
-        handle_self_loop_edge_matrix(ptpn, label, source_name);
+      if (edge.is_self_loop()) {
+        handle_self_loop_edge_matrix(ptpn, edge.label, edge.source);
         continue;
       }
 
-      if (is_dashed_edge(style)) {
-        handle_dashed_edge_matrix(ptpn, source_name, target_name);
+      if (edge.is_dashed()) {
+        handle_dashed_edge_matrix(ptpn, edge.source, edge.target);
         continue;
       }
 
-      handle_normal_edge_matrix(ptpn, tdg, source_name, target_name);
+      handle_normal_edge_matrix(ptpn, tdg, edge.source, edge.target);
     } catch (const std::exception& exception) {
       spdlog::error("[TDG2PN] Failed to transform edge: {}", exception.what());
       throw;
@@ -325,12 +327,13 @@ void TDG2PN::transform_edges(petri::PTPN& ptpn, const tdg::TDG& tdg) {
   }
 }
 
-bool TDG2PN::is_self_loop_edge(const std::string& source, const std::string& target) {
+bool TDG2PN::is_self_loop_edge(const std::string& source,
+                               const std::string& target) {
   return source == target;
 }
 
-bool TDG2PN::is_dashed_edge(const std::string& edge) {
-  return edge.find("dashed") != std::string::npos;
+bool TDG2PN::is_dashed_edge(const std::string& style) {
+  return style.find("dashed") != std::string::npos;
 }
 
 void TDG2PN::handle_self_loop_edge_matrix(petri::PTPN& ptpn,
@@ -348,16 +351,18 @@ void TDG2PN::handle_self_loop_edge_matrix(petri::PTPN& ptpn,
 }
 
 void TDG2PN::handle_dashed_edge_matrix(petri::PTPN& ptpn,
-                                        const std::string& source_name,
-                                        const std::string& target_name) {
-  // Dashed edge: tail node is start, head node is end
-  
+                                       const std::string& source_name,
+                                       const std::string& target_name) {
+  // Dashed edges are handled by periodic release bindings; no direct arc is added.
+  (void)ptpn;
+  (void)source_name;
+  (void)target_name;
 }
 
 void TDG2PN::handle_normal_edge_matrix(petri::PTPN& ptpn,
-                                        const tdg::TDG& tdg,
-                                        const std::string& source_name,
-                                        const std::string& target_name) {
+                                       const tdg::TDG& tdg,
+                                       const std::string& source_name,
+                                       const std::string& target_name) {
   const auto source_it = ptpn.node_start_end_map.find(source_name);
   const auto target_it = ptpn.node_start_end_map.find(target_name);
 
@@ -375,27 +380,21 @@ void TDG2PN::handle_normal_edge_matrix(petri::PTPN& ptpn,
                              " -> " + target_name);
   }
 
-  const bool source_is_fork_or_join =
-      std::holds_alternative<ForkTask>(source_type_it->second) ||
-      std::holds_alternative<JoinTask>(source_type_it->second);
-  const bool target_is_fork_or_join =
-      std::holds_alternative<ForkTask>(target_type_it->second) ||
-      std::holds_alternative<JoinTask>(target_type_it->second);
+  const bool source_is_control = is_fork_or_join(source_type_it->second);
+  const bool target_is_control = is_fork_or_join(target_type_it->second);
 
-  size_t source_node = source_it->second.second;
-  size_t target_node = target_it->second.first;
+  const size_t source_exit = source_it->second.second;
+  const size_t target_entry = target_it->second.first;
 
-  spdlog::debug("[TDG2PN] source_name: {}", source_name);
-  spdlog::debug("[TDG2PN] target_name: {}", target_name);
-
-  if (source_is_fork_or_join && target_is_fork_or_join) {
+  if (source_is_control && target_is_control) {
     throw std::runtime_error("Invalid TDG edge between transition nodes: " +
                              source_name + " -> " + target_name);
   }
 
-  if (source_is_fork_or_join) {
-    if (source_node < ptpn.transitions.size() && target_node < ptpn.places.size()) {
-      ptpn.set_post_arc(source_node, target_node, 1);
+  if (source_is_control) {
+    if (source_exit < ptpn.transitions.size() &&
+        target_entry < ptpn.places.size()) {
+      ptpn.set_post_arc(source_exit, target_entry, 1);
     } else {
       throw std::runtime_error("Invalid fork/join to task edge mapping: " +
                                source_name + " -> " + target_name);
@@ -403,9 +402,10 @@ void TDG2PN::handle_normal_edge_matrix(petri::PTPN& ptpn,
     return;
   }
 
-  if (target_is_fork_or_join) {
-    if (source_node < ptpn.places.size() && target_node < ptpn.transitions.size()) {
-      ptpn.set_pre_arc(source_node, target_node, 1);
+  if (target_is_control) {
+    if (source_exit < ptpn.places.size() &&
+        target_entry < ptpn.transitions.size()) {
+      ptpn.set_pre_arc(source_exit, target_entry, 1);
     } else {
       throw std::runtime_error("Invalid task to fork/join edge mapping: " +
                                source_name + " -> " + target_name);
@@ -413,17 +413,15 @@ void TDG2PN::handle_normal_edge_matrix(petri::PTPN& ptpn,
     return;
   }
 
-  const std::string trans_name = source_name + "_to_" + target_name;
-  petri::TimeInterval interval(0, 0);
-  size_t middle_trans = ptpn.add_transition(trans_name, interval,
-                                            kControlTransitionPriority,
-                                            kControlTransitionCore, false);
+  const size_t bridge_transition = add_control_transition(
+      ptpn, source_name + "_to_" + target_name);
 
-  if (source_node < ptpn.places.size() && target_node < ptpn.places.size()) {
-    ptpn.set_pre_arc(source_node, middle_trans, 1);
-    ptpn.set_post_arc(middle_trans, target_node, 1);
+  if (source_exit < ptpn.places.size() && target_entry < ptpn.places.size()) {
+    ptpn.set_pre_arc(source_exit, bridge_transition, 1);
+    ptpn.set_post_arc(bridge_transition, target_entry, 1);
   } else {
-    spdlog::warn("[TDG2PN] Unexpected node types for edge: {} -> {}", source_name, target_name);
+    spdlog::warn("[TDG2PN] Unexpected node types for edge: {} -> {}", source_name,
+                 target_name);
   }
 
   spdlog::debug("[TDG2PN] Added edge: {} -> {}", source_name, target_name);
@@ -436,217 +434,214 @@ void TDG2PN::add_resources_and_bindings_matrix(petri::PTPN& ptpn, const tdg::TDG
   task_bind_lock_resource_matrix(ptpn, tdg.all_task, tdg.task_locks_map);
 }
 
-void TDG2PN::add_cpu_resource_matrix(petri::PTPN& ptpn, int cpus, int cores_per_cpu) {
-  for (int i = 0; i < cpus; i++) {
-    std::string cpu_name = "core" + std::to_string(i);
-    size_t c = ptpn.add_place(cpu_name, cores_per_cpu);
-    ptpn.cpus_place.push_back(c);
-    ptpn.set_initial_marking(c, cores_per_cpu);
+void TDG2PN::add_cpu_resource_matrix(petri::PTPN& ptpn, int cpus,
+                                     int cores_per_cpu) {
+  for (int core = 0; core < cpus; ++core) {
+    const std::string core_name = "core" + std::to_string(core);
+    const size_t core_place = ptpn.add_place(core_name, cores_per_cpu);
+    ptpn.cpus_place.push_back(core_place);
+    ptpn.set_initial_marking(core_place, cores_per_cpu);
   }
-  info("[TDG2PN] Created core resources!");
+  spdlog::info("[TDG2PN] Created core resources");
 }
 
-void TDG2PN::add_lock_resource_matrix(petri::PTPN& ptpn, const std::set<std::string>& locks_name) {
+void TDG2PN::add_lock_resource_matrix(petri::PTPN& ptpn,
+                                      const std::set<std::string>& locks_name) {
   if (locks_name.empty()) {
-    info("[TDG2PN] TDG without locks!");
+    spdlog::info("[TDG2PN] TDG without locks");
     return;
   }
+
   for (const auto& lock_name : locks_name) {
-    size_t l = ptpn.add_place(lock_name, 1);
-    ptpn.locks_place.insert(std::make_pair(lock_name, l));
-    ptpn.set_initial_marking(l, 1);
+    const size_t lock_place = ptpn.add_place(lock_name, 1);
+    ptpn.locks_place.emplace(lock_name, lock_place);
+    ptpn.set_initial_marking(lock_place, 1);
   }
-  info("[TDG2PN] Created lock resources!");
+  spdlog::info("[TDG2PN] Created lock resources");
 }
 
-void TDG2PN::task_bind_cpu_resource_matrix(petri::PTPN& ptpn,
-    const std::vector<NodeType>& all_task) {
-  for (const auto& task : all_task) {
-    if (std::holds_alternative<TaskNode>(task)) {
-      auto task_node = std::get<TaskNode>(task);
-      const int cpu_index = task_node.core;
-      auto task_pt_chains = ptpn.node_pn_map.find(task_node.name)->second;
-      if (task_pt_chains.size() >= 2) {
-        ptpn.set_pre_arc(ptpn.cpus_place[cpu_index], task_pt_chains[1], 1);
-        if (task_pt_chains.size() >= 5) {
-          ptpn.set_post_arc(task_pt_chains[task_pt_chains.size() - 2],
-                            ptpn.cpus_place[cpu_index], 1);
-        }
-      }
+void TDG2PN::task_bind_cpu_resource_matrix(
+    petri::PTPN& ptpn, const std::vector<NodeType>& all_task) {
+  for (const auto& node : all_task) {
+    const auto* task = as_task_node(node);
+    if (!task) {
+      continue;
     }
+
+    const auto chain_it = ptpn.node_pn_map.find(task->name);
+    if (chain_it == ptpn.node_pn_map.end()) {
+      continue;
+    }
+
+    const auto& chain = chain_it->second;
+    if (chain.size() < TaskChainLayout::kMinLength) {
+      continue;
+    }
+
+    ptpn.set_pre_arc(ptpn.cpus_place[task->core], chain[TaskChainLayout::kGetCore],
+                     1);
+    ptpn.set_post_arc(chain[chain.size() - 2], ptpn.cpus_place[task->core], 1);
   }
 }
 
-void TDG2PN::task_bind_lock_resource_matrix(petri::PTPN& ptpn,
-    const std::vector<NodeType>& all_task,
+void TDG2PN::task_bind_lock_resource_matrix(
+    petri::PTPN& ptpn, const std::vector<NodeType>& all_task,
     const std::map<std::string, std::vector<std::string>>& task_locks) {
   if (task_locks.empty()) {
-    info("[TDG2PN] No task locks to bind");
+    spdlog::info("[TDG2PN] No task locks to bind");
     return;
   }
 
-  for (const auto& task : all_task) {
-    try {
-      if (std::holds_alternative<TaskNode>(task)) {
-        const auto& task_node = std::get<TaskNode>(task);
-        if (auto chains_it = ptpn.node_pn_map.find(task_node.name);
-            chains_it != ptpn.node_pn_map.end()) {
-          bind_task_locks_matrix(ptpn, task_node.name, task_node.lock, chains_it->second,
-                                  task_locks);
-        }
-      }
-    } catch (const std::exception& e) {
-      spdlog::error("[TDG2PN] Failed to process task: {}", e.what());
-      throw;
+  for (const auto& node : all_task) {
+    const auto* task = as_task_node(node);
+    if (!task) {
+      continue;
     }
+
+    const auto chain_it = ptpn.node_pn_map.find(task->name);
+    if (chain_it == ptpn.node_pn_map.end()) {
+      continue;
+    }
+
+    bind_task_locks_matrix(ptpn, task->name, task->lock, chain_it->second,
+                           task_locks);
   }
 
-  info("[TDG2PN] Completed lock resource binding for all tasks");
+  spdlog::info("[TDG2PN] Completed lock resource binding for all tasks");
 }
 
-void TDG2PN::bind_task_locks_matrix(petri::PTPN& ptpn,
-    const std::string& task_name, const std::vector<std::string>& lock_types,
+void TDG2PN::bind_task_locks_matrix(
+    petri::PTPN& ptpn, const std::string& task_name,
+    const std::vector<std::string>& lock_types,
     const std::vector<size_t>& task_pt_chain,
     const std::map<std::string, std::vector<std::string>>& task_locks) {
-  constexpr size_t MIN_CHAIN_LENGTH = 5;
-  if (task_pt_chain.size() < MIN_CHAIN_LENGTH) {
+  if (task_pt_chain.size() < TaskChainLayout::kMinLength) {
     spdlog::debug("[TDG2PN] Skip chain for {}: too short for locks", task_name);
     return;
   }
 
-  auto task_locks_it = task_locks.find(task_name);
+  const auto task_locks_it = task_locks.find(task_name);
   if (task_locks_it == task_locks.end()) {
     spdlog::warn("[TDG2PN] No locks found for task: {}", task_name);
     return;
   }
 
-  const size_t lock_nums = task_locks_it->second.size();
+  const size_t lock_count = task_locks_it->second.size();
+  for (size_t lock_index = 0; lock_index < lock_count; ++lock_index) {
+    const std::string& lock_type = lock_types[lock_index];
 
-  for (size_t i = 0; i < lock_nums; i++) {
-    try {
-      const std::string& lock_type = lock_types[i];
+    const size_t acquire_transition =
+        task_pt_chain[TaskChainLayout::lock_acquire_transition(lock_index)];
+    const size_t release_transition = task_pt_chain[TaskChainLayout::lock_release_transition(
+        task_pt_chain.size(), lock_index)];
 
-      const size_t get_lock = 5 + 4 * i;
-      const size_t drop_lock = task_pt_chain.size() - 4 - 2 * i;
-
-      auto lock_it = ptpn.locks_place.find(lock_type);
-      if (lock_it == ptpn.locks_place.end()) {
-        throw std::runtime_error("Lock place not found: " + lock_type);
-      }
-      const size_t lock = lock_it->second;
-
-      if (get_lock >= task_pt_chain.size() || drop_lock >= task_pt_chain.size()) {
-        throw std::runtime_error("Task chain layout does not match lock structure for: " + task_name);
-      }
-
-      const size_t get_lock_transition = task_pt_chain[get_lock];
-      const size_t drop_lock_transition = task_pt_chain[drop_lock];
-
-      if (get_lock_transition < ptpn.transitions.size()) {
-        ptpn.set_pre_arc(lock, get_lock_transition, 1);
-      }
-      if (drop_lock_transition < ptpn.transitions.size()) {
-        ptpn.set_post_arc(drop_lock_transition, lock, 1);
-      }
-
-      spdlog::debug("[TDG2PN] Bound lock {} to task {}", lock_type, task_name);
-    } catch (const std::exception& e) {
-      spdlog::error("[TDG2PN] Failed to bind lock {} for task {}: {}", i, task_name, e.what());
-      throw;
+    const auto lock_it = ptpn.locks_place.find(lock_type);
+    if (lock_it == ptpn.locks_place.end()) {
+      throw std::runtime_error("Lock place not found: " + lock_type);
     }
+
+    if (acquire_transition >= task_pt_chain.size() ||
+        release_transition >= task_pt_chain.size()) {
+      throw std::runtime_error(
+          "Task chain layout does not match lock structure for: " + task_name);
+    }
+
+    if (acquire_transition < ptpn.transitions.size()) {
+      ptpn.set_pre_arc(lock_it->second, acquire_transition, 1);
+    }
+    if (release_transition < ptpn.transitions.size()) {
+      ptpn.set_post_arc(release_transition, lock_it->second, 1);
+    }
+
+    spdlog::debug("[TDG2PN] Bound lock {} to task {}", lock_type, task_name);
   }
 }
 
 std::pair<size_t, size_t> TDG2PN::add_node_matrix(petri::PTPN& ptpn,
-    const NodeType& node_type) {
-  if (std::holds_alternative<TaskNode>(node_type)) {
-    const auto& task = std::get<TaskNode>(node_type);
-    return add_task_node_matrix(ptpn, task);
-  } else if (std::holds_alternative<JoinTask>(node_type)) {
-    auto [name, time] = std::get<JoinTask>(node_type);
-    petri::TimeInterval interval(0, 0);
-    size_t join_trans = ptpn.add_transition("Join" + std::to_string(ptpn.node_index++),
-                                            interval,
-                                            kControlTransitionPriority,
-                                            kControlTransitionCore,
-                                            false);
-    return std::make_pair(join_trans, join_trans);
-  } else if (std::holds_alternative<ForkTask>(node_type)) {
-    auto [name, time] = std::get<ForkTask>(node_type);
-    petri::TimeInterval interval(0, 0);
-    size_t fork_trans = ptpn.add_transition("Fork" + std::to_string(ptpn.node_index++),
-                                            interval,
-                                            kControlTransitionPriority,
-                                            kControlTransitionCore,
-                                            false);
-    return std::make_pair(fork_trans, fork_trans);
-  } else {
-    auto [name] = std::get<EmptyTask>(node_type);
-    size_t empty_place = ptpn.add_place("Empty" + std::to_string(ptpn.node_index++), 1);
-    return std::make_pair(empty_place, empty_place);
-  }
+                                                  const NodeType& node_type) {
+  return visit_node(node_type, [&](const auto& node) -> std::pair<size_t, size_t> {
+    using Node = std::decay_t<decltype(node)>;
+
+    if constexpr (std::is_same_v<Node, TaskNode>) {
+      return add_task_node_matrix(ptpn, node);
+    }
+
+    if constexpr (std::is_same_v<Node, JoinTask>) {
+      const size_t join_trans = add_control_transition(
+          ptpn, "Join" + std::to_string(ptpn.node_index++));
+      return {join_trans, join_trans};
+    }
+
+    if constexpr (std::is_same_v<Node, ForkTask>) {
+      const size_t fork_trans = add_control_transition(
+          ptpn, "Fork" + std::to_string(ptpn.node_index++));
+      return {fork_trans, fork_trans};
+    }
+
+    const size_t empty_place =
+        ptpn.add_place("Empty" + std::to_string(ptpn.node_index++), 1);
+    return {empty_place, empty_place};
+  });
 }
 
-std::vector<size_t> TDG2PN::add_execution_chain(petri::PTPN& ptpn,
-                                                const std::string& task_name,
-                                                const std::vector<std::pair<int, int>>& times,
-                                                const std::vector<std::string>& locks,
-                                                int priority,
-                                                int core) {
+std::vector<size_t> TDG2PN::add_execution_chain(
+    petri::PTPN& ptpn, const std::string& task_name,
+    const std::vector<std::pair<int, int>>& times,
+    const std::vector<std::string>& locks, int priority, int core) {
   if (times.empty()) {
     throw std::runtime_error("Task has no execution segments: " + task_name);
   }
 
   std::vector<size_t> chain;
+  chain.reserve(times.size() * 4 + locks.size() * 2 + 3);
 
-  size_t entry = ptpn.add_place(task_name + "entry", 1);
-  petri::TimeInterval get_core_interval(0, 0);
+  const size_t entry = ptpn.add_place(task_name + "entry", 1);
   const int encoded_priority = encode_task_execution_priority(priority);
-  size_t get_core = ptpn.add_transition(task_name + "get_core", get_core_interval,
-                                        encoded_priority, core, false);
-  size_t ready = ptpn.add_place(task_name + "ready", 1);
+  const size_t get_core = ptpn.add_transition(
+      task_name + "get_core", immediate_interval(), encoded_priority, core,
+      /*suspendable=*/false);
+  const size_t ready = ptpn.add_place(task_name + "ready", 1);
 
   ptpn.set_pre_arc(entry, get_core, 1);
   ptpn.set_post_arc(get_core, ready, 1);
-
-  chain.push_back(entry);
-  chain.push_back(get_core);
-  chain.push_back(ready);
+  chain.insert(chain.end(), {entry, get_core, ready});
 
   size_t current_place = ready;
 
-  for (size_t i = 0; i < times.size(); ++i) {
-    const auto& [start, end] = times[i];
-    std::string exec_name = times.size() == 1
-        ? task_name + "exec"
-        : task_name + "_exec_" + std::to_string(i + 1);
-    petri::TimeInterval exec_interval(start, end);
-    size_t exec = ptpn.add_transition(exec_name, exec_interval, encoded_priority, core, false);
+  for (size_t segment_index = 0; segment_index < times.size(); ++segment_index) {
+    const auto& [start, end] = times[segment_index];
+    const std::string exec_name =
+        times.size() == 1 ? task_name + "exec"
+                          : task_name + "_exec_" + std::to_string(segment_index + 1);
+    const size_t exec = ptpn.add_transition(
+        exec_name, petri::TimeInterval(start, end), encoded_priority, core,
+        /*suspendable=*/false);
 
-    const bool is_last_segment = (i == times.size() - 1);
-    std::string next_place_name = is_last_segment
-        ? task_name + "exit"
-        : task_name + "_seg_" + std::to_string(i + 1) + "_done";
-    size_t next_place = ptpn.add_place(next_place_name, 1);
+    const bool is_last_segment = segment_index + 1 == times.size();
+    const std::string next_place_name =
+        is_last_segment ? task_name + "exit"
+                        : task_name + "_seg_" + std::to_string(segment_index + 1) +
+                              "_done";
+    const size_t next_place = ptpn.add_place(next_place_name, 1);
 
     ptpn.set_pre_arc(current_place, exec, 1);
     ptpn.set_post_arc(exec, next_place, 1);
-
-    chain.push_back(exec);
-    chain.push_back(next_place);
+    chain.insert(chain.end(), {exec, next_place});
     current_place = next_place;
 
-    if (i < locks.size()) {
-      petri::TimeInterval lock_interval(0, 0);
-      std::string lock_name = task_name + "_lock_" + std::to_string(i + 1);
-      size_t lock_transition = ptpn.add_transition(lock_name, lock_interval, encoded_priority, core, false);
-      size_t hold_place = ptpn.add_place(task_name + "_hold_" + std::to_string(i + 1), 1);
+    if (segment_index < locks.size()) {
+      const std::string lock_name =
+          task_name + "_lock_" + std::to_string(segment_index + 1);
+      const size_t lock_transition = ptpn.add_transition(
+          lock_name, immediate_interval(), encoded_priority, core,
+          /*suspendable=*/false);
+      const size_t hold_place =
+          ptpn.add_place(task_name + "_hold_" + std::to_string(segment_index + 1),
+                         1);
 
       ptpn.set_pre_arc(current_place, lock_transition, 1);
       ptpn.set_post_arc(lock_transition, hold_place, 1);
-
-      chain.push_back(lock_transition);
-      chain.push_back(hold_place);
+      chain.insert(chain.end(), {lock_transition, hold_place});
       current_place = hold_place;
     }
   }
@@ -654,40 +649,35 @@ std::vector<size_t> TDG2PN::add_execution_chain(petri::PTPN& ptpn,
   return chain;
 }
 
-std::pair<size_t, size_t> TDG2PN::add_task_node_matrix(petri::PTPN& ptpn, const TaskNode& task) {
-  std::vector<size_t> chain = add_execution_chain(ptpn, task.name, task.time,
-                                                  task.lock, task.priority, task.core);
-  size_t entry = chain.front();
-  size_t exit = chain.back();
-
+std::pair<size_t, size_t> TDG2PN::add_task_node_matrix(petri::PTPN& ptpn,
+                                                       const TaskNode& task) {
+  std::vector<size_t> chain =
+      add_execution_chain(ptpn, task.name, task.time, task.lock, task.priority,
+                          task.core);
   ptpn.node_pn_map[task.name] = chain;
-
-  return std::make_pair(entry, exit);
+  return {chain.front(), chain.back()};
 }
 
 void TDG2PN::add_monitor_matrix(petri::PTPN& ptpn, const std::string& task_name,
-                                 int task_period_time, size_t start, size_t end) {
-  size_t deadline = ptpn.add_place(task_name + "deadline", 1);
-  size_t timeout = ptpn.add_place(task_name + "timeout", 1);
-  size_t ok = ptpn.add_place(task_name + "ok", 1);
-  size_t t_end = ptpn.add_place(task_name + "end", 1);
+                                int task_period_time, size_t start, size_t end) {
+  const size_t deadline = ptpn.add_place(task_name + "deadline", 1);
+  const size_t timeout = ptpn.add_place(task_name + "timeout", 1);
+  const size_t ok = ptpn.add_place(task_name + "ok", 1);
+  const size_t end_place = ptpn.add_place(task_name + "end", 1);
 
-  petri::TimeInterval timed_interval(task_period_time, task_period_time);
-  size_t timed = ptpn.add_transition(task_name + "timed", timed_interval,
-                                     kControlTransitionPriority, kControlTransitionCore, false);
-  size_t ending = ptpn.add_transition(task_name + "ending", petri::TimeInterval(0, 0),
-                                      kControlTransitionPriority, kControlTransitionCore, false);
-  size_t complete = ptpn.add_transition(task_name + "complete", petri::TimeInterval(0, 0),
-                                        kControlTransitionPriority, kControlTransitionCore, false);
-  size_t tout = ptpn.add_transition(task_name + "out", petri::TimeInterval(0, 0),
-                                    kControlTransitionPriority, kControlTransitionCore, false);
+  const size_t timed = add_control_transition(
+      ptpn, task_name + "timed",
+      petri::TimeInterval(task_period_time, task_period_time));
+  const size_t ending = add_control_transition(ptpn, task_name + "ending");
+  const size_t complete = add_control_transition(ptpn, task_name + "complete");
+  const size_t timeout_transition = add_control_transition(ptpn, task_name + "out");
 
-  ptpn.set_post_arc(ending, t_end, 1);
-  ptpn.set_pre_arc(t_end, complete, 1);
+  ptpn.set_post_arc(ending, end_place, 1);
+  ptpn.set_pre_arc(end_place, complete, 1);
   ptpn.set_post_arc(complete, ok, 1);
   ptpn.set_pre_arc(deadline, ok, 1);
-  ptpn.set_pre_arc(deadline, tout, 1);
-  ptpn.set_post_arc(tout, timeout, 1);
+  ptpn.set_pre_arc(deadline, timeout_transition, 1);
+  ptpn.set_post_arc(timeout_transition, timeout, 1);
 
   if (end < ptpn.places.size()) {
     ptpn.set_pre_arc(end, ending, 1);
@@ -707,7 +697,7 @@ void TDG2PN::fixed_prior_with_restart(
     const std::unordered_map<int, std::vector<std::string>>& core_task,
     const std::unordered_map<std::string, TaskConfig>& tc,
     const std::unordered_map<std::string, NodeType>& nodes_type) {
-  info("[TDG2PN] Starting fixed-priority restart preemption addition...");
+  spdlog::info("[TDG2PN] Starting fixed-priority restart preemption addition");
 
   auto handle_task_preemption =
       [&](const std::string& l_t_name, const std::string& h_t_name,
@@ -827,7 +817,7 @@ void TDG2PN::fixed_prior_with_restart(
     }
   }
 
-  info("[TDG2PN] Fixed-priority restart preemption tasks added");
+  spdlog::info("[TDG2PN] Fixed-priority restart preemption tasks added");
 }
 
 void TDG2PN::fixed_prior_with_resume(
@@ -835,7 +825,7 @@ void TDG2PN::fixed_prior_with_resume(
     const std::unordered_map<int, std::vector<std::string>>& core_task,
     const std::unordered_map<std::string, TaskConfig>& tc,
     const std::unordered_map<std::string, NodeType>& nodes_type) {
-  info("[TDG2PN] Starting fixed-priority resume preemption addition...");
+  spdlog::info("[TDG2PN] Starting fixed-priority resume preemption addition");
 
   auto handle_task_preemption =
       [&](const std::string& l_t_name, const std::string& h_t_name,
@@ -965,49 +955,42 @@ void TDG2PN::fixed_prior_with_resume(
           is_interrupt = (task.task_type == TaskType::INTERRUPT);
         }
 
-        // 基本抢占路径（从 ready place）
+        // Base preemption path from the ready place.
         handle_task_preemption(l_t_name, h_t_name, l_tc, h_tc, l_t_pn, h_t_pn,
                                preempt_priority_it->second, is_interrupt);
 
-        // 锁相关的抢占路径（遍历锁链中所有可抢占的库所）
+        // Additional preemption points along the lock-holding segments.
         if (!l_tc.locks.empty()) {
-          size_t num_locks = l_tc.locks.size();
+          const size_t num_locks = l_tc.locks.size();
 
-          // 如果所有锁都是 spin,则跳过锁抢占路径建模
-          // 因为持有 spin 期间不能被抢占
-          bool all_spin = true;
-          for (const auto& lock : l_tc.locks) {
-            if (lock.find("spin") == std::string::npos) {
-              all_spin = false;
-              break;
-            }
-          }
+          // Spin locks block preemption while held.
+          const bool all_spin = std::all_of(
+              l_tc.locks.begin(), l_tc.locks.end(), [](const std::string& lock) {
+                return lock.find("spin") != std::string::npos;
+              });
           if (!all_spin) {
-            // 计算不可挂起的 exec 变迁索引 (spin 持有期)
-            // exec 变迁在锁链索引 5 + 4*i + 2 = 7 + 4*i
+            // Exec transitions during spin-lock critical sections cannot suspend.
             std::set<size_t> non_suspendable_exec_indices;
-            for (size_t i = 0; i < num_locks; ++i) {
-              if (l_tc.locks[i].find("spin") != std::string::npos) {
-                non_suspendable_exec_indices.insert(5 + 4 * i + 2);
+            for (size_t lock_index = 0; lock_index < num_locks; ++lock_index) {
+              if (l_tc.locks[lock_index].find("spin") != std::string::npos) {
+                non_suspendable_exec_indices.insert(5 + 4 * lock_index + 2);
               }
             }
 
-            const size_t h_entry = h_t_pn[0];
-            const size_t h_ready = h_t_pn[2];
+            const size_t h_entry = h_t_pn[TaskChainLayout::kEntry];
+            const size_t h_ready = h_t_pn[TaskChainLayout::kReady];
             const size_t h_exit = h_t_pn.back();
 
-            // 遍历锁链中所有 place (从索引 4 开始,seg1_done)
-            for (size_t chain_idx = 4; chain_idx + 1 < l_t_pn.size(); chain_idx += 2) {
-              // exec 变迁索引 = chain_idx + 1
-              // 如果这个 exec 变迁是不可挂起的（spin 持有期）,跳过
-              if (non_suspendable_exec_indices.count(chain_idx + 1)) {
+            // Walk every preemptible place starting at the first segment boundary.
+            for (size_t chain_idx = TaskChainLayout::kFirstSegDone;
+                 chain_idx + 1 < l_t_pn.size(); chain_idx += 2) {
+              if (non_suspendable_exec_indices.count(chain_idx + 1) > 0) {
                 continue;
               }
 
-              const size_t place = l_t_pn[chain_idx];
-              handle_lock_preempt(l_t_name, h_t_name, h_tc, l_t_pn,
-                                 place, preempt_priority_it->second,
-                                 h_entry, h_ready, h_exit);
+              handle_lock_preempt(l_t_name, h_t_name, h_tc, l_t_pn, l_t_pn[chain_idx],
+                                  preempt_priority_it->second, h_entry, h_ready,
+                                  h_exit);
             }
           }
         }
@@ -1015,7 +998,7 @@ void TDG2PN::fixed_prior_with_resume(
     }
   }
 
-  info("[TDG2PN] Fixed-priority resume preemption tasks added");
+  spdlog::info("[TDG2PN] Fixed-priority resume preemption tasks added");
 }
 
 }  // namespace converter
