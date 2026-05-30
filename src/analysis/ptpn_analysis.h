@@ -29,9 +29,7 @@
 #include <vector>
 
 #include "petri/petri.h"
-#include "clock_state.h"
 #include "canonicalization.h"
-#include "scheduling.h"
 #include "state.h"
 #include "graph.h"
 

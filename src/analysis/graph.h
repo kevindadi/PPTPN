@@ -1,13 +1,11 @@
 #ifndef ANALYSIS_GRAPH_H
 #define ANALYSIS_GRAPH_H
 
-#include <cmath>
 #include <limits>
 #include <set>
 #include <string>
 #include <tuple>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include <boost/graph/adjacency_list.hpp>
@@ -15,8 +13,6 @@
 
 #include "petri/petri.h"
 #include "canonicalization.h"
-#include "clock_state.h"
-#include "dbm.h"
 #include "state.h"
 
 namespace state_class {

@@ -1,8 +1,6 @@
 #ifndef ANALYSIS_CANONICALIZATION_H
 #define ANALYSIS_CANONICALIZATION_H
 
-#include "clock_state.h"
-
 namespace state_class {
 
 enum class CanonicalizationMode {
