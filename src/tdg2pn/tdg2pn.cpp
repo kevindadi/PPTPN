@@ -1,5 +1,6 @@
 #include "tdg2pn.h"
 
+#include <algorithm>
 #include <spdlog/spdlog.h>
 
 namespace converter {

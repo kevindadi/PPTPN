@@ -1,9 +1,6 @@
 #include "analysis/state.h"
 
-#include <algorithm>
-#include <cmath>
 #include <functional>
-#include <iomanip>
 #include <sstream>
 
 namespace state_class {

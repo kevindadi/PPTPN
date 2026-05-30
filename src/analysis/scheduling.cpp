@@ -1,7 +1,6 @@
 #include "scheduling.h"
 
 #include <map>
-#include <algorithm>
 
 namespace state_class {
 

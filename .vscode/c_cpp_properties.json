@@ -3,15 +3,22 @@
     {
       "name": "PTPN (Linux, compile_commands)",
       "compileCommands": "${workspaceFolder}/build/compile_commands.json",
-      "compilerPath": "/usr/bin/g++",
+      "compilerPath": "/usr/bin/c++",
       "cStandard": "c17",
       "cppStandard": "c++17",
+      "includePath": [
+        "${workspaceFolder}/src",
+        "${workspaceFolder}/build/_deps/json-src/include",
+        "${workspaceFolder}/build/_deps/spdlog-src/include",
+        "${workspaceFolder}/build/_deps/fmt-src/include",
+        "${workspaceFolder}/build/vcpkg_installed/x64-linux/include"
+      ],
       "intelliSenseMode": "linux-gcc-x64"
     },
     {
       "name": "PToPNer (Linux, compile_commands)",
       "compileCommands": "${workspaceFolder}/tools/PToPNer/build/compile_commands.json",
-      "compilerPath": "/usr/bin/g++",
+      "compilerPath": "/usr/bin/c++",
       "cStandard": "c17",
       "cppStandard": "c++17",
       "intelliSenseMode": "linux-gcc-x64"

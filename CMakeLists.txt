@@ -102,6 +102,9 @@ add_subdirectory(test)
 # Expose compile_commands.json at repo root for IDE/clangd
 if(CMAKE_EXPORT_COMPILE_COMMANDS)
     set(_compile_commands_link "${CMAKE_SOURCE_DIR}/compile_commands.json")
+    if(EXISTS "${_compile_commands_link}" AND NOT IS_SYMLINK "${_compile_commands_link}")
+        file(REMOVE "${_compile_commands_link}")
+    endif()
     if(NOT EXISTS "${_compile_commands_link}")
         file(CREATE_LINK
             "${CMAKE_BINARY_DIR}/compile_commands.json"

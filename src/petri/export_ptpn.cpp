@@ -1,6 +1,5 @@
 #include "petri/export_ptpn.h"
 
-#include <iostream>
 #include <limits>
 #include <spdlog/spdlog.h>
 

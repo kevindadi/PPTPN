@@ -8,7 +8,6 @@
 #include <sstream>
 #include <thread>
 #include <vector>
-#include <cmath>
 
 #include "scheduling.h"
 
