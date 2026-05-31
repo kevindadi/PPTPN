@@ -83,6 +83,7 @@ add_library(PTPN_core STATIC
     src/analysis/graph.cpp
     src/analysis/canonicalization.cpp
     src/analysis/scheduling.cpp
+    src/parser/ptpn_parser.cpp
 )
 target_include_directories(PTPN_core PUBLIC src)
 target_link_libraries(PTPN_core PUBLIC
