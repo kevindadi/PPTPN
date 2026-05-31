@@ -5,10 +5,6 @@
 
 namespace parser {
 
-// ========================================
-// Skipper for comments and whitespace
-// ========================================
-
 static bool is_whitespace(char c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r';
 }
@@ -43,10 +39,6 @@ static void skip_whitespace_and_comments(std::string::const_iterator& it,
   }
 }
 
-// ========================================
-// Helper functions
-// ========================================
-
 static std::string read_identifier(std::string::const_iterator& it,
                                    std::string::const_iterator end) {
   std::string result;
@@ -64,10 +56,6 @@ static int read_number(std::string::const_iterator& it,
   }
   return result;
 }
-
-// ========================================
-// Parser Implementation
-// ========================================
 
 bool PTPNParser::parse(const std::string& input, PTPNAST& ast, std::string& error) {
   ast = PTPNAST();
@@ -392,10 +380,6 @@ bool PTPNParser::parse_file(const std::string& filepath, PTPNAST& ast, std::stri
   buffer << file.rdbuf();
   return parse(buffer.str(), ast, error);
 }
-
-// ========================================
-// PTPNBuilder Implementation
-// ========================================
 
 std::string PTPNBuilder::error_msg_ = "";
 

@@ -26,8 +26,6 @@
 #include "petri/export_romeo.h"
 #include "tdg2pn/tdg2pn.h"
 #include "tdg2ptopner/validate.h"
-#include "tdg2ptopner/export_ppn.h"
-#include "tdg2ptopner/ptpn_to_ppn.h"
 #include "tdg2ptopner/tdg2ptopner.h"
 #include "analysis/graph.h"
 
@@ -229,18 +227,14 @@ int main(int argc, char* argv[]) {
   spdlog::info("  Transitions: {}", ptpn.num_transitions());
 
   if (!ppn_file.empty()) {
-    try {
-      const auto model = ptopner_export::ptpn_to_ppn_model(ptpn);
-      if (!ptopner_export::export_ppn(model, ppn_file)) {
-        cerr << "ERROR: Failed to write PToPNer .ppn file: " << ppn_file << endl;
-        return 1;
-      }
-      spdlog::info("[OUTPUT] PToPNer .ppn exported to: {}", ppn_file);
-    } catch (const std::exception& e) {
-      cerr << "ERROR: PToPNer export failed: " << e.what() << endl;
+    const auto ppn_export =
+        ptopner_export::export_ptpn_to_ppn_file(ptpn, ppn_file);
+    if (!ppn_export.success) {
+      cerr << "ERROR: PToPNer export failed: " << ppn_export.error_message << endl;
       return 1;
     }
-  }
+    spdlog::info("[OUTPUT] PToPNer .ppn exported to: {}", ppn_file);
+  } 
 
   cout << ptpn.to_string();
 
