@@ -138,7 +138,9 @@ size_t estimate_transitions(const tdg::TDG& tdg) {
   transitions += tdg.periodic_tasks.size();
 
   std::set<std::string> consume_tasks(tdg.end_tasks.begin(), tdg.end_tasks.end());
-  for (const auto& [vertex_name, node_type] : tdg.nodes_type) {
+  for (const auto& node_entry : tdg.nodes_type) {
+    const std::string& vertex_name = node_entry.first;
+    const NodeType& node_type = node_entry.second;
     if (!std::holds_alternative<TaskNode>(node_type)) {
       continue;
     }

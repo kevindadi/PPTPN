@@ -279,7 +279,9 @@ std::unordered_map<std::string, int> TDG2PN::build_preempt_priorities(
 }
 
 void TDG2PN::transform_vertices(petri::PTPN& ptpn, const tdg::TDG& tdg) {
-  for (const auto& [vertex_name, node_type] : tdg.nodes_type) {
+  for (const auto& node_entry : tdg.nodes_type) {
+    const std::string& vertex_name = node_entry.first;
+    const NodeType& node_type = node_entry.second;
     spdlog::debug("[TDG2PN] Processing vertex: {}", vertex_name);
 
     try {

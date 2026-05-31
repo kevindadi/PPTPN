@@ -12,6 +12,7 @@ docs/ptpn-format-semantics.md
 **.dot
 **.ppn
 **.ptpn
+wcet.json
 
 test_debug
 

@@ -44,11 +44,14 @@ struct PTPNAST {
 
 class PTPNParser {
  public:
-  // Parse PTPN from string
+  // Parse PTPN from string (syntax only)
   static bool parse(const std::string& input, PTPNAST& ast, std::string& error);
 
-  // Parse from file
+  // Parse from file (syntax only)
   static bool parse_file(const std::string& filepath, PTPNAST& ast, std::string& error);
+
+  // Semantic validation on a parsed AST
+  static bool validate(const PTPNAST& ast, std::string& error);
 };
 
 class PTPNBuilder {

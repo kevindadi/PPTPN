@@ -1,7 +1,0 @@
-digraph StateClassGraph {
-  rankdir=LR;
-  node [shape=box];
-
-  s1 [label="State 1\nM: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 4, 1, 1, 1]\nActive: 0\nTime: 0.00"];
-
-}

@@ -103,7 +103,8 @@ TEST_F(PTPNParserTest, ParseTransitionsWithSuspendable) {
 TEST_F(PTPNParserTest, ParseArcs) {
   PTPNAST ast;
   std::string error;
-  bool result = PTPNParser::parse("P0 -> T0\nT0 -> P1", ast, error);
+  bool result = PTPNParser::parse(
+      "places P0, P1\ntransitions T0 [0, 0]\nP0 -> T0\nT0 -> P1", ast, error);
 
   EXPECT_TRUE(result);
   EXPECT_EQ(2, ast.arcs.size());
@@ -116,7 +117,8 @@ TEST_F(PTPNParserTest, ParseArcs) {
 TEST_F(PTPNParserTest, ParseArcsWithWeight) {
   PTPNAST ast;
   std::string error;
-  bool result = PTPNParser::parse("P0 -> T0:2", ast, error);
+  bool result = PTPNParser::parse(
+      "places P0\ntransitions T0 [0, 0]\nP0 -> T0:2", ast, error);
 
   EXPECT_TRUE(result);
   EXPECT_EQ(1, ast.arcs.size());
@@ -128,7 +130,7 @@ TEST_F(PTPNParserTest, ParseArcsWithWeight) {
 TEST_F(PTPNParserTest, ParseInit) {
   PTPNAST ast;
   std::string error;
-  bool result = PTPNParser::parse("@init P0:1", ast, error);
+  bool result = PTPNParser::parse("places P0\n@init P0:1", ast, error);
 
   EXPECT_TRUE(result);
   EXPECT_EQ(1, ast.initial_marking.size());
@@ -139,7 +141,7 @@ TEST_F(PTPNParserTest, ParseInit) {
 TEST_F(PTPNParserTest, ParseInitMultiple) {
   PTPNAST ast;
   std::string error;
-  bool result = PTPNParser::parse("@init P0:1, P1:2", ast, error);
+  bool result = PTPNParser::parse("places P0, P1\n@init P0:1, P1:2", ast, error);
 
   EXPECT_TRUE(result);
   EXPECT_EQ(2, ast.initial_marking.size());
@@ -249,6 +251,58 @@ TEST_F(PTPNParserTest, ParseTransitionWithName) {
   EXPECT_EQ(1, ast.transitions.size());
   EXPECT_EQ("T0", ast.transitions[0].id);
   EXPECT_EQ("Task1", ast.transitions[0].name);
+}
+
+TEST_F(PTPNParserTest, ParsePriorityShorthand) {
+  PTPNAST ast;
+  std::string error;
+  bool result = PTPNParser::parse("transitions T0 [1, 5] @98, core=0", ast, error);
+
+  EXPECT_TRUE(result) << error;
+  EXPECT_EQ(98, ast.transitions[0].priority);
+  EXPECT_EQ(0, ast.transitions[0].core);
+}
+
+TEST_F(PTPNParserTest, ParseNegativeCore) {
+  PTPNAST ast;
+  std::string error;
+  bool result = PTPNParser::parse("transitions T0 [0, 0] @priority=0, core=-1", ast, error);
+
+  EXPECT_TRUE(result) << error;
+  EXPECT_EQ(-1, ast.transitions[0].core);
+}
+
+TEST_F(PTPNParserTest, RejectDuplicatePlace) {
+  PTPNAST ast;
+  std::string error;
+  bool result = PTPNParser::parse("places P0, P0", ast, error);
+
+  EXPECT_FALSE(result);
+  EXPECT_NE(std::string::npos, error.find("Duplicate place"));
+}
+
+TEST_F(PTPNParserTest, RejectUnknownArcReference) {
+  PTPNAST ast;
+  std::string error;
+  bool result = PTPNParser::parse("places P0\ntransitions T0 [0,0]\nP0 -> T0\nT0 -> Missing", ast, error);
+
+  EXPECT_FALSE(result);
+  EXPECT_NE(std::string::npos, error.find("not found"));
+}
+
+TEST_F(PTPNParserTest, BuildArcsWithoutPPrefix) {
+  std::string content = R"(
+places Entry, Exit
+transitions T0 [0, 0]
+Entry -> T0
+T0 -> Exit
+@init Entry:1
+)";
+
+  petri::PTPN ptpn = PTPNBuilder::parse(content);
+  EXPECT_FALSE(PTPNBuilder::has_error());
+  EXPECT_EQ(2, ptpn.num_places());
+  EXPECT_EQ(1, ptpn.num_transitions());
 }
 
 }  // namespace parser
