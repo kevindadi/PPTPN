@@ -86,16 +86,7 @@ class PTPNAnalyzer {
    * 查询剪枝是否启用.
    */
   [[nodiscard]] bool is_pruning_enabled() const;
-
-  /**
-   * build - 构建可达性图（串行）
-   *
-   * @param max_states 最大状态数（默认无限制）
-   * @return 实际构建的状态数
-   */
-  size_t build(
-      size_t max_states = std::numeric_limits<size_t>::max());
-
+  
   /**
    * build - 构建可达性图
    *
@@ -287,11 +278,6 @@ inline void PTPNAnalyzer::set_pruning_enabled(bool enabled) {
 
 inline bool PTPNAnalyzer::is_pruning_enabled() const {
   return graph_->is_pruning_enabled();
-}
-
-inline size_t PTPNAnalyzer::build(
-    size_t max_states) {
-  return graph_->build(max_states);
 }
 
 inline size_t PTPNAnalyzer::build(size_t max_states) {
