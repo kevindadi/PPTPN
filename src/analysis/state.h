@@ -48,7 +48,7 @@ struct TransitionEdge {
 //   1. marking    : discrete Petri-net marking
 //   2. clocks     : TransitionClock array for each transition
 //   3. enabled    : raw enabled transitions from marking
-//   4. active     : enabled but not suspended (clock ticking)
+//   4. active     : enabled but not suspended (clock ticking) 
 //   5. suspended  : enabled but suspended (clock frozen)
 //
 // cumulative_time is auxiliary metadata and is not part of state identity.

@@ -11,7 +11,6 @@
 
 #include <CLI/CLI.hpp>
 #include <spdlog/spdlog.h>
-#include <boost/interprocess/mapped_region.hpp>
 #include <boost/interprocess/shared_memory_object.hpp>
 #include <chrono>
 #include <filesystem>
@@ -108,7 +107,6 @@ int main(int argc, char* argv[]) {
 
   string input_file;
   size_t max_states = 10000;
-  size_t thread_count = 1;
   string tina_file, romeo_file, ppn_file;
   bool debug_mode = false;
   string canonicalization_mode = "equality";
@@ -117,8 +115,6 @@ int main(int argc, char* argv[]) {
       ->required(true);
   app.add_option("-m,--max-states", max_states,
                  "Maximum number of states in reachability graph (default: 10000)");
-  app.add_option("--threads", thread_count,
-                 "Reachability build thread count (default: 1; use 0 for auto)");
   app.add_option("--tina", tina_file, "Export to Tina .net format");
   app.add_option("--romeo", romeo_file, "Export to Romeo CTS format");
   app.add_option("--ppn", ppn_file, "Export to PToPNer .ppn format");
@@ -259,7 +255,7 @@ int main(int argc, char* argv[]) {
   state_class::StateClassReachabilityGraph reachability_graph(ptpn);
   reachability_graph.set_canonicalization_mode(canonicalization);
   spdlog::info("[SCG] Canonicalization mode: {}", canonicalization_mode);
-  size_t state_count = reachability_graph.build(max_states, thread_count);
+  size_t state_count = reachability_graph.build(max_states);
   const auto& reachability_stats = reachability_graph.get_statistics();
   if (reachability_stats.truncated) {
     spdlog::warn("[SCG] Reachability graph truncated at {} states; use --max-states to raise the bound", max_states);

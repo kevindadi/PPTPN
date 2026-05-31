@@ -1,12 +1,10 @@
 #include "analysis/graph.h"
 
 #include <algorithm>
-#include <atomic>
 #include <fstream>
 #include <iomanip>
 #include <spdlog/spdlog.h>
 #include <sstream>
-#include <thread>
 #include <vector>
 
 #include "scheduling.h"
@@ -26,30 +24,6 @@ void add_expansion_stats(StateClassReachabilityGraph::Statistics& target,
   target.enabled_transitions_count += result.enabled_transitions_count;
   target.pruned_states_count += result.pruned_states_count;
   target.transition_enabled_checks += result.transition_enabled_checks;
-}
-
-size_t effective_thread_count(size_t requested, size_t frontier_size) {
-  if (frontier_size <= 1) {
-    return 1;
-  }
-
-  size_t hardware_threads = std::thread::hardware_concurrency();
-  if (hardware_threads == 0) {
-    hardware_threads = 1;
-  }
-
-  size_t selected = requested;
-  if (selected == 0) {
-    selected = std::max<size_t>(1, hardware_threads / 4);
-  }
-  if (selected == 0) {
-    selected = 1;
-  }
-
-  constexpr size_t kMaxAutoBuildThreads = 16;
-  constexpr size_t kMaxRequestedBuildThreads = 16;
-  const size_t cap = requested == 0 ? kMaxAutoBuildThreads : kMaxRequestedBuildThreads;
-  return std::max<size_t>(1, std::min({selected, frontier_size, cap}));
 }
 
 std::string format_transition_vector(const std::vector<size_t>& trans_indices,
@@ -122,8 +96,6 @@ static void debug(const std::string& msg) {
 static void info(const std::string& msg) {
   spdlog::info("[STATE] {}", msg);
 }
-
-// ===== StateClassReachabilityGraph Implementation =====
 
 std::string StateClassReachabilityGraph::format_marking(
     const std::vector<int>& marking) {
@@ -206,11 +178,6 @@ StateClassReachabilityGraph::StateClassReachabilityGraph(const petri::PTPN& ptpn
     : ptpn_(ptpn), next_state_id_(0), pruning_enabled_(false) {}
 
 size_t StateClassReachabilityGraph::build(size_t max_states) {
-  return build(max_states, 0);
-}
-
-size_t StateClassReachabilityGraph::build(size_t max_states,
-                                          size_t thread_count) {
   stats_ = Statistics();
   graph_.clear();
   state_to_vertex_.clear();
@@ -224,50 +191,21 @@ size_t StateClassReachabilityGraph::build(size_t max_states,
   stats_.total_states++;
 
   std::vector<StateClass> frontier{s0};
-
-  size_t iteration = 0;
   size_t max_frontier_size = frontier.size();
+
+  // Single-threaded BFS expansion
   while (!frontier.empty()) {
     if (stats_.total_states >= max_states) {
       stats_.truncated = true;
       break;
     }
 
-    iteration++;
+    std::vector<StateExpansionResult> results;
+    results.reserve(frontier.size());
 
-    const size_t worker_count = effective_thread_count(thread_count, frontier.size());
-    std::vector<StateExpansionResult> results(frontier.size());
-    std::vector<petri::PTPN> worker_nets(worker_count, ptpn_);
-    std::vector<StateClassReachabilityGraph> workers;
-    workers.reserve(worker_count);
-    for (size_t i = 0; i < worker_count; ++i) {
-      workers.emplace_back(worker_nets[i]);
-      workers.back().set_pruning_enabled(pruning_enabled_);
-    }
-
-    if (worker_count == 1) {
-      for (size_t i = 0; i < frontier.size(); ++i) {
-        results[i] = workers[0].expand_state_candidates(frontier[i]);
-      }
-    } else {
-      std::atomic<size_t> next_index{0};
-      std::vector<std::thread> threads;
-      threads.reserve(worker_count);
-      for (size_t worker_id = 0; worker_id < worker_count; ++worker_id) {
-        threads.emplace_back([&, worker_id]() {
-          while (true) {
-            const size_t index = next_index.fetch_add(1, std::memory_order_relaxed);
-            if (index >= frontier.size()) {
-              break;
-            }
-            results[index] = workers[worker_id].expand_state_candidates(frontier[index]);
-          }
-        });
-      }
-
-      for (auto& thread : threads) {
-        thread.join();
-      }
+    // Expand each state in frontier
+    for (const auto& cur : frontier) {
+      results.push_back(expand_state_candidates(cur));
     }
 
     std::vector<StateClass> next_frontier;

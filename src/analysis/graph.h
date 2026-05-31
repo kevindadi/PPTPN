@@ -17,10 +17,6 @@
 
 namespace state_class {
 
-// =============================================================================
-// Boost.Graph type aliases
-// =============================================================================
-
 typedef boost::adjacency_list<
     boost::vecS, boost::vecS, boost::directedS,
     boost::property<boost::vertex_name_t, StateClass>,
@@ -86,16 +82,6 @@ class StateClassReachabilityGraph {
 
 
   size_t build(size_t max_states = std::numeric_limits<size_t>::max());
-
-  /**
-   * 构建可达性图.
-   *
-   * @param max_states 最大状态数限制
-   * @param thread_count 线程数（0 = 自动）
-   * @return 实际构建的状态数
-   */
-  size_t build(size_t max_states, size_t thread_count);
-
 
   [[nodiscard]] const SCGraph& get_graph() const { return graph_; }
   [[nodiscard]] SCGraph& get_graph() { return graph_; }

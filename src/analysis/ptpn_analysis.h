@@ -97,13 +97,12 @@ class PTPNAnalyzer {
       size_t max_states = std::numeric_limits<size_t>::max());
 
   /**
-   * build - 构建可达性图（并行）
+   * build - 构建可达性图
    *
    * @param max_states 最大状态数
-   * @param thread_count 线程数（0 = 自动）
    * @return 实际构建的状态数
    */
-  size_t build(size_t max_states, size_t thread_count);
+  size_t build(size_t max_states = std::numeric_limits<size_t>::max());
 
   /**
    * 获取底层可达性图（Boost.Graph）.
@@ -295,8 +294,8 @@ inline size_t PTPNAnalyzer::build(
   return graph_->build(max_states);
 }
 
-inline size_t PTPNAnalyzer::build(size_t max_states, size_t thread_count) {
-  return graph_->build(max_states, thread_count);
+inline size_t PTPNAnalyzer::build(size_t max_states) {
+  return graph_->build(max_states);
 }
 
 inline const SCGraph& PTPNAnalyzer::get_graph() const {
