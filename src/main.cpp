@@ -11,7 +11,6 @@
 
 #include <CLI/CLI.hpp>
 #include <spdlog/spdlog.h>
-#include <boost/interprocess/shared_memory_object.hpp>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
