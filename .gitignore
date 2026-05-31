@@ -11,6 +11,9 @@ docs/superpowers
 docs/ptpn-format-semantics.md
 **.dot
 **.ppn
+**.ptpn
+
+test_debug
 
 Testing
 tools/romeo-3.10.11/
