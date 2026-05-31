@@ -3,7 +3,7 @@
 typedef int place; 
 
 initially { 
-place Fentry=0, Fready=0, Fexit=0, Eentry=0, Eready=0, Eexit=0, Bentry=0, Bready=0, Bexit=0, Dentry=1, Dready=0, Dexit=0, Centry=0, Cready=0, Cexit=0, Aentry=1, Aready=0, Aexit=0, A_period=1, D_period=1, E_suspended_C_0=0, D_suspended_C_1=0, D_suspended_E_2=0, A_suspended_B_3=0, F_suspended_B_4=0, F_suspended_A_5=0, core0=1, core1=1; }
+place Fentry=0, Fready=0, Fexit=0, Eentry=0, Eready=0, Eexit=0, Aentry=1, Aready=0, Aexit=0, Dentry=1, Dready=0, Dexit=0, Centry=0, Cready=0, Cexit=0, Bentry=0, Bready=0, Bexit=0, A_period=1, D_period=1, E_suspended_C_0=0, D_suspended_C_1=0, D_suspended_E_2=0, A_suspended_B_3=0, F_suspended_B_4=0, F_suspended_A_5=0, core0=1, core1=1; }
 
  transition [priority=9699, intermediate { Fentry = Fentry - 1 , core0 = core0 - 1; }]  Fget_core [0,0]
       when (Fentry >= 1 and core0 >= 1)
@@ -17,12 +17,12 @@ place Fentry=0, Fready=0, Fexit=0, Eentry=0, Eready=0, Eexit=0, Bentry=0, Bready
  transition [priority=9899, intermediate { Eready = Eready - 1; }]  Eexec [15,18]
       when (Eready >= 1)
       { Eready = Eready - 1 , Eexit = Eexit + 1 , core1 = core1 + 1;  }
- transition [priority=9899, intermediate { Bentry = Bentry - 1 , core0 = core0 - 1; }]  Bget_core [0,0]
-      when (Bentry >= 1 and core0 >= 1)
-      { Bentry = Bentry - 1 , Bready = Bready + 1 , core0 = core0 - 1;  }
- transition [priority=9899, intermediate { Bready = Bready - 1; }]  Bexec [3,5]
-      when (Bready >= 1)
-      { Bready = Bready - 1 , Bexit = Bexit + 1 , core0 = core0 + 1;  }
+ transition [priority=9799, intermediate { Aentry = Aentry - 1 , core0 = core0 - 1; }]  Aget_core [0,0]
+      when (Aentry >= 1 and core0 >= 1)
+      { Aentry = Aentry - 1 , Aready = Aready + 1 , core0 = core0 - 1;  }
+ transition [priority=9799, intermediate { Aready = Aready - 1; }]  Aexec [3,8]
+      when (Aready >= 1)
+      { Aready = Aready - 1 , Aexit = Aexit + 1 , core0 = core0 + 1;  }
  transition [priority=9799, intermediate { Dentry = Dentry - 1 , core1 = core1 - 1; }]  Dget_core [0,0]
       when (Dentry >= 1 and core1 >= 1)
       { Dentry = Dentry - 1 , Dready = Dready + 1 , core1 = core1 - 1;  }
@@ -35,18 +35,18 @@ place Fentry=0, Fready=0, Fexit=0, Eentry=0, Eready=0, Eexit=0, Bentry=0, Bready
  transition [priority=9999, intermediate { Cready = Cready - 1; }]  Cexec [8,10]
       when (Cready >= 1)
       { Cready = Cready - 1 , Cexit = Cexit + 1 , core1 = core1 + 1;  }
- transition [priority=9799, intermediate { Aentry = Aentry - 1 , core0 = core0 - 1; }]  Aget_core [0,0]
-      when (Aentry >= 1 and core0 >= 1)
-      { Aentry = Aentry - 1 , Aready = Aready + 1 , core0 = core0 - 1;  }
- transition [priority=9799, intermediate { Aready = Aready - 1; }]  Aexec [3,8]
-      when (Aready >= 1)
-      { Aready = Aready - 1 , Aexit = Aexit + 1 , core0 = core0 + 1;  }
+ transition [priority=9899, intermediate { Bentry = Bentry - 1 , core0 = core0 - 1; }]  Bget_core [0,0]
+      when (Bentry >= 1 and core0 >= 1)
+      { Bentry = Bentry - 1 , Bready = Bready + 1 , core0 = core0 - 1;  }
+ transition [priority=9899, intermediate { Bready = Bready - 1; }]  Bexec [3,5]
+      when (Bready >= 1)
+      { Bready = Bready - 1 , Bexit = Bexit + 1 , core0 = core0 + 1;  }
  transition [priority=0, intermediate { Aexit = Aexit - 1; }]  A_to_B [0,0]
       when (Aexit >= 1)
-      { Bentry = Bentry + 1 , Aexit = Aexit - 1;  }
+      { Aexit = Aexit - 1 , Bentry = Bentry + 1;  }
  transition [priority=0, intermediate { Bexit = Bexit - 1; }]  B_to_C [0,0]
       when (Bexit >= 1)
-      { Bexit = Bexit - 1 , Centry = Centry + 1;  }
+      { Centry = Centry + 1 , Bexit = Bexit - 1;  }
  transition [priority=0, intermediate { Dexit = Dexit - 1; }]  D_to_E [0,0]
       when (Dexit >= 1)
       { Eentry = Eentry + 1 , Dexit = Dexit - 1;  }
@@ -83,12 +83,12 @@ place Fentry=0, Fready=0, Fexit=0, Eentry=0, Eready=0, Eexit=0, Bentry=0, Bready
  transition [priority=0, intermediate { Eexit = Eexit - 1 , D_suspended_E_2 = D_suspended_E_2 - 1; }]  D_resume_E_2 [0,0]
       when (Eexit >= 1 and D_suspended_E_2 >= 1)
       { Eexit = Eexit - 1 + 1 , Dready = Dready + 1 , D_suspended_E_2 = D_suspended_E_2 - 1;  }
- transition [priority=9898, intermediate { Bentry = Bentry - 1 , Aready = Aready - 1; }]  B_resume_preempt_A_3 [0,0]
-      when (Bentry >= 1 and Aready >= 1)
-      { Bentry = Bentry - 1 , Bready = Bready + 1 , Aready = Aready - 1 , A_suspended_B_3 = A_suspended_B_3 + 1;  }
+ transition [priority=9898, intermediate { Aready = Aready - 1 , Bentry = Bentry - 1; }]  B_resume_preempt_A_3 [0,0]
+      when (Aready >= 1 and Bentry >= 1)
+      { Aready = Aready - 1 , Bentry = Bentry - 1 , Bready = Bready + 1 , A_suspended_B_3 = A_suspended_B_3 + 1;  }
  transition [priority=0, intermediate { Bexit = Bexit - 1 , A_suspended_B_3 = A_suspended_B_3 - 1; }]  A_resume_B_3 [0,0]
       when (Bexit >= 1 and A_suspended_B_3 >= 1)
-      { Bexit = Bexit - 1 + 1 , Aready = Aready + 1 , A_suspended_B_3 = A_suspended_B_3 - 1;  }
+      { Aready = Aready + 1 , Bexit = Bexit - 1 + 1 , A_suspended_B_3 = A_suspended_B_3 - 1;  }
  transition [priority=9897, intermediate { Fready = Fready - 1 , Bentry = Bentry - 1; }]  B_resume_preempt_F_4 [0,0]
       when (Fready >= 1 and Bentry >= 1)
       { Fready = Fready - 1 , Bentry = Bentry - 1 , Bready = Bready + 1 , F_suspended_B_4 = F_suspended_B_4 + 1;  }
