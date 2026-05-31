@@ -18,6 +18,7 @@ add_executable(ptpn_test
   test_canonicalization.cpp
   test_scheduling.cpp
   test_tdg2ptopner.cpp
+  test_ptpn_parser.cpp
 )
 
 target_link_libraries(ptpn_test
