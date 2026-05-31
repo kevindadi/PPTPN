@@ -282,8 +282,7 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
         max_states, stats_.total_states, frontier.size());
   }
 
-  info("Build complete: iterations=" + std::to_string(iteration) +
-       ", states=" + std::to_string(stats_.total_states) +
+  info("Build complete: states=" + std::to_string(stats_.total_states) +
        ", transitions=" + std::to_string(stats_.total_transitions) +
        ", dedup_hits=" + std::to_string(stats_.dedup_hits_count) +
        ", dedup_misses=" + std::to_string(stats_.dedup_misses_count) +
