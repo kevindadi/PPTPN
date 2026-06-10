@@ -106,8 +106,47 @@ TEST_F(CanonicalizationTest, IntersectionMode) {
   EXPECT_EQ(result.clocks[1].state, ClockState::SUSPENDED);
 }
 
+TEST_F(CanonicalizationTest, IntersectionModeUsesZoneIntersectionWhenDBMIdentityExists) {
+  StateClass s1;
+  s1.marking = {1, 1};
+  s1.clocks.resize(2);
+  s1.clocks[0] = TransitionClock(7, ClockState::ACTIVE);
+  s1.clocks[1] = TransitionClock(9, ClockState::SUSPENDED);
+  s1.enabled = {0, 1};
+  s1.active = {0};
+  s1.suspended = {1};
+  s1.rebuild_zone_from_clocks();
+  s1.sync_clocks_from_zone();
+
+  StateClass s2 = s1.copy();
+  const size_t c0 = static_cast<size_t>(s2.clock_index_for_transition(0));
+  const size_t c1 = static_cast<size_t>(s2.clock_index_for_transition(1));
+  s2.zone = s2.zone.restrict_clock(c0, 3, 6);
+  s2.zone = s2.zone.restrict_clock(c1, 2, 8);
+  s2.sync_clocks_from_zone();
+
+  auto expected = s1.zone.intersection(s2.zone);
+  expected.unfreeze_clock(c0);
+  expected.freeze_clock(c1);
+
+  auto result =
+      state_class::canonicalize(s1, s2, CanonicalizationMode::INTERSECTION);
+
+  EXPECT_EQ(result.transition_to_clock, s1.transition_to_clock);
+  EXPECT_EQ(result.clock_to_transition, s1.clock_to_transition);
+  EXPECT_EQ(result.zone, expected);
+  EXPECT_EQ(result.clocks[0].lower_bound, 3);
+  EXPECT_EQ(result.clocks[0].upper_bound, 6);
+  EXPECT_EQ(result.clocks[0].state, ClockState::ACTIVE);
+  EXPECT_EQ(result.clocks[1].lower_bound, 2);
+  EXPECT_EQ(result.clocks[1].upper_bound, 8);
+  EXPECT_EQ(result.clocks[1].state, ClockState::SUSPENDED);
+}
+
 TEST_F(CanonicalizationTest, EnabledSetUnion) {
-  auto result = state_class::canonicalize(state_a_, state_b_, CanonicalizationMode::MAX_LOWER_BOUND);
+  auto result =
+      state_class::canonicalize(state_a_, state_b_,
+                                CanonicalizationMode::MAX_LOWER_BOUND);
 
   // enabled 应该是并集: {0,1,2} U {0,2} = {0,1,2}
   EXPECT_EQ(result.enabled.size(), 3);

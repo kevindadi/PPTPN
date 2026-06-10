@@ -6,6 +6,42 @@
 
 namespace state_class {
 
+namespace {
+
+bool has_dbm_identity(const StateClass& state) {
+  return state.zone.size() > 0 || !state.transition_to_clock.empty() ||
+         !state.clock_to_transition.empty();
+}
+
+bool can_intersect_zones(const StateClass& a, const StateClass& b) {
+  return has_dbm_identity(a) && has_dbm_identity(b) && a.zone.size() > 0 &&
+         a.zone.size() == b.zone.size() &&
+         a.transition_to_clock == b.transition_to_clock &&
+         a.clock_to_transition == b.clock_to_transition;
+}
+
+void sync_zone_activity_with_sets(StateClass& state) {
+  if (state.zone.size() == 0) {
+    return;
+  }
+
+  for (size_t t : state.enabled) {
+    if (!state.has_zone_clock_for_transition(t)) {
+      continue;
+    }
+
+    const size_t clock_idx =
+        static_cast<size_t>(state.clock_index_for_transition(t));
+    if (state.active.count(t)) {
+      state.zone.unfreeze_clock(clock_idx);
+    } else {
+      state.zone.freeze_clock(clock_idx);
+    }
+  }
+}
+
+}  // namespace
+
 StateClass canonicalize(const StateClass& a, const StateClass& b,
                         CanonicalizationMode mode) {
   StateClass result;
@@ -23,6 +59,31 @@ StateClass canonicalize(const StateClass& a, const StateClass& b,
 
     case CanonicalizationMode::MAX_LOWER_BOUND:
     case CanonicalizationMode::INTERSECTION: {
+      result.enabled.clear();
+      std::set_union(a.enabled.begin(), a.enabled.end(),
+                     b.enabled.begin(), b.enabled.end(),
+                     std::inserter(result.enabled, result.enabled.end()));
+
+      result.active.clear();
+      std::set_intersection(a.active.begin(), a.active.end(),
+                            b.active.begin(), b.active.end(),
+                            std::inserter(result.active, result.active.end()));
+
+      result.suspended.clear();
+      std::set_intersection(a.suspended.begin(), a.suspended.end(),
+                            b.suspended.begin(), b.suspended.end(),
+                            std::inserter(result.suspended, result.suspended.end()));
+
+      if (mode == CanonicalizationMode::INTERSECTION &&
+          can_intersect_zones(a, b)) {
+        result.transition_to_clock = a.transition_to_clock;
+        result.clock_to_transition = a.clock_to_transition;
+        result.zone = a.zone.intersection(b.zone);
+        sync_zone_activity_with_sets(result);
+        result.sync_clocks_from_zone();
+        break;
+      }
+
       const size_t num_clocks = std::min(a.clocks.size(), b.clocks.size());
       result.clocks.resize(num_clocks);
 
@@ -42,21 +103,6 @@ StateClass canonicalize(const StateClass& a, const StateClass& b,
 
         result.clocks[i] = cr;
       }
-
-      result.enabled.clear();
-      std::set_union(a.enabled.begin(), a.enabled.end(),
-                     b.enabled.begin(), b.enabled.end(),
-                     std::inserter(result.enabled, result.enabled.end()));
-
-      result.active.clear();
-      std::set_intersection(a.active.begin(), a.active.end(),
-                            b.active.begin(), b.active.end(),
-                            std::inserter(result.active, result.active.end()));
-
-      result.suspended.clear();
-      std::set_intersection(a.suspended.begin(), a.suspended.end(),
-                            b.suspended.begin(), b.suspended.end(),
-                            std::inserter(result.suspended, result.suspended.end()));
 
       result.rebuild_zone_from_clocks();
       break;
