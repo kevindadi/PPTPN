@@ -443,6 +443,11 @@ TEST_F(SchedulingTest, ReenabledTransitionClockRestartsFromZero) {
   EXPECT_EQ(next.clocks[0].lower_bound, 0);
   EXPECT_EQ(next.clocks[0].upper_bound, 7);
   EXPECT_EQ(next.clocks[0].state, state_class::ClockState::ACTIVE);
+  ASSERT_TRUE(next.has_zone_clock_for_transition(0));
+  const size_t clock_idx =
+      static_cast<size_t>(next.clock_index_for_transition(0));
+  EXPECT_EQ(next.zone.get_constraint(0, clock_idx), 0);
+  EXPECT_EQ(next.zone.get_constraint(clock_idx, 0), 7);
 }
 
 TEST_F(SchedulingTest, DisabledTransitionClockResetsAfterFire) {

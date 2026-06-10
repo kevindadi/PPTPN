@@ -80,10 +80,18 @@ bool are_equivalent(const StateClass& a, const StateClass& b,
   }
 
   switch (mode) {
-    case CanonicalizationMode::EQUALITY:
-      return a.transition_to_clock == b.transition_to_clock &&
-             a.clock_to_transition == b.clock_to_transition &&
-             a.zone == b.zone;
+    case CanonicalizationMode::EQUALITY: {
+      const bool has_dbm_identity =
+          a.zone.size() > 0 || b.zone.size() > 0 ||
+          !a.transition_to_clock.empty() || !b.transition_to_clock.empty() ||
+          !a.clock_to_transition.empty() || !b.clock_to_transition.empty();
+      if (has_dbm_identity) {
+        return a.transition_to_clock == b.transition_to_clock &&
+               a.clock_to_transition == b.clock_to_transition &&
+               a.zone == b.zone;
+      }
+      return a.clocks == b.clocks;
+    }
 
     case CanonicalizationMode::MAX_LOWER_BOUND:
     case CanonicalizationMode::INTERSECTION:

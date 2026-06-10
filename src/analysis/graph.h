@@ -141,6 +141,11 @@ class StateClassReachabilityGraph {
                                            StateClass& state) const;
 
 
+  void recompute_enabled_sets_from_marking(const std::vector<int>& marking,
+                                           StateClass& state,
+                                           const std::set<size_t>& force_reset_transitions) const;
+
+
   /**
    * select_active_per_core - 每个核心上最高优先级变迁集合（可并列）
    */

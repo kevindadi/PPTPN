@@ -19,6 +19,24 @@ int latest_bound_for_transition(const petri::Transition& trans) {
                                                  : trans.time_interval.latest;
 }
 
+std::pair<int, int> current_clock_bounds(const StateClass& state, size_t t);
+
+bool safe_add_graph_bound(int lhs, int rhs, int& result) {
+  if (lhs == INF_TIME) {
+    result = INF_TIME;
+    return true;
+  }
+
+  if ((rhs > 0 && lhs > std::numeric_limits<int>::max() - rhs) ||
+      (rhs < 0 && lhs < std::numeric_limits<int>::min() - rhs)) {
+    result = rhs > 0 ? INF_TIME : std::numeric_limits<int>::min();
+    return true;
+  }
+
+  result = lhs + rhs;
+  return true;
+}
+
 bool elapse_active_clocks(StateClass& state, int delay) {
   if (delay < 0) {
     return false;
@@ -29,23 +47,59 @@ bool elapse_active_clocks(StateClass& state, int delay) {
       continue;
     }
 
-    const auto& clock = state.clocks[t];
-    if (clock.state != ClockState::ACTIVE) {
-      return false;
-    }
-    if (clock.upper_bound != INF_TIME && clock.lower_bound + delay > clock.upper_bound) {
+    const auto [clock_lower, clock_upper] = current_clock_bounds(state, t);
+    if (clock_upper != INF_TIME && clock_lower + delay > clock_upper) {
       return false;
     }
   }
 
-  for (size_t t : state.active) {
-    if (t >= state.clocks.size()) {
-      continue;
+  if (delay > 0 && state.zone.size() > 0) {
+    DBM next_zone = state.zone;
+
+    for (size_t t : state.active) {
+      if (!state.has_zone_clock_for_transition(t)) {
+        continue;
+      }
+
+      const size_t clock_idx =
+          static_cast<size_t>(state.clock_index_for_transition(t));
+      const int current_lower = state.zone.get_constraint(0, clock_idx);
+      int updated_lower = current_lower;
+      safe_add_graph_bound(current_lower, -delay, updated_lower);
+      next_zone.set_constraint(0, clock_idx, updated_lower);
     }
-    state.clocks[t].lower_bound += delay;
+
+    for (size_t i = 1; i < state.zone.size(); ++i) {
+      const size_t ti = state.transition_for_clock(i);
+      const int age_i = state.active.count(ti) ? delay : 0;
+
+      for (size_t j = 1; j < state.zone.size(); ++j) {
+        const size_t tj = state.transition_for_clock(j);
+        const int age_j = state.active.count(tj) ? delay : 0;
+        const int delta_ij = age_i - age_j;
+        if (delta_ij == 0) {
+          continue;
+        }
+
+        const int current_bound = state.zone.get_constraint(i, j);
+        int updated_bound = current_bound;
+        safe_add_graph_bound(current_bound, delta_ij, updated_bound);
+        next_zone.set_constraint(i, j, updated_bound);
+      }
+    }
+
+    next_zone.minimize();
+    state.zone = std::move(next_zone);
+    state.sync_clocks_from_zone();
+  } else {
+    for (size_t t : state.active) {
+      if (t >= state.clocks.size()) {
+        continue;
+      }
+      state.clocks[t].lower_bound += delay;
+    }
   }
 
-  state.rebuild_zone_from_clocks();
   state.cumulative_time += delay;
   return true;
 }
@@ -78,6 +132,100 @@ std::pair<int, int> current_clock_bounds(const StateClass& state, size_t t) {
   }
 
   return {0, INF_TIME};
+}
+
+bool is_uninitialized_clock(const TransitionClock& clock) {
+  return clock.state == ClockState::UNACTIVE && clock.lower_bound == 0 &&
+         clock.upper_bound == INF_TIME;
+}
+
+void rebuild_zone_preserving_constraints(
+    StateClass& state, const DBM& previous_zone,
+    const std::vector<int>& previous_transition_to_clock,
+    const std::set<size_t>& previously_enabled,
+    const std::set<size_t>& reset_transitions) {
+  state.transition_to_clock.assign(state.clocks.size(), -1);
+  state.clock_to_transition.clear();
+  state.clock_to_transition.push_back(std::numeric_limits<size_t>::max());
+
+  DBM next_zone(1);
+  for (size_t t : state.enabled) {
+    if (t >= state.clocks.size()) {
+      continue;
+    }
+
+    const size_t clock_idx = next_zone.add_clock();
+    state.transition_to_clock[t] = static_cast<int>(clock_idx);
+    state.clock_to_transition.push_back(t);
+  }
+
+  const auto has_previous_clock = [&](size_t t) {
+    return previously_enabled.count(t) && !reset_transitions.count(t) &&
+           t < previous_transition_to_clock.size() &&
+           previous_transition_to_clock[t] > 0 &&
+           static_cast<size_t>(previous_transition_to_clock[t]) < previous_zone.size();
+  };
+
+  for (size_t ti : state.enabled) {
+    if (ti >= state.transition_to_clock.size() || state.transition_to_clock[ti] <= 0) {
+      continue;
+    }
+
+    const size_t new_i = static_cast<size_t>(state.transition_to_clock[ti]);
+    if (has_previous_clock(ti)) {
+      const size_t old_i = static_cast<size_t>(previous_transition_to_clock[ti]);
+      next_zone.set_constraint(0, new_i, previous_zone.get_constraint(0, old_i));
+      next_zone.set_constraint(new_i, 0, previous_zone.get_constraint(old_i, 0));
+    } else {
+      const auto& clock = state.clocks[ti];
+      next_zone.set_constraint(0, new_i, -clock.lower_bound);
+      next_zone.set_constraint(new_i, 0, clock.upper_bound);
+    }
+  }
+
+  for (size_t ti : state.enabled) {
+    if (!has_previous_clock(ti)) {
+      continue;
+    }
+
+    const size_t new_i = static_cast<size_t>(state.transition_to_clock[ti]);
+    const size_t old_i = static_cast<size_t>(previous_transition_to_clock[ti]);
+    for (size_t tj : state.enabled) {
+      if (!has_previous_clock(tj)) {
+        continue;
+      }
+
+      const size_t new_j = static_cast<size_t>(state.transition_to_clock[tj]);
+      const size_t old_j = static_cast<size_t>(previous_transition_to_clock[tj]);
+      next_zone.set_constraint(new_i, new_j,
+                               previous_zone.get_constraint(old_i, old_j));
+    }
+  }
+
+  next_zone.minimize();
+  state.zone = std::move(next_zone);
+}
+
+void sync_zone_activity(StateClass& state) {
+  if (state.zone.size() == 0) {
+    return;
+  }
+
+  for (size_t t : state.enabled) {
+    if (!state.has_zone_clock_for_transition(t)) {
+      continue;
+    }
+
+    const size_t clock_idx =
+        static_cast<size_t>(state.clock_index_for_transition(t));
+    if (state.active.count(t)) {
+      state.zone.unfreeze_clock(clock_idx);
+    } else {
+      state.zone.freeze_clock(clock_idx);
+    }
+  }
+
+  state.sync_clocks_from_zone();
 }
 
 void add_expansion_stats(StateClassReachabilityGraph::Statistics& target,
@@ -503,11 +651,19 @@ void StateClassReachabilityGraph::recompute_enabled_sets(StateClass& state) cons
 
 void StateClassReachabilityGraph::recompute_enabled_sets_from_marking(
     const std::vector<int>& marking, StateClass& state) const {
+  recompute_enabled_sets_from_marking(marking, state, {});
+}
+
+void StateClassReachabilityGraph::recompute_enabled_sets_from_marking(
+    const std::vector<int>& marking, StateClass& state,
+    const std::set<size_t>& force_reset_transitions) const {
   state.marking = marking;
 
   std::vector<size_t> raw_enabled;
   const size_t num_transitions = ptpn_.num_transitions();
   const std::set<size_t> previously_enabled = state.enabled;
+  const DBM previous_zone = state.zone;
+  const std::vector<int> previous_transition_to_clock = state.transition_to_clock;
 
   for (size_t t = 0; t < num_transitions; ++t) {
     if (petri::PTPN::is_enabled(marking, ptpn_, t)) {
@@ -521,23 +677,23 @@ void StateClassReachabilityGraph::recompute_enabled_sets_from_marking(
     state.clocks.resize(num_transitions);
   }
 
+  std::set<size_t> reset_transitions = force_reset_transitions;
   for (size_t t = 0; t < num_transitions; ++t) {
     if (!raw_set.count(t)) {
       state.clocks[t] = TransitionClock();
       continue;
     }
 
-    const auto& clock = state.clocks[t];
     const bool needs_initialization =
-        !previously_enabled.count(t) ||
-        (clock.state == ClockState::UNACTIVE && clock.lower_bound == 0 &&
-         clock.upper_bound == INF_TIME);
+        !previously_enabled.count(t) || is_uninitialized_clock(state.clocks[t]) ||
+        force_reset_transitions.count(t);
 
     if (needs_initialization) {
       const auto& trans = ptpn_.get_transition(t);
       state.clocks[t].lower_bound = 0;
       state.clocks[t].upper_bound = latest_bound_for_transition(trans);
       state.clocks[t].state = ClockState::UNACTIVE;
+      reset_transitions.insert(t);
     }
   }
 
@@ -555,7 +711,10 @@ void StateClassReachabilityGraph::recompute_enabled_sets_from_marking(
     }
   }
 
-  state.rebuild_zone_from_clocks();
+  rebuild_zone_preserving_constraints(state, previous_zone,
+                                      previous_transition_to_clock,
+                                      previously_enabled, reset_transitions);
+  sync_zone_activity(state);
 
   spdlog::debug("  recompute_enabled: enabled={}, active={}, suspended={}",
                 state.enabled.size(), state.active.size(), state.suspended.size());
@@ -588,7 +747,7 @@ void StateClassReachabilityGraph::suspend_transition(size_t t, StateClass& state
   state.active.erase(t);
   state.suspended.insert(t);
   state.clocks[t].state = ClockState::SUSPENDED;
-  state.rebuild_zone_from_clocks();
+  sync_zone_activity(state);
 
   spdlog::debug("  suspend_transition: T{} now frozen", t);
 }
@@ -601,7 +760,7 @@ void StateClassReachabilityGraph::restore_transition(size_t t, StateClass& state
   state.suspended.erase(t);
   state.active.insert(t);
   state.clocks[t].state = ClockState::ACTIVE;
-  state.rebuild_zone_from_clocks();
+  sync_zone_activity(state);
 
   spdlog::debug("  restore_transition: T{} resumed", t);
 }
@@ -717,7 +876,7 @@ void StateClassReachabilityGraph::apply_preemption(
     }
   }
 
-  state.rebuild_zone_from_clocks();
+  sync_zone_activity(state);
 }
 
 std::set<size_t> StateClassReachabilityGraph::compute_effective_enabled(
@@ -775,11 +934,7 @@ std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_dbm(
     return {false, StateClass(), 0.0};
   }
 
-  if (trans_idx < to.clocks.size()) {
-    to.clocks[trans_idx] = TransitionClock();
-  }
-
-  recompute_enabled_sets(to);
+  recompute_enabled_sets_from_marking(to.marking, to, {trans_idx});
 
   spdlog::debug("  {}: fired successfully after delay {}, new cumulative={}",
                 format_transitions({trans_idx}, false), fire_delay,
