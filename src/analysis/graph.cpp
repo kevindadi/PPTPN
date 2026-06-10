@@ -14,6 +14,41 @@ namespace state_class {
 namespace {
 constexpr int kControlTransitionPriority = 0;
 
+int latest_bound_for_transition(const petri::Transition& trans) {
+  return trans.time_interval.latest == petri::INF ? INF_TIME
+                                                 : trans.time_interval.latest;
+}
+
+bool elapse_active_clocks(StateClass& state, int delay) {
+  if (delay < 0) {
+    return false;
+  }
+
+  for (size_t t : state.active) {
+    if (t >= state.clocks.size()) {
+      continue;
+    }
+
+    const auto& clock = state.clocks[t];
+    if (clock.state != ClockState::ACTIVE) {
+      return false;
+    }
+    if (clock.upper_bound != INF_TIME && clock.lower_bound + delay > clock.upper_bound) {
+      return false;
+    }
+  }
+
+  for (size_t t : state.active) {
+    if (t >= state.clocks.size()) {
+      continue;
+    }
+    state.clocks[t].lower_bound += delay;
+  }
+
+  state.cumulative_time += delay;
+  return true;
+}
+
 // State key helper using new clocks/active/suspended structure
 StateKey make_state_key(const StateClass& state) {
   return {state.marking, state.clocks, state.enabled, state.suspended};
@@ -300,27 +335,25 @@ int StateClassReachabilityGraph::compute_firing_time(const StateClass& state,
     return -1;
   }
 
-  if (!state.enabled.count(t) || state.suspended.count(t)) {
+  if (!state.enabled.count(t) || !state.active.count(t) || state.suspended.count(t)) {
     return -1;
   }
 
   const auto& clock = state.clocks[t];
-  if (clock.state == ClockState::SUSPENDED) {
+  if (clock.state != ClockState::ACTIVE) {
     return -1;
   }
 
   const auto& trans = ptpn_.get_transition(t);
   const int alpha = trans.time_interval.earliest;
-  const int beta = (trans.time_interval.latest == petri::INF)
-                       ? INF_TIME
-                       : trans.time_interval.latest;
-  const int firing_lower = std::max(alpha, clock.lower_bound);
+  const int beta = latest_bound_for_transition(trans);
+  const int firing_time = std::max(alpha, clock.lower_bound);
 
-  if (beta != INF_TIME && firing_lower > beta) {
+  if (beta != INF_TIME && firing_time > beta) {
     return -1;
   }
 
-  return firing_lower;
+  return firing_time;
 }
 
 StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
@@ -340,9 +373,8 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
     return result;
   }
 
-  // 1. 在 enabled \ suspended 上按时钟筛选（先于优先级）:取 tau_min
   int tau_min = INF_TIME;
-  for (size_t t : scheduled.enabled) {
+  for (size_t t : scheduled.active) {
     const int tau = compute_firing_time(scheduled, t);
     if (tau >= 0) {
       tau_min = std::min(tau_min, tau);
@@ -359,14 +391,13 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
   }
 
   std::set<size_t> firable_now;
-  for (size_t t : scheduled.enabled) {
+  for (size_t t : scheduled.active) {
     const int tau = compute_firing_time(scheduled, t);
     if (tau == tau_min) {
       firable_now.insert(t);
     }
   }
 
-  // 2. 在 firable_now 上按核心取最高优先级集合（可并列;控制变迁 core<0 全部保留）
   const std::set<size_t> schedulable =
       SchedulingAlgorithms::select_active_per_core(firable_now, ptpn_);
   result.chosen_count = schedulable.size();
@@ -381,32 +412,29 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
     return result;
   }
 
-  // 3. 从 schedulable 中选择一个变迁发生
-  const size_t chosen = SchedulingAlgorithms::select_one_transition(schedulable, ptpn_);
   const StateKey source_key = make_state_key(cur);
 
-  spdlog::debug("  Earliest firing time: {}, firable_now={}, schedulable={}, chosen={}",
-                tau_min, firable_now.size(), schedulable.size(),
-                format_transitions({chosen}, false));
+  spdlog::debug("  Earliest firing time: {}, firable_now={}, schedulable={}",
+                tau_min, firable_now.size(), schedulable.size());
 
-  auto [ok, nxt, tau] = fire_with_time(chosen, scheduled);
-  if (!ok) {
-    if (pruning_enabled_) {
-      spdlog::debug("  {}: fire failed", format_transitions({chosen}, false));
-      result.pruned_states_count++;
-    } else {
-      spdlog::debug("  {}: fire failed [pruning disabled]",
-                    format_transitions({chosen}, false));
+  for (size_t chosen : schedulable) {
+    auto [ok, nxt, tau] = fire_with_time(chosen, scheduled);
+    if (!ok) {
+      if (pruning_enabled_) {
+        spdlog::debug("  {}: fire failed", format_transitions({chosen}, false));
+        result.pruned_states_count++;
+      } else {
+        spdlog::debug("  {}: fire failed [pruning disabled]",
+                      format_transitions({chosen}, false));
+      }
+      continue;
     }
-    result.transition_enabled_checks +=
-        stats_.transition_enabled_checks - enabled_checks_before;
-    return result;
-  }
 
-  StateClass canonical_nxt = canonicalize(nxt, nxt);
-  result.candidates.push_back({source_key, canonical_nxt,
-                               TransitionEdge(static_cast<int>(chosen), tau), chosen});
-  result.fired_count = 1;
+    StateClass canonical_nxt = canonicalize(nxt, nxt);
+    result.candidates.push_back({source_key, canonical_nxt,
+                                 TransitionEdge(static_cast<int>(chosen), tau), chosen});
+    result.fired_count++;
+  }
 
   result.transition_enabled_checks +=
       stats_.transition_enabled_checks - enabled_checks_before;
@@ -418,100 +446,60 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
 // =======================================================================
 
 double StateClassReachabilityGraph::advance_time(StateClass& state) const {
-  // 1. 找到 active 集合中最紧的时间上界
-  int min_ub = INF_TIME;
+  int min_delay = INF_TIME;
   for (size_t t : state.active) {
-    if (t < state.clocks.size()) {
-      min_ub = std::min(min_ub, state.clocks[t].upper_bound);
+    const int tau = compute_firing_time(state, t);
+    if (tau >= 0) {
+      min_delay = std::min(min_delay, tau);
     }
   }
 
-  // 2. 如果没有上界或上界 <= 0,返回 0（死锁）
-  if (min_ub == INF_TIME || min_ub <= 0) {
+  if (min_delay == INF_TIME) {
     return 0.0;
   }
 
-  // 3. 所有 active 时钟流逝 min_ub
-  for (size_t t : state.active) {
-    if (t < state.clocks.size()) {
-      state.clocks[t].lower_bound += min_ub;
-      state.clocks[t].upper_bound += min_ub;
-    }
+  if (!elapse_active_clocks(state, min_delay)) {
+    return 0.0;
   }
-  // suspended 时钟保持不变（冻结）
 
-  // 4. 累计时间
-  state.cumulative_time += min_ub;
+  spdlog::debug("  advance_time: dt={}, new cumulative={}", min_delay, state.cumulative_time);
 
-  spdlog::debug("  advance_time: dt={}, new cumulative={}", min_ub, state.cumulative_time);
-
-  return static_cast<double>(min_ub);
+  return static_cast<double>(min_delay);
 }
 
 std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_time(
     size_t t, const StateClass& from) const {
-  // 检查时钟是否在有效状态
   if (t >= from.clocks.size()) {
     return {false, StateClass(), 0.0};
   }
 
-  if (!from.enabled.count(t) || from.suspended.count(t)) {
+  const int fire_delay = compute_firing_time(from, t);
+  if (fire_delay < 0) {
     return {false, StateClass(), 0.0};
   }
 
-  const auto& clock = from.clocks[t];
-  if (clock.state == ClockState::SUSPENDED) {
-    return {false, StateClass(), 0.0};
-  }
-
-  const auto& trans = ptpn_.get_transition(t);
-  int alpha = trans.time_interval.earliest;
-  int beta = (trans.time_interval.latest == petri::INF)
-                 ? INF_TIME
-                 : trans.time_interval.latest;
-
-  // 计算触发时间:max(earliest, lower_bound)
-  int firing_lower = std::max(alpha, clock.lower_bound);
-
-  // 检查窗口是否有效
-  if (beta != INF_TIME && firing_lower > beta) {
-    if (pruning_enabled_) {
-      spdlog::debug("  {}: firing time {} > latest {}, skip",
-                    format_transitions({t}, false), firing_lower, beta);
-    }
-    return {false, StateClass(), 0.0};
-  }
-
-  // 激发时间
-  double fire_time = static_cast<double>(firing_lower);
-
-  // 生成新状态
   StateClass to = from.copy();
-  to.marking = petri::PTPN::fire(from.marking, ptpn_, t);
+  if (!elapse_active_clocks(to, fire_delay)) {
+    return {false, StateClass(), 0.0};
+  }
+
+  to.marking = petri::PTPN::fire(to.marking, ptpn_, t);
 
   if (to.marking.empty()) {
     spdlog::debug("  {}: marking empty after fire", format_transitions({t}, false));
     return {false, StateClass(), 0.0};
   }
 
-  // 更新时钟:激发后重置该变迁的时钟
-  // 上界设为 beta（latest）,下界从 0 开始
   if (t < to.clocks.size()) {
-    to.clocks[t].lower_bound = 0;
-    to.clocks[t].upper_bound = beta;
-    to.clocks[t].state = ClockState::UNACTIVE;  // 刚激发的变迁暂时设为 UNACTIVE
+    to.clocks[t] = TransitionClock();
   }
 
-  // 累计时间
-  to.cumulative_time = from.cumulative_time + fire_time;
-
-  // 重新计算使能/活跃/挂起集合
   recompute_enabled_sets(to);
 
-  spdlog::debug("  {}: fired successfully @time {}, new cumulative={}",
-                format_transitions({t}, false), fire_time, to.cumulative_time);
+  spdlog::debug("  {}: fired successfully after delay {}, new cumulative={}",
+                format_transitions({t}, false), fire_delay, to.cumulative_time);
 
-  return {true, to, fire_time};
+  return {true, to, static_cast<double>(fire_delay)};
 }
 
 void StateClassReachabilityGraph::recompute_enabled_sets(StateClass& state) const {
@@ -520,9 +508,11 @@ void StateClassReachabilityGraph::recompute_enabled_sets(StateClass& state) cons
 
 void StateClassReachabilityGraph::recompute_enabled_sets_from_marking(
     const std::vector<int>& marking, StateClass& state) const {
-  // 1. 从 marking 计算原始使能变迁
+  state.marking = marking;
+
   std::vector<size_t> raw_enabled;
   const size_t num_transitions = ptpn_.num_transitions();
+  const std::set<size_t> previously_enabled = state.enabled;
 
   for (size_t t = 0; t < num_transitions; ++t) {
     if (petri::PTPN::is_enabled(marking, ptpn_, t)) {
@@ -532,58 +522,41 @@ void StateClassReachabilityGraph::recompute_enabled_sets_from_marking(
 
   std::set<size_t> raw_set(raw_enabled.begin(), raw_enabled.end());
 
-  // 2. 确保 clocks 大小正确
   if (state.clocks.size() < num_transitions) {
     state.clocks.resize(num_transitions);
   }
 
-  // 3. 初始化新使能变迁的时钟
-  for (size_t t : raw_enabled) {
-    if (t < state.clocks.size()) {
-      // 如果时钟是 UNACTIVE,初始化它
-      if (state.clocks[t].state == ClockState::UNACTIVE) {
-        const auto& trans = ptpn_.get_transition(t);
-        int beta = (trans.time_interval.latest == petri::INF)
-                      ? INF_TIME
-                      : trans.time_interval.latest;
-        state.clocks[t].lower_bound = 0;
-        state.clocks[t].upper_bound = beta;
-        // 默认设为 ACTIVE（如果没有更高优先级抢占）
-      }
+  for (size_t t = 0; t < num_transitions; ++t) {
+    if (!raw_set.count(t)) {
+      state.clocks[t] = TransitionClock();
+      continue;
+    }
+
+    const auto& clock = state.clocks[t];
+    const bool needs_initialization =
+        !previously_enabled.count(t) ||
+        (clock.state == ClockState::UNACTIVE && clock.lower_bound == 0 &&
+         clock.upper_bound == INF_TIME);
+
+    if (needs_initialization) {
+      const auto& trans = ptpn_.get_transition(t);
+      state.clocks[t].lower_bound = 0;
+      state.clocks[t].upper_bound = latest_bound_for_transition(trans);
+      state.clocks[t].state = ClockState::UNACTIVE;
     }
   }
 
-  // 4. 使用调度算法选择 active 和 suspended
-  state.enabled = std::set<size_t>(raw_enabled.begin(), raw_enabled.end());
+  state.enabled = raw_set;
+  state.active = SchedulingAlgorithms::select_active_per_core(state.enabled, ptpn_);
+  state.suspended = SchedulingAlgorithms::compute_suspended(state.enabled, state.active, ptpn_);
 
-  // 使用 SchedulingAlgorithms::select_active_per_core
-  std::set<size_t> active_set = SchedulingAlgorithms::select_active_per_core(
-      state.enabled, ptpn_);
-
-  // 使用 SchedulingAlgorithms::compute_suspended
-  std::set<size_t> suspended_set = SchedulingAlgorithms::compute_suspended(
-      state.enabled, active_set, ptpn_);
-
-  // 5. 更新集合
-  state.active = active_set;
-  state.suspended = suspended_set;
-
-  // 6. 更新时钟状态
-  // active 时钟设为 ACTIVE
-  for (size_t t : state.active) {
-    if (t < state.clocks.size()) {
-      if (state.clocks[t].state != ClockState::ACTIVE) {
-        state.clocks[t].state = ClockState::ACTIVE;
-      }
-    }
-  }
-
-  // suspended 时钟设为 SUSPENDED（保持冻结值）
-  for (size_t t : state.suspended) {
-    if (t < state.clocks.size()) {
-      if (state.clocks[t].state != ClockState::SUSPENDED) {
-        state.clocks[t].state = ClockState::SUSPENDED;
-      }
+  for (size_t t : state.enabled) {
+    if (state.active.count(t)) {
+      state.clocks[t].state = ClockState::ACTIVE;
+    } else if (state.suspended.count(t)) {
+      state.clocks[t].state = ClockState::SUSPENDED;
+    } else {
+      state.clocks[t].state = ClockState::UNACTIVE;
     }
   }
 
@@ -634,9 +607,7 @@ void StateClassReachabilityGraph::restore_transition(size_t t, StateClass& state
   spdlog::debug("  restore_transition: T{} resumed", t);
 }
 
-// =======================================================================
-// 规范化
-// =======================================================================
+
 
 StateClass StateClassReachabilityGraph::canonicalize(
     const StateClass& a, const StateClass& b) const {
@@ -660,9 +631,6 @@ void StateClassReachabilityGraph::set_pruning_enabled(bool enabled) {
   pruning_enabled_ = enabled;
 }
 
-// =======================================================================
-// 状态工厂
-// =======================================================================
 
 StateClass StateClassReachabilityGraph::create_initial_state() {
   StateClass initial;

@@ -348,3 +348,146 @@ TEST_F(SchedulingTest, AllTransitionsSameCore) {
   EXPECT_EQ(result.size(), 1);
   EXPECT_TRUE(result.count(0));
 }
+
+TEST_F(SchedulingTest, UnscheduledEnabledTransitionCannotFireWithTime) {
+  PTPN ptpn;
+
+  ptpn.add_place("P0");
+  ptpn.add_transition("T0", TimeInterval(1, 5), 10, 0, true);
+  ptpn.add_transition("T1", TimeInterval(1, 5), 5, 0, false);
+  ptpn.set_pre_arc(0, 0, 1);
+  ptpn.set_pre_arc(0, 1, 1);
+  ptpn.set_post_arc(0, 0, 1);
+  ptpn.set_post_arc(1, 0, 1);
+  ptpn.set_initial_marking({1});
+
+  state_class::StateClassReachabilityGraph graph(ptpn);
+  state_class::StateClass state = graph.create_initial_state();
+
+  ASSERT_TRUE(state.enabled.count(1));
+  ASSERT_FALSE(state.active.count(1));
+  ASSERT_FALSE(state.suspended.count(1));
+  ASSERT_EQ(state.clocks[1].state, state_class::ClockState::UNACTIVE);
+
+  auto [ok, next, firing_time] = graph.fire_with_time(1, state);
+
+  EXPECT_FALSE(ok);
+  EXPECT_TRUE(next.marking.empty());
+  EXPECT_DOUBLE_EQ(firing_time, 0.0);
+}
+
+TEST_F(SchedulingTest, PriorityTieBuildKeepsMultipleSuccessors) {
+  PTPN ptpn;
+
+  ptpn.add_place("P0");
+  ptpn.add_transition("T0", TimeInterval(1, 5), 100, 0, true);
+  ptpn.add_transition("T1", TimeInterval(1, 5), 100, 0, true);
+
+  ptpn.set_pre_arc(0, 0, 1);
+  ptpn.set_pre_arc(0, 1, 1);
+  ptpn.set_post_arc(0, 0, 1);
+  ptpn.set_post_arc(1, 0, 1);
+  ptpn.set_initial_marking({1});
+
+  state_class::StateClassReachabilityGraph graph(ptpn);
+  graph.build(16);
+
+  const auto initial = graph.get_initial_vertex();
+  EXPECT_EQ(boost::out_degree(initial, graph.get_graph()), 2);
+}
+
+TEST_F(SchedulingTest, OtherActiveClocksAgeBeforeFire) {
+  PTPN ptpn;
+
+  ptpn.add_place("P0");
+  ptpn.add_place("P1");
+  ptpn.add_transition("T0", TimeInterval(2, 7), 100, 0, true);
+  ptpn.add_transition("T1", TimeInterval(5, 9), 100, 1, true);
+
+  ptpn.set_pre_arc(0, 0, 1);
+  ptpn.set_post_arc(0, 0, 1);
+  ptpn.set_pre_arc(1, 1, 1);
+  ptpn.set_post_arc(1, 1, 1);
+  ptpn.set_initial_marking({1, 1});
+
+  state_class::StateClassReachabilityGraph graph(ptpn);
+  state_class::StateClass state = graph.create_initial_state();
+
+  auto [ok, next, firing_time] = graph.fire_with_time(0, state);
+
+  ASSERT_TRUE(ok);
+  EXPECT_DOUBLE_EQ(firing_time, 2.0);
+  ASSERT_TRUE(next.enabled.count(1));
+  ASSERT_TRUE(next.active.count(1));
+  EXPECT_EQ(next.clocks[1].lower_bound, 2);
+  EXPECT_EQ(next.clocks[1].upper_bound, 9);
+}
+
+TEST_F(SchedulingTest, ReenabledTransitionClockRestartsFromZero) {
+  PTPN ptpn;
+
+  ptpn.add_place("P0");
+  ptpn.add_transition("T0", TimeInterval(2, 7), 100, 0, true);
+  ptpn.set_pre_arc(0, 0, 1);
+  ptpn.set_post_arc(0, 0, 1);
+  ptpn.set_initial_marking({1});
+
+  state_class::StateClassReachabilityGraph graph(ptpn);
+  state_class::StateClass state = graph.create_initial_state();
+
+  auto [ok, next, firing_time] = graph.fire_with_time(0, state);
+
+  ASSERT_TRUE(ok);
+  EXPECT_DOUBLE_EQ(firing_time, 2.0);
+  ASSERT_TRUE(next.enabled.count(0));
+  EXPECT_EQ(next.clocks[0].lower_bound, 0);
+  EXPECT_EQ(next.clocks[0].upper_bound, 7);
+  EXPECT_EQ(next.clocks[0].state, state_class::ClockState::ACTIVE);
+}
+
+TEST_F(SchedulingTest, DisabledTransitionClockResetsAfterFire) {
+  PTPN ptpn;
+
+  ptpn.add_place("P0");
+  ptpn.add_place("P1");
+  ptpn.add_transition("T0", TimeInterval(2, 7), 100, 0, true);
+  ptpn.add_transition("T1", TimeInterval(0, 3), 10, 1, true);
+
+  ptpn.set_pre_arc(0, 0, 1);
+  ptpn.set_post_arc(0, 1, 1);
+  ptpn.set_pre_arc(1, 1, 1);
+  ptpn.set_post_arc(1, 1, 1);
+  ptpn.set_initial_marking({1, 0});
+
+  state_class::StateClassReachabilityGraph graph(ptpn);
+  state_class::StateClass state = graph.create_initial_state();
+
+  ASSERT_TRUE(state.enabled.count(0));
+  ASSERT_FALSE(state.enabled.count(1));
+
+  auto [ok, next, firing_time] = graph.fire_with_time(0, state);
+
+  ASSERT_TRUE(ok);
+  EXPECT_DOUBLE_EQ(firing_time, 2.0);
+  ASSERT_FALSE(next.enabled.count(0));
+  EXPECT_EQ(next.clocks[0].lower_bound, 0);
+  EXPECT_EQ(next.clocks[0].upper_bound, state_class::INF_TIME);
+  EXPECT_EQ(next.clocks[0].state, state_class::ClockState::UNACTIVE);
+  ASSERT_TRUE(next.enabled.count(1));
+  EXPECT_EQ(next.clocks[1].lower_bound, 0);
+  EXPECT_EQ(next.clocks[1].upper_bound, 3);
+}
+
+TEST_F(SchedulingTest, CapacityOverflowDisablesTransition) {
+  PTPN ptpn;
+
+  ptpn.add_place("in", 1);
+  ptpn.add_place("out", 1);
+  ptpn.add_transition("T0", TimeInterval(0, 1), 1, 0, true);
+  ptpn.set_pre_arc(0, 0, 1);
+  ptpn.set_post_arc(0, 1, 1);
+  ptpn.set_initial_marking({1, 1});
+
+  EXPECT_FALSE(PTPN::is_enabled(ptpn.get_marking(), ptpn, 0));
+  EXPECT_THROW(PTPN::fire(ptpn.get_marking(), ptpn, 0), std::runtime_error);
+}
