@@ -43,6 +43,8 @@ class DBM {
   void reset_clock(size_t clock_idx);
   void forget_clock(size_t clock_idx);
   void remove_clock(size_t clock_idx);
+  [[nodiscard]] DBM restrict_clock(size_t clock_idx, int alpha,
+                                   int beta) const;
   [[nodiscard]] DBM restrict_for_firing(size_t transition_id, int alpha,
                                         int beta) const;
   void freeze_clock(size_t clock_idx);

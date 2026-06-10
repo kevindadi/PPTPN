@@ -54,7 +54,10 @@ struct TransitionEdge {
 // cumulative_time is auxiliary metadata and is not part of state identity.
 struct StateClass {
   std::vector<int> marking;                      // Petri 网标识
-  std::vector<TransitionClock> clocks;           // 每个变迁一个时钟
+  std::vector<TransitionClock> clocks;           // 迁移期兼容/调试视图
+  DBM zone;                                     // 主时间语义表示
+  std::vector<int> transition_to_clock;         // transition id -> DBM clock idx
+  std::vector<size_t> clock_to_transition;      // DBM clock idx -> transition id
 
   std::set<size_t> enabled;     // 原始使能变迁
   std::set<size_t> active;      // 活跃变迁 = enabled ∩ 非挂起
@@ -81,6 +84,12 @@ struct StateClass {
   [[nodiscard]] StateClass copy() const;
   [[nodiscard]] std::string to_string() const;
 
+  void rebuild_zone_from_clocks();
+  void sync_clocks_from_zone();
+  [[nodiscard]] int clock_index_for_transition(size_t transition_id) const;
+  [[nodiscard]] size_t transition_for_clock(size_t clock_idx) const;
+  [[nodiscard]] bool has_zone_clock_for_transition(size_t transition_id) const;
+
   // Helper: 是否是有效活跃时钟
   [[nodiscard]] bool has_active_clocks() const {
     return !active.empty();
@@ -100,14 +109,23 @@ struct StateClass {
 
 struct StateKey {
   std::vector<int> marking;
-  std::vector<TransitionClock> clocks;
+  std::vector<int> transition_to_clock;
+  std::vector<size_t> clock_to_transition;
+  std::vector<int> zone_matrix;
+  std::set<size_t> frozen_clocks;
   std::set<size_t> enabled;
+  std::set<size_t> active;
   std::set<size_t> suspended;
 
   bool operator==(const StateKey& other) const {
-    return marking == other.marking && enabled == other.enabled &&
-           suspended == other.suspended &&
-           clocks == other.clocks;
+    return marking == other.marking &&
+           transition_to_clock == other.transition_to_clock &&
+           clock_to_transition == other.clock_to_transition &&
+           zone_matrix == other.zone_matrix &&
+           frozen_clocks == other.frozen_clocks &&
+           enabled == other.enabled &&
+           active == other.active &&
+           suspended == other.suspended;
   }
 };
 
