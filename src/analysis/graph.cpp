@@ -64,6 +64,22 @@ StateKey make_state_key(const StateClass& state) {
   return key;
 }
 
+std::pair<int, int> current_clock_bounds(const StateClass& state, size_t t) {
+  if (t < state.clocks.size() && state.has_zone_clock_for_transition(t) &&
+      state.zone.size() > 0) {
+    const size_t clock_idx =
+        static_cast<size_t>(state.clock_index_for_transition(t));
+    return {-state.zone.get_constraint(0, clock_idx),
+            state.zone.get_constraint(clock_idx, 0)};
+  }
+
+  if (t < state.clocks.size()) {
+    return {state.clocks[t].lower_bound, state.clocks[t].upper_bound};
+  }
+
+  return {0, INF_TIME};
+}
+
 void add_expansion_stats(StateClassReachabilityGraph::Statistics& target,
                          const StateExpansionResult& result) {
   target.enabled_transitions_count += result.enabled_transitions_count;
@@ -349,17 +365,16 @@ int StateClassReachabilityGraph::compute_firing_time(const StateClass& state,
     return -1;
   }
 
-  const auto& clock = state.clocks[t];
-  if (clock.state != ClockState::ACTIVE) {
-    return -1;
-  }
-
   const auto& trans = ptpn_.get_transition(t);
   const int alpha = trans.time_interval.earliest;
   const int beta = latest_bound_for_transition(trans);
-  const int firing_time = std::max(alpha, clock.lower_bound);
+  const auto [clock_lower, clock_upper] = current_clock_bounds(state, t);
+  const int firing_time = std::max(alpha, clock_lower);
 
   if (beta != INF_TIME && firing_time > beta) {
+    return -1;
+  }
+  if (clock_upper != INF_TIME && firing_time > clock_upper) {
     return -1;
   }
 
@@ -479,37 +494,7 @@ double StateClassReachabilityGraph::advance_time(StateClass& state) const {
 
 std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_time(
     size_t t, const StateClass& from) const {
-  if (t >= from.clocks.size()) {
-    return {false, StateClass(), 0.0};
-  }
-
-  const int fire_delay = compute_firing_time(from, t);
-  if (fire_delay < 0) {
-    return {false, StateClass(), 0.0};
-  }
-
-  StateClass to = from.copy();
-  if (!elapse_active_clocks(to, fire_delay)) {
-    return {false, StateClass(), 0.0};
-  }
-
-  to.marking = petri::PTPN::fire(to.marking, ptpn_, t);
-
-  if (to.marking.empty()) {
-    spdlog::debug("  {}: marking empty after fire", format_transitions({t}, false));
-    return {false, StateClass(), 0.0};
-  }
-
-  if (t < to.clocks.size()) {
-    to.clocks[t] = TransitionClock();
-  }
-
-  recompute_enabled_sets(to);
-
-  spdlog::debug("  {}: fired successfully after delay {}, new cumulative={}",
-                format_transitions({t}, false), fire_delay, to.cumulative_time);
-
-  return {true, to, static_cast<double>(fire_delay)};
+  return fire_with_dbm(t, from);
 }
 
 void StateClassReachabilityGraph::recompute_enabled_sets(StateClass& state) const {
@@ -754,8 +739,53 @@ bool StateClassReachabilityGraph::maximal_time_elapse(StateClass& state, double&
 }
 
 std::tuple<bool, StateClass, double> StateClassReachabilityGraph::fire_with_dbm(
-    size_t trans_idx, const StateClass& from_state) {
-  return fire_with_time(trans_idx, from_state);
+    size_t trans_idx, const StateClass& from_state) const {
+  if (trans_idx >= from_state.clocks.size()) {
+    return {false, StateClass(), 0.0};
+  }
+
+  StateClass to = from_state.copy();
+  const auto& trans = ptpn_.get_transition(trans_idx);
+  const int alpha = trans.time_interval.earliest;
+  const int beta = latest_bound_for_transition(trans);
+
+  if (to.has_zone_clock_for_transition(trans_idx) && to.zone.size() > 0) {
+    const size_t clock_idx =
+        static_cast<size_t>(to.clock_index_for_transition(trans_idx));
+    to.zone = to.zone.restrict_clock(clock_idx, alpha, beta);
+    if (to.zone.size() == 0) {
+      return {false, StateClass(), 0.0};
+    }
+    to.sync_clocks_from_zone();
+  }
+
+  const int fire_delay = compute_firing_time(to, trans_idx);
+  if (fire_delay < 0) {
+    return {false, StateClass(), 0.0};
+  }
+
+  if (!elapse_active_clocks(to, fire_delay)) {
+    return {false, StateClass(), 0.0};
+  }
+
+  to.marking = petri::PTPN::fire(to.marking, ptpn_, trans_idx);
+  if (to.marking.empty()) {
+    spdlog::debug("  {}: marking empty after fire",
+                  format_transitions({trans_idx}, false));
+    return {false, StateClass(), 0.0};
+  }
+
+  if (trans_idx < to.clocks.size()) {
+    to.clocks[trans_idx] = TransitionClock();
+  }
+
+  recompute_enabled_sets(to);
+
+  spdlog::debug("  {}: fired successfully after delay {}, new cumulative={}",
+                format_transitions({trans_idx}, false), fire_delay,
+                to.cumulative_time);
+
+  return {true, to, static_cast<double>(fire_delay)};
 }
 
 void StateClassReachabilityGraph::compute_enabled_and_clocks(StateClass& state) {

@@ -245,7 +245,7 @@ class StateClassReachabilityGraph {
   bool maximal_time_elapse(StateClass& state, double& dt) const;
 
   std::tuple<bool, StateClass, double> fire_with_dbm(
-      size_t trans_idx, const StateClass& from_state);
+      size_t trans_idx, const StateClass& from_state) const;
 
   void compute_enabled_and_clocks(StateClass& state);
 
