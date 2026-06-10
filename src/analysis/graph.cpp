@@ -45,13 +45,23 @@ bool elapse_active_clocks(StateClass& state, int delay) {
     state.clocks[t].lower_bound += delay;
   }
 
+  state.rebuild_zone_from_clocks();
   state.cumulative_time += delay;
   return true;
 }
 
 // State key helper using new clocks/active/suspended structure
 StateKey make_state_key(const StateClass& state) {
-  return {state.marking, state.clocks, state.enabled, state.suspended};
+  StateKey key;
+  key.marking = state.marking;
+  key.transition_to_clock = state.transition_to_clock;
+  key.clock_to_transition = state.clock_to_transition;
+  key.zone_matrix = state.zone.raw_matrix();
+  key.frozen_clocks = state.zone.frozen_clocks();
+  key.enabled = state.enabled;
+  key.active = state.active;
+  key.suspended = state.suspended;
+  return key;
 }
 
 void add_expansion_stats(StateClassReachabilityGraph::Statistics& target,
@@ -560,6 +570,8 @@ void StateClassReachabilityGraph::recompute_enabled_sets_from_marking(
     }
   }
 
+  state.rebuild_zone_from_clocks();
+
   spdlog::debug("  recompute_enabled: enabled={}, active={}, suspended={}",
                 state.enabled.size(), state.active.size(), state.suspended.size());
 }
@@ -591,6 +603,7 @@ void StateClassReachabilityGraph::suspend_transition(size_t t, StateClass& state
   state.active.erase(t);
   state.suspended.insert(t);
   state.clocks[t].state = ClockState::SUSPENDED;
+  state.rebuild_zone_from_clocks();
 
   spdlog::debug("  suspend_transition: T{} now frozen", t);
 }
@@ -603,6 +616,7 @@ void StateClassReachabilityGraph::restore_transition(size_t t, StateClass& state
   state.suspended.erase(t);
   state.active.insert(t);
   state.clocks[t].state = ClockState::ACTIVE;
+  state.rebuild_zone_from_clocks();
 
   spdlog::debug("  restore_transition: T{} resumed", t);
 }
@@ -643,27 +657,6 @@ StateClass StateClassReachabilityGraph::create_initial_state() {
 
   // 初始化调度状态
   recompute_enabled_sets(initial);
-
-  // 设置初始时钟状态
-  for (size_t t : initial.enabled) {
-    if (t < initial.clocks.size()) {
-      const auto& trans = ptpn_.get_transition(t);
-      int beta = (trans.time_interval.latest == petri::INF)
-                    ? INF_TIME
-                    : trans.time_interval.latest;
-      initial.clocks[t].lower_bound = 0;
-      initial.clocks[t].upper_bound = beta;
-
-      // 根据 active/suspended 设置状态
-      if (initial.active.count(t)) {
-        initial.clocks[t].state = ClockState::ACTIVE;
-      } else if (initial.suspended.count(t)) {
-        initial.clocks[t].state = ClockState::SUSPENDED;
-      } else {
-        initial.clocks[t].state = ClockState::UNACTIVE;
-      }
-    }
-  }
 
   log_state_class_details(initial, "[Initial] ");
 
@@ -738,6 +731,8 @@ void StateClassReachabilityGraph::apply_preemption(
       state.clocks[t].state = ClockState::SUSPENDED;
     }
   }
+
+  state.rebuild_zone_from_clocks();
 }
 
 std::set<size_t> StateClassReachabilityGraph::compute_effective_enabled(
