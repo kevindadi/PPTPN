@@ -204,4 +204,74 @@ bool DBM::contains(const DBM& other) const {
   return frozen_clocks_ == other.frozen_clocks_;
 }
 
+void DBM::elapse_time(int delta) {
+  if (delta <= 0 || clock_count_ == 0) return;
+
+  bool changed = false;
+  for (size_t i = 1; i < clock_count_; ++i) {
+    if (is_frozen(i)) {
+      continue;  // 冻结时钟不推进
+    }
+
+    // c_i - c_0 ≤ c_i - c_0 + delta
+    int current_upper = matrix_[offset(i, 0)];
+    if (current_upper != INF_TIME) {
+      matrix_[offset(i, 0)] = current_upper + delta;
+      changed = true;
+    }
+
+    // c_0 - c_i ≤ c_0 - c_i - delta（即 c_i ≥ c_0 + delta）
+    int current_lower = matrix_[offset(0, i)];
+    if (current_lower != INF_TIME) {
+      matrix_[offset(0, i)] = current_lower - delta;
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    minimize();
+  }
+}
+
+void DBM::reset_clock(size_t clock_idx) {
+  check_index(clock_idx, clock_idx);
+
+  if (clock_idx == 0) {
+    return;  // 不能重置参考时钟
+  }
+
+  bool changed = false;
+
+  // 重置 c_i - c_0 ≤ 0 和 c_0 - c_i ≤ 0
+  if (matrix_[offset(0, clock_idx)] != 0) {
+    matrix_[offset(0, clock_idx)] = 0;
+    changed = true;
+  }
+  if (matrix_[offset(clock_idx, 0)] != INF_TIME) {
+    matrix_[offset(clock_idx, 0)] = INF_TIME;
+    changed = true;
+  }
+
+  // c_i - c_j ≤ c_0 - c_j（复制 c₀ 的约束）
+  for (size_t k = 0; k < clock_count_; ++k) {
+    const int row0 = matrix_[offset(0, k)];
+    if (matrix_[offset(clock_idx, k)] != row0) {
+      matrix_[offset(clock_idx, k)] = row0;
+      changed = true;
+    }
+
+    const int col0 = matrix_[offset(k, 0)];
+    if (matrix_[offset(k, clock_idx)] != col0) {
+      matrix_[offset(k, clock_idx)] = col0;
+      changed = true;
+    }
+  }
+
+  matrix_[offset(clock_idx, clock_idx)] = 0;
+
+  if (changed) {
+    minimize();
+  }
+}
+
 }  // namespace scheduling
