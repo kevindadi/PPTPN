@@ -185,6 +185,16 @@ class PTPN {
         return false;
       }
     }
+
+    for (const auto& [place_idx, weight] : net.post_arcs[trans_idx]) {
+      const int consumed = place_idx < net.Pre.size() ? net.Pre[place_idx][trans_idx] : 0;
+      const int produced = weight;
+      const int resulting_tokens = M[place_idx] - consumed + produced;
+      if (net.places[place_idx].capacity != INF &&
+          resulting_tokens > net.places[place_idx].capacity) {
+        return false;
+      }
+    }
     return true;
   }
 
@@ -206,10 +216,6 @@ class PTPN {
 
     for (const auto& [place_idx, weight] : net.post_arcs[trans_idx]) {
       new_marking[place_idx] += weight;
-      if (net.places[place_idx].capacity != INF &&
-          new_marking[place_idx] > net.places[place_idx].capacity) {
-        new_marking[place_idx] = net.places[place_idx].capacity;
-      }
     }
 
     return new_marking;

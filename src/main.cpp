@@ -121,7 +121,9 @@ int run_ptpn_analysis(const petri::PTPN& ptpn, const fs::path& output_dir,
     spdlog::info("[OUTPUT] PToPNer .ppn exported to: {}", opts.ppn_file);
   }
 
-  cout << ptpn.to_string();
+  if (opts.debug_mode) {
+    cout << ptpn.to_string();
+  }
 
   const auto export_model = petri::exporting::build_export_model(ptpn);
   if (petri::exporting::save_to_dot(export_model, ptpn_dot_path.string())) {

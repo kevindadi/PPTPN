@@ -1,10 +1,25 @@
 #include "analysis/dbm.h"
 
+#include <limits>
+
 namespace state_class {
 
 namespace {
 std::atomic<size_t> g_dbm_minimize_calls{0};
+
+int safe_add_bound(int lhs, int rhs) {
+  if (lhs == INF_TIME || rhs == INF_TIME) {
+    return INF_TIME;
+  }
+
+  if ((rhs > 0 && lhs > std::numeric_limits<int>::max() - rhs) ||
+      (rhs < 0 && lhs < std::numeric_limits<int>::min() - rhs)) {
+    return rhs > 0 ? INF_TIME : std::numeric_limits<int>::min();
+  }
+
+  return lhs + rhs;
 }
+}  // namespace
 
 void reset_dbm_instrumentation() {
   g_dbm_minimize_calls.store(0, std::memory_order_relaxed);
@@ -92,15 +107,15 @@ void DBM::minimize() {
 
   for (size_t k = 0; k < clock_count_; ++k) {
     for (size_t i = 0; i < clock_count_; ++i) {
-      size_t ik = offset(i, k);
+      const size_t ik = offset(i, k);
       if (matrix_[ik] == INF_TIME) continue;
 
       for (size_t j = 0; j < clock_count_; ++j) {
-        size_t kj = offset(k, j);
+        const size_t kj = offset(k, j);
         if (matrix_[kj] == INF_TIME) continue;
 
-        int new_bound = matrix_[ik] + matrix_[kj];
-        size_t ij = offset(i, j);
+        const int new_bound = safe_add_bound(matrix_[ik], matrix_[kj]);
+        const size_t ij = offset(i, j);
         if (matrix_[ij] == INF_TIME || new_bound < matrix_[ij]) {
           matrix_[ij] = new_bound;
         }
@@ -180,13 +195,13 @@ void DBM::elapse_time(int delta) {
 
     const int current_upper = matrix_[offset(i, 0)];
     if (current_upper != INF_TIME) {
-      matrix_[offset(i, 0)] = current_upper + delta;
+      matrix_[offset(i, 0)] = safe_add_bound(current_upper, delta);
       changed = true;
     }
 
     const int current_lower = matrix_[offset(0, i)];
     if (current_lower != INF_TIME) {
-      matrix_[offset(0, i)] = current_lower - delta;
+      matrix_[offset(0, i)] = safe_add_bound(current_lower, -delta);
       changed = true;
     }
   }
@@ -327,7 +342,7 @@ bool DBM::contains(const DBM& other) const {
     }
   }
 
-  return true;
+  return frozen_clocks_ == other.frozen_clocks_;
 }
 
 std::string DBM::to_string() const {
@@ -419,9 +434,7 @@ void DBM::remove_clock(size_t clock_idx) {
   frozen_clocks_ = std::move(new_frozen);
 }
 
-DBM DBM::restrict_for_firing(size_t transition_id, int alpha, int beta) const {
-  size_t clock_idx = transition_id + 1;
-
+DBM DBM::restrict_clock(size_t clock_idx, int alpha, int beta) const {
   if (clock_idx >= clock_count_) {
     return *this;
   }
@@ -447,6 +460,10 @@ DBM DBM::restrict_for_firing(size_t transition_id, int alpha, int beta) const {
   }
 
   return result;
+}
+
+DBM DBM::restrict_for_firing(size_t transition_id, int alpha, int beta) const {
+  return restrict_clock(transition_id + 1, alpha, beta);
 }
 
 void DBM::freeze_clock(size_t clock_idx) {
