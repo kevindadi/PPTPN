@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
-#include "reachability.h"
+#include <memory>
+
+#include "analysis/scheduling/reachability.h"
 
 namespace scheduling {
 
@@ -17,7 +19,6 @@ TEST_F(ReachabilityTest, simple_chain) {
   // entry -> ready -> exec -> exit
   size_t p_entry = ptpn_->add_place("entry");
   size_t p_ready = ptpn_->add_place("ready");
-  size_t p_exec = ptpn_->add_place("exec");
   size_t p_exit = ptpn_->add_place("exit");
 
   size_t t_get_core = ptpn_->add_transition(
@@ -25,16 +26,10 @@ TEST_F(ReachabilityTest, simple_chain) {
   size_t t_exec = ptpn_->add_transition(
       "exec", {3, 5}, 100, 0, true);
 
-  // entry --get_core--> ready
+  // entry --get_core--> ready --exec--> exit
   ptpn_->set_pre_arc(p_entry, t_get_core);
   ptpn_->set_post_arc(t_get_core, p_ready);
-
-  // ready --exec--> exec
   ptpn_->set_pre_arc(p_ready, t_exec);
-  ptpn_->set_post_arc(t_exec, p_exec);
-
-  // exec --exec--> exit
-  ptpn_->set_pre_arc(p_exec, t_exec);
   ptpn_->set_post_arc(t_exec, p_exit);
 
   ptpn_->set_initial_marking(p_entry, 1);
@@ -52,20 +47,17 @@ TEST_F(ReachabilityTest, two_tasks_no_preempt) {
   size_t p_a_exit = ptpn_->add_place("A_exit");
   size_t p_b_entry = ptpn_->add_place("B_entry");
   size_t p_b_exit = ptpn_->add_place("B_exit");
-  size_t p_core = ptpn_->add_place("core");
 
   // A: entry -> exec -> exit
   size_t t_a_exec = ptpn_->add_transition(
       "A_exec", {3, 5}, 100, 0, true);
   ptpn_->set_pre_arc(p_a_entry, t_a_exec);
-  ptpn_->set_pre_arc(p_a_exit, t_a_exec);
   ptpn_->set_post_arc(t_a_exec, p_a_exit);
 
   // B: entry -> exec -> exit
   size_t t_b_exec = ptpn_->add_transition(
       "B_exec", {2, 4}, 90, 0, true);
   ptpn_->set_pre_arc(p_b_entry, t_b_exec);
-  ptpn_->set_pre_arc(p_b_exit, t_b_exec);
   ptpn_->set_post_arc(t_b_exec, p_b_exit);
 
   // 依赖：A -> B
@@ -90,7 +82,6 @@ TEST_F(ReachabilityTest, statistics) {
   size_t t_exec = ptpn_->add_transition(
       "exec", {2, 3}, 100, 0, true);
   ptpn_->set_pre_arc(p_entry, t_exec);
-  ptpn_->set_pre_arc(p_exit, t_exec);
   ptpn_->set_post_arc(t_exec, p_exit);
 
   ptpn_->set_initial_marking(p_entry, 1);

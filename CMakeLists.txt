@@ -64,9 +64,6 @@ message(STATUS "Boost include dir: ${Boost_INCLUDE_DIRS}")
 
 include_directories(src)
 
-# Scheduling analyzer library
-add_subdirectory(src/analysis/scheduling)
-
 # Core library containing all logic
 add_library(PTPN_core STATIC
     src/types/types.cpp
@@ -86,11 +83,14 @@ add_library(PTPN_core STATIC
     src/analysis/graph.cpp
     src/analysis/canonicalization.cpp
     src/analysis/scheduling.cpp
+    src/analysis/scheduling/dbm.cpp
+    src/analysis/scheduling/scheduler.cpp
+    src/analysis/scheduling/state.cpp
+    src/analysis/scheduling/reachability.cpp
     src/parser/ptpn_parser.cpp
 )
 target_include_directories(PTPN_core PUBLIC src)
 target_link_libraries(PTPN_core PUBLIC
-    scheduling_analyzer
     Boost::graph
     Boost::filesystem
     Boost::thread

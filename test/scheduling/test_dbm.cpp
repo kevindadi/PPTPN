@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "dbm.h"
+#include "analysis/scheduling/dbm.h"
 
 namespace scheduling {
 

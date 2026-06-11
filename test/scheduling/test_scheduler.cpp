@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
-#include "scheduler.h"
-#include "../../petri/petri.h"
+#include <memory>
+
+#include "analysis/scheduling/scheduler.h"
+#include "petri/petri.h"
 
 namespace scheduling {
 

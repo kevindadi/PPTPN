@@ -19,6 +19,10 @@ bool StateClass::operator==(const StateClass& other) const {
          suspended == other.suspended;
 }
 
+bool StateClass::operator!=(const StateClass& other) const {
+  return !(*this == other);
+}
+
 bool StateClass::operator<(const StateClass& other) const {
   if (marking < other.marking) return true;
   if (other.marking < marking) return false;
@@ -105,7 +109,13 @@ size_t StateClass::transition_for_clock(size_t idx) const {
 
 bool StateClass::has_clock_for_transition(size_t tid) const {
   int idx = clock_index_for_transition(tid);
-  return idx > 0 && static_cast<size_t>(idx) < zone.size();
+  if (idx <= 0) {
+    return false;
+  }
+
+  const size_t clock_idx = static_cast<size_t>(idx);
+  return clock_idx < clock_to_transition.size() &&
+         clock_to_transition[clock_idx] == tid;
 }
 
 bool StateKey::operator==(const StateKey& other) const {

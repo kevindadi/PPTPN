@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
-#include "state.h"
+#include <limits>
+
+#include "analysis/scheduling/state.h"
 
 namespace scheduling {
 

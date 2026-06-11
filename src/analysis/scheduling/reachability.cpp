@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iomanip>
-#include <sstream>
+#include <limits>
 
 namespace scheduling {
 
@@ -21,7 +21,7 @@ StateKey ReachabilityGraph::make_key(const StateClass& state) const {
   return key;
 }
 
-Vertex ReachabilityGraph::find_or_add_state(const StateClass& state) {
+ReachabilityGraph::Vertex ReachabilityGraph::find_or_add_state(const StateClass& state) {
   StateKey key = make_key(state);
   auto it = state_to_vertex_.find(key);
   if (it != state_to_vertex_.end()) {
@@ -135,12 +135,14 @@ size_t ReachabilityGraph::build(size_t max_states) {
       std::vector<StateClass> successors = expand(cur);
 
       for (auto& succ : successors) {
+        const StateKey succ_key = make_key(succ);
+        const bool is_new_state = state_to_vertex_.find(succ_key) == state_to_vertex_.end();
         Vertex succ_vertex = find_or_add_state(succ);
         edges_.push_back({v, succ_vertex});
         stats_.total_edges++;
 
-        // 如果是新状态，加入下一轮 frontier
-        if (states_[succ_vertex].state_id == succ.state_id) {
+        if (is_new_state) {
+          stats_.total_states++;
           next_frontier.push_back(succ_vertex);
         }
       }
@@ -260,7 +262,11 @@ void ReachabilityGraph::recompute_sets(StateClass& state) {
         state.transition_to_clock.resize(t + 1, -1);
       }
       state.transition_to_clock[t] = static_cast<int>(clock_idx);
-      state.clock_to_transition.push_back(t);
+      if (state.clock_to_transition.size() <= clock_idx) {
+        state.clock_to_transition.resize(
+            clock_idx + 1, std::numeric_limits<size_t>::max());
+      }
+      state.clock_to_transition[clock_idx] = t;
 
       // 设置初始约束
       const auto& trans = ptpn_.get_transition(t);

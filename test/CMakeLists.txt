@@ -13,6 +13,10 @@ add_executable(ptpn_test
   test_json_parser.cpp
   test_tdg2ptopner.cpp
   test_ptpn_parser.cpp
+  scheduling/test_dbm.cpp
+  scheduling/test_scheduler.cpp
+  scheduling/test_state.cpp
+  scheduling/test_reachability.cpp
 )
 
 target_link_libraries(ptpn_test

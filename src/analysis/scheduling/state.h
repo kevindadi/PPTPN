@@ -62,6 +62,7 @@ struct StateClass {
   StateClass& operator=(const StateClass& other) = default;
 
   bool operator==(const StateClass& other) const;
+  bool operator!=(const StateClass& other) const;
   bool operator<(const StateClass& other) const;
 
   [[nodiscard]] StateClass copy() const;
@@ -80,7 +81,9 @@ struct StateClass {
     for (size_t t : active) {
       if (t < transition_to_clock.size() &&
           has_clock_for_transition(t)) {
-        min_deadline = std::min(min_deadline, zone.get_upper_bound(t));
+        min_deadline = std::min(
+            min_deadline,
+            zone.get_upper_bound(static_cast<size_t>(clock_index_for_transition(t))));
       }
     }
     return min_deadline;

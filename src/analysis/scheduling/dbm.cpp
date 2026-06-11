@@ -1,7 +1,5 @@
 #include "dbm.h"
 
-#include <limits>
-
 namespace scheduling {
 
 DBM::DBM(size_t size) : clock_count_(size), matrix_(size * size, INF_TIME) {
@@ -32,9 +30,6 @@ DBM& DBM::operator=(const DBM& other) {
   return *this;
 }
 
-size_t DBM::offset(size_t i, size_t j) const {
-  return i * clock_count_ + j;
-}
 
 void DBM::check_index(size_t i, size_t j) const {
   if (i >= clock_count_ || j >= clock_count_) {
