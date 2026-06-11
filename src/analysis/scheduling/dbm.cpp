@@ -142,4 +142,66 @@ bool DBM::operator<(const DBM& other) const {
   return matrix_ < other.matrix_;
 }
 
+DBM DBM::intersection(const DBM& other) const {
+  if (clock_count_ != other.clock_count_) {
+    throw std::invalid_argument("DBM sizes must match for intersection");
+  }
+
+  DBM result(clock_count_);
+
+  for (size_t i = 0; i < clock_count_; ++i) {
+    for (size_t j = 0; j < clock_count_; ++j) {
+      int bound1 = matrix_[offset(i, j)];
+      int bound2 = other.matrix_[other.offset(i, j)];
+
+      if (bound1 == INF_TIME) {
+        result.matrix_[result.offset(i, j)] = bound2;
+      } else if (bound2 == INF_TIME) {
+        result.matrix_[result.offset(i, j)] = bound1;
+      } else {
+        result.matrix_[result.offset(i, j)] = std::min(bound1, bound2);
+      }
+    }
+  }
+
+  result.minimize();
+  return result;
+}
+
+bool DBM::is_empty() const {
+  if (clock_count_ == 0) return true;
+
+  DBM copy(*this);
+  copy.minimize();
+
+  // 检查对角线：c_i - c_i < 0 表示不一致
+  for (size_t i = 0; i < clock_count_; ++i) {
+    if (copy.matrix_[copy.offset(i, i)] < 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool DBM::contains(const DBM& other) const {
+  if (clock_count_ != other.clock_count_) {
+    return false;
+  }
+
+  for (size_t i = 0; i < clock_count_; ++i) {
+    for (size_t j = 0; j < clock_count_; ++j) {
+      int this_bound = matrix_[offset(i, j)];
+      int other_bound = other.matrix_[other.offset(i, j)];
+
+      if (other_bound != INF_TIME) {
+        if (this_bound == INF_TIME || other_bound < this_bound) {
+          return false;
+        }
+      }
+    }
+  }
+
+  return frozen_clocks_ == other.frozen_clocks_;
+}
+
 }  // namespace scheduling
