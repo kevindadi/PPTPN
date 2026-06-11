@@ -274,4 +274,88 @@ void DBM::reset_clock(size_t clock_idx) {
   }
 }
 
+void DBM::initialize_clock(size_t clock_idx) {
+  if (clock_idx >= clock_count_) return;
+
+  matrix_[offset(clock_idx, clock_idx)] = 0;
+
+  if (clock_idx == 0) {
+    // c₀初始化：c₀ - c_i ≤ 0，c_i - c₀ ≤ ∞
+    for (size_t i = 1; i < clock_count_; ++i) {
+      matrix_[offset(0, i)] = 0;
+      matrix_[offset(i, 0)] = INF_TIME;
+    }
+  } else {
+    // 普通时钟：c_i - c₀ ≤ ∞，c₀ - c_i ≤ 0
+    matrix_[offset(clock_idx, 0)] = INF_TIME;
+    matrix_[offset(0, clock_idx)] = 0;
+
+    for (size_t i = 1; i < clock_count_; ++i) {
+      if (i != clock_idx) {
+        matrix_[offset(clock_idx, i)] = INF_TIME;
+        matrix_[offset(i, clock_idx)] = INF_TIME;
+      }
+    }
+  }
+}
+
+void DBM::resize(size_t new_size) {
+  if (new_size == clock_count_) return;
+
+  const size_t old_size = clock_count_;
+  const std::vector<int> old_matrix = matrix_;
+
+  clock_count_ = new_size;
+  matrix_.assign(new_size * new_size, INF_TIME);
+
+  for (size_t i = 0; i < new_size; ++i) {
+    matrix_[offset(i, i)] = 0;
+  }
+  if (new_size > 1) {
+    for (size_t i = 1; i < new_size; ++i) {
+      matrix_[offset(i, 0)] = INF_TIME;
+      matrix_[offset(0, i)] = 0;
+    }
+  }
+
+  const size_t preserved = std::min(old_size, new_size);
+  for (size_t i = 0; i < preserved; ++i) {
+    for (size_t j = 0; j < preserved; ++j) {
+      matrix_[offset(i, j)] = old_matrix[i * old_size + j];
+    }
+  }
+
+  for (size_t i = old_size; i < new_size; ++i) {
+    initialize_clock(i);
+  }
+
+  // 更新冻结时钟集合（移除超出范围的索引）
+  std::set<size_t> new_frozen;
+  for (size_t idx : frozen_clocks_) {
+    if (idx < new_size) {
+      new_frozen.insert(idx);
+    }
+  }
+  frozen_clocks_ = std::move(new_frozen);
+}
+
+void DBM::minimize() {
+  if (clock_count_ == 0) return;
+
+  // Floyd-Warshall 算法
+  for (size_t k = 0; k < clock_count_; ++k) {
+    for (size_t i = 0; i < clock_count_; ++i) {
+      if (matrix_[offset(i, k)] == INF_TIME) continue;
+      for (size_t j = 0; j < clock_count_; ++j) {
+        if (matrix_[offset(k, j)] == INF_TIME) continue;
+
+        int new_bound = matrix_[offset(i, k)] + matrix_[offset(k, j)];
+        if (matrix_[offset(i, j)] == INF_TIME || new_bound < matrix_[offset(i, j)]) {
+          matrix_[offset(i, j)] = new_bound;
+        }
+      }
+    }
+  }
+}
+
 }  // namespace scheduling

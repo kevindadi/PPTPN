@@ -63,6 +63,7 @@ class DBM {
   [[nodiscard]] size_t offset(size_t i, size_t j) const { return i * clock_count_ + j; }
   void check_index(size_t i, size_t j) const;
   void initialize_clock(size_t clock_idx);
+  void resize(size_t new_size);
 
   std::vector<int> matrix_; // (size × size) DBM 矩阵
   size_t clock_count_;                // 时钟数量（包括 c₀）
