@@ -101,4 +101,141 @@ void ReachabilityGraph::advance_time(StateClass& state, int delta) const {
   state.cumulative_time += delta;
 }
 
+size_t ReachabilityGraph::build(size_t max_states) {
+  stats_ = Statistics();
+  states_.clear();
+  edges_.clear();
+  state_to_vertex_.clear();
+  next_state_id_ = 0;
+
+  // 创建初始状态
+  StateClass initial;
+  initial.marking = ptpn_.get_marking();
+  initial.cumulative_time = 0.0;
+  initial.zone = DBM(1);  // 只有参考时钟 c₀
+
+  recompute_sets(initial);
+
+  Vertex initial_vertex = find_or_add_state(initial);
+  stats_.total_states++;
+
+  std::vector<Vertex> frontier{initial_vertex};
+
+  // BFS 展开
+  while (!frontier.empty()) {
+    if (stats_.total_states >= max_states) {
+      stats_.truncated = true;
+      break;
+    }
+
+    std::vector<Vertex> next_frontier;
+
+    for (Vertex v : frontier) {
+      const StateClass& cur = states_[v];
+      std::vector<StateClass> successors = expand(cur);
+
+      for (auto& succ : successors) {
+        Vertex succ_vertex = find_or_add_state(succ);
+        edges_.push_back({v, succ_vertex});
+        stats_.total_edges++;
+
+        // 如果是新状态，加入下一轮 frontier
+        if (states_[succ_vertex].state_id == succ.state_id) {
+          next_frontier.push_back(succ_vertex);
+        }
+      }
+    }
+
+    frontier = std::move(next_frontier);
+  }
+
+  return stats_.total_states;
+}
+
+const StateClass& ReachabilityGraph::get_state(Vertex v) const {
+  return states_.at(v);
+}
+
+const StateClass& ReachabilityGraph::get_initial_state() const {
+  return states_.front();
+}
+
+bool ReachabilityGraph::save_to_dot(const std::string& path) const {
+  std::ofstream out(path);
+  if (!out.is_open()) return false;
+
+  out << "digraph ReachabilityGraph {\n";
+  out << "  rankdir=LR;\n";
+  out << "  node [shape=box];\n\n";
+
+  for (size_t i = 0; i < states_.size(); ++i) {
+    const auto& s = states_[i];
+    out << "  s" << s.state_id << " [label=\"State " << s.state_id << "\\n";
+    out << "M: [";
+    for (size_t j = 0; j < s.marking.size(); ++j) {
+      if (j > 0) out << ",";
+      out << s.marking[j];
+    }
+    out << "]\\n";
+    out << "Active: " << s.active.size() << "\\n";
+    out << "Time: " << std::fixed << std::setprecision(2) << s.cumulative_time;
+    out << "\"];\n";
+  }
+
+  out << "\n";
+
+  for (const auto& e : edges_) {
+    const auto& src = states_[e.first];
+    const auto& tgt = states_[e.second];
+    out << "  s" << src.state_id << " -> s" << tgt.state_id << ";\n";
+  }
+
+  out << "}\n";
+  out.close();
+
+  return true;
+}
+
+bool ReachabilityGraph::save_to_json(const std::string& path) const {
+  std::ofstream out(path);
+  if (!out.is_open()) return false;
+
+  out << "{\n";
+  out << "  \"states\": [\n";
+
+  for (size_t i = 0; i < states_.size(); ++i) {
+    const auto& s = states_[i];
+    if (i > 0) out << ",\n";
+    out << "    {\"id\": " << s.state_id << ", \"marking\": [";
+    for (size_t j = 0; j < s.marking.size(); ++j) {
+      if (j > 0) out << ", ";
+      out << s.marking[j];
+    }
+    out << "], \"active_count\": " << s.active.size() << "}";
+  }
+
+  out << "\n  ],\n";
+  out << "  \"transitions\": [\n";
+
+  for (size_t i = 0; i < edges_.size(); ++i) {
+    const auto& e = edges_[i];
+    if (i > 0) out << ",\n";
+    out << "    {\"source\": " << states_[e.first].state_id
+        << ", \"target\": " << states_[e.second].state_id << "}";
+  }
+
+  out << "\n  ],\n";
+  out << "  \"statistics\": {"
+      << "\"total_states\": " << stats_.total_states
+      << ", \"total_edges\": " << stats_.total_edges
+      << ", \"dedup_hits\": " << stats_.dedup_hits
+      << ", \"dedup_misses\": " << stats_.dedup_misses
+      << ", \"truncated\": " << (stats_.truncated ? "true" : "false")
+      << "}\n";
+  out << "}\n";
+
+  out.close();
+  return true;
+}
+
 }  // namespace scheduling
