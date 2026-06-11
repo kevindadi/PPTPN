@@ -238,4 +238,149 @@ bool ReachabilityGraph::save_to_json(const std::string& path) const {
   return true;
 }
 
+void ReachabilityGraph::recompute_sets(StateClass& state) {
+  // 重新计算使能集合
+  state.enabled = compute_enabled(state.marking);
+
+  // 计算活跃集合（每核最高优先级）
+  state.active = SchedulingAlgorithms::select_active_per_core(
+      state.enabled, ptpn_);
+
+  // 计算挂起集合
+  state.suspended = SchedulingAlgorithms::compute_suspended(
+      state.enabled, state.active, ptpn_);
+
+  // 更新 DBM 时钟映射
+  // 添加新使能变迁的时钟
+  for (size_t t : state.enabled) {
+    if (!state.has_clock_for_transition(t)) {
+      // 添加新时钟
+      size_t clock_idx = state.zone.add_clock();
+      if (state.transition_to_clock.size() <= t) {
+        state.transition_to_clock.resize(t + 1, -1);
+      }
+      state.transition_to_clock[t] = static_cast<int>(clock_idx);
+      state.clock_to_transition.push_back(t);
+
+      // 设置初始约束
+      const auto& trans = ptpn_.get_transition(t);
+      state.zone.set_constraint(0, clock_idx, -trans.time_interval.earliest);
+      if (trans.time_interval.latest != petri::INF) {
+        state.zone.set_constraint(clock_idx, 0, trans.time_interval.latest);
+      }
+    }
+  }
+
+  // 冻结/解冻时钟
+  for (size_t t : state.enabled) {
+    if (state.has_clock_for_transition(t)) {
+      size_t clock_idx = static_cast<size_t>(
+          state.clock_index_for_transition(t));
+
+      if (state.active.count(t)) {
+        state.zone.unfreeze_clock(clock_idx);
+      } else {
+        state.zone.freeze_clock(clock_idx);
+      }
+    }
+  }
+
+  state.zone.minimize();
+}
+
+std::vector<StateClass> ReachabilityGraph::expand(const StateClass& state) {
+  std::vector<StateClass> successors;
+
+  // 1. 计算使能集合 E（已在 state 中）
+  // 2. 计算活跃集合 X（已在 state 中）
+  // 3. 计算挂起集合 R（已在 state 中）
+
+  // 4. 计算最早发生时间
+  int tau_min = INF_TIME;
+  for (size_t t : state.active) {
+    if (state.suspended.count(t)) continue;
+    int tau = compute_firing_time(state, t);
+    if (tau >= 0) {
+      tau_min = std::min(tau_min, tau);
+    }
+  }
+
+  if (tau_min == INF_TIME) {
+    return successors;  // 无可发生变迁
+  }
+
+  // 5. 筛选可发生变迁 F = {t | τ(t) = tau_min}
+  std::set<size_t> F;
+  for (size_t t : state.active) {
+    if (state.suspended.count(t)) continue;
+    int tau = compute_firing_time(state, t);
+    if (tau == tau_min) {
+      F.insert(t);
+    }
+  }
+
+  // 6. 在 F 上取每核最高优先级 X'
+  std::set<size_t> X_prime = SchedulingAlgorithms::select_active_per_core(
+      F, ptpn_);
+
+  // 7. 从 X' 选一个变迁发生
+  if (X_prime.empty()) {
+    return successors;
+  }
+
+  size_t chosen = SchedulingAlgorithms::select_one_transition(X_prime, ptpn_);
+
+  // 8. 激发变迁，生成后继
+  auto successor = fire_transition(state, chosen, tau_min);
+  if (successor) {
+    successors.push_back(*successor);
+  }
+
+  return successors;
+}
+
+std::optional<StateClass> ReachabilityGraph::fire_transition(
+    const StateClass& state, size_t transition_id, int firing_time) {
+
+  const auto& trans = ptpn_.get_transition(transition_id);
+
+  // 复制状态
+  StateClass next = state.copy();
+
+  // 1. 推进时间（仅 active 时钟）
+  advance_time(next, firing_time);
+
+  // 2. 更新 DBM：添加时间约束
+  if (next.has_clock_for_transition(transition_id)) {
+    size_t clock_idx = static_cast<size_t>(
+        next.clock_index_for_transition(transition_id));
+
+    // α(t) ≤ c_t ≤ β(t)
+    next.zone.set_constraint(0, clock_idx, -trans.time_interval.earliest);
+    if (trans.time_interval.latest != petri::INF) {
+      next.zone.set_constraint(clock_idx, 0, trans.time_interval.latest);
+    }
+    next.zone.minimize();
+  }
+
+  // 3. 检查 DBM 是否为空
+  if (next.zone.is_empty()) {
+    return std::nullopt;
+  }
+
+  // 4. 激发变迁，更新标识
+  next.marking = petri::PTPN::fire(next.marking, ptpn_, transition_id);
+  if (next.marking.empty()) {
+    return std::nullopt;
+  }
+
+  // 5. 重新计算使能/活跃/挂起集合
+  recompute_sets(next);
+
+  // 6. 更新累计时间
+  next.cumulative_time = state.cumulative_time + firing_time;
+
+  return next;
+}
+
 }  // namespace scheduling
