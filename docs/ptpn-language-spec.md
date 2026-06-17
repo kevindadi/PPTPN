@@ -144,10 +144,7 @@ Overrides capacity for places already declared in the `places` section.
 ## Complete Example
 
 ```ptpn
-// ===========================================
-// Priority Timed Petri Net
-// Simple example
-// ===========================================
+
 
 // === Places ===
 places

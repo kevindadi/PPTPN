@@ -1,6 +1,10 @@
 #include "analysis/dbm.h"
+#include "clock_state.h"
 
+#include <atomic>
+#include <iomanip>
 #include <limits>
+#include <stdexcept>
 
 namespace state_class {
 

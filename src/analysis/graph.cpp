@@ -614,9 +614,6 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
   return result;
 }
 
-// =======================================================================
-// 核心算法实现
-// =======================================================================
 
 double StateClassReachabilityGraph::advance_time(StateClass& state) const {
   int min_delay = INF_TIME;
@@ -720,9 +717,7 @@ void StateClassReachabilityGraph::recompute_enabled_sets_from_marking(
                 state.enabled.size(), state.active.size(), state.suspended.size());
 }
 
-// =======================================================================
-// 调度相关（使用 SchedulingAlgorithms）
-// =======================================================================
+
 
 std::set<size_t> StateClassReachabilityGraph::select_active_per_core(
     const std::set<size_t>& enabled) const {
@@ -735,9 +730,7 @@ std::set<size_t> StateClassReachabilityGraph::compute_suspended(
   return SchedulingAlgorithms::compute_suspended(enabled, active, ptpn_);
 }
 
-// =======================================================================
-// 抢占/恢复语义
-// =======================================================================
+
 
 void StateClassReachabilityGraph::suspend_transition(size_t t, StateClass& state) const {
   if (state.clocks[t].state != ClockState::ACTIVE) {
@@ -815,9 +808,7 @@ StateClass StateClassReachabilityGraph::create_initial_state() {
   return initial;
 }
 
-// ===================================================================
-// 辅助方法
-// ===================================================================
+
 
 bool StateClassReachabilityGraph::is_transition_enabled(
     const StateClass& state, size_t trans_idx) const {
@@ -967,9 +958,7 @@ void StateClassReachabilityGraph::recompute_suspension(StateClass& state) const 
   recompute_enabled_sets(state);
 }
 
-// =======================================================================
-// 持久化
-// =======================================================================
+
 
 SCVertex StateClassReachabilityGraph::find_or_add_vertex(const StateClass& state) {
   auto key = make_state_key(state);
