@@ -3,15 +3,7 @@
 
 #include <set>
 #include <string>
-#include <sstream>
 #include <vector>
-#include <limits>
-#include <iomanip>
-#include <stdexcept>
-#include <algorithm>
-#include <atomic>
-
-#include "clock_state.h"
 
 namespace state_class {
 

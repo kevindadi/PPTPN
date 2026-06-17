@@ -26,21 +26,7 @@ typedef boost::adjacency_list<
 typedef boost::graph_traits<SCGraph>::vertex_descriptor SCVertex;
 typedef boost::graph_traits<SCGraph>::edge_descriptor SCEdge;
 
-// =============================================================================
-// 状态可达图
-//
-// StateClassReachabilityGraph 在新的 StateClass 结构（clocks/active/suspended）
-// 基础上构建可达性图.核心算法:
-//
-//   1. advance_time()       - 时间推进（仅 active 时钟）
-//   2. fire_with_time()     - 变迁激发（带时间）
-//   3. recompute_enabled_sets() - 重新计算使能/活跃/挂起集合
-//
-// 规范化模式（CanonicalizationMode）控制状态合并策略:
-//   EQUALITY       - 标识、时钟完全相等才合并
-//   MAX_LOWER_BOUND - 取最大下界
-//   INTERSECTION   - 取约束交集
-// =============================================================================
+
 
 #ifdef PTPN_ENABLE_TEST_ACCESS
 struct StateClassReachabilityGraphTestAccess;

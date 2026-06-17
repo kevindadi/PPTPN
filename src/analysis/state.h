@@ -1,14 +1,11 @@
 #ifndef ANALYSIS_STATE_H
 #define ANALYSIS_STATE_H
 
-#include <functional>
 #include <set>
 #include <sstream>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
-#include "petri/petri.h"
 #include "clock_state.h"
 #include "dbm.h"
 
