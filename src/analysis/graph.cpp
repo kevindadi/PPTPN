@@ -509,7 +509,7 @@ int StateClassReachabilityGraph::compute_firing_time(const StateClass& state,
     return -1;
   }
 
-  if (!state.enabled.count(t) || !state.active.count(t) || state.suspended.count(t)) {
+  if (!state.enabled.count(t) || state.suspended.count(t)) {
     return -1;
   }
 
@@ -695,15 +695,17 @@ void StateClassReachabilityGraph::recompute_enabled_sets_from_marking(
   }
 
   state.enabled = raw_set;
-  state.active = SchedulingAlgorithms::select_active_per_core(state.enabled, ptpn_);
-  state.suspended = SchedulingAlgorithms::compute_suspended(state.enabled, state.active, ptpn_);
+  state.active = state.enabled;
+  state.suspended.clear();
 
   for (size_t t : state.enabled) {
-    if (state.active.count(t)) {
+    if (t < state.clocks.size()) {
       state.clocks[t].state = ClockState::ACTIVE;
-    } else if (state.suspended.count(t)) {
-      state.clocks[t].state = ClockState::SUSPENDED;
-    } else {
+    }
+  }
+
+  for (size_t t = 0; t < state.clocks.size(); ++t) {
+    if (!state.enabled.count(t)) {
       state.clocks[t].state = ClockState::UNACTIVE;
     }
   }

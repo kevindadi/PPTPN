@@ -4,6 +4,7 @@
 #include <atomic>
 #include <iomanip>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
 
 namespace state_class {
