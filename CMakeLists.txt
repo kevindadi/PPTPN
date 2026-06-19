@@ -23,7 +23,6 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Suppress warnings from dependencies with older cmake_minimum_required
-cmake_policy(SET CMP0167 NEW)
 cmake_policy(SET CMP0057 NEW)
 
 # FetchContent for dependencies
@@ -58,7 +57,7 @@ FetchContent_Declare(fmt
 )
 FetchContent_MakeAvailable(fmt)
 
-find_package(Boost REQUIRED COMPONENTS graph filesystem thread date_time)
+find_package(Boost CONFIG REQUIRED COMPONENTS graph filesystem thread date_time)
 include_directories(${Boost_INCLUDE_DIRS})
 message(STATUS "Boost include dir: ${Boost_INCLUDE_DIRS}")
 
