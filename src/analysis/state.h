@@ -39,16 +39,48 @@ struct TransitionEdge {
   }
 };
 
+// SchedulingState — 调度投影部分.
+//
+// 这一部分是从 marking 派生使能集合后,再叠加每核优先级投影得到的视图数据,
+// 不属于纯 Petri 网核. 设计上把它单独成一个类型,使得状态等价/去重逻辑可以
+// 按"标识 / 时间 / 调度"三个关注点分别比较（见设计文档 invariant #6）.
+//
+//   enabled   : 原始使能变迁（仅由 marking 决定）
+//   active    : 活跃变迁 = enabled ∩ 每核最高优先级（非挂起,时钟流逝）
+//   suspended : 挂起变迁（使能但被同核高优先级压制,时钟冻结）
+struct SchedulingState {
+  std::set<size_t> enabled;
+  std::set<size_t> active;
+  std::set<size_t> suspended;
+
+  bool operator==(const SchedulingState& other) const {
+    return enabled == other.enabled && active == other.active &&
+           suspended == other.suspended;
+  }
+
+  bool operator<(const SchedulingState& other) const {
+    if (enabled < other.enabled) return true;
+    if (other.enabled < enabled) return false;
+    if (active < other.active) return true;
+    if (other.active < active) return false;
+    return suspended < other.suspended;
+  }
+
+  void clear() {
+    enabled.clear();
+    active.clear();
+    suspended.clear();
+  }
+};
+
 // Symbolic state used during reachability construction.
 //
-// Semantically it is determined by three components:
-//   1. marking    : discrete Petri-net marking
-//   2. clocks     : TransitionClock array for each transition
-//   3. enabled    : raw enabled transitions from marking
-//   4. active     : enabled but not suspended (clock ticking) 
-//   5. suspended  : enabled but suspended (clock frozen)
+// 语义上由三个关注点决定（与设计文档的分层一致）:
+//   1. 标识 (marking)                : discrete Petri-net marking
+//   2. 时间 (clocks / zone / 映射)   : symbolic timing constraints
+//   3. 调度 (scheduling)             : derived scheduling projection
 //
-// cumulative_time is auxiliary metadata and is not part of state identity.
+// cumulative_time / state_id 属于 search metadata,不参与状态等价.
 struct StateClass {
   std::vector<int> marking;                      // Petri 网标识
   std::vector<TransitionClock> clocks;           // 迁移期兼容/调试视图
@@ -56,9 +88,7 @@ struct StateClass {
   std::vector<int> transition_to_clock;         // transition id -> DBM clock idx
   std::vector<size_t> clock_to_transition;      // DBM clock idx -> transition id
 
-  std::set<size_t> enabled;     // 原始使能变迁
-  std::set<size_t> active;      // 活跃变迁 = enabled ∩ 非挂起
-  std::set<size_t> suspended;   // 挂起变迁（时钟冻结）
+  SchedulingState scheduling;   // 调度投影（派生视图,不是核行为）
 
   double cumulative_time;  // 累计时间（不参与状态等价）
   size_t state_id;        // 状态 ID
@@ -89,13 +119,13 @@ struct StateClass {
 
   // Helper: 是否是有效活跃时钟
   [[nodiscard]] bool has_active_clocks() const {
-    return !active.empty();
+    return !scheduling.active.empty();
   }
 
   // Helper: 获取下一个到期时间
   [[nodiscard]] int get_next_deadline() const {
     int min_deadline = INF_TIME;
-    for (size_t t : active) {
+    for (size_t t : scheduling.active) {
       if (t < clocks.size()) {
         min_deadline = std::min(min_deadline, clocks[t].upper_bound);
       }
@@ -110,9 +140,7 @@ struct StateKey {
   std::vector<size_t> clock_to_transition;
   std::vector<int> zone_matrix;
   std::set<size_t> frozen_clocks;
-  std::set<size_t> enabled;
-  std::set<size_t> active;
-  std::set<size_t> suspended;
+  SchedulingState scheduling;
 
   bool operator==(const StateKey& other) const {
     return marking == other.marking &&
@@ -120,9 +148,7 @@ struct StateKey {
            clock_to_transition == other.clock_to_transition &&
            zone_matrix == other.zone_matrix &&
            frozen_clocks == other.frozen_clocks &&
-           enabled == other.enabled &&
-           active == other.active &&
-           suspended == other.suspended;
+           scheduling == other.scheduling;
   }
 };
 

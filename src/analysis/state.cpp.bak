@@ -18,7 +18,9 @@ bool StateClass::operator==(const StateClass& other) const {
          zone == other.zone &&
          transition_to_clock == other.transition_to_clock &&
          clock_to_transition == other.clock_to_transition &&
-         scheduling == other.scheduling;
+         enabled == other.enabled &&
+         active == other.active &&
+         suspended == other.suspended;
 }
 
 bool StateClass::operator<(const StateClass& other) const {
@@ -37,7 +39,13 @@ bool StateClass::operator<(const StateClass& other) const {
   if (clocks < other.clocks) return true;
   if (other.clocks < clocks) return false;
 
-  return scheduling < other.scheduling;
+  if (enabled < other.enabled) return true;
+  if (other.enabled < enabled) return false;
+
+  if (active < other.active) return true;
+  if (other.active < active) return false;
+
+  return suspended < other.suspended;
 }
 
 size_t StateKeyHash::operator()(const StateKey& key) const {
@@ -60,13 +68,13 @@ size_t StateKeyHash::operator()(const StateKey& key) const {
   for (size_t value : key.frozen_clocks) {
     hash_combine(seed, size_hash(value));
   }
-  for (size_t value : key.scheduling.enabled) {
+  for (size_t value : key.enabled) {
     hash_combine(seed, size_hash(value));
   }
-  for (size_t value : key.scheduling.active) {
+  for (size_t value : key.active) {
     hash_combine(seed, size_hash(value));
   }
-  for (size_t value : key.scheduling.suspended) {
+  for (size_t value : key.suspended) {
     hash_combine(seed, size_hash(value));
   }
 
@@ -82,7 +90,9 @@ StateClass StateClass::copy() const {
   result.clock_to_transition = clock_to_transition;
   result.state_id = state_id;
   result.cumulative_time = cumulative_time;
-  result.scheduling = scheduling;
+  result.enabled = enabled;
+  result.active = active;
+  result.suspended = suspended;
   return result;
 }
 
@@ -97,22 +107,22 @@ std::string StateClass::to_string() const {
   oss << "]\n";
 
   oss << "  Enabled: {";
-  for (auto it = scheduling.enabled.begin(); it != scheduling.enabled.end(); ++it) {
-    if (it != scheduling.enabled.begin()) oss << ", ";
+  for (auto it = enabled.begin(); it != enabled.end(); ++it) {
+    if (it != enabled.begin()) oss << ", ";
     oss << *it;
   }
   oss << "}\n";
 
   oss << "  Active: {";
-  for (auto it = scheduling.active.begin(); it != scheduling.active.end(); ++it) {
-    if (it != scheduling.active.begin()) oss << ", ";
+  for (auto it = active.begin(); it != active.end(); ++it) {
+    if (it != active.begin()) oss << ", ";
     oss << *it;
   }
   oss << "}\n";
 
   oss << "  Suspended: {";
-  for (auto it = scheduling.suspended.begin(); it != scheduling.suspended.end(); ++it) {
-    if (it != scheduling.suspended.begin()) oss << ", ";
+  for (auto it = suspended.begin(); it != suspended.end(); ++it) {
+    if (it != suspended.begin()) oss << ", ";
     oss << *it;
   }
   oss << "}\n";
@@ -136,7 +146,7 @@ void StateClass::rebuild_zone_from_clocks() {
 
   zone = DBM(1);
 
-  for (size_t t : scheduling.enabled) {
+  for (size_t t : enabled) {
     if (t >= clocks.size()) {
       continue;
     }
@@ -149,7 +159,7 @@ void StateClass::rebuild_zone_from_clocks() {
     zone.set_constraint(0, clock_idx, -clock.lower_bound);
     zone.set_constraint(clock_idx, 0, clock.upper_bound);
 
-    if (scheduling.active.count(t)) {
+    if (active.count(t)) {
       zone.unfreeze_clock(clock_idx);
     } else {
       zone.freeze_clock(clock_idx);
@@ -165,7 +175,7 @@ void StateClass::sync_clocks_from_zone() {
   }
 
   for (size_t t = 0; t < clocks.size(); ++t) {
-    if (!scheduling.enabled.count(t) || !has_zone_clock_for_transition(t)) {
+    if (!enabled.count(t) || !has_zone_clock_for_transition(t)) {
       clocks[t] = TransitionClock();
       continue;
     }
@@ -174,9 +184,9 @@ void StateClass::sync_clocks_from_zone() {
     clocks[t].lower_bound = -zone.get_constraint(0, clock_idx);
     clocks[t].upper_bound = zone.get_constraint(clock_idx, 0);
 
-    if (scheduling.active.count(t)) {
+    if (active.count(t)) {
       clocks[t].state = ClockState::ACTIVE;
-    } else if (scheduling.suspended.count(t)) {
+    } else if (suspended.count(t)) {
       clocks[t].state = ClockState::SUSPENDED;
     } else {
       clocks[t].state = ClockState::UNACTIVE;

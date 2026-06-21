@@ -42,7 +42,7 @@ bool elapse_active_clocks(StateClass& state, int delay) {
     return false;
   }
 
-  for (size_t t : state.scheduling.active) {
+  for (size_t t : state.active) {
     if (t >= state.clocks.size()) {
       continue;
     }
@@ -56,7 +56,7 @@ bool elapse_active_clocks(StateClass& state, int delay) {
   if (delay > 0 && state.zone.size() > 0) {
     DBM next_zone = state.zone;
 
-    for (size_t t : state.scheduling.active) {
+    for (size_t t : state.active) {
       if (!state.has_zone_clock_for_transition(t)) {
         continue;
       }
@@ -71,11 +71,11 @@ bool elapse_active_clocks(StateClass& state, int delay) {
 
     for (size_t i = 1; i < state.zone.size(); ++i) {
       const size_t ti = state.transition_for_clock(i);
-      const int age_i = state.scheduling.active.count(ti) ? delay : 0;
+      const int age_i = state.active.count(ti) ? delay : 0;
 
       for (size_t j = 1; j < state.zone.size(); ++j) {
         const size_t tj = state.transition_for_clock(j);
-        const int age_j = state.scheduling.active.count(tj) ? delay : 0;
+        const int age_j = state.active.count(tj) ? delay : 0;
         const int delta_ij = age_i - age_j;
         if (delta_ij == 0) {
           continue;
@@ -92,7 +92,7 @@ bool elapse_active_clocks(StateClass& state, int delay) {
     state.zone = std::move(next_zone);
     state.sync_clocks_from_zone();
   } else {
-    for (size_t t : state.scheduling.active) {
+    for (size_t t : state.active) {
       if (t >= state.clocks.size()) {
         continue;
       }
@@ -112,9 +112,9 @@ StateKey make_state_key(const StateClass& state) {
   key.clock_to_transition = state.clock_to_transition;
   key.zone_matrix = state.zone.raw_matrix();
   key.frozen_clocks = state.zone.frozen_clocks();
-  key.scheduling.enabled = state.scheduling.enabled;
-  key.scheduling.active = state.scheduling.active;
-  key.scheduling.suspended = state.scheduling.suspended;
+  key.enabled = state.enabled;
+  key.active = state.active;
+  key.suspended = state.suspended;
   return key;
 }
 
@@ -149,7 +149,7 @@ void rebuild_zone_preserving_constraints(
   state.clock_to_transition.push_back(std::numeric_limits<size_t>::max());
 
   DBM next_zone(1);
-  for (size_t t : state.scheduling.enabled) {
+  for (size_t t : state.enabled) {
     if (t >= state.clocks.size()) {
       continue;
     }
@@ -166,7 +166,7 @@ void rebuild_zone_preserving_constraints(
            static_cast<size_t>(previous_transition_to_clock[t]) < previous_zone.size();
   };
 
-  for (size_t ti : state.scheduling.enabled) {
+  for (size_t ti : state.enabled) {
     if (ti >= state.transition_to_clock.size() || state.transition_to_clock[ti] <= 0) {
       continue;
     }
@@ -183,14 +183,14 @@ void rebuild_zone_preserving_constraints(
     }
   }
 
-  for (size_t ti : state.scheduling.enabled) {
+  for (size_t ti : state.enabled) {
     if (!has_previous_clock(ti)) {
       continue;
     }
 
     const size_t new_i = static_cast<size_t>(state.transition_to_clock[ti]);
     const size_t old_i = static_cast<size_t>(previous_transition_to_clock[ti]);
-    for (size_t tj : state.scheduling.enabled) {
+    for (size_t tj : state.enabled) {
       if (!has_previous_clock(tj)) {
         continue;
       }
@@ -211,14 +211,14 @@ void sync_zone_activity(StateClass& state) {
     return;
   }
 
-  for (size_t t : state.scheduling.enabled) {
+  for (size_t t : state.enabled) {
     if (!state.has_zone_clock_for_transition(t)) {
       continue;
     }
 
     const size_t clock_idx =
         static_cast<size_t>(state.clock_index_for_transition(t));
-    if (state.scheduling.active.count(t)) {
+    if (state.active.count(t)) {
       state.zone.unfreeze_clock(clock_idx);
     } else {
       state.zone.freeze_clock(clock_idx);
@@ -269,7 +269,7 @@ std::string format_transition_clock_summary(const StateClass& state,
   std::ostringstream oss;
   bool first = true;
 
-  for (size_t t : state.scheduling.enabled) {
+  for (size_t t : state.enabled) {
     if (t >= state.clocks.size()) continue;
 
     if (!first) oss << "; ";
@@ -373,10 +373,10 @@ void StateClassReachabilityGraph::log_state_class_details(
     const StateClass& state, const std::string& prefix) const {
   spdlog::debug("{}========== State Class Details: ID={} ==========", prefix, state.state_id);
   spdlog::debug("{}Places: {}", prefix, format_places(state.marking));
-  spdlog::debug("{}Enabled: {}", prefix, format_transitions(state.scheduling.enabled));
-  spdlog::debug("{}Active: {}", prefix, format_transitions(state.scheduling.active));
-  if (!state.scheduling.suspended.empty()) {
-    spdlog::debug("{}Suspended: {}", prefix, format_transitions(state.scheduling.suspended));
+  spdlog::debug("{}Enabled: {}", prefix, format_transitions(state.enabled));
+  spdlog::debug("{}Active: {}", prefix, format_transitions(state.active));
+  if (!state.suspended.empty()) {
+    spdlog::debug("{}Suspended: {}", prefix, format_transitions(state.suspended));
   }
   spdlog::debug("{}Clocks: {}", prefix, format_transition_clock_summary(state, ptpn_));
   spdlog::debug("{}Cumulative time: {}", prefix, state.cumulative_time);
@@ -509,7 +509,7 @@ int StateClassReachabilityGraph::compute_firing_time(const StateClass& state,
     return -1;
   }
 
-  if (!state.scheduling.enabled.count(t) || state.scheduling.suspended.count(t)) {
+  if (!state.enabled.count(t) || state.suspended.count(t)) {
     return -1;
   }
 
@@ -538,7 +538,7 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
   StateClass scheduled = cur.copy();
   recompute_enabled_sets(scheduled);
 
-  if (pruning_enabled_ && scheduled.scheduling.active.empty()) {
+  if (pruning_enabled_ && scheduled.active.empty()) {
     debug("  [Prune] No active transitions, skip");
     result.pruned_states_count++;
     result.transition_enabled_checks +=
@@ -547,7 +547,7 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
   }
 
   int tau_min = INF_TIME;
-  for (size_t t : scheduled.scheduling.active) {
+  for (size_t t : scheduled.active) {
     const int tau = compute_firing_time(scheduled, t);
     if (tau >= 0) {
       tau_min = std::min(tau_min, tau);
@@ -564,7 +564,7 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
   }
 
   std::set<size_t> firable_now;
-  for (size_t t : scheduled.scheduling.active) {
+  for (size_t t : scheduled.active) {
     const int tau = compute_firing_time(scheduled, t);
     if (tau == tau_min) {
       firable_now.insert(t);
@@ -617,7 +617,7 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
 
 double StateClassReachabilityGraph::advance_time(StateClass& state) const {
   int min_delay = INF_TIME;
-  for (size_t t : state.scheduling.active) {
+  for (size_t t : state.active) {
     const int tau = compute_firing_time(state, t);
     if (tau >= 0) {
       min_delay = std::min(min_delay, tau);
@@ -658,7 +658,7 @@ void StateClassReachabilityGraph::recompute_enabled_sets_from_marking(
 
   std::vector<size_t> raw_enabled;
   const size_t num_transitions = ptpn_.num_transitions();
-  const std::set<size_t> previously_enabled = state.scheduling.enabled;
+  const std::set<size_t> previously_enabled = state.enabled;
   const DBM previous_zone = state.zone;
   const std::vector<int> previous_transition_to_clock = state.transition_to_clock;
 
@@ -694,18 +694,18 @@ void StateClassReachabilityGraph::recompute_enabled_sets_from_marking(
     }
   }
 
-  state.scheduling.enabled = raw_set;
-  state.scheduling.active = state.scheduling.enabled;
-  state.scheduling.suspended.clear();
+  state.enabled = raw_set;
+  state.active = state.enabled;
+  state.suspended.clear();
 
-  for (size_t t : state.scheduling.enabled) {
+  for (size_t t : state.enabled) {
     if (t < state.clocks.size()) {
       state.clocks[t].state = ClockState::ACTIVE;
     }
   }
 
   for (size_t t = 0; t < state.clocks.size(); ++t) {
-    if (!state.scheduling.enabled.count(t)) {
+    if (!state.enabled.count(t)) {
       state.clocks[t].state = ClockState::UNACTIVE;
     }
   }
@@ -716,7 +716,7 @@ void StateClassReachabilityGraph::recompute_enabled_sets_from_marking(
   sync_zone_activity(state);
 
   spdlog::debug("  recompute_enabled: enabled={}, active={}, suspended={}",
-                state.scheduling.enabled.size(), state.scheduling.active.size(), state.scheduling.suspended.size());
+                state.enabled.size(), state.active.size(), state.suspended.size());
 }
 
 
@@ -739,8 +739,8 @@ void StateClassReachabilityGraph::suspend_transition(size_t t, StateClass& state
     return;
   }
 
-  state.scheduling.active.erase(t);
-  state.scheduling.suspended.insert(t);
+  state.active.erase(t);
+  state.suspended.insert(t);
   state.clocks[t].state = ClockState::SUSPENDED;
   sync_zone_activity(state);
 
@@ -752,8 +752,8 @@ void StateClassReachabilityGraph::restore_transition(size_t t, StateClass& state
     return;
   }
 
-  state.scheduling.suspended.erase(t);
-  state.scheduling.active.insert(t);
+  state.suspended.erase(t);
+  state.active.insert(t);
   state.clocks[t].state = ClockState::ACTIVE;
   sync_zone_activity(state);
 
@@ -801,10 +801,10 @@ StateClass StateClassReachabilityGraph::create_initial_state() {
 
   debug("[STATE] Create initial state:");
   spdlog::debug("  Marking: {}", format_marking(initial.marking));
-  spdlog::debug("  Enabled: {}", format_transitions(initial.scheduling.enabled));
-  spdlog::debug("  Active: {}", format_transitions(initial.scheduling.active));
-  if (!initial.scheduling.suspended.empty()) {
-    spdlog::debug("  Suspended: {}", format_transitions(initial.scheduling.suspended));
+  spdlog::debug("  Enabled: {}", format_transitions(initial.enabled));
+  spdlog::debug("  Active: {}", format_transitions(initial.active));
+  if (!initial.suspended.empty()) {
+    spdlog::debug("  Suspended: {}", format_transitions(initial.suspended));
   }
 
   return initial;
@@ -851,19 +851,19 @@ void StateClassReachabilityGraph::apply_preemption(
     const std::vector<size_t>& chosen, StateClass& state) const {
   // 使用新的调度算法处理抢占
   std::set<size_t> active = SchedulingAlgorithms::select_active_per_core(
-      state.scheduling.enabled, ptpn_);
+      state.enabled, ptpn_);
   std::set<size_t> suspended = SchedulingAlgorithms::compute_suspended(
-      state.scheduling.enabled, active, ptpn_);
-  state.scheduling.active = active;
-  state.scheduling.suspended = suspended;
+      state.enabled, active, ptpn_);
+  state.active = active;
+  state.suspended = suspended;
 
   // 更新时钟状态
-  for (size_t t : state.scheduling.active) {
+  for (size_t t : state.active) {
     if (t < state.clocks.size()) {
       state.clocks[t].state = ClockState::ACTIVE;
     }
   }
-  for (size_t t : state.scheduling.suspended) {
+  for (size_t t : state.suspended) {
     if (t < state.clocks.size()) {
       state.clocks[t].state = ClockState::SUSPENDED;
     }
@@ -1000,7 +1000,7 @@ bool StateClassReachabilityGraph::save_to_dot(
         out << state.marking[i];
       }
       out << "]\\n";
-      out << "Active: " << state.scheduling.active.size() << "\\n";
+      out << "Active: " << state.active.size() << "\\n";
       out << "Time: " << std::fixed << std::setprecision(2) << state.cumulative_time;
       out << "\"];\n";
     }
@@ -1057,7 +1057,7 @@ bool StateClassReachabilityGraph::save_to_json(
         out << state.marking[i];
       }
       out << "],\n";
-      out << "      \"active_count\": " << state.scheduling.active.size() << ",\n";
+      out << "      \"active_count\": " << state.active.size() << ",\n";
       out << "      \"cumulative_time\": " << std::fixed << std::setprecision(2)
           << state.cumulative_time << "\n";
       out << "    }";

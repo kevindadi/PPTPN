@@ -25,14 +25,14 @@ void sync_zone_activity_with_sets(StateClass& state) {
     return;
   }
 
-  for (size_t t : state.scheduling.enabled) {
+  for (size_t t : state.enabled) {
     if (!state.has_zone_clock_for_transition(t)) {
       continue;
     }
 
     const size_t clock_idx =
         static_cast<size_t>(state.clock_index_for_transition(t));
-    if (state.scheduling.active.count(t)) {
+    if (state.active.count(t)) {
       state.zone.unfreeze_clock(clock_idx);
     } else {
       state.zone.freeze_clock(clock_idx);
@@ -59,20 +59,20 @@ StateClass canonicalize(const StateClass& a, const StateClass& b,
 
     case CanonicalizationMode::MAX_LOWER_BOUND:
     case CanonicalizationMode::INTERSECTION: {
-      result.scheduling.enabled.clear();
-      std::set_union(a.scheduling.enabled.begin(), a.scheduling.enabled.end(),
-                     b.scheduling.enabled.begin(), b.scheduling.enabled.end(),
-                     std::inserter(result.scheduling.enabled, result.scheduling.enabled.end()));
+      result.enabled.clear();
+      std::set_union(a.enabled.begin(), a.enabled.end(),
+                     b.enabled.begin(), b.enabled.end(),
+                     std::inserter(result.enabled, result.enabled.end()));
 
-      result.scheduling.active.clear();
-      std::set_intersection(a.scheduling.active.begin(), a.scheduling.active.end(),
-                            b.scheduling.active.begin(), b.scheduling.active.end(),
-                            std::inserter(result.scheduling.active, result.scheduling.active.end()));
+      result.active.clear();
+      std::set_intersection(a.active.begin(), a.active.end(),
+                            b.active.begin(), b.active.end(),
+                            std::inserter(result.active, result.active.end()));
 
-      result.scheduling.suspended.clear();
-      std::set_intersection(a.scheduling.suspended.begin(), a.scheduling.suspended.end(),
-                            b.scheduling.suspended.begin(), b.scheduling.suspended.end(),
-                            std::inserter(result.scheduling.suspended, result.scheduling.suspended.end()));
+      result.suspended.clear();
+      std::set_intersection(a.suspended.begin(), a.suspended.end(),
+                            b.suspended.begin(), b.suspended.end(),
+                            std::inserter(result.suspended, result.suspended.end()));
 
       if (mode == CanonicalizationMode::INTERSECTION &&
           can_intersect_zones(a, b)) {
@@ -120,8 +120,8 @@ bool are_equivalent(const StateClass& a, const StateClass& b,
     return false;
   }
 
-  if (a.scheduling.enabled != b.scheduling.enabled || a.scheduling.active != b.scheduling.active ||
-      a.scheduling.suspended != b.scheduling.suspended) {
+  if (a.enabled != b.enabled || a.active != b.active ||
+      a.suspended != b.suspended) {
     return false;
   }
 
