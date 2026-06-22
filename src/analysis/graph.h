@@ -140,6 +140,8 @@ class StateClassReachabilityGraph {
 
   /**
    * compute_firing_time - 变迁在当前状态下的最早可发生时间;不可发生返回 -1
+   *
+   * 对 strict 端点先按整数时间域归一化为有效上下界后再计算.
    */
   [[nodiscard]] int compute_firing_time(const ReachabilityState& state,
                                         size_t transition) const;

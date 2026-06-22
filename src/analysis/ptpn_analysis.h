@@ -124,7 +124,9 @@ class PTPNAnalyzer {
   /**
    * advance_time - 时间推进
    *
-   * 推进所有 active 时钟.suspended 时钟保持冻结.
+   * 推进所有 active 时钟直到当前活跃变迁中最早可发生的有效时间点.
+   * strict 端点会先归一化到整数时间域中的有效上下界;
+   * suspended 时钟保持冻结.
    *
    * @param state 当前状态（就地修改）
    * @return 推进的时间量

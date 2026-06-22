@@ -50,3 +50,19 @@ TEST(PtpnAnalysisSemanticsTest, PicksEarliestFiringTimeBeforePriority) {
   ASSERT_EQ(fired_transitions.size(), 1u);
   EXPECT_EQ(fired_transitions[0], 0u);
 }
+
+TEST(PtpnAnalysisSemanticsTest, OpenLowerBoundDelaysFiringByOneTick) {
+  petri::PTPN ptpn;
+  const size_t input = ptpn.add_place("p0", 1);
+  const size_t done = ptpn.add_place("p1", 1);
+  ptpn.set_initial_marking(input, 1);
+
+  const size_t task = ptpn.add_transition(
+      "task", petri::TimeInterval(1, 3, true, false), 1, 0, false);
+  ptpn.set_pre_arc(input, task, 1);
+  ptpn.set_post_arc(task, done, 1);
+
+  state_class::PTPNAnalyzer analyzer(ptpn);
+  auto state = analyzer.create_initial_state();
+  EXPECT_DOUBLE_EQ(2.0, analyzer.advance_time(state));
+}

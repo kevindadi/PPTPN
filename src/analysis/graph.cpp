@@ -14,9 +14,23 @@ namespace state_class {
 namespace {
 constexpr int kControlTransitionPriority = 0;
 
-int latest_bound_for_transition(const petri::Transition& trans) {
-  return trans.time_interval.latest == petri::INF ? INF_TIME
-                                                 : trans.time_interval.latest;
+int effective_earliest_for_transition(const petri::Transition& trans) {
+  return trans.time_interval.left_open ? trans.time_interval.earliest + 1
+                                       : trans.time_interval.earliest;
+}
+
+int effective_latest_for_transition(const petri::Transition& trans) {
+  if (trans.time_interval.latest == petri::INF) {
+    return INF_TIME;
+  }
+  return trans.time_interval.right_open ? trans.time_interval.latest - 1
+                                        : trans.time_interval.latest;
+}
+
+std::pair<int, int> effective_time_bounds_for_transition(
+    const petri::Transition& trans) {
+  return {effective_earliest_for_transition(trans),
+          effective_latest_for_transition(trans)};
 }
 
 std::pair<int, int> current_clock_bounds(const ReachabilityState& state, size_t t);
@@ -514,8 +528,7 @@ int StateClassReachabilityGraph::compute_firing_time(const ReachabilityState& st
   }
 
   const auto& trans = ptpn_.get_transition(t);
-  const int alpha = trans.time_interval.earliest;
-  const int beta = latest_bound_for_transition(trans);
+  const auto [alpha, beta] = effective_time_bounds_for_transition(trans);
   const auto [clock_lower, clock_upper] = current_clock_bounds(state, t);
   const int firing_time = std::max(alpha, clock_lower);
 
@@ -688,7 +701,7 @@ void StateClassReachabilityGraph::recompute_enabled_sets_from_marking(
     if (needs_initialization) {
       const auto& trans = ptpn_.get_transition(t);
       state.timing.clocks[t].lower_bound = 0;
-      state.timing.clocks[t].upper_bound = latest_bound_for_transition(trans);
+      state.timing.clocks[t].upper_bound = effective_latest_for_transition(trans);
       state.timing.clocks[t].state = ClockState::UNACTIVE;
       reset_transitions.insert(t);
     }
@@ -835,10 +848,7 @@ std::vector<size_t> StateClassReachabilityGraph::collect_enabled_transitions(
 std::pair<int, int> StateClassReachabilityGraph::get_transition_time_bounds(
     const ReachabilityState& state, size_t trans_idx) const {
   const auto& transition = ptpn_.get_transition(trans_idx);
-  int earliest = transition.time_interval.earliest;
-  int latest = transition.time_interval.latest;
-
-  return {earliest, latest};
+  return effective_time_bounds_for_transition(transition);
 }
 
 std::vector<size_t> StateClassReachabilityGraph::select_per_core(
@@ -898,8 +908,7 @@ std::tuple<bool, ReachabilityState, double> StateClassReachabilityGraph::fire_wi
 
   ReachabilityState to = from_state.copy();
   const auto& trans = ptpn_.get_transition(trans_idx);
-  const int alpha = trans.time_interval.earliest;
-  const int beta = latest_bound_for_transition(trans);
+  const auto [alpha, beta] = effective_time_bounds_for_transition(trans);
 
   if (to.has_zone_clock_for_transition(trans_idx) && to.timing.zone.size() > 0) {
     const size_t clock_idx =
