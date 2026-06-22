@@ -8,20 +8,20 @@ namespace state_class {
 
 namespace {
 
-bool has_dbm_identity(const StateClass& state) {
-  return state.zone.size() > 0 || !state.transition_to_clock.empty() ||
-         !state.clock_to_transition.empty();
+bool has_dbm_identity(const ReachabilityState& state) {
+  return state.timing.zone.size() > 0 || !state.timing.transition_to_clock.empty() ||
+         !state.timing.clock_to_transition.empty();
 }
 
-bool can_intersect_zones(const StateClass& a, const StateClass& b) {
-  return has_dbm_identity(a) && has_dbm_identity(b) && a.zone.size() > 0 &&
-         a.zone.size() == b.zone.size() &&
-         a.transition_to_clock == b.transition_to_clock &&
-         a.clock_to_transition == b.clock_to_transition;
+bool can_intersect_zones(const ReachabilityState& a, const ReachabilityState& b) {
+  return has_dbm_identity(a) && has_dbm_identity(b) && a.timing.zone.size() > 0 &&
+         a.timing.zone.size() == b.timing.zone.size() &&
+         a.timing.transition_to_clock == b.timing.transition_to_clock &&
+         a.timing.clock_to_transition == b.timing.clock_to_transition;
 }
 
-void sync_zone_activity_with_sets(StateClass& state) {
-  if (state.zone.size() == 0) {
+void sync_zone_activity_with_sets(ReachabilityState& state) {
+  if (state.timing.zone.size() == 0) {
     return;
   }
 
@@ -33,18 +33,18 @@ void sync_zone_activity_with_sets(StateClass& state) {
     const size_t clock_idx =
         static_cast<size_t>(state.clock_index_for_transition(t));
     if (state.scheduling.active.count(t)) {
-      state.zone.unfreeze_clock(clock_idx);
+      state.timing.zone.unfreeze_clock(clock_idx);
     } else {
-      state.zone.freeze_clock(clock_idx);
+      state.timing.zone.freeze_clock(clock_idx);
     }
   }
 }
 
 }  // namespace
 
-StateClass canonicalize(const StateClass& a, const StateClass& b,
+ReachabilityState canonicalize(const ReachabilityState& a, const ReachabilityState& b,
                         CanonicalizationMode mode) {
-  StateClass result;
+  ReachabilityState result;
 
   if (a.marking != b.marking) {
     return result;
@@ -76,20 +76,20 @@ StateClass canonicalize(const StateClass& a, const StateClass& b,
 
       if (mode == CanonicalizationMode::INTERSECTION &&
           can_intersect_zones(a, b)) {
-        result.transition_to_clock = a.transition_to_clock;
-        result.clock_to_transition = a.clock_to_transition;
-        result.zone = a.zone.intersection(b.zone);
+        result.timing.transition_to_clock = a.timing.transition_to_clock;
+        result.timing.clock_to_transition = a.timing.clock_to_transition;
+        result.timing.zone = a.timing.zone.intersection(b.timing.zone);
         sync_zone_activity_with_sets(result);
         result.sync_clocks_from_zone();
         break;
       }
 
-      const size_t num_clocks = std::min(a.clocks.size(), b.clocks.size());
-      result.clocks.resize(num_clocks);
+      const size_t num_clocks = std::min(a.timing.clocks.size(), b.timing.clocks.size());
+      result.timing.clocks.resize(num_clocks);
 
       for (size_t i = 0; i < num_clocks; ++i) {
-        const TransitionClock& ca = a.clocks[i];
-        const TransitionClock& cb = b.clocks[i];
+        const TransitionClock& ca = a.timing.clocks[i];
+        const TransitionClock& cb = b.timing.clocks[i];
         TransitionClock cr;
 
         cr.lower_bound = std::max(ca.lower_bound, cb.lower_bound);
@@ -101,7 +101,7 @@ StateClass canonicalize(const StateClass& a, const StateClass& b,
           cr.state = (ca.state == cb.state) ? ca.state : ClockState::UNACTIVE;
         }
 
-        result.clocks[i] = cr;
+        result.timing.clocks[i] = cr;
       }
 
       result.rebuild_zone_from_clocks();
@@ -109,12 +109,12 @@ StateClass canonicalize(const StateClass& a, const StateClass& b,
     }
   }
 
-  result.state_id = std::max(a.state_id, b.state_id);
-  result.cumulative_time = std::max(a.cumulative_time, b.cumulative_time);
+  result.metadata.state_id = std::max(a.metadata.state_id, b.metadata.state_id);
+  result.metadata.cumulative_time = std::max(a.metadata.cumulative_time, b.metadata.cumulative_time);
   return result;
 }
 
-bool are_equivalent(const StateClass& a, const StateClass& b,
+bool are_equivalent(const ReachabilityState& a, const ReachabilityState& b,
                     CanonicalizationMode mode) {
   if (a.marking != b.marking) {
     return false;
@@ -128,25 +128,25 @@ bool are_equivalent(const StateClass& a, const StateClass& b,
   switch (mode) {
     case CanonicalizationMode::EQUALITY: {
       const bool has_dbm_identity =
-          a.zone.size() > 0 || b.zone.size() > 0 ||
-          !a.transition_to_clock.empty() || !b.transition_to_clock.empty() ||
-          !a.clock_to_transition.empty() || !b.clock_to_transition.empty();
+          a.timing.zone.size() > 0 || b.timing.zone.size() > 0 ||
+          !a.timing.transition_to_clock.empty() || !b.timing.transition_to_clock.empty() ||
+          !a.timing.clock_to_transition.empty() || !b.timing.clock_to_transition.empty();
       if (has_dbm_identity) {
-        return a.transition_to_clock == b.transition_to_clock &&
-               a.clock_to_transition == b.clock_to_transition &&
-               a.zone == b.zone;
+        return a.timing.transition_to_clock == b.timing.transition_to_clock &&
+               a.timing.clock_to_transition == b.timing.clock_to_transition &&
+               a.timing.zone == b.timing.zone;
       }
-      return a.clocks == b.clocks;
+      return a.timing.clocks == b.timing.clocks;
     }
 
     case CanonicalizationMode::MAX_LOWER_BOUND:
     case CanonicalizationMode::INTERSECTION:
-      if (a.clocks.size() != b.clocks.size()) {
+      if (a.timing.clocks.size() != b.timing.clocks.size()) {
         return false;
       }
-      for (size_t i = 0; i < a.clocks.size(); ++i) {
-        if (a.clocks[i].lower_bound != b.clocks[i].lower_bound ||
-            a.clocks[i].upper_bound != b.clocks[i].upper_bound) {
+      for (size_t i = 0; i < a.timing.clocks.size(); ++i) {
+        if (a.timing.clocks[i].lower_bound != b.timing.clocks[i].lower_bound ||
+            a.timing.clocks[i].upper_bound != b.timing.clocks[i].upper_bound) {
           return false;
         }
       }

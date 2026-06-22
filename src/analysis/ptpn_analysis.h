@@ -9,7 +9,7 @@
  * 用户通过此类接口进行状态空间构建和分析.
  *
  * 核心设计:
- * - 使用 StateClass（clocks/active/suspended）替代旧的 Z1/Z2 结构
+ * - 使用 ReachabilityState（clocks/active/suspended）替代旧的 Z1/Z2 结构
  * - 支持三种规范化模式:EQUALITY / MAX_LOWER_BOUND / INTERSECTION
  * - 时间推进仅作用于 active 时钟,suspended 时钟自动冻结
  * - 抢占/恢复语义显式管理
@@ -129,7 +129,7 @@ class PTPNAnalyzer {
    * @param state 当前状态（就地修改）
    * @return 推进的时间量
    */
-  double advance_time(StateClass& state) const;
+  double advance_time(ReachabilityState& state) const;
 
   /**
    * fire_with_time - 带时间的变迁激发
@@ -138,21 +138,21 @@ class PTPNAnalyzer {
    * @param from 起始状态
    * @return {是否成功, 新状态, 激发时间}
    */
-  std::tuple<bool, StateClass, double> fire_with_time(
-      size_t t, const StateClass& from) const;
+  std::tuple<bool, ReachabilityState, double> fire_with_time(
+      size_t t, const ReachabilityState& from) const;
 
   /**
    * recompute_enabled_sets - 重新计算使能/活跃/挂起集合
    *
    * @param state 目标状态
    */
-  void recompute_enabled_sets(StateClass& state) const;
+  void recompute_enabled_sets(ReachabilityState& state) const;
 
   /**
    * recompute_enabled_sets_from_marking - 从给定 marking 计算
    */
   void recompute_enabled_sets_from_marking(
-      const std::vector<int>& marking, StateClass& state) const;
+      const std::vector<int>& marking, ReachabilityState& state) const;
 
   /**
    * select_active_per_core - 选择每个核心上最高优先级变迁
@@ -169,22 +169,22 @@ class PTPNAnalyzer {
   /**
    * suspend_transition - 挂起变迁
    */
-  void suspend_transition(size_t t, StateClass& state) const;
+  void suspend_transition(size_t t, ReachabilityState& state) const;
 
   /**
    * restore_transition - 恢复变迁
    */
-  void restore_transition(size_t t, StateClass& state) const;
+  void restore_transition(size_t t, ReachabilityState& state) const;
 
   /**
    * canonicalize - 规范化两个状态
    */
-  StateClass canonicalize(const StateClass& a, const StateClass& b) const;
+  ReachabilityState canonicalize(const ReachabilityState& a, const ReachabilityState& b) const;
 
   /**
    * are_equivalent - 检查两个状态是否等价
    */
-  bool are_equivalent(const StateClass& a, const StateClass& b) const;
+  bool are_equivalent(const ReachabilityState& a, const ReachabilityState& b) const;
 
   /**
    * save_to_dot - 保存为 Graphviz DOT 格式
@@ -205,9 +205,9 @@ class PTPNAnalyzer {
   /**
    * create_initial_state - 创建初始状态
    *
-   * 从 PTPN 的初始标识创建 StateClass.
+   * 从 PTPN 的初始标识创建 ReachabilityState.
    */
-  [[nodiscard]] StateClass create_initial_state() const;
+  [[nodiscard]] ReachabilityState create_initial_state() const;
 
   /**
    * num_transitions - 变迁数量
@@ -305,22 +305,22 @@ PTPNAnalyzer::get_statistics() const {
   return graph_->get_statistics();
 }
 
-inline double PTPNAnalyzer::advance_time(StateClass& state) const {
+inline double PTPNAnalyzer::advance_time(ReachabilityState& state) const {
   return graph_->advance_time(state);
 }
 
-inline std::tuple<bool, StateClass, double>
-PTPNAnalyzer::fire_with_time(size_t t, const StateClass& from) const {
+inline std::tuple<bool, ReachabilityState, double>
+PTPNAnalyzer::fire_with_time(size_t t, const ReachabilityState& from) const {
   return graph_->fire_with_time(t, from);
 }
 
 inline void PTPNAnalyzer::recompute_enabled_sets(
-    StateClass& state) const {
+    ReachabilityState& state) const {
   graph_->recompute_enabled_sets(state);
 }
 
 inline void PTPNAnalyzer::recompute_enabled_sets_from_marking(
-    const std::vector<int>& marking, StateClass& state) const {
+    const std::vector<int>& marking, ReachabilityState& state) const {
   graph_->recompute_enabled_sets_from_marking(marking, state);
 }
 
@@ -336,22 +336,22 @@ inline std::set<size_t> PTPNAnalyzer::compute_suspended(
 }
 
 inline void PTPNAnalyzer::suspend_transition(
-    size_t t, StateClass& state) const {
+    size_t t, ReachabilityState& state) const {
   graph_->suspend_transition(t, state);
 }
 
 inline void PTPNAnalyzer::restore_transition(
-    size_t t, StateClass& state) const {
+    size_t t, ReachabilityState& state) const {
   graph_->restore_transition(t, state);
 }
 
-inline StateClass PTPNAnalyzer::canonicalize(
-    const StateClass& a, const StateClass& b) const {
+inline ReachabilityState PTPNAnalyzer::canonicalize(
+    const ReachabilityState& a, const ReachabilityState& b) const {
   return graph_->canonicalize(a, b);
 }
 
 inline bool PTPNAnalyzer::are_equivalent(
-    const StateClass& a, const StateClass& b) const {
+    const ReachabilityState& a, const ReachabilityState& b) const {
   return graph_->are_equivalent(a, b);
 }
 
@@ -365,7 +365,7 @@ inline bool PTPNAnalyzer::save_to_json(
   return graph_->save_to_json(file_path);
 }
 
-inline StateClass PTPNAnalyzer::create_initial_state() const {
+inline ReachabilityState PTPNAnalyzer::create_initial_state() const {
   return graph_->create_initial_state();
 }
 

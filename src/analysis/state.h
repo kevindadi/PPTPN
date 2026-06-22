@@ -12,7 +12,7 @@
 namespace state_class {
 
 // Forward declarations
-struct StateClass;
+struct ReachabilityState;
 struct StateKey;
 struct StateKeyHash;
 struct TransitionEdge;
@@ -73,6 +73,21 @@ struct SchedulingState {
   }
 };
 
+// SearchMetadata — 可达图构造过程中的搜索元数据.
+//
+// 这些字段只用于标识与调试/导出输出,不属于状态语义,也不参与状态等价/去重
+// (见 ReachabilityState::operator== / operator< / StateKeyHash 均不比较本部分).
+// 单独成一个类型,使"不参与等价"这一约束在类型层面可见（设计文档分层第 4 关注点）.
+struct SearchMetadata {
+  double cumulative_time = 0.0;  // 累计时间（仅元数据,不参与等价）
+  size_t state_id = 0;           // 状态 ID（仅元数据,不参与等价）
+
+  void clear() {
+    cumulative_time = 0.0;
+    state_id = 0;
+  }
+};
+
 // Symbolic state used during reachability construction.
 //
 // 语义上由三个关注点决定（与设计文档的分层一致）:
@@ -80,35 +95,74 @@ struct SchedulingState {
 //   2. 时间 (clocks / zone / 映射)   : symbolic timing constraints
 //   3. 调度 (scheduling)             : derived scheduling projection
 //
-// cumulative_time / state_id 属于 search metadata,不参与状态等价.
-struct StateClass {
-  std::vector<int> marking;                      // Petri 网标识
-  std::vector<TransitionClock> clocks;           // 迁移期兼容/调试视图
-  DBM zone;                                     // 主时间语义表示
-  std::vector<int> transition_to_clock;         // transition id -> DBM clock idx
-  std::vector<size_t> clock_to_transition;      // DBM clock idx -> transition id
+// metadata (cumulative_time / state_id) 属于 search metadata,不参与状态等价.
+
+// TimingState — 符号时间部分.
+//
+// 这一部分承载状态的时间语义: DBM zone 是主表示,clocks 是按迁移 id 的
+// 兼容/调试视图,transition_to_clock / clock_to_transition 是迁移 id 与 DBM
+// 时钟下标之间的双向映射. 单独成一个类型,使状态等价/去重可以把"时间"作为
+// 一个整体关注点比较（见设计文档 invariant #6）.
+//
+// 注意: StateKey 出于哈希需要保留自己扁平的 transition_to_clock /
+// clock_to_transition / zone_matrix / frozen_clocks 布局,与本类型无关.
+struct TimingState {
+  std::vector<TransitionClock> clocks;        // 迁移期兼容/调试视图
+  DBM zone;                                  // 主时间语义表示
+  std::vector<int> transition_to_clock;       // transition id -> DBM clock idx
+  std::vector<size_t> clock_to_transition;    // DBM clock idx -> transition id
+
+  bool operator==(const TimingState& other) const {
+    return clocks == other.clocks && zone == other.zone &&
+           transition_to_clock == other.transition_to_clock &&
+           clock_to_transition == other.clock_to_transition;
+  }
+
+  // 保持与原 ReachabilityState::operator< 完全一致的子顺序:
+  //   transition_to_clock, clock_to_transition, zone, clocks.
+  bool operator<(const TimingState& other) const {
+    if (transition_to_clock < other.transition_to_clock) return true;
+    if (other.transition_to_clock < transition_to_clock) return false;
+    if (clock_to_transition < other.clock_to_transition) return true;
+    if (other.clock_to_transition < clock_to_transition) return false;
+    if (zone < other.zone) return true;
+    if (other.zone < zone) return false;
+    return clocks < other.clocks;
+  }
+
+  void clear() {
+    clocks.clear();
+    zone = DBM{};
+    transition_to_clock.clear();
+    clock_to_transition.clear();
+  }
+};
+
+struct ReachabilityState {
+  std::vector<int> marking;     // Petri 网标识
+
+  TimingState timing;           // 符号时间（DBM / clocks / 映射）
 
   SchedulingState scheduling;   // 调度投影（派生视图,不是核行为）
 
-  double cumulative_time;  // 累计时间（不参与状态等价）
-  size_t state_id;        // 状态 ID
+  SearchMetadata metadata;      // 搜索元数据（不参与状态等价）
 
-  StateClass() : cumulative_time(0.0), state_id(0) {}
+  ReachabilityState() = default;
 
-  explicit StateClass(const std::vector<int>& m, size_t num_transitions = 0)
-      : marking(m), state_id(0), cumulative_time(0.0) {
+  explicit ReachabilityState(const std::vector<int>& m, size_t num_transitions = 0)
+      : marking(m) {
     if (num_transitions > 0) {
-      clocks.resize(num_transitions);
+      timing.clocks.resize(num_transitions);
     }
   }
 
-  StateClass(const StateClass& other) = default;
-  StateClass& operator=(const StateClass& other) = default;
+  ReachabilityState(const ReachabilityState& other) = default;
+  ReachabilityState& operator=(const ReachabilityState& other) = default;
 
-  bool operator==(const StateClass& other) const;
-  bool operator<(const StateClass& other) const;
+  bool operator==(const ReachabilityState& other) const;
+  bool operator<(const ReachabilityState& other) const;
 
-  [[nodiscard]] StateClass copy() const;
+  [[nodiscard]] ReachabilityState copy() const;
   [[nodiscard]] std::string to_string() const;
 
   void rebuild_zone_from_clocks();
@@ -126,8 +180,8 @@ struct StateClass {
   [[nodiscard]] int get_next_deadline() const {
     int min_deadline = INF_TIME;
     for (size_t t : scheduling.active) {
-      if (t < clocks.size()) {
-        min_deadline = std::min(min_deadline, clocks[t].upper_bound);
+      if (t < timing.clocks.size()) {
+        min_deadline = std::min(min_deadline, timing.clocks[t].upper_bound);
       }
     }
     return min_deadline;
@@ -158,7 +212,7 @@ struct StateKeyHash {
 
 struct SuccessorCandidate {
   StateKey source_key;
-  StateClass state;
+  ReachabilityState state;
   TransitionEdge edge;
   size_t transition_id = 0;
 };

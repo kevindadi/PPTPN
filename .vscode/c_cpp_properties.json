@@ -13,7 +13,7 @@
         "${workspaceFolder}/build/_deps/fmt-src/include",
         "${workspaceFolder}/build/vcpkg_installed/x64-linux/include"
       ],
-      "intelliSenseMode": "linux-gcc-x64"
+      "intelliSenseMode": "gcc-x64"
     },
     {
       "name": "PToPNer (Linux, compile_commands)",
@@ -21,7 +21,7 @@
       "compilerPath": "/usr/bin/c++",
       "cStandard": "c17",
       "cppStandard": "c++17",
-      "intelliSenseMode": "linux-gcc-x64"
+      "intelliSenseMode": "gcc-x64"
     }
   ],
   "version": 4
