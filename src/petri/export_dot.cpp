@@ -75,8 +75,10 @@ std::string format_transition_label(const ExportTransition& transition) {
              "  core=" + std::to_string(transition.core);
   }
 
-  label += "\nI=[" + format_int_or_infinity(transition.earliest) + ", " +
-           format_int_or_infinity(transition.latest) + "]";
+  label += "\nI=[" + std::string(transition.left_open ? "(" : "[") +
+           format_int_or_infinity(transition.earliest) + ", " +
+           format_int_or_infinity(transition.latest) +
+           std::string(transition.right_open ? ")" : "]");
   return label;
 }
 

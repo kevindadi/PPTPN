@@ -34,6 +34,8 @@ struct ExportTransition {
   std::string name;
   int earliest = 0;
   int latest = std::numeric_limits<int>::max();
+  bool left_open = false;
+  bool right_open = false;
   int priority = std::numeric_limits<int>::max();
   int core = petri::kControlTransitionCore;
   bool suspendable = false;
