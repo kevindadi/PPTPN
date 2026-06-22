@@ -170,6 +170,15 @@ bool PTPNParser::validate(const PTPNAST& ast, std::string& error) {
       error = "Invalid time range for transition: " + trans.id;
       return false;
     }
+    const petri::TimeInterval interval(
+        trans.time_min,
+        trans.time_max,
+        trans.left_open,
+        trans.right_open);
+    if (!interval.is_valid()) {
+      error = "Invalid or empty integer time range for transition: " + trans.id;
+      return false;
+    }
   }
 
   std::unordered_map<std::string, bool> node_is_place;
@@ -364,7 +373,7 @@ bool PTPNParser::parse(const std::string& input, PTPNAST& ast, std::string& erro
             }
           }
 
-          if (!std::isalpha(*it) && *it != '_' && *it != '[' && *it != '@') {
+          if (!std::isalpha(*it) && *it != '_' && *it != '[' && *it != '(' && *it != '@') {
             ++it;
             continue;
           }
@@ -385,7 +394,8 @@ bool PTPNParser::parse(const std::string& input, PTPNAST& ast, std::string& erro
             skip_whitespace_and_comments(it, end);
           }
 
-          if (it != end && *it == '[') {
+          if (it != end && (*it == '[' || *it == '(')) {
+            trans.left_open = (*it == '(');
             ++it;
             skip_whitespace_and_comments(it, end);
             trans.time_min = read_number(it, end);
@@ -397,7 +407,9 @@ bool PTPNParser::parse(const std::string& input, PTPNAST& ast, std::string& erro
               trans.time_max = read_number(it, end);
             }
 
-            if (it != end && *it == ']') {
+            skip_whitespace_and_comments(it, end);
+            if (it != end && (*it == ']' || *it == ')')) {
+              trans.right_open = (*it == ')');
               ++it;
             }
           }
@@ -500,7 +512,11 @@ petri::PTPN PTPNBuilder::build(const PTPNAST& ast) {
     const auto& t = ast.transitions[i];
     transition_index[t.id] = i;
     const std::string name = t.name.empty() ? t.id : t.name;
-    const petri::TimeInterval interval(t.time_min, t.time_max);
+    const petri::TimeInterval interval(
+        t.time_min,
+        t.time_max,
+        t.left_open,
+        t.right_open);
     ptpn.add_transition(name, interval, t.priority, t.core, t.suspendable);
   }
 
