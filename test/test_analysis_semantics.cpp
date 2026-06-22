@@ -2,6 +2,8 @@
 
 #include <boost/graph/adjacency_list.hpp>
 
+#include "analysis/clock_state.h"
+#include "analysis/dbm.h"
 #include "analysis/ptpn_analysis.h"
 #include "petri/petri.h"
 
@@ -65,4 +67,74 @@ TEST(PtpnAnalysisSemanticsTest, OpenLowerBoundDelaysFiringByOneTick) {
   state_class::PTPNAnalyzer analyzer(ptpn);
   auto state = analyzer.create_initial_state();
   EXPECT_DOUBLE_EQ(2.0, analyzer.advance_time(state));
+}
+
+TEST(PtpnAnalysisSemanticsTest, FutureRemovesOnlyUnfrozenLowerBounds) {
+  state_class::DBM dbm(3);
+  dbm.set_constraint(0, 1, -2);
+  dbm.set_constraint(0, 2, -4);
+  dbm.freeze_clock(2);
+
+  state_class::reset_dbm_instrumentation();
+
+  dbm.future();
+
+  EXPECT_EQ(dbm.get_constraint(0, 1), state_class::INF_TIME);
+  EXPECT_EQ(dbm.get_constraint(0, 2), -4);
+  EXPECT_EQ(dbm.get_constraint(1, 0), state_class::INF_TIME);
+  EXPECT_EQ(dbm.get_constraint(2, 0), state_class::INF_TIME);
+  EXPECT_EQ(state_class::get_dbm_instrumentation().minimize_calls, 1u);
+}
+
+TEST(PtpnAnalysisSemanticsTest, ConstrainUpperBoundOnlyTightensFiniteBounds) {
+  state_class::DBM dbm(2);
+  dbm.set_constraint(1, 0, 9);
+
+  state_class::reset_dbm_instrumentation();
+
+  dbm.constrain_upper_bound(1, 7);
+  EXPECT_EQ(dbm.get_constraint(1, 0), 7);
+
+  dbm.constrain_upper_bound(1, 8);
+  EXPECT_EQ(dbm.get_constraint(1, 0), 7);
+
+  dbm.constrain_upper_bound(1, state_class::INF_TIME);
+  EXPECT_EQ(dbm.get_constraint(1, 0), 7);
+
+  dbm.constrain_upper_bound(3, 5);
+  EXPECT_EQ(dbm.get_constraint(1, 0), 7);
+  EXPECT_EQ(state_class::get_dbm_instrumentation().minimize_calls, 1u);
+}
+
+TEST(PtpnAnalysisSemanticsTest, ConstrainUpperBoundLeavesInfiniteBoundsUnchanged) {
+  state_class::DBM dbm(2);
+
+  state_class::reset_dbm_instrumentation();
+
+  dbm.constrain_upper_bound(1, 6);
+
+  EXPECT_EQ(dbm.get_constraint(1, 0), state_class::INF_TIME);
+  EXPECT_EQ(state_class::get_dbm_instrumentation().minimize_calls, 0u);
+}
+
+TEST(PtpnAnalysisSemanticsTest, SynchronizeClocksForcesPairwiseEquality) {
+  state_class::DBM dbm(4);
+  dbm.set_constraint(1, 2, 5);
+  dbm.set_constraint(2, 1, 3);
+  dbm.set_constraint(1, 3, 8);
+  dbm.set_constraint(3, 1, 1);
+  dbm.set_constraint(2, 3, 7);
+  dbm.set_constraint(3, 2, 6);
+
+  state_class::reset_dbm_instrumentation();
+
+  dbm.synchronize_clocks({1, 2, 3, 9});
+
+  EXPECT_EQ(dbm.get_constraint(1, 2), 0);
+  EXPECT_EQ(dbm.get_constraint(2, 1), 0);
+  EXPECT_EQ(dbm.get_constraint(1, 3), 0);
+  EXPECT_EQ(dbm.get_constraint(3, 1), 0);
+  EXPECT_EQ(dbm.get_constraint(2, 3), 0);
+  EXPECT_EQ(dbm.get_constraint(3, 2), 0);
+  EXPECT_EQ(state_class::get_dbm_instrumentation().minimize_calls, 1u);
 }

@@ -216,6 +216,29 @@ void DBM::elapse_time(int delta) {
   }
 }
 
+void DBM::future() {
+  if (clock_count_ <= 1) {
+    return;
+  }
+
+  bool changed = false;
+  for (size_t i = 1; i < clock_count_; ++i) {
+    if (is_frozen(i)) {
+      continue;
+    }
+
+    const size_t lower_bound_offset = offset(0, i);
+    if (matrix_[lower_bound_offset] != INF_TIME) {
+      matrix_[lower_bound_offset] = INF_TIME;
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    minimize();
+  }
+}
+
 void DBM::reset_clock(size_t clock_idx) {
   check_index(clock_idx, clock_idx);
 
@@ -465,6 +488,53 @@ DBM DBM::restrict_clock(size_t clock_idx, int alpha, int beta) const {
   }
 
   return result;
+}
+
+void DBM::constrain_upper_bound(size_t clock_idx, int beta) {
+  if (clock_idx >= clock_count_ || beta == INF_TIME) {
+    return;
+  }
+
+  const size_t upper_bound_offset = offset(clock_idx, 0);
+  const int current_upper = matrix_[upper_bound_offset];
+  if (current_upper != INF_TIME && beta < current_upper) {
+    matrix_[upper_bound_offset] = beta;
+    minimize();
+  }
+}
+
+void DBM::synchronize_clocks(const std::vector<size_t>& clock_indices) {
+  if (clock_indices.size() < 2) {
+    return;
+  }
+
+  bool changed = false;
+  for (size_t left = 0; left < clock_indices.size(); ++left) {
+    const size_t first = clock_indices[left];
+    if (first >= clock_count_) {
+      continue;
+    }
+
+    for (size_t right = left + 1; right < clock_indices.size(); ++right) {
+      const size_t second = clock_indices[right];
+      if (second >= clock_count_) {
+        continue;
+      }
+
+      if (matrix_[offset(first, second)] != 0) {
+        matrix_[offset(first, second)] = 0;
+        changed = true;
+      }
+      if (matrix_[offset(second, first)] != 0) {
+        matrix_[offset(second, first)] = 0;
+        changed = true;
+      }
+    }
+  }
+
+  if (changed) {
+    minimize();
+  }
 }
 
 DBM DBM::restrict_for_firing(size_t transition_id, int alpha, int beta) const {

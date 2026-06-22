@@ -32,11 +32,14 @@ class DBM {
   size_t add_clock();
   void resize(size_t new_size);
   void elapse_time(int delta);
+  void future();
   void reset_clock(size_t clock_idx);
   void forget_clock(size_t clock_idx);
   void remove_clock(size_t clock_idx);
   [[nodiscard]] DBM restrict_clock(size_t clock_idx, int alpha,
                                    int beta) const;
+  void constrain_upper_bound(size_t clock_idx, int beta);
+  void synchronize_clocks(const std::vector<size_t>& clock_indices);
   [[nodiscard]] DBM restrict_for_firing(size_t transition_id, int alpha,
                                         int beta) const;
   void freeze_clock(size_t clock_idx);
