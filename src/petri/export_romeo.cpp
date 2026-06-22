@@ -92,8 +92,10 @@ std::string format_int_or_infinity(int value) {
 }
 
 std::string format_interval(const ExportTransition& transition) {
-  return "[" + format_int_or_infinity(transition.earliest) + "," +
-         format_int_or_infinity(transition.latest) + "]";
+  return std::string(transition.left_open ? "(" : "[") +
+         format_int_or_infinity(transition.earliest) + "," +
+         format_int_or_infinity(transition.latest) +
+         std::string(transition.right_open ? ")" : "]");
 }
 
 bool has_explicit_priority(const ExportTransition& transition) {

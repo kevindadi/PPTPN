@@ -19,6 +19,8 @@ struct TransitionNode {
   std::string name;
   int time_min = 0;
   int time_max = 0;
+  bool left_open = false;
+  bool right_open = false;
   int priority = 0;
   int core = -1;
   bool suspendable = false;

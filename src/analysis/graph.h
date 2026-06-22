@@ -19,7 +19,7 @@ namespace state_class {
 
 typedef boost::adjacency_list<
     boost::vecS, boost::vecS, boost::directedS,
-    boost::property<boost::vertex_name_t, StateClass>,
+    boost::property<boost::vertex_name_t, ReachabilityState>,
     boost::property<boost::edge_name_t, TransitionEdge> >
     SCGraph;
 
@@ -74,7 +74,7 @@ class StateClassReachabilityGraph {
 
 
   [[nodiscard]] SCVertex get_initial_vertex() const { return initial_vertex_; }
-  [[nodiscard]] StateClass create_initial_state();
+  [[nodiscard]] ReachabilityState create_initial_state();
 
 
   /**
@@ -93,7 +93,7 @@ class StateClassReachabilityGraph {
    *   4. cumulative_time += min_ub
    *   5. return min_ub
    */
-  double advance_time(StateClass& state) const;
+  double advance_time(ReachabilityState& state) const;
 
   /**
    * fire_with_time - 带时间的变迁激发
@@ -104,8 +104,8 @@ class StateClassReachabilityGraph {
    * @param from 起始状态
    * @return {是否成功, 新状态, 激发时间}
    */
-  std::tuple<bool, StateClass, double> fire_with_time(
-      size_t t, const StateClass& from) const;
+  std::tuple<bool, ReachabilityState, double> fire_with_time(
+      size_t t, const ReachabilityState& from) const;
 
   /**
    * recompute_enabled_sets - 重新计算使能/活跃/挂起集合
@@ -115,7 +115,7 @@ class StateClassReachabilityGraph {
    *
    * @param state 当前状态（就地修改 marking 域）
    */
-  void recompute_enabled_sets(StateClass& state) const;
+  void recompute_enabled_sets(ReachabilityState& state) const;
 
   /**
    * recompute_enabled_sets_from_marking - 从给定 marking 计算
@@ -124,11 +124,11 @@ class StateClassReachabilityGraph {
    * @param state 目标状态（会修改 marking, enabled, active, suspended）
    */
   void recompute_enabled_sets_from_marking(const std::vector<int>& marking,
-                                           StateClass& state) const;
+                                           ReachabilityState& state) const;
 
 
   void recompute_enabled_sets_from_marking(const std::vector<int>& marking,
-                                           StateClass& state,
+                                           ReachabilityState& state,
                                            const std::set<size_t>& force_reset_transitions) const;
 
 
@@ -140,8 +140,10 @@ class StateClassReachabilityGraph {
 
   /**
    * compute_firing_time - 变迁在当前状态下的最早可发生时间;不可发生返回 -1
+   *
+   * 对 strict 端点先按整数时间域归一化为有效上下界后再计算.
    */
-  [[nodiscard]] int compute_firing_time(const StateClass& state,
+  [[nodiscard]] int compute_firing_time(const ReachabilityState& state,
                                         size_t transition) const;
 
   /**
@@ -162,12 +164,12 @@ class StateClassReachabilityGraph {
    * @param b 状态 B
    * @return 规范化后的状态
    */
-  StateClass canonicalize(const StateClass& a, const StateClass& b) const;
+  ReachabilityState canonicalize(const ReachabilityState& a, const ReachabilityState& b) const;
 
   /**
    * are_equivalent - 检查两个状态是否在当前模式下等价
    */
-  bool are_equivalent(const StateClass& a, const StateClass& b) const;
+  bool are_equivalent(const ReachabilityState& a, const ReachabilityState& b) const;
 
 
   /**
@@ -178,7 +180,7 @@ class StateClassReachabilityGraph {
    * @param t 变迁索引
    * @param state 目标状态
    */
-  void suspend_transition(size_t t, StateClass& state) const;
+  void suspend_transition(size_t t, ReachabilityState& state) const;
 
   /**
    * restore_transition - 恢复变迁
@@ -188,7 +190,7 @@ class StateClassReachabilityGraph {
    * @param t 变迁索引
    * @param state 目标状态
    */
-  void restore_transition(size_t t, StateClass& state) const;
+  void restore_transition(size_t t, ReachabilityState& state) const;
 
 
   struct Statistics {
@@ -217,15 +219,15 @@ class StateClassReachabilityGraph {
 
   CanonicalizationMode canonicalization_mode_ = CanonicalizationMode::EQUALITY;
 
-  [[nodiscard]] bool is_transition_enabled(const StateClass& state,
+  [[nodiscard]] bool is_transition_enabled(const ReachabilityState& state,
                                           size_t trans_idx) const;
 
-  std::pair<int, int> get_transition_time_bounds(const StateClass& state,
+  std::pair<int, int> get_transition_time_bounds(const ReachabilityState& state,
                                                  size_t trans_idx) const;
 
   std::vector<size_t> select_per_core(const std::set<size_t>& enabled) const;
   void apply_preemption(const std::vector<size_t>& chosen,
-                       StateClass& state) const;
+                       ReachabilityState& state) const;
 
   std::set<size_t> compute_effective_enabled(
       const std::vector<size_t>& raw_enabled) const;
@@ -233,21 +235,21 @@ class StateClassReachabilityGraph {
       const std::vector<size_t>& raw_enabled,
       const std::set<size_t>& effective_enabled) const;
 
-  bool maximal_time_elapse(StateClass& state, double& dt) const;
+  bool maximal_time_elapse(ReachabilityState& state, double& dt) const;
 
-  std::tuple<bool, StateClass, double> fire_with_dbm(
-      size_t trans_idx, const StateClass& from_state) const;
+  std::tuple<bool, ReachabilityState, double> fire_with_dbm(
+      size_t trans_idx, const ReachabilityState& from_state) const;
 
-  void compute_enabled_and_clocks(StateClass& state);
+  void compute_enabled_and_clocks(ReachabilityState& state);
 
   bool is_suspended(size_t trans_idx, const std::vector<size_t>& enabled) const;
 
-  void recompute_suspension(StateClass& state) const;
+  void recompute_suspension(ReachabilityState& state) const;
   std::vector<size_t> collect_enabled_transitions(
-      const StateClass& state) const;
+      const ReachabilityState& state) const;
 
-  SCVertex find_or_add_vertex(const StateClass& state);
-  StateExpansionResult expand_state_candidates(const StateClass& cur);
+  SCVertex find_or_add_vertex(const ReachabilityState& state);
+  StateExpansionResult expand_state_candidates(const ReachabilityState& cur);
 
   static std::string format_marking(const std::vector<int>& marking);
   std::string format_transitions(const std::set<size_t>& trans_indices,
@@ -255,7 +257,7 @@ class StateClassReachabilityGraph {
 
   std::string format_places(const std::vector<int>& marking) const;
 
-  void log_state_class_details(const StateClass& state,
+  void log_state_class_details(const ReachabilityState& state,
                               const std::string& prefix = "") const;
 
   size_t next_state_id_ = 0;

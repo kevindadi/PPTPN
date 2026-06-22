@@ -305,4 +305,67 @@ T0 -> Exit
   EXPECT_EQ(1, ptpn.num_transitions());
 }
 
+TEST_F(PTPNParserTest, ParseTransitionsWithStrictLeftEndpoint) {
+  PTPNAST ast;
+  std::string error;
+
+  ASSERT_TRUE(PTPNParser::parse("transitions T0 (1, 5]", ast, error)) << error;
+  ASSERT_EQ(1, ast.transitions.size());
+  EXPECT_TRUE(ast.transitions[0].left_open);
+  EXPECT_FALSE(ast.transitions[0].right_open);
+  EXPECT_EQ(1, ast.transitions[0].time_min);
+  EXPECT_EQ(5, ast.transitions[0].time_max);
+}
+
+TEST_F(PTPNParserTest, ParseTransitionsWithStrictRightEndpoint) {
+  PTPNAST ast;
+  std::string error;
+
+  ASSERT_TRUE(PTPNParser::parse("transitions T0 [1, 5)", ast, error)) << error;
+  ASSERT_EQ(1, ast.transitions.size());
+  EXPECT_FALSE(ast.transitions[0].left_open);
+  EXPECT_TRUE(ast.transitions[0].right_open);
+}
+
+TEST_F(PTPNParserTest, ParseTransitionsWithBothOpenEndpoints) {
+  PTPNAST ast;
+  std::string error;
+
+  ASSERT_TRUE(PTPNParser::parse("transitions T0 (1, 5)", ast, error)) << error;
+  EXPECT_TRUE(ast.transitions[0].left_open);
+  EXPECT_TRUE(ast.transitions[0].right_open);
+}
+
+TEST_F(PTPNParserTest, RejectEmptyStrictIntegerInterval) {
+  PTPNAST ast;
+  std::string error;
+
+  EXPECT_FALSE(PTPNParser::parse("transitions T0 (1, 2)", ast, error));
+  EXPECT_NE(std::string::npos, error.find("empty integer time range"));
+}
+
+TEST_F(PTPNParserTest, StrictLeftEndpointInclusiveRightRegression) {
+  PTPNAST ast;
+  std::string error;
+
+  ASSERT_TRUE(PTPNParser::parse("transitions T0 [1, 5]", ast, error)) << error;
+  ASSERT_EQ(1, ast.transitions.size());
+  EXPECT_FALSE(ast.transitions[0].left_open);
+  EXPECT_FALSE(ast.transitions[0].right_open);
+  EXPECT_EQ(1, ast.transitions[0].time_min);
+  EXPECT_EQ(5, ast.transitions[0].time_max);
+}
+
+TEST_F(PTPNParserTest, BuilderPreservesStrictIntervalMetadata) {
+  const auto ptpn = PTPNBuilder::parse("transitions T0 (1, 5] ");
+  ASSERT_FALSE(PTPNBuilder::has_error());
+  ASSERT_EQ(1, ptpn.num_transitions());
+  const auto& transition = ptpn.get_transition(0);
+
+  EXPECT_TRUE(transition.time_interval.left_open);
+  EXPECT_FALSE(transition.time_interval.right_open);
+  EXPECT_EQ(2, transition.time_interval.effective_earliest());
+  EXPECT_EQ(5, transition.time_interval.effective_latest());
+}
+
 }  // namespace parser

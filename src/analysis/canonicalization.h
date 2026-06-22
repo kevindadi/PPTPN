@@ -10,14 +10,14 @@ enum class CanonicalizationMode {
 };
 
 // 前向声明
-struct StateClass;
+struct ReachabilityState;
 
 // 规范化两个状态
-StateClass canonicalize(const StateClass& a, const StateClass& b,
+ReachabilityState canonicalize(const ReachabilityState& a, const ReachabilityState& b,
                         CanonicalizationMode mode);
 
 // 检查两个状态是否在给定模式下等价
-bool are_equivalent(const StateClass& a, const StateClass& b,
+bool are_equivalent(const ReachabilityState& a, const ReachabilityState& b,
                     CanonicalizationMode mode);
 
 }  // namespace state_class

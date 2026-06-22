@@ -23,8 +23,14 @@ constexpr int kControlTransitionCore = -1;
 struct TimeInterval {
   int earliest;
   int latest;
+  bool left_open;
+  bool right_open;
 
-  TimeInterval(int e = 0, int l = INF) : earliest(e), latest(l) {
+  TimeInterval(int e = 0, int l = INF,
+               bool left_open = false,
+               bool right_open = false)
+      : earliest(e), latest(l),
+        left_open(left_open), right_open(right_open) {
     if (earliest < 0) {
       throw std::invalid_argument("earliest time must be non-negative");
     }
@@ -33,23 +39,41 @@ struct TimeInterval {
     }
   }
 
+  [[nodiscard]] int effective_earliest() const {
+    return left_open ? earliest + 1 : earliest;
+  }
+
+  [[nodiscard]] int effective_latest() const {
+    if (latest == INF) {
+      return INF;
+    }
+    return right_open ? latest - 1 : latest;
+  }
+
+  [[nodiscard]] bool has_non_empty_integer_domain() const {
+    return effective_latest() == INF || effective_earliest() <= effective_latest();
+  }
+
   [[nodiscard]] bool is_valid() const {
-    return earliest >= 0 && (latest == INF || latest >= earliest);
+    return earliest >= 0 &&
+           (latest == INF || latest >= earliest) &&
+           has_non_empty_integer_domain();
   }
 
   [[nodiscard]] bool contains(int time) const {
-    return time >= earliest && (latest == INF || time <= latest);
+    return time >= effective_earliest() &&
+           (effective_latest() == INF || time <= effective_latest());
   }
 
   [[nodiscard]] std::string to_string() const {
     std::ostringstream oss;
-    oss << "[" << earliest << ", ";
+    oss << (left_open ? "(" : "[") << earliest << ", ";
     if (latest == INF) {
       oss << "∞";
     } else {
       oss << latest;
     }
-    oss << "]";
+    oss << (right_open ? ")" : "]");
     return oss.str();
   }
 };

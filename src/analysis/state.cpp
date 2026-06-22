@@ -12,40 +12,20 @@ void hash_combine(size_t& seed, size_t value) {
 }
 }  // namespace
 
-bool StateClass::operator==(const StateClass& other) const {
+bool ReachabilityState::operator==(const ReachabilityState& other) const {
   return marking == other.marking &&
-         clocks == other.clocks &&
-         zone == other.zone &&
-         transition_to_clock == other.transition_to_clock &&
-         clock_to_transition == other.clock_to_transition &&
-         enabled == other.enabled &&
-         active == other.active &&
-         suspended == other.suspended;
+         timing == other.timing &&
+         scheduling == other.scheduling;
 }
 
-bool StateClass::operator<(const StateClass& other) const {
+bool ReachabilityState::operator<(const ReachabilityState& other) const {
   if (marking < other.marking) return true;
   if (other.marking < marking) return false;
 
-  if (transition_to_clock < other.transition_to_clock) return true;
-  if (other.transition_to_clock < transition_to_clock) return false;
+  if (timing < other.timing) return true;
+  if (other.timing < timing) return false;
 
-  if (clock_to_transition < other.clock_to_transition) return true;
-  if (other.clock_to_transition < clock_to_transition) return false;
-
-  if (zone < other.zone) return true;
-  if (other.zone < zone) return false;
-
-  if (clocks < other.clocks) return true;
-  if (other.clocks < clocks) return false;
-
-  if (enabled < other.enabled) return true;
-  if (other.enabled < enabled) return false;
-
-  if (active < other.active) return true;
-  if (other.active < active) return false;
-
-  return suspended < other.suspended;
+  return scheduling < other.scheduling;
 }
 
 size_t StateKeyHash::operator()(const StateKey& key) const {
@@ -68,37 +48,31 @@ size_t StateKeyHash::operator()(const StateKey& key) const {
   for (size_t value : key.frozen_clocks) {
     hash_combine(seed, size_hash(value));
   }
-  for (size_t value : key.enabled) {
+  for (size_t value : key.scheduling.enabled) {
     hash_combine(seed, size_hash(value));
   }
-  for (size_t value : key.active) {
+  for (size_t value : key.scheduling.active) {
     hash_combine(seed, size_hash(value));
   }
-  for (size_t value : key.suspended) {
+  for (size_t value : key.scheduling.suspended) {
     hash_combine(seed, size_hash(value));
   }
 
   return seed;
 }
 
-StateClass StateClass::copy() const {
-  StateClass result;
+ReachabilityState ReachabilityState::copy() const {
+  ReachabilityState result;
   result.marking = marking;
-  result.clocks = clocks;
-  result.zone = zone;
-  result.transition_to_clock = transition_to_clock;
-  result.clock_to_transition = clock_to_transition;
-  result.state_id = state_id;
-  result.cumulative_time = cumulative_time;
-  result.enabled = enabled;
-  result.active = active;
-  result.suspended = suspended;
+  result.timing = timing;
+  result.metadata = metadata;
+  result.scheduling = scheduling;
   return result;
 }
 
-std::string StateClass::to_string() const {
+std::string ReachabilityState::to_string() const {
   std::ostringstream oss;
-  oss << "StateClass(id=" << state_id << ", time=" << cumulative_time << ")\n";
+  oss << "ReachabilityState(id=" << metadata.state_id << ", time=" << metadata.cumulative_time << ")\n";
   oss << "  Marking: [";
   for (size_t i = 0; i < marking.size(); ++i) {
     if (i > 0) oss << ", ";
@@ -107,108 +81,108 @@ std::string StateClass::to_string() const {
   oss << "]\n";
 
   oss << "  Enabled: {";
-  for (auto it = enabled.begin(); it != enabled.end(); ++it) {
-    if (it != enabled.begin()) oss << ", ";
+  for (auto it = scheduling.enabled.begin(); it != scheduling.enabled.end(); ++it) {
+    if (it != scheduling.enabled.begin()) oss << ", ";
     oss << *it;
   }
   oss << "}\n";
 
   oss << "  Active: {";
-  for (auto it = active.begin(); it != active.end(); ++it) {
-    if (it != active.begin()) oss << ", ";
+  for (auto it = scheduling.active.begin(); it != scheduling.active.end(); ++it) {
+    if (it != scheduling.active.begin()) oss << ", ";
     oss << *it;
   }
   oss << "}\n";
 
   oss << "  Suspended: {";
-  for (auto it = suspended.begin(); it != suspended.end(); ++it) {
-    if (it != suspended.begin()) oss << ", ";
+  for (auto it = scheduling.suspended.begin(); it != scheduling.suspended.end(); ++it) {
+    if (it != scheduling.suspended.begin()) oss << ", ";
     oss << *it;
   }
   oss << "}\n";
 
   oss << "  Clocks:\n";
-  for (size_t i = 0; i < clocks.size(); ++i) {
-    oss << "    T" << i << ": " << clocks[i].to_string() << "\n";
+  for (size_t i = 0; i < timing.clocks.size(); ++i) {
+    oss << "    T" << i << ": " << timing.clocks[i].to_string() << "\n";
   }
 
-  if (zone.size() > 0) {
-    oss << "  Zone:\n" << zone.to_string();
+  if (timing.zone.size() > 0) {
+    oss << "  Zone:\n" << timing.zone.to_string();
   }
 
   return oss.str();
 }
 
-void StateClass::rebuild_zone_from_clocks() {
-  transition_to_clock.assign(clocks.size(), -1);
-  clock_to_transition.clear();
-  clock_to_transition.push_back(std::numeric_limits<size_t>::max());
+void ReachabilityState::rebuild_zone_from_clocks() {
+  timing.transition_to_clock.assign(timing.clocks.size(), -1);
+  timing.clock_to_transition.clear();
+  timing.clock_to_transition.push_back(std::numeric_limits<size_t>::max());
 
-  zone = DBM(1);
+  timing.zone = DBM(1);
 
-  for (size_t t : enabled) {
-    if (t >= clocks.size()) {
+  for (size_t t : scheduling.enabled) {
+    if (t >= timing.clocks.size()) {
       continue;
     }
 
-    const size_t clock_idx = zone.add_clock();
-    transition_to_clock[t] = static_cast<int>(clock_idx);
-    clock_to_transition.push_back(t);
+    const size_t clock_idx = timing.zone.add_clock();
+    timing.transition_to_clock[t] = static_cast<int>(clock_idx);
+    timing.clock_to_transition.push_back(t);
 
-    const auto& clock = clocks[t];
-    zone.set_constraint(0, clock_idx, -clock.lower_bound);
-    zone.set_constraint(clock_idx, 0, clock.upper_bound);
+    const auto& clock = timing.clocks[t];
+    timing.zone.set_constraint(0, clock_idx, -clock.lower_bound);
+    timing.zone.set_constraint(clock_idx, 0, clock.upper_bound);
 
-    if (active.count(t)) {
-      zone.unfreeze_clock(clock_idx);
+    if (scheduling.active.count(t)) {
+      timing.zone.unfreeze_clock(clock_idx);
     } else {
-      zone.freeze_clock(clock_idx);
+      timing.zone.freeze_clock(clock_idx);
     }
   }
 
-  zone.minimize();
+  timing.zone.minimize();
 }
 
-void StateClass::sync_clocks_from_zone() {
-  if (transition_to_clock.size() < clocks.size()) {
-    transition_to_clock.resize(clocks.size(), -1);
+void ReachabilityState::sync_clocks_from_zone() {
+  if (timing.transition_to_clock.size() < timing.clocks.size()) {
+    timing.transition_to_clock.resize(timing.clocks.size(), -1);
   }
 
-  for (size_t t = 0; t < clocks.size(); ++t) {
-    if (!enabled.count(t) || !has_zone_clock_for_transition(t)) {
-      clocks[t] = TransitionClock();
+  for (size_t t = 0; t < timing.clocks.size(); ++t) {
+    if (!scheduling.enabled.count(t) || !has_zone_clock_for_transition(t)) {
+      timing.clocks[t] = TransitionClock();
       continue;
     }
 
-    const size_t clock_idx = static_cast<size_t>(transition_to_clock[t]);
-    clocks[t].lower_bound = -zone.get_constraint(0, clock_idx);
-    clocks[t].upper_bound = zone.get_constraint(clock_idx, 0);
+    const size_t clock_idx = static_cast<size_t>(timing.transition_to_clock[t]);
+    timing.clocks[t].lower_bound = -timing.zone.get_constraint(0, clock_idx);
+    timing.clocks[t].upper_bound = timing.zone.get_constraint(clock_idx, 0);
 
-    if (active.count(t)) {
-      clocks[t].state = ClockState::ACTIVE;
-    } else if (suspended.count(t)) {
-      clocks[t].state = ClockState::SUSPENDED;
+    if (scheduling.active.count(t)) {
+      timing.clocks[t].state = ClockState::ACTIVE;
+    } else if (scheduling.suspended.count(t)) {
+      timing.clocks[t].state = ClockState::SUSPENDED;
     } else {
-      clocks[t].state = ClockState::UNACTIVE;
+      timing.clocks[t].state = ClockState::UNACTIVE;
     }
   }
 }
 
-int StateClass::clock_index_for_transition(size_t transition_id) const {
-  if (transition_id >= transition_to_clock.size()) {
+int ReachabilityState::clock_index_for_transition(size_t transition_id) const {
+  if (transition_id >= timing.transition_to_clock.size()) {
     return -1;
   }
-  return transition_to_clock[transition_id];
+  return timing.transition_to_clock[transition_id];
 }
 
-size_t StateClass::transition_for_clock(size_t clock_idx) const {
-  if (clock_idx >= clock_to_transition.size()) {
+size_t ReachabilityState::transition_for_clock(size_t clock_idx) const {
+  if (clock_idx >= timing.clock_to_transition.size()) {
     return std::numeric_limits<size_t>::max();
   }
-  return clock_to_transition[clock_idx];
+  return timing.clock_to_transition[clock_idx];
 }
 
-bool StateClass::has_zone_clock_for_transition(size_t transition_id) const {
+bool ReachabilityState::has_zone_clock_for_transition(size_t transition_id) const {
   return clock_index_for_transition(transition_id) > 0;
 }
 

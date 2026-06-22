@@ -45,6 +45,8 @@ PetriExportModel build_export_model(const petri::PTPN& ptpn) {
         transition.time_interval.latest == petri::INF
             ? std::numeric_limits<int>::max()
             : transition.time_interval.latest,
+        transition.time_interval.left_open,
+        transition.time_interval.right_open,
         transition.priority,
         transition.core,
         transition.suspendable,
