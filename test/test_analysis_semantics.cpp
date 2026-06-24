@@ -53,6 +53,40 @@ TEST(PtpnAnalysisSemanticsTest, PicksEarliestFiringTimeBeforePriority) {
   EXPECT_EQ(fired_transitions[0], 0u);
 }
 
+TEST(PtpnAnalysisSemanticsTest, StrictBoundsDoNotBreakTimeFirstPriorityRule) {
+  petri::PTPN ptpn;
+
+  const size_t input = ptpn.add_place("p0", 1);
+  const size_t low_done = ptpn.add_place("p1", 1);
+  const size_t high_done = ptpn.add_place("p2", 1);
+  ptpn.set_initial_marking(input, 1);
+
+  const size_t low = ptpn.add_transition(
+      "low", petri::TimeInterval(0, 0, false, false), 1, 0, false);
+  const size_t high = ptpn.add_transition(
+      "high", petri::TimeInterval(0, 3, true, false), 99, 0, false);
+
+  ptpn.set_pre_arc(input, low, 1);
+  ptpn.set_post_arc(low, low_done, 1);
+  ptpn.set_pre_arc(input, high, 1);
+  ptpn.set_post_arc(high, high_done, 1);
+
+  state_class::PTPNAnalyzer analyzer(ptpn);
+  ASSERT_EQ(2u, analyzer.build(8));
+
+  const auto& graph = analyzer.get_graph();
+  const auto initial = analyzer.get_initial_vertex();
+  std::vector<size_t> fired;
+  for (auto [edge_it, edge_end] = boost::out_edges(initial, graph); edge_it != edge_end;
+       ++edge_it) {
+    const auto& edge = boost::get(boost::edge_name, graph, *edge_it);
+    fired.push_back(static_cast<size_t>(edge.transition_id));
+  }
+
+  ASSERT_EQ(1u, fired.size());
+  EXPECT_EQ(low, fired[0]);
+}
+
 TEST(PtpnAnalysisSemanticsTest, OpenLowerBoundDelaysFiringByOneTick) {
   petri::PTPN ptpn;
   const size_t input = ptpn.add_place("p0", 1);
