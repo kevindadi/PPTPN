@@ -305,6 +305,11 @@ int main(int argc, char* argv[]) {
   CLI::App app{"PTPN - Priority Timed Petri Net Analyzer"};
   app.set_version_flag("-v,--version", "1.0.0");
   app.require_subcommand(1);
+  app.footer("Usage:\n"
+             "  ptpn tdg -f <input.json>     Analyze from TDG JSON\n"
+             "  ptpn ptpn -f <model.ptpn>    Analyze from PTPN source\n"
+             "\n"
+             "Run 'ptpn <subcommand> -h' for subcommand-specific options and examples.");
 
   AnalyzeOptions tdg_opts;
   AnalyzeOptions ptpn_opts;
@@ -314,10 +319,18 @@ int main(int argc, char* argv[]) {
   auto* tdg_cmd = app.add_subcommand("tdg", "Analyze from TDG JSON input");
   tdg_cmd->add_option("-f,--file", tdg_file, "Input TDG JSON file")->required(true);
   add_common_analyze_options(tdg_cmd, tdg_opts);
+  tdg_cmd->footer("Examples:\n"
+                  "  ptpn tdg -f example/single_lock/input.json\n"
+                  "  ptpn tdg -f input.json --romeo output.cts -m 1000\n"
+                  "  ptpn tdg -f input.json --ppn output.ppn --debug");
 
   auto* ptpn_cmd = app.add_subcommand("ptpn", "Analyze from PTPN source file");
   ptpn_cmd->add_option("-f,--file", ptpn_file, "Input .ptpn source file")->required(true);
   add_common_analyze_options(ptpn_cmd, ptpn_opts);
+  ptpn_cmd->footer("Examples:\n"
+                   "  ptpn ptpn -f example/common/simple.ptpn\n"
+                   "  ptpn ptpn -f model.ptpn --canonicalization max-lower\n"
+                   "  ptpn ptpn -f model.ptpn --romeo output.cts --debug");
 
   CLI11_PARSE(app, argc, argv);
 

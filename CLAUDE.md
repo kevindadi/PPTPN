@@ -120,6 +120,24 @@ Examples:
 ./build/ptpn ptpn -f example/common/simple.ptpn
 ```
 
+### Example Invocations
+
+```bash
+# TDG input, export Romeo CTS, and cap the search
+./build/ptpn tdg -f example/common/input.json \
+  --romeo example/common/ptpn.cts \
+  -m 1000
+
+# Direct PTPN input with max-lower canonicalization
+./build/ptpn ptpn -f example/common/simple.ptpn \
+  --canonicalization max-lower
+
+# TDG input, export PToPNer .ppn, and enable debug logging
+./build/ptpn tdg -f example/single_lock/input.json \
+  --ppn output.ppn \
+  --debug
+```
+
 ### Common Options
 
 - `-m, --max-states N`: Cap reachability graph at N states (default: 10000)
