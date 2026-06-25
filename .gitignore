@@ -9,12 +9,15 @@ compile_commands.json
 paper
 docs/superpowers
 docs/ptpn-format-semantics.md
+docs/ptpn-formal-semantics.*
 **.dot
 **.ppn
 **.ptpn
 wcet.json
 
 test_debug
+
+paper
 
 Testing
 tools/romeo-3.10.11/
