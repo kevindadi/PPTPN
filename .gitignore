@@ -8,8 +8,8 @@ main.pdf
 compile_commands.json
 paper
 docs/superpowers
-docs/ptpn-format-semantics.md
 docs/ptpn-formal-semantics.*
+docs/ptpn-state-class-construction.*
 **.dot
 **.ppn
 **.ptpn
