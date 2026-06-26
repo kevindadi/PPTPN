@@ -1,5 +1,6 @@
 .cache
 .DS_Store
+.vscode/settings.local.json
 .claude
 .cursor
 
