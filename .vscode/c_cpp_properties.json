@@ -27,8 +27,7 @@
         "${workspaceFolder}/build/_deps/json-src/include",
         "${workspaceFolder}/build/_deps/spdlog-src/include",
         "${workspaceFolder}/build/_deps/fmt-src/include",
-        "${workspaceFolder}/build/vcpkg_installed/arm64-osx/include",
-        "${workspaceFolder}/build/vcpkg_installed/x64-osx/include"
+        "${workspaceFolder}/build/vcpkg_installed/arm64-osx/include"
       ]
     },
     {
