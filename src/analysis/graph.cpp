@@ -3,11 +3,15 @@
 #include <algorithm>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 #include <spdlog/spdlog.h>
 #include <sstream>
 #include <vector>
 
+#include "json/json.h"
 #include "scheduling.h"
+#include "tdg/tdg.h"
+#include "tdg2pn/tdg2pn.h"
 
 namespace state_class {
 
@@ -130,8 +134,10 @@ bool elapse_active_clocks(ReachabilityState& state, int delay) {
 StateKey make_state_key(const ReachabilityState& state) {
   StateKey key;
   key.marking = state.marking;
-  key.transition_to_clock = state.timing.transition_to_clock;
-  key.clock_to_transition = state.timing.clock_to_transition;
+  key.transition_to_h_clock = state.timing.transition_to_h_clock;
+  key.transition_to_w_clock = state.timing.transition_to_w_clock;
+  key.clock_to_variable = state.timing.clock_to_variable;
+  key.w_lower_bounds = state.timing.w_lower_bounds;
   key.zone_matrix = state.timing.zone.raw_matrix();
   key.frozen_clocks = state.timing.zone.frozen_clocks();
   key.scheduling.enabled = state.scheduling.enabled;
@@ -163,12 +169,13 @@ bool is_uninitialized_clock(const TransitionClock& clock) {
 
 void rebuild_zone_preserving_constraints(
     ReachabilityState& state, const DBM& previous_zone,
-    const std::vector<int>& previous_transition_to_clock,
+    const std::vector<int>& previous_transition_to_h_clock,
     const std::set<size_t>& previously_enabled,
     const std::set<size_t>& reset_transitions) {
-  state.timing.transition_to_clock.assign(state.timing.clocks.size(), -1);
-  state.timing.clock_to_transition.clear();
-  state.timing.clock_to_transition.push_back(std::numeric_limits<size_t>::max());
+  state.timing.transition_to_h_clock.assign(state.timing.clocks.size(), -1);
+  state.timing.transition_to_w_clock.assign(state.timing.clocks.size(), -1);
+  state.timing.clock_to_variable.clear();
+  state.timing.clock_to_variable.push_back({TimedVariableKind::ZERO, INVALID_TRANSITION_ID});
 
   DBM next_zone(1);
   for (size_t t : state.scheduling.enabled) {
@@ -177,25 +184,26 @@ void rebuild_zone_preserving_constraints(
     }
 
     const size_t clock_idx = next_zone.add_clock();
-    state.timing.transition_to_clock[t] = static_cast<int>(clock_idx);
-    state.timing.clock_to_transition.push_back(t);
+    state.timing.transition_to_h_clock[t] = static_cast<int>(clock_idx);
+    state.timing.clock_to_variable.push_back({TimedVariableKind::H, t});
   }
 
   const auto has_previous_clock = [&](size_t t) {
     return previously_enabled.count(t) && !reset_transitions.count(t) &&
-           t < previous_transition_to_clock.size() &&
-           previous_transition_to_clock[t] > 0 &&
-           static_cast<size_t>(previous_transition_to_clock[t]) < previous_zone.size();
+           t < previous_transition_to_h_clock.size() &&
+           previous_transition_to_h_clock[t] > 0 &&
+           static_cast<size_t>(previous_transition_to_h_clock[t]) < previous_zone.size();
   };
 
   for (size_t ti : state.scheduling.enabled) {
-    if (ti >= state.timing.transition_to_clock.size() || state.timing.transition_to_clock[ti] <= 0) {
+    if (ti >= state.timing.transition_to_h_clock.size() ||
+        state.timing.transition_to_h_clock[ti] <= 0) {
       continue;
     }
 
-    const size_t new_i = static_cast<size_t>(state.timing.transition_to_clock[ti]);
+    const size_t new_i = static_cast<size_t>(state.timing.transition_to_h_clock[ti]);
     if (has_previous_clock(ti)) {
-      const size_t old_i = static_cast<size_t>(previous_transition_to_clock[ti]);
+      const size_t old_i = static_cast<size_t>(previous_transition_to_h_clock[ti]);
       next_zone.set_constraint(0, new_i, previous_zone.get_constraint(0, old_i));
       next_zone.set_constraint(new_i, 0, previous_zone.get_constraint(old_i, 0));
     } else {
@@ -210,15 +218,15 @@ void rebuild_zone_preserving_constraints(
       continue;
     }
 
-    const size_t new_i = static_cast<size_t>(state.timing.transition_to_clock[ti]);
-    const size_t old_i = static_cast<size_t>(previous_transition_to_clock[ti]);
+    const size_t new_i = static_cast<size_t>(state.timing.transition_to_h_clock[ti]);
+    const size_t old_i = static_cast<size_t>(previous_transition_to_h_clock[ti]);
     for (size_t tj : state.scheduling.enabled) {
       if (!has_previous_clock(tj)) {
         continue;
       }
 
-      const size_t new_j = static_cast<size_t>(state.timing.transition_to_clock[tj]);
-      const size_t old_j = static_cast<size_t>(previous_transition_to_clock[tj]);
+      const size_t new_j = static_cast<size_t>(state.timing.transition_to_h_clock[tj]);
+      const size_t old_j = static_cast<size_t>(previous_transition_to_h_clock[tj]);
       next_zone.set_constraint(new_i, new_j,
                                previous_zone.get_constraint(old_i, old_j));
     }
@@ -239,8 +247,8 @@ void recompute_enabled_sets_from_marking_impl(
   const size_t num_transitions = ptpn.num_transitions();
   const std::set<size_t> previously_enabled = state.scheduling.enabled;
   const DBM previous_zone = state.timing.zone;
-  const std::vector<int> previous_transition_to_clock =
-      state.timing.transition_to_clock;
+  const std::vector<int> previous_transition_to_h_clock =
+      state.timing.transition_to_h_clock;
 
   for (size_t t = 0; t < num_transitions; ++t) {
     if (petri::PTPN::is_enabled(marking, ptpn, t)) {
@@ -299,7 +307,7 @@ void recompute_enabled_sets_from_marking_impl(
   }
 
   rebuild_zone_preserving_constraints(state, previous_zone,
-                                      previous_transition_to_clock,
+                                      previous_transition_to_h_clock,
                                       previously_enabled, reset_transitions);
   sync_zone_activity(state);
 

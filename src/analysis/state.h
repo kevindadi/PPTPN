@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <set>
 #include <sstream>
 #include <string>
@@ -12,6 +13,28 @@
 #include "dbm.h"
 
 namespace state_class {
+
+constexpr size_t INVALID_TRANSITION_ID = std::numeric_limits<size_t>::max();
+
+enum class TimedVariableKind {
+  ZERO,
+  H,
+  W
+};
+
+struct TimedVariableRef {
+  TimedVariableKind kind = TimedVariableKind::ZERO;
+  size_t transition_id = INVALID_TRANSITION_ID;
+
+  bool operator==(const TimedVariableRef& other) const {
+    return kind == other.kind && transition_id == other.transition_id;
+  }
+
+  bool operator<(const TimedVariableRef& other) const {
+    if (kind != other.kind) return kind < other.kind;
+    return transition_id < other.transition_id;
+  }
+};
 
 struct ReachabilityState;
 struct StateKey;
@@ -75,20 +98,28 @@ struct SearchMetadata {
 struct TimingState {
   std::vector<TransitionClock> clocks;
   DBM zone;
-  std::vector<int> transition_to_clock;
-  std::vector<size_t> clock_to_transition;
+  std::vector<int> transition_to_h_clock;
+  std::vector<int> transition_to_w_clock;
+  std::vector<TimedVariableRef> clock_to_variable;
+  std::vector<int> w_lower_bounds;
 
   bool operator==(const TimingState& other) const {
     return clocks == other.clocks && zone == other.zone &&
-           transition_to_clock == other.transition_to_clock &&
-           clock_to_transition == other.clock_to_transition;
+           transition_to_h_clock == other.transition_to_h_clock &&
+           transition_to_w_clock == other.transition_to_w_clock &&
+           clock_to_variable == other.clock_to_variable &&
+           w_lower_bounds == other.w_lower_bounds;
   }
 
   bool operator<(const TimingState& other) const {
-    if (transition_to_clock < other.transition_to_clock) return true;
-    if (other.transition_to_clock < transition_to_clock) return false;
-    if (clock_to_transition < other.clock_to_transition) return true;
-    if (other.clock_to_transition < clock_to_transition) return false;
+    if (transition_to_h_clock < other.transition_to_h_clock) return true;
+    if (other.transition_to_h_clock < transition_to_h_clock) return false;
+    if (transition_to_w_clock < other.transition_to_w_clock) return true;
+    if (other.transition_to_w_clock < transition_to_w_clock) return false;
+    if (clock_to_variable < other.clock_to_variable) return true;
+    if (other.clock_to_variable < clock_to_variable) return false;
+    if (w_lower_bounds < other.w_lower_bounds) return true;
+    if (other.w_lower_bounds < w_lower_bounds) return false;
     if (zone < other.zone) return true;
     if (other.zone < zone) return false;
     return clocks < other.clocks;
@@ -97,8 +128,10 @@ struct TimingState {
   void clear() {
     clocks.clear();
     zone = DBM{};
-    transition_to_clock.clear();
-    clock_to_transition.clear();
+    transition_to_h_clock.clear();
+    transition_to_w_clock.clear();
+    clock_to_variable.clear();
+    w_lower_bounds.clear();
   }
 };
 
@@ -128,11 +161,18 @@ struct ReachabilityState {
 
   void rebuild_zone_from_clocks();
   void sync_clocks_from_zone();
-  [[nodiscard]] int clock_index_for_transition(size_t transition_id) const;
+  [[nodiscard]] int h_clock_index_for_transition(size_t transition_id) const;
+  [[nodiscard]] int w_clock_index_for_transition(size_t transition_id) const;
+  [[nodiscard]] TimedVariableRef variable_for_clock(size_t clock_idx) const;
   [[nodiscard]] size_t transition_for_clock(size_t clock_idx) const;
   [[nodiscard]] bool has_zone_clock_for_transition(size_t transition_id) const;
+  [[nodiscard]] bool has_zone_w_clock_for_transition(size_t transition_id) const;
+  [[nodiscard]] int w_lower_bound(size_t transition_id) const;
+  void set_w_lower_bound(size_t transition_id, int value);
 
-  [[nodiscard]] bool has_active_clocks() const { return !scheduling.active.empty(); }
+  [[nodiscard]] int clock_index_for_transition(size_t transition_id) const {
+    return h_clock_index_for_transition(transition_id);
+  }
 
   [[nodiscard]] int get_next_deadline() const {
     int min_deadline = INF_TIME;
@@ -147,16 +187,23 @@ struct ReachabilityState {
 
 struct StateKey {
   std::vector<int> marking;
-  std::vector<int> transition_to_clock;
-  std::vector<size_t> clock_to_transition;
+  std::vector<int> transition_to_h_clock;
+  std::vector<int> transition_to_w_clock;
+  std::vector<TimedVariableRef> clock_to_variable;
+  std::vector<int> w_lower_bounds;
   std::vector<int> zone_matrix;
   std::set<size_t> frozen_clocks;
   SchedulingState scheduling;
 
   bool operator==(const StateKey& other) const {
-    return marking == other.marking && transition_to_clock == other.transition_to_clock &&
-           clock_to_transition == other.clock_to_transition && zone_matrix == other.zone_matrix &&
-           frozen_clocks == other.frozen_clocks && scheduling == other.scheduling;
+    return marking == other.marking &&
+           transition_to_h_clock == other.transition_to_h_clock &&
+           transition_to_w_clock == other.transition_to_w_clock &&
+           clock_to_variable == other.clock_to_variable &&
+           w_lower_bounds == other.w_lower_bounds &&
+           zone_matrix == other.zone_matrix &&
+           frozen_clocks == other.frozen_clocks &&
+           scheduling == other.scheduling;
   }
 };
 

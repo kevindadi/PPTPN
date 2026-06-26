@@ -6,40 +6,6 @@
 
 namespace state_class {
 
-namespace {
-void hash_combine(size_t& seed, size_t value) {
-  seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
-}
-
-size_t enabled_rank(const ReachabilityState& state, size_t transition_id) {
-  size_t rank = 1;
-  for (size_t t : state.scheduling.enabled) {
-    if (t == transition_id) {
-      return rank;
-    }
-    ++rank;
-  }
-  return 0;
-}
-
-size_t transition_at_enabled_rank(const ReachabilityState& state, size_t clock_idx) {
-  if (clock_idx == 0) {
-    return std::numeric_limits<size_t>::max();
-  }
-
-  size_t rank = 1;
-  for (size_t t : state.scheduling.enabled) {
-    if (rank == clock_idx) {
-      return t;
-    }
-    ++rank;
-  }
-
-  return std::numeric_limits<size_t>::max();
-}
-
-}  // namespace
-
 bool ReachabilityState::operator==(const ReachabilityState& other) const {
   return marking == other.marking && timing == other.timing && scheduling == other.scheduling;
 }
@@ -52,6 +18,12 @@ bool ReachabilityState::operator<(const ReachabilityState& other) const {
   return scheduling < other.scheduling;
 }
 
+namespace {
+void hash_combine(size_t& seed, size_t value) {
+  seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
+}
+}  // namespace
+
 size_t StateKeyHash::operator()(const StateKey& key) const {
   size_t seed = 0;
   std::hash<int> int_hash;
@@ -63,8 +35,18 @@ size_t StateKeyHash::operator()(const StateKey& key) const {
   for (int value : key.zone_matrix) {
     hash_combine(seed, int_hash(value));
   }
-  for (size_t value : key.frozen_clocks) {
-    hash_combine(seed, size_hash(value));
+  for (size_t idx : key.frozen_clocks) {
+    hash_combine(seed, size_hash(idx));
+  }
+  for (int value : key.transition_to_h_clock) {
+    hash_combine(seed, int_hash(value));
+  }
+  for (int value : key.transition_to_w_clock) {
+    hash_combine(seed, int_hash(value));
+  }
+  for (const auto& variable : key.clock_to_variable) {
+    hash_combine(seed, int_hash(static_cast<int>(variable.kind)));
+    hash_combine(seed, size_hash(variable.transition_id));
   }
   for (size_t value : key.scheduling.enabled) {
     hash_combine(seed, size_hash(value));
@@ -90,7 +72,8 @@ ReachabilityState ReachabilityState::copy() const {
 
 std::string ReachabilityState::to_string() const {
   std::ostringstream oss;
-  oss << "ReachabilityState(id=" << metadata.state_id << ", time=" << metadata.cumulative_time << ")\n";
+  oss << "ReachabilityState(id=" << metadata.state_id << ", time="
+      << metadata.cumulative_time << ")\n";
   oss << "  Marking: [";
   for (size_t i = 0; i < marking.size(); ++i) {
     if (i > 0) oss << ", ";
@@ -133,7 +116,10 @@ std::string ReachabilityState::to_string() const {
 
 void ReachabilityState::rebuild_zone_from_clocks() {
   timing.zone = DBM(1);
-  timing.zone.add_clock();
+  timing.transition_to_h_clock.assign(timing.clocks.size(), -1);
+  timing.transition_to_w_clock.assign(timing.clocks.size(), -1);
+  timing.clock_to_variable.clear();
+  timing.clock_to_variable.push_back({TimedVariableKind::ZERO, INVALID_TRANSITION_ID});
 
   for (size_t t : scheduling.enabled) {
     if (t >= timing.clocks.size()) {
@@ -141,6 +127,9 @@ void ReachabilityState::rebuild_zone_from_clocks() {
     }
 
     const size_t clock_idx = timing.zone.add_clock();
+    timing.transition_to_h_clock[t] = static_cast<int>(clock_idx);
+    timing.clock_to_variable.push_back({TimedVariableKind::H, t});
+
     const auto& clock = timing.clocks[t];
     timing.zone.set_constraint(0, clock_idx, -clock.lower_bound);
     timing.zone.set_constraint(clock_idx, 0, clock.upper_bound);
@@ -162,7 +151,7 @@ void ReachabilityState::sync_clocks_from_zone() {
       continue;
     }
 
-    const size_t clock_idx = static_cast<size_t>(clock_index_for_transition(t));
+    const size_t clock_idx = static_cast<size_t>(h_clock_index_for_transition(t));
     timing.clocks[t].lower_bound = -timing.zone.get_constraint(0, clock_idx);
     timing.clocks[t].upper_bound = timing.zone.get_constraint(clock_idx, 0);
 
@@ -176,18 +165,59 @@ void ReachabilityState::sync_clocks_from_zone() {
   }
 }
 
-int ReachabilityState::clock_index_for_transition(size_t transition_id) const {
-  const size_t rank = enabled_rank(*this, transition_id);
-  return rank == 0 ? -1 : static_cast<int>(rank);
+int ReachabilityState::h_clock_index_for_transition(size_t transition_id) const {
+  if (transition_id >= timing.transition_to_h_clock.size()) {
+    return -1;
+  }
+  return timing.transition_to_h_clock[transition_id];
+}
+
+int ReachabilityState::w_clock_index_for_transition(size_t transition_id) const {
+  if (transition_id >= timing.transition_to_w_clock.size()) {
+    return -1;
+  }
+  return timing.transition_to_w_clock[transition_id];
+}
+
+TimedVariableRef ReachabilityState::variable_for_clock(size_t clock_idx) const {
+  if (clock_idx >= timing.clock_to_variable.size()) {
+    return {TimedVariableKind::ZERO, INVALID_TRANSITION_ID};
+  }
+  return timing.clock_to_variable[clock_idx];
 }
 
 size_t ReachabilityState::transition_for_clock(size_t clock_idx) const {
-  return transition_at_enabled_rank(*this, clock_idx);
+  if (clock_idx == 0 || clock_idx >= timing.clock_to_variable.size()) {
+    return INVALID_TRANSITION_ID;
+  }
+
+  const TimedVariableRef variable = timing.clock_to_variable[clock_idx];
+  return variable.kind == TimedVariableKind::ZERO ? INVALID_TRANSITION_ID
+                                                  : variable.transition_id;
 }
 
 bool ReachabilityState::has_zone_clock_for_transition(size_t transition_id) const {
-  const int clock_idx = clock_index_for_transition(transition_id);
+  const int clock_idx = h_clock_index_for_transition(transition_id);
   return clock_idx > 0 && static_cast<size_t>(clock_idx) < timing.zone.size();
+}
+
+bool ReachabilityState::has_zone_w_clock_for_transition(size_t transition_id) const {
+  const int clock_idx = w_clock_index_for_transition(transition_id);
+  return clock_idx > 0 && static_cast<size_t>(clock_idx) < timing.zone.size();
+}
+
+int ReachabilityState::w_lower_bound(size_t transition_id) const {
+  if (transition_id >= timing.w_lower_bounds.size()) {
+    return 0;
+  }
+  return timing.w_lower_bounds[transition_id];
+}
+
+void ReachabilityState::set_w_lower_bound(size_t transition_id, int value) {
+  if (transition_id >= timing.w_lower_bounds.size()) {
+    timing.w_lower_bounds.resize(transition_id + 1, 0);
+  }
+  timing.w_lower_bounds[transition_id] = value;
 }
 
 }  // namespace state_class

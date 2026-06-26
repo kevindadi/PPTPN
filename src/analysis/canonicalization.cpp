@@ -9,15 +9,17 @@ namespace state_class {
 namespace {
 
 bool has_dbm_identity(const ReachabilityState& state) {
-  return state.timing.zone.size() > 0 || !state.timing.transition_to_clock.empty() ||
-         !state.timing.clock_to_transition.empty();
+  return state.timing.zone.size() > 0 || !state.timing.transition_to_h_clock.empty() ||
+         !state.timing.transition_to_w_clock.empty() ||
+         !state.timing.clock_to_variable.empty();
 }
 
 bool can_intersect_zones(const ReachabilityState& a, const ReachabilityState& b) {
   return has_dbm_identity(a) && has_dbm_identity(b) && a.timing.zone.size() > 0 &&
          a.timing.zone.size() == b.timing.zone.size() &&
-         a.timing.transition_to_clock == b.timing.transition_to_clock &&
-         a.timing.clock_to_transition == b.timing.clock_to_transition;
+         a.timing.transition_to_h_clock == b.timing.transition_to_h_clock &&
+         a.timing.transition_to_w_clock == b.timing.transition_to_w_clock &&
+         a.timing.clock_to_variable == b.timing.clock_to_variable;
 }
 
 void sync_zone_activity_with_sets(ReachabilityState& state) {
@@ -26,16 +28,20 @@ void sync_zone_activity_with_sets(ReachabilityState& state) {
   }
 
   for (size_t t : state.scheduling.enabled) {
-    if (!state.has_zone_clock_for_transition(t)) {
-      continue;
+    if (state.has_zone_clock_for_transition(t)) {
+      const size_t clock_idx =
+          static_cast<size_t>(state.clock_index_for_transition(t));
+      if (state.scheduling.active.count(t)) {
+        state.timing.zone.unfreeze_clock(clock_idx);
+      } else {
+        state.timing.zone.freeze_clock(clock_idx);
+      }
     }
 
-    const size_t clock_idx =
-        static_cast<size_t>(state.clock_index_for_transition(t));
-    if (state.scheduling.active.count(t)) {
+    if (state.has_zone_w_clock_for_transition(t)) {
+      const size_t clock_idx =
+          static_cast<size_t>(state.w_clock_index_for_transition(t));
       state.timing.zone.unfreeze_clock(clock_idx);
-    } else {
-      state.timing.zone.freeze_clock(clock_idx);
     }
   }
 }
@@ -76,8 +82,10 @@ ReachabilityState canonicalize(const ReachabilityState& a, const ReachabilitySta
 
       if (mode == CanonicalizationMode::INTERSECTION &&
           can_intersect_zones(a, b)) {
-        result.timing.transition_to_clock = a.timing.transition_to_clock;
-        result.timing.clock_to_transition = a.timing.clock_to_transition;
+        result.timing.transition_to_h_clock = a.timing.transition_to_h_clock;
+        result.timing.transition_to_w_clock = a.timing.transition_to_w_clock;
+        result.timing.clock_to_variable = a.timing.clock_to_variable;
+        result.timing.w_lower_bounds = a.timing.w_lower_bounds;
         result.timing.zone = a.timing.zone.intersection(b.timing.zone);
         sync_zone_activity_with_sets(result);
         result.sync_clocks_from_zone();
@@ -86,6 +94,8 @@ ReachabilityState canonicalize(const ReachabilityState& a, const ReachabilitySta
 
       const size_t num_clocks = std::min(a.timing.clocks.size(), b.timing.clocks.size());
       result.timing.clocks.resize(num_clocks);
+      result.timing.w_lower_bounds.resize(
+          std::min(a.timing.w_lower_bounds.size(), b.timing.w_lower_bounds.size()), 0);
 
       for (size_t i = 0; i < num_clocks; ++i) {
         const TransitionClock& ca = a.timing.clocks[i];
@@ -102,6 +112,11 @@ ReachabilityState canonicalize(const ReachabilityState& a, const ReachabilitySta
         }
 
         result.timing.clocks[i] = cr;
+      }
+
+      for (size_t i = 0; i < result.timing.w_lower_bounds.size(); ++i) {
+        result.timing.w_lower_bounds[i] =
+            std::max(a.timing.w_lower_bounds[i], b.timing.w_lower_bounds[i]);
       }
 
       result.rebuild_zone_from_clocks();
@@ -127,13 +142,16 @@ bool are_equivalent(const ReachabilityState& a, const ReachabilityState& b,
 
   switch (mode) {
     case CanonicalizationMode::EQUALITY: {
-      const bool has_dbm_identity =
+      const bool has_identity =
           a.timing.zone.size() > 0 || b.timing.zone.size() > 0 ||
-          !a.timing.transition_to_clock.empty() || !b.timing.transition_to_clock.empty() ||
-          !a.timing.clock_to_transition.empty() || !b.timing.clock_to_transition.empty();
-      if (has_dbm_identity) {
-        return a.timing.transition_to_clock == b.timing.transition_to_clock &&
-               a.timing.clock_to_transition == b.timing.clock_to_transition &&
+          !a.timing.transition_to_h_clock.empty() || !b.timing.transition_to_h_clock.empty() ||
+          !a.timing.transition_to_w_clock.empty() || !b.timing.transition_to_w_clock.empty() ||
+          !a.timing.clock_to_variable.empty() || !b.timing.clock_to_variable.empty();
+      if (has_identity) {
+        return a.timing.transition_to_h_clock == b.timing.transition_to_h_clock &&
+               a.timing.transition_to_w_clock == b.timing.transition_to_w_clock &&
+               a.timing.clock_to_variable == b.timing.clock_to_variable &&
+               a.timing.w_lower_bounds == b.timing.w_lower_bounds &&
                a.timing.zone == b.timing.zone;
       }
       return a.timing.clocks == b.timing.clocks;
@@ -141,7 +159,8 @@ bool are_equivalent(const ReachabilityState& a, const ReachabilityState& b,
 
     case CanonicalizationMode::MAX_LOWER_BOUND:
     case CanonicalizationMode::INTERSECTION:
-      if (a.timing.clocks.size() != b.timing.clocks.size()) {
+      if (a.timing.clocks.size() != b.timing.clocks.size() ||
+          a.timing.w_lower_bounds != b.timing.w_lower_bounds) {
         return false;
       }
       for (size_t i = 0; i < a.timing.clocks.size(); ++i) {
