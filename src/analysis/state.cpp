@@ -172,15 +172,29 @@ void ReachabilityState::rebuild_zone_from_clocks() {
 }
 
 void ReachabilityState::sync_clocks_from_zone() {
+  if (timing.w_lower_bounds.size() < timing.clocks.size()) {
+    timing.w_lower_bounds.resize(timing.clocks.size(), 0);
+  }
+
   for (size_t t = 0; t < timing.clocks.size(); ++t) {
     if (!scheduling.enabled.count(t) || !has_zone_clock_for_transition(t)) {
       timing.clocks[t] = TransitionClock();
+      if (t < timing.w_lower_bounds.size()) {
+        timing.w_lower_bounds[t] = 0;
+      }
       continue;
     }
 
     const size_t clock_idx = static_cast<size_t>(h_clock_index_for_transition(t));
     timing.clocks[t].lower_bound = -timing.zone.get_constraint(0, clock_idx);
     timing.clocks[t].upper_bound = timing.zone.get_constraint(clock_idx, 0);
+
+    if (has_zone_w_clock_for_transition(t)) {
+      const size_t w_idx = static_cast<size_t>(w_clock_index_for_transition(t));
+      timing.w_lower_bounds[t] = -timing.zone.get_constraint(0, w_idx);
+    } else {
+      timing.w_lower_bounds[t] = 0;
+    }
 
     if (scheduling.active.count(t)) {
       timing.clocks[t].state = ClockState::ACTIVE;
@@ -191,6 +205,7 @@ void ReachabilityState::sync_clocks_from_zone() {
     }
   }
 }
+
 
 int ReachabilityState::h_clock_index_for_transition(size_t transition_id) const {
   if (transition_id >= timing.transition_to_h_clock.size()) {
