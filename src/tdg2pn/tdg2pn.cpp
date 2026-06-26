@@ -11,8 +11,6 @@ namespace {
 
 constexpr int kControlTransitionPriority = 0;
 constexpr int kControlTransitionCore = -1;
-constexpr int kTaskPriorityScale = 100;
-constexpr int kTaskExecutionPriorityOffset = 99;
 
 // Indices into the per-task place/transition chain stored in node_pn_map.
 struct TaskChainLayout {
@@ -32,9 +30,7 @@ struct TaskChainLayout {
   }
 };
 
-int encode_task_execution_priority(int task_priority) {
-  return task_priority * kTaskPriorityScale + kTaskExecutionPriorityOffset;
-}
+int encode_task_execution_priority(int task_priority) { return task_priority; }
 
 petri::TimeInterval immediate_interval() { return petri::TimeInterval(0, 0); }
 
@@ -249,9 +245,6 @@ std::unordered_map<std::string, int> TDG2PN::build_preempt_priorities(
     const std::unordered_map<std::string, TaskConfig>& tc,
     int aggressor_priority) {
   std::unordered_map<std::string, int> priorities;
-  int current_offset = kTaskExecutionPriorityOffset - 1;
-  int previous_victim_priority = std::numeric_limits<int>::min();
-  bool first_group = true;
 
   for (const auto& task_name : tasks) {
     const auto task_it = tc.find(task_name);
@@ -259,24 +252,16 @@ std::unordered_map<std::string, int> TDG2PN::build_preempt_priorities(
       continue;
     }
 
-    const int victim_priority = task_it->second.priority;
-    if (victim_priority >= aggressor_priority) {
+    if (task_it->second.priority >= aggressor_priority) {
       continue;
     }
 
-    if (first_group) {
-      previous_victim_priority = victim_priority;
-      first_group = false;
-    } else if (victim_priority != previous_victim_priority) {
-      --current_offset;
-      previous_victim_priority = victim_priority;
-    }
-
-    priorities[task_name] = aggressor_priority * kTaskPriorityScale + current_offset;
+    priorities[task_name] = aggressor_priority;
   }
 
   return priorities;
 }
+
 
 void TDG2PN::transform_vertices(petri::PTPN& ptpn, const tdg::TDG& tdg) {
   for (const auto& node_entry : tdg.nodes_type) {

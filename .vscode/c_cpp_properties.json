@@ -1,9 +1,9 @@
 {
   "configurations": [
     {
-      "name": "PTPN (Linux, compile_commands)",
+      "name": "PTPN",
       "compileCommands": "${workspaceFolder}/build/compile_commands.json",
-      "compilerPath": "/usr/bin/c++",
+      "compilerPath": "/usr/bin/clang++",
       "cStandard": "c17",
       "cppStandard": "c++17",
       "includePath": [
@@ -13,15 +13,15 @@
         "${workspaceFolder}/build/_deps/fmt-src/include",
         "${workspaceFolder}/build/vcpkg_installed/x64-linux/include"
       ],
-      "intelliSenseMode": "gcc-x64"
+      "intelliSenseMode": "clang-arm64"
     },
     {
-      "name": "PToPNer (Linux, compile_commands)",
+      "name": "PToPNer",
       "compileCommands": "${workspaceFolder}/tools/PToPNer/build/compile_commands.json",
-      "compilerPath": "/usr/bin/c++",
+      "compilerPath": "/usr/bin/clang++",
       "cStandard": "c17",
       "cppStandard": "c++17",
-      "intelliSenseMode": "gcc-x64"
+      "intelliSenseMode": "clang-arm64"
     }
   ],
   "version": 4
