@@ -219,34 +219,14 @@ class StateClassReachabilityGraph {
 
   CanonicalizationMode canonicalization_mode_ = CanonicalizationMode::EQUALITY;
 
-  [[nodiscard]] bool is_transition_enabled(const ReachabilityState& state,
-                                          size_t trans_idx) const;
-
-  std::pair<int, int> get_transition_time_bounds(const ReachabilityState& state,
-                                                 size_t trans_idx) const;
-
   std::vector<size_t> select_per_core(const std::set<size_t>& enabled) const;
   void apply_preemption(const std::vector<size_t>& chosen,
                        ReachabilityState& state) const;
 
-  std::set<size_t> compute_effective_enabled(
-      const std::vector<size_t>& raw_enabled) const;
-  std::set<size_t> compute_suspended_transitions(
-      const std::vector<size_t>& raw_enabled,
-      const std::set<size_t>& effective_enabled) const;
-
-  bool maximal_time_elapse(ReachabilityState& state, double& dt) const;
-
   std::tuple<bool, ReachabilityState, double> fire_with_dbm(
       size_t trans_idx, const ReachabilityState& from_state) const;
 
-  void compute_enabled_and_clocks(ReachabilityState& state);
-
-  bool is_suspended(size_t trans_idx, const std::vector<size_t>& enabled) const;
-
   void recompute_suspension(ReachabilityState& state) const;
-  std::vector<size_t> collect_enabled_transitions(
-      const ReachabilityState& state) const;
 
   SCVertex find_or_add_vertex(const ReachabilityState& state);
   StateExpansionResult expand_state_candidates(const ReachabilityState& cur);

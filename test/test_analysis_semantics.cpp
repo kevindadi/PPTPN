@@ -259,9 +259,9 @@ TEST(PtpnAnalysisSemanticsTest, StrictBoundsDoNotBreakTimeFirstPriorityRule) {
 
   const size_t survivor_clock =
       static_cast<size_t>(successor.clock_index_for_transition(survivor));
-  EXPECT_EQ(successor.timing.zone.get_constraint(0, survivor_clock), 0);
+  EXPECT_EQ(successor.timing.zone.get_constraint(0, survivor_clock), -2);
   EXPECT_EQ(successor.timing.zone.get_constraint(survivor_clock, 0), 5);
-  EXPECT_EQ(successor.timing.clocks[survivor].lower_bound, 0);
+  EXPECT_EQ(successor.timing.clocks[survivor].lower_bound, 2);
   EXPECT_EQ(successor.timing.clocks[survivor].upper_bound, 5);
 }
 
@@ -410,7 +410,7 @@ TEST(PtpnAnalysisSemanticsTest, SynchronizeClocksForcesPairwiseEquality) {
 }
 
 
-TEST(PtpnAnalysisSemanticsTest, SuccessorZoneRemainsFutureClosedAfterFire) {
+TEST(PtpnAnalysisSemanticsTest, SuccessorPreservesPersistentElapsedTimeAfterFire) {
   const petri::PTPN ptpn = make_post_fire_survivor_net();
   state_class::PTPNAnalyzer analyzer(ptpn);
 
@@ -433,9 +433,9 @@ TEST(PtpnAnalysisSemanticsTest, SuccessorZoneRemainsFutureClosedAfterFire) {
 
   const size_t survivor_clock =
       static_cast<size_t>(successor.clock_index_for_transition(1));
-  EXPECT_EQ(successor.timing.zone.get_constraint(0, survivor_clock), 0);
+  EXPECT_EQ(successor.timing.zone.get_constraint(0, survivor_clock), -2);
   EXPECT_EQ(successor.timing.zone.get_constraint(survivor_clock, 0), 5);
-  EXPECT_EQ(successor.timing.clocks[1].lower_bound, 0);
+  EXPECT_EQ(successor.timing.clocks[1].lower_bound, 2);
   EXPECT_EQ(successor.timing.clocks[1].upper_bound, 5);
 }
 
@@ -469,7 +469,7 @@ TEST(PtpnAnalysisSemanticsTest, NewlyEnabledTransitionsShareZeroOrigin) {
 }
 
 TEST(PtpnAnalysisSemanticsTest,
-     FutureClosedSuccessorDropsPredecessorCouplingBetweenSurvivors) {
+     PersistentSurvivorsKeepPredecessorCouplingAfterFire) {
   const petri::PTPN ptpn = make_two_survivor_future_closed_net();
   state_class::PTPNAnalyzer analyzer(ptpn);
 
@@ -515,26 +515,20 @@ TEST(PtpnAnalysisSemanticsTest,
   const size_t successor_right_clock =
       static_cast<size_t>(successor.clock_index_for_transition(2));
 
-  EXPECT_EQ(successor.timing.zone.get_constraint(0, successor_left_clock), 0);
+  EXPECT_EQ(successor.timing.zone.get_constraint(0, successor_left_clock), -4);
   EXPECT_EQ(successor.timing.zone.get_constraint(successor_left_clock, 0),
             predecessor_left_upper);
-  EXPECT_EQ(successor.timing.zone.get_constraint(0, successor_right_clock), 0);
+  EXPECT_EQ(successor.timing.zone.get_constraint(0, successor_right_clock), -4);
   EXPECT_EQ(successor.timing.zone.get_constraint(successor_right_clock, 0),
             predecessor_right_upper);
   EXPECT_EQ(successor.timing.zone.get_constraint(successor_left_clock,
                                                  successor_right_clock),
-            predecessor_left_upper);
+            1);
   EXPECT_EQ(successor.timing.zone.get_constraint(successor_right_clock,
                                                  successor_left_clock),
-            predecessor_right_upper);
-  EXPECT_NE(successor.timing.zone.get_constraint(successor_left_clock,
-                                                 successor_right_clock),
-            1);
-  EXPECT_NE(successor.timing.zone.get_constraint(successor_right_clock,
-                                                 successor_left_clock),
             0);
-  EXPECT_EQ(successor.timing.clocks[1].lower_bound, 0);
+  EXPECT_EQ(successor.timing.clocks[1].lower_bound, 4);
   EXPECT_EQ(successor.timing.clocks[1].upper_bound, predecessor_left_upper);
-  EXPECT_EQ(successor.timing.clocks[2].lower_bound, 0);
+  EXPECT_EQ(successor.timing.clocks[2].lower_bound, 4);
   EXPECT_EQ(successor.timing.clocks[2].upper_bound, predecessor_right_upper);
 }
