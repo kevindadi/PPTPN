@@ -151,10 +151,10 @@ void ReachabilityState::rebuild_zone_from_clocks() {
 
   // W clocks: one per enabled suspendable transition
   for (size_t t : scheduling.enabled) {
-    if (!scheduling.suspended.count(t)) {
-      continue;  // W only exists while suspended
-    }
     if (t >= timing.clocks.size()) {
+      continue;
+    }
+    if (t >= timing.transition_has_w_domain.size() || !timing.transition_has_w_domain[t]) {
       continue;
     }
 
@@ -162,7 +162,6 @@ void ReachabilityState::rebuild_zone_from_clocks() {
     timing.transition_to_w_clock[t] = static_cast<int>(w_idx);
     timing.clock_to_variable.push_back({TimedVariableKind::W, t});
 
-    // w_lower(t) lower-bounds the W variable; W has no upper bound (accumulates freely)
     const int w_val = timing.w_lower_bounds[t];
     timing.zone.set_constraint(0, w_idx, -w_val);
     timing.zone.set_constraint(w_idx, 0, INF_TIME);

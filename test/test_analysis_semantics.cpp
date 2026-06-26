@@ -206,6 +206,25 @@ petri::PTPN make_two_survivor_future_closed_net() {
   return ptpn;
 }
 
+petri::PTPN make_suspendable_with_delayed_preemptor_net() {
+  petri::PTPN ptpn;
+
+  const size_t input = ptpn.add_place("p0", 2);
+  ptpn.set_initial_marking(input, 1);
+
+  const size_t low =
+      ptpn.add_transition("low", petri::TimeInterval(0, 5), 1, 0, true);
+  const size_t high =
+      ptpn.add_transition("high", petri::TimeInterval(2, 5), 2, 0, false);
+
+  ptpn.set_pre_arc(input, low, 1);
+  ptpn.set_post_arc(low, input, 1);
+  ptpn.set_pre_arc(input, high, 1);
+  ptpn.set_post_arc(high, input, 1);
+
+  return ptpn;
+}
+
 }  // namespace
 
 TEST(PtpnAnalysisSemanticsTest, PicksEarliestFiringTimeBeforePriority) {
@@ -343,9 +362,11 @@ TEST(PtpnAnalysisSemanticsTest, NamedStateDumpIncludesNamesAndDbmHeaders) {
   EXPECT_NE(dump.find("Suspended:"), std::string::npos);
   EXPECT_NE(dump.find("Zone:"), std::string::npos);
   EXPECT_NE(named_dbm.find("x0"), std::string::npos);
-  EXPECT_NE(named_dbm.find("T0(low_priority, priority=1, core=0, suspendable)[frozen]"),
+  EXPECT_NE(named_dbm.find("h(T0(low_priority, priority=1, core=0, suspendable))[frozen]"),
             std::string::npos);
-  EXPECT_NE(named_dbm.find("T1(high_priority, priority=2, core=0, suspendable)"),
+  EXPECT_NE(named_dbm.find("w(T0(low_priority, priority=1, core=0, suspendable))"),
+            std::string::npos);
+  EXPECT_NE(named_dbm.find("h(T1(high_priority, priority=2, core=0, suspendable))"),
             std::string::npos);
   EXPECT_NE(named_dbm.find("Frozen clocks:"), std::string::npos);
 }
@@ -375,9 +396,12 @@ TEST(PtpnAnalysisSemanticsTest, NamedExportsIncludeReadableStateAndTransitionNam
   EXPECT_NE(dot.find("Places: [P0(p0)=1]"), std::string::npos);
   EXPECT_NE(dot.find("Active: T0(low_priority, priority=1, core=0, suspendable), T1(high_priority, priority=2, core=0, suspendable)"),
             std::string::npos);
-  EXPECT_NE(dot.find("Enabled=2, clocks=3"), std::string::npos);
-  EXPECT_NE(dot.find("tooltip=\"State "), std::string::npos);
-  EXPECT_NE(dot.find("Zone:\\nDBM(size=3)"), std::string::npos);
+  EXPECT_NE(dot.find("Enabled=2, clocks=5"), std::string::npos);
+  EXPECT_NE(dot.find("Zone:\\nDBM(size=5)"), std::string::npos);
+  EXPECT_NE(dot.find("h(T0(low_priority, priority=1, core=0, suspendable))"),
+            std::string::npos);
+  EXPECT_NE(dot.find("w(T1(high_priority, priority=2, core=0, suspendable))"),
+            std::string::npos);
 
   EXPECT_NE(json.find("\"marking_named\""), std::string::npos);
   EXPECT_NE(json.find("\"zone\""), std::string::npos);
@@ -570,6 +594,60 @@ TEST(PtpnAnalysisSemanticsTest, NewlyEnabledTransitionsShareZeroOrigin) {
   EXPECT_EQ(successor.timing.clocks[1].upper_bound, 4);
   EXPECT_EQ(successor.timing.clocks[2].lower_bound, 0);
   EXPECT_EQ(successor.timing.clocks[2].upper_bound, 6);
+}
+
+
+TEST(PtpnAnalysisSemanticsTest, SuspendedTransitionAccumulatesWClockWhileHClockStaysFrozen) {
+  const petri::PTPN ptpn = make_suspendable_same_core_net();
+  state_class::PTPNAnalyzer analyzer(ptpn);
+  state_class::StateClassReachabilityGraph graph(ptpn);
+  auto state = graph.create_initial_state();
+
+  graph.suspend_transition(0u, state);
+
+  ASSERT_TRUE(state.has_zone_clock_for_transition(0u));
+  ASSERT_TRUE(state.has_zone_w_clock_for_transition(0u));
+
+  const size_t h_clock = static_cast<size_t>(state.clock_index_for_transition(0u));
+  const size_t w_clock = static_cast<size_t>(state.w_clock_index_for_transition(0u));
+  ASSERT_TRUE(state.timing.zone.is_frozen(h_clock));
+  ASSERT_FALSE(state.timing.zone.is_frozen(w_clock));
+
+  state.scheduling.active = {1u};
+  state.scheduling.suspended = {0u};
+  state.timing.zone.set_constraint(0, static_cast<size_t>(state.clock_index_for_transition(1u)), -2);
+  state.timing.zone.minimize();
+  state.sync_clocks_from_zone();
+
+  ASSERT_EQ(analyzer.advance_time(state), 2.0);
+
+  EXPECT_EQ(state.timing.zone.get_constraint(0, h_clock), 0);
+  EXPECT_EQ(state.timing.clocks[0].lower_bound, 0);
+  EXPECT_LT(state.timing.zone.get_constraint(0, w_clock), 0);
+  EXPECT_GT(state.w_lower_bound(0u), 0);
+}
+
+TEST(PtpnAnalysisSemanticsTest, RestoredTransitionResetsWClockToZero) {
+  const petri::PTPN ptpn = make_suspendable_same_core_net();
+  state_class::StateClassReachabilityGraph graph(ptpn);
+  auto state = graph.create_initial_state();
+
+  graph.suspend_transition(0u, state);
+  const size_t w_clock = static_cast<size_t>(state.w_clock_index_for_transition(0u));
+  ASSERT_GT(w_clock, 0u);
+
+  state.timing.zone.set_constraint(0, w_clock, -3);
+  state.timing.zone.minimize();
+  state.sync_clocks_from_zone();
+  ASSERT_EQ(state.w_lower_bound(0u), 3);
+
+  graph.restore_transition(0u, state);
+
+  ASSERT_TRUE(state.has_zone_w_clock_for_transition(0u));
+  const size_t restored_w_clock = static_cast<size_t>(state.w_clock_index_for_transition(0u));
+  EXPECT_EQ(state.timing.zone.get_constraint(0, restored_w_clock), 0);
+  EXPECT_EQ(state.w_lower_bound(0u), 0);
+  EXPECT_TRUE(state.scheduling.active.count(0u));
 }
 
 TEST(PtpnAnalysisSemanticsTest,

@@ -268,7 +268,7 @@ void rebuild_zone_preserving_constraints(
         next_zone.set_constraint(0, new_w, previous_zone.get_constraint(0, old_w));
         next_zone.set_constraint(new_w, 0, previous_zone.get_constraint(old_w, 0));
       } else {
-        next_zone.set_constraint(0, new_w, -state.timing.w_lower_bound(t));
+        next_zone.set_constraint(0, new_w, -state.w_lower_bound(t));
         next_zone.set_constraint(new_w, 0, INF_TIME);
       }
     }
@@ -354,6 +354,9 @@ void recompute_enabled_sets_from_marking_impl(
   for (size_t t = 0; t < num_transitions; ++t) {
     if (!raw_set.count(t)) {
       state.timing.clocks[t] = TransitionClock();
+      if (t < state.timing.w_lower_bounds.size()) {
+        state.timing.w_lower_bounds[t] = 0;
+      }
       continue;
     }
 
@@ -375,26 +378,30 @@ void recompute_enabled_sets_from_marking_impl(
 
   state.scheduling.enabled = raw_set;
   state.scheduling.active = state.scheduling.enabled;
-  state.scheduling.suspended = SchedulingAlgorithms::compute_suspended(
-      state.scheduling.enabled, state.scheduling.active, ptpn);
-  for (size_t t : state.scheduling.suspended) {
-    state.scheduling.active.erase(t);
+  state.scheduling.suspended.clear();
+
+  state.timing.transition_has_w_domain.assign(num_transitions, false);
+  if (state.timing.w_lower_bounds.size() < num_transitions) {
+    state.timing.w_lower_bounds.resize(num_transitions, 0);
   }
 
   for (size_t t = 0; t < state.timing.clocks.size(); ++t) {
     if (!state.scheduling.enabled.count(t)) {
       state.timing.clocks[t].state = ClockState::UNACTIVE;
-    } else if (state.scheduling.active.count(t)) {
-      state.timing.clocks[t].state = ClockState::ACTIVE;
-    } else if (state.scheduling.suspended.count(t)) {
-      state.timing.clocks[t].state = ClockState::SUSPENDED;
-    } else {
-      state.timing.clocks[t].state = ClockState::UNACTIVE;
+      state.timing.w_lower_bounds[t] = 0;
+      continue;
     }
+
+    const auto& trans = ptpn.get_transition(t);
+    state.timing.transition_has_w_domain[t] = trans.suspendable;
+    state.timing.clocks[t].state = ClockState::ACTIVE;
+    state.timing.w_lower_bounds[t] = 0;
   }
 
   rebuild_zone_preserving_constraints(state, previous_zone,
                                       previous_transition_to_h_clock,
+                                      previous_transition_to_w_clock,
+                                      previous_transition_has_w_domain,
                                       previously_enabled, reset_transitions);
   sync_zone_activity(state);
 
@@ -687,11 +694,13 @@ std::string StateClassReachabilityGraph::format_named_dbm(
   labels[0] = "x0";
   size_t cell_width = 6;
   for (size_t clock_idx = 1; clock_idx < state.timing.zone.size(); ++clock_idx) {
-    const size_t transition_id = state.transition_for_clock(clock_idx);
-    if (transition_id == std::numeric_limits<size_t>::max()) {
+    const TimedVariableRef variable = state.variable_for_clock(clock_idx);
+    if (variable.kind == TimedVariableKind::ZERO ||
+        variable.transition_id == std::numeric_limits<size_t>::max()) {
       labels[clock_idx] = "x" + std::to_string(clock_idx);
     } else {
-      labels[clock_idx] = format_transition_label(transition_id);
+      const std::string prefix = variable.kind == TimedVariableKind::W ? "w" : "h";
+      labels[clock_idx] = prefix + "(" + format_transition_label(variable.transition_id) + ")";
       if (state.timing.zone.is_frozen(clock_idx)) {
         labels[clock_idx] += "[frozen]";
       }
@@ -740,6 +749,7 @@ std::string StateClassReachabilityGraph::format_named_dbm(
 
   return oss.str();
 }
+
 
 std::string StateClassReachabilityGraph::format_state_dump(
     const ReachabilityState& state) const {
@@ -1081,6 +1091,10 @@ void StateClassReachabilityGraph::restore_transition(size_t t, ReachabilityState
   state.scheduling.suspended.erase(t);
   state.scheduling.active.insert(t);
   state.timing.clocks[t].state = ClockState::ACTIVE;
+  if (state.has_zone_w_clock_for_transition(t)) {
+    const size_t w_idx = static_cast<size_t>(state.w_clock_index_for_transition(t));
+    state.timing.zone.reset_clock(w_idx);
+  }
   sync_zone_activity(state);
 
   log_state_class_details(state, "[SCHED][After restore] ");
