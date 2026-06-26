@@ -1171,8 +1171,19 @@ bool StateClassReachabilityGraph::save_to_dot(
     for (std::tie(vi, vi_end) = boost::vertices(graph_); vi != vi_end; ++vi) {
       const ReachabilityState& state = boost::get(boost::vertex_name, graph_, *vi);
       const std::string state_dump = format_state_dump(state);
+      std::ostringstream summary;
+      summary << "State " << state.metadata.state_id << "\n";
+      summary << "t=" << state.metadata.cumulative_time << "\n";
+      summary << "Places: " << format_places(state.marking) << "\n";
+      summary << "Active: " << format_transitions(state.scheduling.active) << "\n";
+      if (!state.scheduling.suspended.empty()) {
+        summary << "Suspended: " << format_transitions(state.scheduling.suspended)
+                << "\n";
+      }
+      summary << "Enabled=" << state.scheduling.enabled.size()
+              << ", clocks=" << state.timing.zone.size();
       out << "  s" << state.metadata.state_id << " [label=\"";
-      out << escape_dot_string(join_lines_for_dot(state_dump));
+      out << escape_dot_string(join_lines_for_dot(summary.str()));
       out << "\", tooltip=\"" << escape_dot_string(state_dump) << "\"];\n";
     }
 

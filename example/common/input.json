@@ -7,13 +7,10 @@
     "cores_per_cpu": 1,
     "shared_locks": [],
     "policy": "fixed",
-    "start": [
-      {"task": "A", "tokens": 1}, {"task": "D", "tokens": 1}
-    ],
     "end": ["C", "F"],
     "periodic": [
-      {"task": "A", "period": 100},
-      {"task": "D", "period": 50}
+      { "task": "A", "period": 100 },
+      { "task": "D", "period": 50 }
     ]
   },
   "nodes": [
@@ -67,10 +64,10 @@
     }
   ],
   "edges": [
-    {"source": "A", "target": "B", "label": "19"},
-    {"source": "B", "target": "C", "label": "19"},
-    {"source": "D", "target": "E", "label": "19"},
-    {"source": "E", "target": "C", "label": "19"},
-    {"source": "D", "target": "F", "label": "50", "style": "dashed"}
+    { "source": "A", "target": "B", "label": "19" },
+    { "source": "B", "target": "C", "label": "19" },
+    { "source": "D", "target": "E", "label": "19" },
+    { "source": "E", "target": "C", "label": "19" },
+    { "source": "D", "target": "F", "label": "50", "style": "dashed" }
   ]
 }

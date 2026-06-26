@@ -328,10 +328,13 @@ TEST(PtpnAnalysisSemanticsTest, NamedExportsIncludeReadableStateAndTransitionNam
   const std::string json((std::istreambuf_iterator<char>(json_in)),
                          std::istreambuf_iterator<char>());
 
-  EXPECT_NE(dot.find("P0(p0)=1"), std::string::npos);
-  EXPECT_NE(dot.find("T1(high_priority, priority=2, core=0, suspendable)"),
+  EXPECT_NE(dot.find("label=\"State "), std::string::npos);
+  EXPECT_NE(dot.find("Places: [P0(p0)=1]"), std::string::npos);
+  EXPECT_NE(dot.find("Active: T0(low_priority, priority=1, core=0, suspendable), T1(high_priority, priority=2, core=0, suspendable)"),
             std::string::npos);
+  EXPECT_NE(dot.find("Enabled=2, clocks=3"), std::string::npos);
   EXPECT_NE(dot.find("tooltip=\"State "), std::string::npos);
+  EXPECT_NE(dot.find("Zone:\\nDBM(size=3)"), std::string::npos);
 
   EXPECT_NE(json.find("\"marking_named\""), std::string::npos);
   EXPECT_NE(json.find("\"zone\""), std::string::npos);

@@ -1,0 +1,296 @@
+[2026-06-26 20:45:01.294] [debug] [MAIN] Debug logging enabled
+[2026-06-26 20:45:01.295] [info] ==========================================
+[2026-06-26 20:45:01.295] [info] PTPN - Priority Timed Petri Net Analyzer
+[2026-06-26 20:45:01.295] [info] ==========================================
+[2026-06-26 20:45:01.295] [info] [TDG] Loading JSON: example/common/input.json
+[2026-06-26 20:45:01.295] [info] [JSON] Starting JSON parsing: example/common/input.json
+[2026-06-26 20:45:01.295] [info] [JSON] Parsing JSON content (1403 characters)
+[2026-06-26 20:45:01.296] [debug] [JSON] JSON parsed successfully
+[2026-06-26 20:45:01.296] [info] [JSON] Graph name: CommonGraph
+[2026-06-26 20:45:01.296] [info] [JSON] Configuration: 2 CPUs, 1 cores per CPU
+[2026-06-26 20:45:01.296] [info] [JSON] Parsed 6 nodes, 5 edges
+[2026-06-26 20:45:01.296] [info] [JSON] JSON parsing completed successfully
+[2026-06-26 20:45:01.296] [info] [TDG] Configuration: 2 CPUs, 1 cores per CPU
+[2026-06-26 20:45:01.296] [info] [TDG] Starting JSON parsing: example/common/input.json
+[2026-06-26 20:45:01.296] [info] [JSON] Starting JSON parsing: example/common/input.json
+[2026-06-26 20:45:01.296] [info] [JSON] Parsing JSON content (1403 characters)
+[2026-06-26 20:45:01.296] [debug] [JSON] JSON parsed successfully
+[2026-06-26 20:45:01.296] [info] [JSON] Graph name: CommonGraph
+[2026-06-26 20:45:01.296] [info] [JSON] Configuration: 2 CPUs, 1 cores per CPU
+[2026-06-26 20:45:01.296] [info] [JSON] Parsed 6 nodes, 5 edges
+[2026-06-26 20:45:01.296] [info] [JSON] JSON parsing completed successfully
+[2026-06-26 20:45:01.296] [info] [TDG] Configuration: 2 CPUs, 1 cores per CPU
+[2026-06-26 20:45:01.296] [info] [TDG] Node 'A' -> task (priority=97, core=0)
+[2026-06-26 20:45:01.296] [info] [TDG] Node 'B' -> task (priority=98, core=0)
+[2026-06-26 20:45:01.296] [info] [TDG] Node 'C' -> task (priority=99, core=1)
+[2026-06-26 20:45:01.296] [info] [TDG] Node 'D' -> task (priority=97, core=1)
+[2026-06-26 20:45:01.296] [info] [TDG] Node 'E' -> task (priority=98, core=1)
+[2026-06-26 20:45:01.296] [info] [TDG] Node 'F' -> task (priority=96, core=0)
+[2026-06-26 20:45:01.296] [debug] [TDG] Edge: A -> B (style=)
+[2026-06-26 20:45:01.296] [debug] [TDG] Edge: B -> C (style=)
+[2026-06-26 20:45:01.296] [debug] [TDG] Edge: D -> E (style=)
+[2026-06-26 20:45:01.296] [debug] [TDG] Edge: E -> C (style=)
+[2026-06-26 20:45:01.296] [debug] [TDG] Edge: D -> F (style=dashed)
+[2026-06-26 20:45:01.296] [info] [TDG] JSON parsing completed: 6 nodes, 5 edges
+[2026-06-26 20:45:01.296] [info] [DOT] Exporting to: example/common/tdg.dot
+[2026-06-26 20:45:01.296] [info] [DOT] Exported 6 nodes, 5 edges to example/common/tdg.dot
+[2026-06-26 20:45:01.296] [info] [OUTPUT] TDG DOT exported to: example/common/tdg.dot
+[2026-06-26 20:45:01.297] [info] [OUTPUT] WCET JSON exported to: example/common/wcet.json
+[2026-06-26 20:45:01.297] [info] 
+[STATS] TDG parsing: 1 ms, 0 KB
+[2026-06-26 20:45:01.297] [info] 
+[PTPN] Converting TDG to PTPN...
+[2026-06-26 20:45:01.297] [info] [TDG2PN] Starting TDG to PTPN transformation
+[2026-06-26 20:45:01.297] [info] [TDG2PN] Transforming vertices
+[2026-06-26 20:45:01.297] [debug] [TDG2PN] Processing vertex: F
+[2026-06-26 20:45:01.297] [debug] [TDG2PN] Leaf task will get consume transition later: F
+[2026-06-26 20:45:01.297] [debug] [TDG2PN] Processing vertex: E
+[2026-06-26 20:45:01.297] [debug] [TDG2PN] Processing vertex: A
+[2026-06-26 20:45:01.297] [debug] [TDG2PN] Processing vertex: D
+[2026-06-26 20:45:01.297] [debug] [TDG2PN] Processing vertex: C
+[2026-06-26 20:45:01.297] [debug] [TDG2PN] Leaf task will get consume transition later: C
+[2026-06-26 20:45:01.297] [debug] [TDG2PN] Processing vertex: B
+[2026-06-26 20:45:01.297] [info] [TDG2PN] Vertex transformation completed
+[2026-06-26 20:45:01.297] [info] [TDG2PN] Transforming edges
+[2026-06-26 20:45:01.297] [debug] [TDG2PN] Added edge: A -> B
+[2026-06-26 20:45:01.297] [debug] [TDG2PN] Added edge: B -> C
+[2026-06-26 20:45:01.297] [debug] [TDG2PN] Added edge: D -> E
+[2026-06-26 20:45:01.297] [debug] [TDG2PN] Added edge: E -> C
+[2026-06-26 20:45:01.297] [info] [TDG2PN] Creating fixed-priority resume preemption relations
+[2026-06-26 20:45:01.297] [info] [TDG2PN] Core 1 priority order: C(99) > E(98) > D(97)
+[2026-06-26 20:45:01.297] [info] [TDG2PN] Core 0 priority order: B(98) > A(97) > F(96)
+[2026-06-26 20:45:01.297] [info] [TDG2PN] Starting fixed-priority resume preemption addition
+[2026-06-26 20:45:01.297] [debug] [TDG2PN] Processing resume preemption for core 1
+[2026-06-26 20:45:01.298] [debug] [TDG2PN] Processing resume preemption for core 0
+[2026-06-26 20:45:01.298] [info] [TDG2PN] Fixed-priority resume preemption tasks added
+[2026-06-26 20:45:01.298] [info] [TDG2PN] Adding resources and bindings
+[2026-06-26 20:45:01.298] [info] [TDG2PN] Created core resources
+[2026-06-26 20:45:01.298] [info] [TDG2PN] TDG without locks
+[2026-06-26 20:45:01.298] [info] [TDG2PN] No task locks to bind
+[2026-06-26 20:45:01.298] [info] [TDG2PN] TDG transformation completed: 28 places, 32 transitions
+[2026-06-26 20:45:01.298] [info] [PETRI] Structure verification passed
+[2026-06-26 20:45:01.298] [info] [PTPN] PTPN conversion completed
+[2026-06-26 20:45:01.298] [info]   Places: 28
+[2026-06-26 20:45:01.298] [info]   Transitions: 32
+=== PTPN ===
+Places (28):
+  P0: Fentry [capacity=1, tokens=0]
+  P1: Fready [capacity=1, tokens=0]
+  P2: Fexit [capacity=1, tokens=0]
+  P3: Eentry [capacity=1, tokens=0]
+  P4: Eready [capacity=1, tokens=0]
+  P5: Eexit [capacity=1, tokens=0]
+  P6: Aentry [capacity=1, tokens=0]
+  P7: Aready [capacity=1, tokens=0]
+  P8: Aexit [capacity=1, tokens=0]
+  P9: Dentry [capacity=1, tokens=0]
+  P10: Dready [capacity=1, tokens=0]
+  P11: Dexit [capacity=1, tokens=0]
+  P12: Centry [capacity=1, tokens=0]
+  P13: Cready [capacity=1, tokens=0]
+  P14: Cexit [capacity=1, tokens=0]
+  P15: Bentry [capacity=1, tokens=0]
+  P16: Bready [capacity=1, tokens=0]
+  P17: Bexit [capacity=1, tokens=0]
+  P18: A_period [capacity=1, tokens=1]
+  P19: D_period [capacity=1, tokens=1]
+  P20: E_suspended_C_0 [capacity=1, tokens=0]
+  P21: D_suspended_C_1 [capacity=1, tokens=0]
+  P22: D_suspended_E_2 [capacity=1, tokens=0]
+  P23: A_suspended_B_3 [capacity=1, tokens=0]
+  P24: F_suspended_B_4 [capacity=1, tokens=0]
+  P25: F_suspended_A_5 [capacity=1, tokens=0]
+  P26: core0 [capacity=1, tokens=1]
+  P27: core1 [capacity=1, tokens=1]
+
+Transitions (32):
+  T0: Fget_core [time=[0, 0], priority=96, core=0, suspendable=no]
+  T1: Fexec [time=[3, 3], priority=96, core=0, suspendable=yes]
+  T2: Eget_core [time=[0, 0], priority=98, core=1, suspendable=no]
+  T3: Eexec [time=[15, 18], priority=98, core=1, suspendable=yes]
+  T4: Aget_core [time=[0, 0], priority=97, core=0, suspendable=no]
+  T5: Aexec [time=[3, 8], priority=97, core=0, suspendable=yes]
+  T6: Dget_core [time=[0, 0], priority=97, core=1, suspendable=no]
+  T7: Dexec [time=[6, 8], priority=97, core=1, suspendable=yes]
+  T8: Cget_core [time=[0, 0], priority=99, core=1, suspendable=no]
+  T9: Cexec [time=[8, 10], priority=99, core=1, suspendable=no]
+  T10: Bget_core [time=[0, 0], priority=98, core=0, suspendable=no]
+  T11: Bexec [time=[3, 5], priority=98, core=0, suspendable=no]
+  T12: A_to_B [time=[0, 0], priority=0, core=-1, suspendable=no]
+  T13: B_to_C [time=[0, 0], priority=0, core=-1, suspendable=no]
+  T14: D_to_E [time=[0, 0], priority=0, core=-1, suspendable=no]
+  T15: E_to_C [time=[0, 0], priority=0, core=-1, suspendable=no]
+  T16: A_fire [time=[100, 100], priority=0, core=-1, suspendable=no]
+  T17: D_fire [time=[50, 50], priority=0, core=-1, suspendable=no]
+  T18: C_consume [time=[0, 0], priority=0, core=-1, suspendable=no]
+  T19: F_consume [time=[0, 0], priority=0, core=-1, suspendable=no]
+  T20: C_resume_preempt_E_0 [time=[0, 0], priority=99, core=1, suspendable=no]
+  T21: E_resume_C_0 [time=[0, 0], priority=0, core=-1, suspendable=no]
+  T22: C_resume_preempt_D_1 [time=[0, 0], priority=99, core=1, suspendable=no]
+  T23: D_resume_C_1 [time=[0, 0], priority=0, core=-1, suspendable=no]
+  T24: E_resume_preempt_D_2 [time=[0, 0], priority=98, core=1, suspendable=no]
+  T25: D_resume_E_2 [time=[0, 0], priority=0, core=-1, suspendable=no]
+  T26: B_resume_preempt_A_3 [time=[0, 0], priority=98, core=0, suspendable=no]
+  T27: A_resume_B_3 [time=[0, 0], priority=0, core=-1, suspendable=no]
+  T28: B_resume_preempt_F_4 [time=[0, 0], priority=98, core=0, suspendable=no]
+  T29: F_resume_B_4 [time=[0, 0], priority=0, core=-1, suspendable=no]
+  T30: A_resume_preempt_F_5 [time=[0, 0], priority=97, core=0, suspendable=no]
+  T31: F_resume_A_5 [time=[0, 0], priority=0, core=-1, suspendable=no]
+
+Pre Matrix (28x32):
+  P0: 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  P1: 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 
+  P2: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 
+  P3: 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 
+  P4: 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 
+  P5: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 
+  P6: 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+  P7: 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 
+  P8: 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 
+  P9: 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  P10: 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 
+  P11: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  P12: 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 
+  P13: 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  P14: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 1 0 1 0 0 0 0 0 0 0 0 
+  P15: 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 0 
+  P16: 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  P17: 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 1 0 0 
+  P18: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  P19: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  P20: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 
+  P21: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 
+  P22: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 
+  P23: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 
+  P24: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 
+  P25: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 
+  P26: 1 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  P27: 0 0 1 0 0 0 1 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+
+Post Matrix (32x28):
+  T0: 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  T1: 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+  T2: 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  T3: 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 
+  T4: 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  T5: 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 
+  T6: 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  T7: 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 
+  T8: 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  T9: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 1 
+  T10: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 
+  T11: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 1 0 
+  T12: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 
+  T13: 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  T14: 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  T15: 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  T16: 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 
+  T17: 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 
+  T18: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  T19: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  T20: 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 
+  T21: 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  T22: 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 1 0 0 0 0 0 0 
+  T23: 0 0 0 0 0 0 0 0 0 0 1 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  T24: 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 
+  T25: 0 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+  T26: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 
+  T27: 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 
+  T28: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 1 0 0 0 
+  T29: 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 
+  T30: 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 
+  T31: 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+[2026-06-26 20:45:01.299] [info] [PETRI_EXPORT] Built export model: 28 places, 32 transitions, 100 arcs
+[2026-06-26 20:45:01.299] [info] [PETRI_EXPORT] DOT file saved to: /Users/kevin/local-repos/PTPN/example/common/ptpn.dot
+[2026-06-26 20:45:01.299] [info] [OUTPUT] PTPN saved to: example/common/ptpn.dot
+[2026-06-26 20:45:01.299] [info] [SCG] Canonicalization mode: equality
+[2026-06-26 20:45:01.299] [debug] [SCHED] recompute_enabled_sets_from_marking: previous_marking=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1], new_marking=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1], raw_enabled=T16(A_fire, priority=0, core=-1), T17(D_fire, priority=0, core=-1), reset=T16(A_fire, priority=0, core=-1), T17(D_fire, priority=0, core=-1), preserved=(none)
+[2026-06-26 20:45:01.299] [debug] [SCHED] previously_enabled=(none)
+[2026-06-26 20:45:01.299] [debug] [SCHED] enabled=T16(A_fire, priority=0, core=-1), T17(D_fire, priority=0, core=-1), active=T16(A_fire, priority=0, core=-1), T17(D_fire, priority=0, core=-1), suspended=(none)
+[2026-06-26 20:45:01.299] [debug] [DBM] previous zone:
+DBM(empty)
+[2026-06-26 20:45:01.299] [debug] [Initial] State 0
+  Cumulative time: 0
+  Places: [P0(Fentry)=0, P1(Fready)=0, P2(Fexit)=0, P3(Eentry)=0, P4(Eready)=0, P5(Eexit)=0, P6(Aentry)=0, P7(Aready)=0, P8(Aexit)=0, P9(Dentry)=0, P10(Dready)=0, P11(Dexit)=0, P12(Centry)=0, P13(Cready)=0, P14(Cexit)=0, P15(Bentry)=0, P16(Bready)=0, P17(Bexit)=0, P18(A_period)=1, P19(D_period)=1, P20(E_suspended_C_0)=0, P21(D_suspended_C_1)=0, P22(D_suspended_E_2)=0, P23(A_suspended_B_3)=0, P24(F_suspended_B_4)=0, P25(F_suspended_A_5)=0, P26(core0)=1, P27(core1)=1]
+  Enabled: T16(A_fire, priority=0, core=-1), T17(D_fire, priority=0, core=-1)
+  Active: T16(A_fire, priority=0, core=-1), T17(D_fire, priority=0, core=-1)
+  Suspended: (none)
+  Clocks: T16(A_fire)[0, 100]@ACTIVE; T17(D_fire)[0, 50]@ACTIVE
+  Zone:
+DBM(size=3)
+                                  | x0                                | T16(A_fire, priority=0, core=-1)  | T17(D_fire, priority=0, core=-1)  |
+x0                                | 0                                 | 0                                 | 0                                 |
+T16(A_fire, priority=0, core=-1)  | 100                               | 0                                 | 100                               |
+T17(D_fire, priority=0, core=-1)  | 50                                | 50                                | 0                                 |
+Frozen clocks: (none)
+[2026-06-26 20:45:01.300] [debug] [STATE][Expand state 1] State 1
+  Cumulative time: 0
+  Places: [P0(Fentry)=0, P1(Fready)=0, P2(Fexit)=0, P3(Eentry)=0, P4(Eready)=0, P5(Eexit)=0, P6(Aentry)=0, P7(Aready)=0, P8(Aexit)=0, P9(Dentry)=0, P10(Dready)=0, P11(Dexit)=0, P12(Centry)=0, P13(Cready)=0, P14(Cexit)=0, P15(Bentry)=0, P16(Bready)=0, P17(Bexit)=0, P18(A_period)=1, P19(D_period)=1, P20(E_suspended_C_0)=0, P21(D_suspended_C_1)=0, P22(D_suspended_E_2)=0, P23(A_suspended_B_3)=0, P24(F_suspended_B_4)=0, P25(F_suspended_A_5)=0, P26(core0)=1, P27(core1)=1]
+  Enabled: T16(A_fire, priority=0, core=-1), T17(D_fire, priority=0, core=-1)
+  Active: T16(A_fire, priority=0, core=-1), T17(D_fire, priority=0, core=-1)
+  Suspended: (none)
+  Clocks: T16(A_fire)[0, 100]@ACTIVE; T17(D_fire)[0, 50]@ACTIVE
+  Zone:
+DBM(size=3)
+                                  | x0                                | T16(A_fire, priority=0, core=-1)  | T17(D_fire, priority=0, core=-1)  |
+x0                                | 0                                 | 0                                 | 0                                 |
+T16(A_fire, priority=0, core=-1)  | 100                               | 0                                 | 100                               |
+T17(D_fire, priority=0, core=-1)  | 50                                | 50                                | 0                                 |
+Frozen clocks: (none)
+[2026-06-26 20:45:01.300] [debug] [SCHED] recompute_enabled_sets_from_marking: previous_marking=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1], new_marking=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1], raw_enabled=T16(A_fire, priority=0, core=-1), T17(D_fire, priority=0, core=-1), reset=(none), preserved=T16(A_fire, priority=0, core=-1), T17(D_fire, priority=0, core=-1)
+[2026-06-26 20:45:01.300] [debug] [SCHED] previously_enabled=T16(A_fire, priority=0, core=-1), T17(D_fire, priority=0, core=-1)
+[2026-06-26 20:45:01.300] [debug] [SCHED] enabled=T16(A_fire, priority=0, core=-1), T17(D_fire, priority=0, core=-1), active=T16(A_fire, priority=0, core=-1), T17(D_fire, priority=0, core=-1), suspended=(none)
+[2026-06-26 20:45:01.300] [debug] [DBM] previous zone:
+DBM(size=3):
+          x0       x1       x2
+x0        0       0       0
+x1      100       0     100
+x2       50      50       0
+
+[2026-06-26 20:45:01.300] [debug] [SCHED][Recomputed] State 1
+  Cumulative time: 0
+  Places: [P0(Fentry)=0, P1(Fready)=0, P2(Fexit)=0, P3(Eentry)=0, P4(Eready)=0, P5(Eexit)=0, P6(Aentry)=0, P7(Aready)=0, P8(Aexit)=0, P9(Dentry)=0, P10(Dready)=0, P11(Dexit)=0, P12(Centry)=0, P13(Cready)=0, P14(Cexit)=0, P15(Bentry)=0, P16(Bready)=0, P17(Bexit)=0, P18(A_period)=1, P19(D_period)=1, P20(E_suspended_C_0)=0, P21(D_suspended_C_1)=0, P22(D_suspended_E_2)=0, P23(A_suspended_B_3)=0, P24(F_suspended_B_4)=0, P25(F_suspended_A_5)=0, P26(core0)=1, P27(core1)=1]
+  Enabled: T16(A_fire, priority=0, core=-1), T17(D_fire, priority=0, core=-1)
+  Active: T16(A_fire, priority=0, core=-1), T17(D_fire, priority=0, core=-1)
+  Suspended: (none)
+  Clocks: T16(A_fire)[0, 100]@ACTIVE; T17(D_fire)[0, 50]@ACTIVE
+  Zone:
+DBM(size=3)
+                                  | x0                                | T16(A_fire, priority=0, core=-1)  | T17(D_fire, priority=0, core=-1)  |
+x0                                | 0                                 | 0                                 | 0                                 |
+T16(A_fire, priority=0, core=-1)  | 100                               | 0                                 | 100                               |
+T17(D_fire, priority=0, core=-1)  | 50                                | 50                                | 0                                 |
+Frozen clocks: (none)
+[2026-06-26 20:45:01.300] [debug] [SCHED] Earliest firing time: 50
+[2026-06-26 20:45:01.300] [debug] [SCHED] firable_now=T17(D_fire, priority=0, core=-1)
+[2026-06-26 20:45:01.300] [debug] [SCHED] schedulable=T17(D_fire, priority=0, core=-1)
+[2026-06-26 20:45:01.300] [debug] [FIRE] attempt T17(D_fire, priority=0, core=-1)
+[2026-06-26 20:45:01.300] [debug] [FIRE][From state] State 1
+  Cumulative time: 0
+  Places: [P0(Fentry)=0, P1(Fready)=0, P2(Fexit)=0, P3(Eentry)=0, P4(Eready)=0, P5(Eexit)=0, P6(Aentry)=0, P7(Aready)=0, P8(Aexit)=0, P9(Dentry)=0, P10(Dready)=0, P11(Dexit)=0, P12(Centry)=0, P13(Cready)=0, P14(Cexit)=0, P15(Bentry)=0, P16(Bready)=0, P17(Bexit)=0, P18(A_period)=1, P19(D_period)=1, P20(E_suspended_C_0)=0, P21(D_suspended_C_1)=0, P22(D_suspended_E_2)=0, P23(A_suspended_B_3)=0, P24(F_suspended_B_4)=0, P25(F_suspended_A_5)=0, P26(core0)=1, P27(core1)=1]
+  Enabled: T16(A_fire, priority=0, core=-1), T17(D_fire, priority=0, core=-1)
+  Active: T16(A_fire, priority=0, core=-1), T17(D_fire, priority=0, core=-1)
+  Suspended: (none)
+  Clocks: T16(A_fire)[0, 100]@ACTIVE; T17(D_fire)[0, 50]@ACTIVE
+  Zone:
+DBM(size=3)
+                                  | x0                                | T16(A_fire, priority=0, core=-1)  | T17(D_fire, priority=0, core=-1)  |
+x0                                | 0                                 | 0                                 | 0                                 |
+T16(A_fire, priority=0, core=-1)  | 100                               | 0                                 | 100                               |
+T17(D_fire, priority=0, core=-1)  | 50                                | 50                                | 0                                 |
+Frozen clocks: (none)
+[2026-06-26 20:45:01.300] [debug] [DBM] after restrict_clock on T17(D_fire, priority=0, core=-1):
+DBM(size=3)
+                                  | x0                                | T16(A_fire, priority=0, core=-1)  | T17(D_fire, priority=0, core=-1)  |
+x0                                | 0                                 | 0                                 | -50                               |
+T16(A_fire, priority=0, core=-1)  | 100                               | 0                                 | 50                                |
+T17(D_fire, priority=0, core=-1)  | 50                                | 50                                | 0                                 |
+Frozen clocks: (none)
+[2026-06-26 20:45:01.300] [debug] [FIRE] T17(D_fire, priority=0, core=-1) failed during elapse_active_clocks(dt=50)
+[2026-06-26 20:45:01.300] [debug] [FIRE] T17(D_fire, priority=0, core=-1) failed [pruning disabled]
+[2026-06-26 20:45:01.300] [debug] [STATE] State 1: chosen=1, fired=0, frontier size=0, total states=1
+[2026-06-26 20:45:01.300] [info] [STATE] Build complete: states=1, transitions=0, dedup_hits=0, dedup_misses=0, is_enabled_checks=0, max_frontier_size=1, truncated=false
+[2026-06-26 20:45:01.300] [info] [SCG] Reachability graph built with 1 states
+[2026-06-26 20:45:01.300] [info] [OUTPUT] State class graph saved to: example/common/state-class-graph.dot
+[2026-06-26 20:45:01.300] [info] 
+[STATS] TDG analysis: 4 ms, 1 KB
