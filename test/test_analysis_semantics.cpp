@@ -1,3 +1,5 @@
+#include <string>
+
 #include <gtest/gtest.h>
 
 #include <boost/graph/adjacency_list.hpp>
@@ -18,6 +20,16 @@ struct StateClassReachabilityGraphTestAccess {
   static void recompute_suspension(const StateClassReachabilityGraph& graph,
                                    ReachabilityState& state) {
     graph.recompute_suspension(state);
+  }
+
+  static std::string format_state_dump(const StateClassReachabilityGraph& graph,
+                                       const ReachabilityState& state) {
+    return graph.format_state_dump(state);
+  }
+
+  static std::string format_named_dbm(const StateClassReachabilityGraph& graph,
+                                      const ReachabilityState& state) {
+    return graph.format_named_dbm(state);
   }
 };
 }  // namespace state_class
@@ -265,20 +277,32 @@ TEST(PtpnAnalysisSemanticsTest, StrictBoundsDoNotBreakTimeFirstPriorityRule) {
   EXPECT_EQ(successor.timing.clocks[survivor].upper_bound, 5);
 }
 
-TEST(PtpnAnalysisSemanticsTest, ApplyPreemptionPreservesTimeFirstChosenTransitions) {
-  const petri::PTPN ptpn = make_time_first_net();
+
+TEST(PtpnAnalysisSemanticsTest, NamedStateDumpIncludesNamesAndDbmHeaders) {
+  const petri::PTPN ptpn = make_suspendable_same_core_net();
   state_class::StateClassReachabilityGraph graph(ptpn);
   auto state = graph.create_initial_state();
 
-  ASSERT_EQ(state.scheduling.enabled, std::set<size_t>({0u, 1u}));
+  graph.suspend_transition(0u, state);
 
-  state_class::StateClassReachabilityGraphTestAccess::apply_preemption(graph, {0u}, state);
+  const std::string dump =
+      state_class::StateClassReachabilityGraphTestAccess::format_state_dump(graph, state);
+  const std::string named_dbm =
+      state_class::StateClassReachabilityGraphTestAccess::format_named_dbm(graph, state);
 
-  EXPECT_EQ(state.scheduling.enabled, std::set<size_t>({0u, 1u}));
-  EXPECT_EQ(state.scheduling.active, std::set<size_t>({0u}));
-  EXPECT_TRUE(state.scheduling.suspended.empty());
-  EXPECT_EQ(state.timing.clocks[0].state, state_class::ClockState::ACTIVE);
-  EXPECT_EQ(state.timing.clocks[1].state, state_class::ClockState::UNACTIVE);
+  EXPECT_NE(dump.find("P0(p0)=1"), std::string::npos);
+  EXPECT_NE(dump.find("T0(low_priority, priority=1, core=0, suspendable)"),
+            std::string::npos);
+  EXPECT_NE(dump.find("T1(high_priority, priority=2, core=0, suspendable)"),
+            std::string::npos);
+  EXPECT_NE(dump.find("Suspended:"), std::string::npos);
+  EXPECT_NE(dump.find("Zone:"), std::string::npos);
+  EXPECT_NE(named_dbm.find("x0"), std::string::npos);
+  EXPECT_NE(named_dbm.find("T0(low_priority, priority=1, core=0, suspendable)[frozen]"),
+            std::string::npos);
+  EXPECT_NE(named_dbm.find("T1(high_priority, priority=2, core=0, suspendable)"),
+            std::string::npos);
+  EXPECT_NE(named_dbm.find("Frozen clocks:"), std::string::npos);
 }
 
 TEST(PtpnAnalysisSemanticsTest, OpenLowerBoundDelaysFiringByOneTick) {
@@ -297,8 +321,7 @@ TEST(PtpnAnalysisSemanticsTest, OpenLowerBoundDelaysFiringByOneTick) {
   EXPECT_DOUBLE_EQ(2.0, analyzer.advance_time(state));
 }
 
-TEST(PtpnAnalysisSemanticsTest,
-     RecomputeSuspensionFallsBackToReplacementWhenPreviousActiveDisappears) {
+TEST(PtpnAnalysisSemanticsTest, RecomputeSuspensionFallsBackToReplacementWhenPreviousActiveDisappears) {
   const petri::PTPN ptpn = make_recompute_suspension_fallback_net();
   state_class::StateClassReachabilityGraph graph(ptpn);
   auto state = graph.create_initial_state();

@@ -232,10 +232,13 @@ class StateClassReachabilityGraph {
   StateExpansionResult expand_state_candidates(const ReachabilityState& cur);
 
   static std::string format_marking(const std::vector<int>& marking);
+  std::string format_transition_label(size_t transition_id) const;
   std::string format_transitions(const std::set<size_t>& trans_indices,
                                  bool detailed = true) const;
 
   std::string format_places(const std::vector<int>& marking) const;
+  std::string format_named_dbm(const ReachabilityState& state) const;
+  std::string format_state_dump(const ReachabilityState& state) const;
 
   void log_state_class_details(const ReachabilityState& state,
                               const std::string& prefix = "") const;
