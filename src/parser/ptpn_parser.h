@@ -50,7 +50,8 @@ class PTPNParser {
   static bool parse(const std::string& input, PTPNAST& ast, std::string& error);
 
   // Parse from file (syntax only)
-  static bool parse_file(const std::string& filepath, PTPNAST& ast, std::string& error);
+  static bool parse_file(const std::string& filepath, PTPNAST& ast,
+                         std::string& error);
 
   // Semantic validation on a parsed AST
   static bool validate(const PTPNAST& ast, std::string& error);

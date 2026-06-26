@@ -28,13 +28,13 @@
 #include <string>
 #include <vector>
 
-#include "petri/petri.h"
 #include "canonicalization.h"
-#include "state.h"
 #include "graph.h"
+#include "petri/petri.h"
+#include "state.h"
 
 namespace state_class {
-  
+
 /**
  * PTPNAnalyzer - PTPN 可达性分析器
  *
@@ -43,7 +43,6 @@ namespace state_class {
  */
 class PTPNAnalyzer {
  public:
-
   /**
    * 构造分析器.
    *
@@ -86,7 +85,7 @@ class PTPNAnalyzer {
    * 查询剪枝是否启用.
    */
   [[nodiscard]] bool is_pruning_enabled() const;
-  
+
   /**
    * build - 构建可达性图
    *
@@ -153,8 +152,8 @@ class PTPNAnalyzer {
   /**
    * recompute_enabled_sets_from_marking - 从给定 marking 计算
    */
-  void recompute_enabled_sets_from_marking(
-      const std::vector<int>& marking, ReachabilityState& state) const;
+  void recompute_enabled_sets_from_marking(const std::vector<int>& marking,
+                                           ReachabilityState& state) const;
 
   /**
    * select_active_per_core - 选择每个核心上最高优先级变迁
@@ -181,12 +180,14 @@ class PTPNAnalyzer {
   /**
    * canonicalize - 规范化两个状态
    */
-  ReachabilityState canonicalize(const ReachabilityState& a, const ReachabilityState& b) const;
+  ReachabilityState canonicalize(const ReachabilityState& a,
+                                 const ReachabilityState& b) const;
 
   /**
    * are_equivalent - 检查两个状态是否等价
    */
-  bool are_equivalent(const ReachabilityState& a, const ReachabilityState& b) const;
+  bool are_equivalent(const ReachabilityState& a,
+                      const ReachabilityState& b) const;
 
   /**
    * save_to_dot - 保存为 Graphviz DOT 格式
@@ -254,8 +255,7 @@ inline PTPNAnalyzer& PTPNAnalyzer::operator=(const PTPNAnalyzer& other) {
 }
 
 inline PTPNAnalyzer::PTPNAnalyzer(PTPNAnalyzer&& other) noexcept
-    : ptpn_(std::move(other.ptpn_)),
-      graph_(std::move(other.graph_)) {}
+    : ptpn_(std::move(other.ptpn_)), graph_(std::move(other.graph_)) {}
 
 inline PTPNAnalyzer& PTPNAnalyzer::operator=(PTPNAnalyzer&& other) noexcept {
   if (this != &other) {
@@ -265,8 +265,7 @@ inline PTPNAnalyzer& PTPNAnalyzer::operator=(PTPNAnalyzer&& other) noexcept {
   return *this;
 }
 
-inline void PTPNAnalyzer::set_canonicalization_mode(
-    CanonicalizationMode mode) {
+inline void PTPNAnalyzer::set_canonicalization_mode(CanonicalizationMode mode) {
   graph_->set_canonicalization_mode(mode);
 }
 
@@ -311,8 +310,8 @@ inline double PTPNAnalyzer::advance_time(ReachabilityState& state) const {
   return graph_->advance_time(state);
 }
 
-inline std::tuple<bool, ReachabilityState, double>
-PTPNAnalyzer::fire_with_time(size_t t, const ReachabilityState& from) const {
+inline std::tuple<bool, ReachabilityState, double> PTPNAnalyzer::fire_with_time(
+    size_t t, const ReachabilityState& from) const {
   return graph_->fire_with_time(t, from);
 }
 
@@ -332,18 +331,17 @@ inline std::set<size_t> PTPNAnalyzer::select_active_per_core(
 }
 
 inline std::set<size_t> PTPNAnalyzer::compute_suspended(
-    const std::set<size_t>& enabled,
-    const std::set<size_t>& active) const {
+    const std::set<size_t>& enabled, const std::set<size_t>& active) const {
   return graph_->compute_suspended(enabled, active);
 }
 
-inline void PTPNAnalyzer::suspend_transition(
-    size_t t, ReachabilityState& state) const {
+inline void PTPNAnalyzer::suspend_transition(size_t t,
+                                             ReachabilityState& state) const {
   graph_->suspend_transition(t, state);
 }
 
-inline void PTPNAnalyzer::restore_transition(
-    size_t t, ReachabilityState& state) const {
+inline void PTPNAnalyzer::restore_transition(size_t t,
+                                             ReachabilityState& state) const {
   graph_->restore_transition(t, state);
 }
 
@@ -352,18 +350,16 @@ inline ReachabilityState PTPNAnalyzer::canonicalize(
   return graph_->canonicalize(a, b);
 }
 
-inline bool PTPNAnalyzer::are_equivalent(
-    const ReachabilityState& a, const ReachabilityState& b) const {
+inline bool PTPNAnalyzer::are_equivalent(const ReachabilityState& a,
+                                         const ReachabilityState& b) const {
   return graph_->are_equivalent(a, b);
 }
 
-inline bool PTPNAnalyzer::save_to_dot(
-    const std::string& file_path) const {
+inline bool PTPNAnalyzer::save_to_dot(const std::string& file_path) const {
   return graph_->save_to_dot(file_path);
 }
 
-inline bool PTPNAnalyzer::save_to_json(
-    const std::string& file_path) const {
+inline bool PTPNAnalyzer::save_to_json(const std::string& file_path) const {
   return graph_->save_to_json(file_path);
 }
 
@@ -375,13 +371,9 @@ inline size_t PTPNAnalyzer::num_transitions() const {
   return ptpn_->num_transitions();
 }
 
-inline size_t PTPNAnalyzer::num_places() const {
-  return ptpn_->num_places();
-}
+inline size_t PTPNAnalyzer::num_places() const { return ptpn_->num_places(); }
 
-inline const petri::PTPN& PTPNAnalyzer::get_ptpn() const {
-  return *ptpn_;
-}
+inline const petri::PTPN& PTPNAnalyzer::get_ptpn() const { return *ptpn_; }
 
 }  // namespace state_class
 

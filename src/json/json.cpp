@@ -39,11 +39,12 @@ std::string join(const Range& values, std::string_view delimiter,
 }
 
 std::string format_range(const std::pair<int, int>& range) {
-  return "[" + std::to_string(range.first) + ", " + std::to_string(range.second) +
-         "]";
+  return "[" + std::to_string(range.first) + ", " +
+         std::to_string(range.second) + "]";
 }
 
-std::string format_time_ranges(const std::vector<std::pair<int, int>>& time_ranges) {
+std::string format_time_ranges(
+    const std::vector<std::pair<int, int>>& time_ranges) {
   return join(time_ranges, ", ", format_range);
 }
 
@@ -162,9 +163,7 @@ std::string format_locks_with_type(const std::vector<std::string>& locks) {
 }
 
 // Each lock adds a pre-CS, CS, and post-CS segment: total = 2 * locks + 1.
-int calculate_time_interval_count(int lock_count) {
-  return 2 * lock_count + 1;
-}
+int calculate_time_interval_count(int lock_count) { return 2 * lock_count + 1; }
 
 std::string get_time_interval_label(int index,
                                     const std::vector<std::string>& locks) {
@@ -187,7 +186,8 @@ std::string get_time_interval_label(int index,
     }
   }
 
-  // Nested locking: lock1 -> lock2 -> ... -> lockN -> unlockN -> ... -> unlock1.
+  // Nested locking: lock1 -> lock2 -> ... -> lockN -> unlockN -> ... ->
+  // unlock1.
   if (index < lock_count) {
     return index == 0 ? "[Pre:" + locks[0] + "]"
                       : "[CS:" + locks[index - 1] + "]";
@@ -267,7 +267,8 @@ void Parser::parse_configuration_object(const json& config) {
   graph_.cores_per_cpu = config.value("cores_per_cpu", graph_.cores_per_cpu);
 
   if (config.contains("shared_locks")) {
-    graph_.shared_locks = config["shared_locks"].get<std::vector<std::string>>();
+    graph_.shared_locks =
+        config["shared_locks"].get<std::vector<std::string>>();
   }
   if (config.contains("policy")) {
     graph_.policy = parse_schedule_policy(config["policy"].get<std::string>());
@@ -351,8 +352,7 @@ ValidationResult Parser::validate() const {
                        node.id);
     }
 
-    if (node.type == kNodeTypeTask &&
-        (node.core < 0 || node.core > max_core)) {
+    if (node.type == kNodeTypeTask && (node.core < 0 || node.core > max_core)) {
       result.add_error("Invalid core number for node " + node.id + ": " +
                        std::to_string(node.core) + " (valid range: 0-" +
                        std::to_string(max_core) + ")");
@@ -407,7 +407,8 @@ ValidationResult Parser::validate() const {
 
   for (const auto& start_task : graph_.start_tasks) {
     if (node_ids.count(start_task.task) == 0) {
-      result.add_error("Start task references unknown node: " + start_task.task);
+      result.add_error("Start task references unknown node: " +
+                       start_task.task);
       continue;
     }
     if (!is_task_type(node_types.at(start_task.task))) {

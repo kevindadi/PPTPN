@@ -1,11 +1,12 @@
 #include "analysis/dbm.h"
-#include "clock_state.h"
 
 #include <atomic>
 #include <iomanip>
 #include <limits>
 #include <sstream>
 #include <stdexcept>
+
+#include "clock_state.h"
 
 namespace state_class {
 
@@ -64,9 +65,7 @@ DBM& DBM::operator=(const DBM& other) {
   return *this;
 }
 
-size_t DBM::offset(size_t i, size_t j) const {
-  return i * clock_count_ + j;
-}
+size_t DBM::offset(size_t i, size_t j) const { return i * clock_count_ + j; }
 
 void DBM::check_index(size_t i, size_t j) const {
   if (i >= clock_count_ || j >= clock_count_) {
@@ -349,9 +348,7 @@ DBM DBM::intersection(const DBM& other) const {
 
 bool DBM::is_empty() const { return !is_consistent(); }
 
-void DBM::prune() {
-  minimize();
-}
+void DBM::prune() { minimize(); }
 
 bool DBM::contains(const DBM& other) const {
   if (clock_count_ != other.clock_count_) {
@@ -549,9 +546,7 @@ void DBM::freeze_clock(size_t clock_idx) {
   frozen_clocks_.insert(clock_idx);
 }
 
-void DBM::unfreeze_clock(size_t clock_idx) {
-  frozen_clocks_.erase(clock_idx);
-}
+void DBM::unfreeze_clock(size_t clock_idx) { frozen_clocks_.erase(clock_idx); }
 
 bool DBM::is_frozen(size_t clock_idx) const {
   return frozen_clocks_.find(clock_idx) != frozen_clocks_.end();

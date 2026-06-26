@@ -20,8 +20,8 @@ class SchedulingAlgorithms {
   /**
    * select_active_per_core - 每个核心上最高优先级变迁集合
    *
-   * 对候选集合中每个核心 k>=0,保留所有满足 pi(t)=max_{u in E_k} pi(u) 的变迁（可并列）.
-   * 控制变迁（core < 0）在候选集中则全部保留.
+   * 对候选集合中每个核心 k>=0,保留所有满足 pi(t)=max_{u in E_k} pi(u)
+   * 的变迁（可并列）. 控制变迁（core < 0）在候选集中则全部保留.
    */
   static std::set<size_t> select_active_per_core(
       const std::set<size_t>& enabled, const petri::PTPN& ptpn);
@@ -46,10 +46,9 @@ class SchedulingAlgorithms {
    * @param ptpn PTPN 网
    * @return 应该挂起的变迁集合
    */
-  static std::set<size_t> compute_suspended(
-      const std::set<size_t>& enabled,
-      const std::set<size_t>& active,
-      const petri::PTPN& ptpn);
+  static std::set<size_t> compute_suspended(const std::set<size_t>& enabled,
+                                            const std::set<size_t>& active,
+                                            const petri::PTPN& ptpn);
 
   /**
    * should_suspend - 检查变迁是否应该挂起
@@ -64,8 +63,7 @@ class SchedulingAlgorithms {
    * @param ptpn PTPN 网
    * @return 如果应该挂起返回 true
    */
-  static bool should_suspend(size_t t,
-                             const std::set<size_t>& active,
+  static bool should_suspend(size_t t, const std::set<size_t>& active,
                              const petri::PTPN& ptpn);
 
   /**
@@ -80,9 +78,8 @@ class SchedulingAlgorithms {
    * @param ptpn PTPN 网
    * @return 如果应该恢复返回 true
    */
-  static bool should_restore(size_t t,
-                            const std::set<size_t>& active,
-                            const petri::PTPN& ptpn);
+  static bool should_restore(size_t t, const std::set<size_t>& active,
+                             const petri::PTPN& ptpn);
 
   /**
    * get_higher_priority_active - 获取同核心更高优先级活跃变迁
@@ -93,9 +90,7 @@ class SchedulingAlgorithms {
    * @return 同核心更高优先级活跃变迁集合
    */
   static std::set<size_t> get_higher_priority_active(
-      size_t t,
-      const std::set<size_t>& active,
-      const petri::PTPN& ptpn);
+      size_t t, const std::set<size_t>& active, const petri::PTPN& ptpn);
 };
 
 }  // namespace state_class

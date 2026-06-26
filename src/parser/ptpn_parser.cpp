@@ -11,8 +11,8 @@ static bool is_whitespace(char c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r';
 }
 
-static void skip_whitespace_and_comments(std::string::const_iterator& it,
-                                         const std::string::const_iterator& end) {
+static void skip_whitespace_and_comments(
+    std::string::const_iterator& it, const std::string::const_iterator& end) {
   while (it != end) {
     while (it != end && is_whitespace(*it)) {
       ++it;
@@ -103,9 +103,9 @@ static bool parse_transition_attribute(TransitionNode& trans,
   return false;
 }
 
-static bool parse_bare_transition_attribute(TransitionNode& trans,
-                                            std::string::const_iterator& it,
-                                            const std::string::const_iterator& end) {
+static bool parse_bare_transition_attribute(
+    TransitionNode& trans, std::string::const_iterator& it,
+    const std::string::const_iterator& end) {
   if (it == end || !std::isalpha(*it)) {
     return false;
   }
@@ -170,11 +170,8 @@ bool PTPNParser::validate(const PTPNAST& ast, std::string& error) {
       error = "Invalid time range for transition: " + trans.id;
       return false;
     }
-    const petri::TimeInterval interval(
-        trans.time_min,
-        trans.time_max,
-        trans.left_open,
-        trans.right_open);
+    const petri::TimeInterval interval(trans.time_min, trans.time_max,
+                                       trans.left_open, trans.right_open);
     if (!interval.is_valid()) {
       error = "Invalid or empty integer time range for transition: " + trans.id;
       return false;
@@ -206,7 +203,8 @@ bool PTPNParser::validate(const PTPNAST& ast, std::string& error) {
       return false;
     }
     if (arc.weight <= 0) {
-      error = "Arc weight must be positive: " + arc.source + " -> " + arc.target;
+      error =
+          "Arc weight must be positive: " + arc.source + " -> " + arc.target;
       return false;
     }
   }
@@ -225,7 +223,8 @@ bool PTPNParser::validate(const PTPNAST& ast, std::string& error) {
   return true;
 }
 
-bool PTPNParser::parse(const std::string& input, PTPNAST& ast, std::string& error) {
+bool PTPNParser::parse(const std::string& input, PTPNAST& ast,
+                       std::string& error) {
   ast = PTPNAST();
 
   auto it = input.begin();
@@ -373,7 +372,8 @@ bool PTPNParser::parse(const std::string& input, PTPNAST& ast, std::string& erro
             }
           }
 
-          if (!std::isalpha(*it) && *it != '_' && *it != '[' && *it != '(' && *it != '@') {
+          if (!std::isalpha(*it) && *it != '_' && *it != '[' && *it != '(' &&
+              *it != '@') {
             ++it;
             continue;
           }
@@ -481,7 +481,8 @@ bool PTPNParser::parse(const std::string& input, PTPNAST& ast, std::string& erro
   }
 }
 
-bool PTPNParser::parse_file(const std::string& filepath, PTPNAST& ast, std::string& error) {
+bool PTPNParser::parse_file(const std::string& filepath, PTPNAST& ast,
+                            std::string& error) {
   std::ifstream file(filepath);
   if (!file.is_open()) {
     error = "Cannot open file: " + filepath;
@@ -512,11 +513,8 @@ petri::PTPN PTPNBuilder::build(const PTPNAST& ast) {
     const auto& t = ast.transitions[i];
     transition_index[t.id] = i;
     const std::string name = t.name.empty() ? t.id : t.name;
-    const petri::TimeInterval interval(
-        t.time_min,
-        t.time_max,
-        t.left_open,
-        t.right_open);
+    const petri::TimeInterval interval(t.time_min, t.time_max, t.left_open,
+                                       t.right_open);
     ptpn.add_transition(name, interval, t.priority, t.core, t.suspendable);
   }
 
@@ -528,7 +526,8 @@ petri::PTPN PTPNBuilder::build(const PTPNAST& ast) {
 
     if (src_place != place_index.end() && tgt_trans != transition_index.end()) {
       ptpn.set_pre_arc(src_place->second, tgt_trans->second, arc.weight);
-    } else if (src_trans != transition_index.end() && tgt_place != place_index.end()) {
+    } else if (src_trans != transition_index.end() &&
+               tgt_place != place_index.end()) {
       ptpn.set_post_arc(src_trans->second, tgt_place->second, arc.weight);
     }
   }

@@ -5,9 +5,7 @@
 namespace state_class {
 
 std::set<size_t> SchedulingAlgorithms::select_active_per_core(
-    const std::set<size_t>& enabled,
-    const petri::PTPN& ptpn) {
-
+    const std::set<size_t>& enabled, const petri::PTPN& ptpn) {
   std::map<int, int> per_core_max_priority;
 
   for (size_t t : enabled) {
@@ -41,8 +39,8 @@ std::set<size_t> SchedulingAlgorithms::select_active_per_core(
   return result;
 }
 
-size_t SchedulingAlgorithms::select_one_transition(const std::set<size_t>& schedulable,
-                                                   const petri::PTPN& ptpn) {
+size_t SchedulingAlgorithms::select_one_transition(
+    const std::set<size_t>& schedulable, const petri::PTPN& ptpn) {
   size_t chosen = *schedulable.begin();
   int best_priority = ptpn.get_transition(chosen).priority;
 
@@ -58,10 +56,8 @@ size_t SchedulingAlgorithms::select_one_transition(const std::set<size_t>& sched
 }
 
 std::set<size_t> SchedulingAlgorithms::compute_suspended(
-    const std::set<size_t>& enabled,
-    const std::set<size_t>& active,
+    const std::set<size_t>& enabled, const std::set<size_t>& active,
     const petri::PTPN& ptpn) {
-
   std::set<size_t> result;
 
   for (size_t t : enabled) {
@@ -102,10 +98,7 @@ bool SchedulingAlgorithms::should_restore(size_t t,
 }
 
 std::set<size_t> SchedulingAlgorithms::get_higher_priority_active(
-    size_t t,
-    const std::set<size_t>& active,
-    const petri::PTPN& ptpn) {
-
+    size_t t, const std::set<size_t>& active, const petri::PTPN& ptpn) {
   std::set<size_t> result;
 
   const auto& target_trans = ptpn.get_transition(t);

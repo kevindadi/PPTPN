@@ -1,10 +1,11 @@
 #include "analysis/graph.h"
 
+#include <spdlog/spdlog.h>
+
 #include <algorithm>
 #include <fstream>
 #include <iomanip>
 #include <limits>
-#include <spdlog/spdlog.h>
 #include <sstream>
 #include <vector>
 
@@ -39,12 +40,12 @@ std::pair<int, int> effective_time_bounds_for_transition(
 
 std::string format_int_vector(const std::vector<int>& values);
 std::string format_transition_vector(const std::vector<size_t>& trans_indices,
-                                     const petri::PTPN& ptpn,
-                                     bool detailed);
+                                     const petri::PTPN& ptpn, bool detailed);
 std::string escape_dot_string(const std::string& value);
 std::string escape_json_string(const std::string& value);
 std::string join_lines_for_dot(const std::string& value);
-std::pair<int, int> current_clock_bounds(const ReachabilityState& state, size_t t);
+std::pair<int, int> current_clock_bounds(const ReachabilityState& state,
+                                         size_t t);
 void sync_zone_activity(ReachabilityState& state);
 
 bool safe_add_graph_bound(int lhs, int rhs, int& result) {
@@ -102,7 +103,8 @@ bool elapse_active_clocks(ReachabilityState& state, int delay) {
         continue;
       }
 
-      const size_t w_idx = static_cast<size_t>(state.w_clock_index_for_transition(t));
+      const size_t w_idx =
+          static_cast<size_t>(state.w_clock_index_for_transition(t));
       const int current_w_lower = state.timing.zone.get_constraint(0, w_idx);
       int updated_w_lower = current_w_lower;
       safe_add_graph_bound(current_w_lower, -delay, updated_w_lower);
@@ -160,7 +162,6 @@ bool elapse_active_clocks(ReachabilityState& state, int delay) {
   return true;
 }
 
-
 // State key helper using new clocks/active/suspended structure
 StateKey make_state_key(const ReachabilityState& state) {
   StateKey key;
@@ -178,9 +179,10 @@ StateKey make_state_key(const ReachabilityState& state) {
   return key;
 }
 
-std::pair<int, int> current_clock_bounds(const ReachabilityState& state, size_t t) {
-  if (t < state.timing.clocks.size() && state.has_zone_clock_for_transition(t) &&
-      state.timing.zone.size() > 0) {
+std::pair<int, int> current_clock_bounds(const ReachabilityState& state,
+                                         size_t t) {
+  if (t < state.timing.clocks.size() &&
+      state.has_zone_clock_for_transition(t) && state.timing.zone.size() > 0) {
     const size_t clock_idx =
         static_cast<size_t>(state.clock_index_for_transition(t));
     return {-state.timing.zone.get_constraint(0, clock_idx),
@@ -188,7 +190,8 @@ std::pair<int, int> current_clock_bounds(const ReachabilityState& state, size_t 
   }
 
   if (t < state.timing.clocks.size()) {
-    return {state.timing.clocks[t].lower_bound, state.timing.clocks[t].upper_bound};
+    return {state.timing.clocks[t].lower_bound,
+            state.timing.clocks[t].upper_bound};
   }
 
   return {0, INF_TIME};
@@ -209,8 +212,10 @@ void rebuild_zone_preserving_constraints(
   state.timing.transition_to_h_clock.assign(state.timing.clocks.size(), -1);
   state.timing.transition_to_w_clock.assign(state.timing.clocks.size(), -1);
   state.timing.clock_to_variable.clear();
-  state.timing.clock_to_variable.push_back({TimedVariableKind::ZERO, INVALID_TRANSITION_ID});
-  state.timing.transition_has_w_domain.resize(state.timing.clocks.size(), false);
+  state.timing.clock_to_variable.push_back(
+      {TimedVariableKind::ZERO, INVALID_TRANSITION_ID});
+  state.timing.transition_has_w_domain.resize(state.timing.clocks.size(),
+                                              false);
 
   DBM next_zone(1);
   for (size_t t : state.scheduling.enabled) {
@@ -233,40 +238,53 @@ void rebuild_zone_preserving_constraints(
     return previously_enabled.count(t) && !reset_transitions.count(t) &&
            t < previous_transition_to_h_clock.size() &&
            previous_transition_to_h_clock[t] > 0 &&
-           static_cast<size_t>(previous_transition_to_h_clock[t]) < previous_zone.size();
+           static_cast<size_t>(previous_transition_to_h_clock[t]) <
+               previous_zone.size();
   };
   const auto has_previous_w_clock = [&](size_t t) {
-    return t < previous_transition_has_w_domain.size() && previous_transition_has_w_domain[t] &&
+    return t < previous_transition_has_w_domain.size() &&
+           previous_transition_has_w_domain[t] &&
            t < previous_transition_to_w_clock.size() &&
            previous_transition_to_w_clock[t] > 0 &&
-           static_cast<size_t>(previous_transition_to_w_clock[t]) < previous_zone.size();
+           static_cast<size_t>(previous_transition_to_w_clock[t]) <
+               previous_zone.size();
   };
 
   for (size_t t : state.scheduling.enabled) {
-    if (t >= state.timing.transition_to_h_clock.size() || state.timing.transition_to_h_clock[t] <= 0) {
+    if (t >= state.timing.transition_to_h_clock.size() ||
+        state.timing.transition_to_h_clock[t] <= 0) {
       continue;
     }
 
-    const size_t new_h = static_cast<size_t>(state.timing.transition_to_h_clock[t]);
+    const size_t new_h =
+        static_cast<size_t>(state.timing.transition_to_h_clock[t]);
     if (has_previous_h_clock(t)) {
-      const size_t old_h = static_cast<size_t>(previous_transition_to_h_clock[t]);
-      next_zone.set_constraint(0, new_h, previous_zone.get_constraint(0, old_h));
-      next_zone.set_constraint(new_h, 0, previous_zone.get_constraint(old_h, 0));
+      const size_t old_h =
+          static_cast<size_t>(previous_transition_to_h_clock[t]);
+      next_zone.set_constraint(0, new_h,
+                               previous_zone.get_constraint(0, old_h));
+      next_zone.set_constraint(new_h, 0,
+                               previous_zone.get_constraint(old_h, 0));
     } else {
       const auto& clock = state.timing.clocks[t];
       next_zone.set_constraint(0, new_h, -clock.lower_bound);
       next_zone.set_constraint(new_h, 0, clock.upper_bound);
     }
 
-    if (state.timing.transition_has_w_domain[t] && state.timing.transition_to_w_clock[t] > 0) {
-      const size_t new_w = static_cast<size_t>(state.timing.transition_to_w_clock[t]);
+    if (state.timing.transition_has_w_domain[t] &&
+        state.timing.transition_to_w_clock[t] > 0) {
+      const size_t new_w =
+          static_cast<size_t>(state.timing.transition_to_w_clock[t]);
       if (state.scheduling.active.count(t)) {
         next_zone.set_constraint(0, new_w, 0);
         next_zone.set_constraint(new_w, 0, INF_TIME);
       } else if (has_previous_w_clock(t)) {
-        const size_t old_w = static_cast<size_t>(previous_transition_to_w_clock[t]);
-        next_zone.set_constraint(0, new_w, previous_zone.get_constraint(0, old_w));
-        next_zone.set_constraint(new_w, 0, previous_zone.get_constraint(old_w, 0));
+        const size_t old_w =
+            static_cast<size_t>(previous_transition_to_w_clock[t]);
+        next_zone.set_constraint(0, new_w,
+                                 previous_zone.get_constraint(0, old_w));
+        next_zone.set_constraint(new_w, 0,
+                                 previous_zone.get_constraint(old_w, 0));
       } else {
         next_zone.set_constraint(0, new_w, -state.w_lower_bound(t));
         next_zone.set_constraint(new_w, 0, INF_TIME);
@@ -276,15 +294,19 @@ void rebuild_zone_preserving_constraints(
 
   for (size_t ti : state.scheduling.enabled) {
     if (has_previous_h_clock(ti)) {
-      const size_t new_hi = static_cast<size_t>(state.timing.transition_to_h_clock[ti]);
-      const size_t old_hi = static_cast<size_t>(previous_transition_to_h_clock[ti]);
+      const size_t new_hi =
+          static_cast<size_t>(state.timing.transition_to_h_clock[ti]);
+      const size_t old_hi =
+          static_cast<size_t>(previous_transition_to_h_clock[ti]);
       for (size_t tj : state.scheduling.enabled) {
         if (!has_previous_h_clock(tj)) {
           continue;
         }
 
-        const size_t new_hj = static_cast<size_t>(state.timing.transition_to_h_clock[tj]);
-        const size_t old_hj = static_cast<size_t>(previous_transition_to_h_clock[tj]);
+        const size_t new_hj =
+            static_cast<size_t>(state.timing.transition_to_h_clock[tj]);
+        const size_t old_hj =
+            static_cast<size_t>(previous_transition_to_h_clock[tj]);
         next_zone.set_constraint(new_hi, new_hj,
                                  previous_zone.get_constraint(old_hi, old_hj));
       }
@@ -292,24 +314,31 @@ void rebuild_zone_preserving_constraints(
 
     if (state.timing.transition_has_w_domain[ti] && has_previous_w_clock(ti) &&
         state.timing.transition_to_w_clock[ti] > 0) {
-      const size_t new_wi = static_cast<size_t>(state.timing.transition_to_w_clock[ti]);
-      const size_t old_wi = static_cast<size_t>(previous_transition_to_w_clock[ti]);
+      const size_t new_wi =
+          static_cast<size_t>(state.timing.transition_to_w_clock[ti]);
+      const size_t old_wi =
+          static_cast<size_t>(previous_transition_to_w_clock[ti]);
 
       for (size_t tj : state.scheduling.enabled) {
         if (has_previous_h_clock(tj)) {
-          const size_t new_hj = static_cast<size_t>(state.timing.transition_to_h_clock[tj]);
-          const size_t old_hj = static_cast<size_t>(previous_transition_to_h_clock[tj]);
-          next_zone.set_constraint(new_wi, new_hj,
-                                   previous_zone.get_constraint(old_wi, old_hj));
-          next_zone.set_constraint(new_hj, new_wi,
-                                   previous_zone.get_constraint(old_hj, old_wi));
+          const size_t new_hj =
+              static_cast<size_t>(state.timing.transition_to_h_clock[tj]);
+          const size_t old_hj =
+              static_cast<size_t>(previous_transition_to_h_clock[tj]);
+          next_zone.set_constraint(
+              new_wi, new_hj, previous_zone.get_constraint(old_wi, old_hj));
+          next_zone.set_constraint(
+              new_hj, new_wi, previous_zone.get_constraint(old_hj, old_wi));
         }
-        if (state.timing.transition_has_w_domain[tj] && has_previous_w_clock(tj) &&
+        if (state.timing.transition_has_w_domain[tj] &&
+            has_previous_w_clock(tj) &&
             state.timing.transition_to_w_clock[tj] > 0) {
-          const size_t new_wj = static_cast<size_t>(state.timing.transition_to_w_clock[tj]);
-          const size_t old_wj = static_cast<size_t>(previous_transition_to_w_clock[tj]);
-          next_zone.set_constraint(new_wi, new_wj,
-                                   previous_zone.get_constraint(old_wi, old_wj));
+          const size_t new_wj =
+              static_cast<size_t>(state.timing.transition_to_w_clock[tj]);
+          const size_t old_wj =
+              static_cast<size_t>(previous_transition_to_w_clock[tj]);
+          next_zone.set_constraint(
+              new_wi, new_wj, previous_zone.get_constraint(old_wi, old_wj));
         }
       }
     }
@@ -321,8 +350,7 @@ void rebuild_zone_preserving_constraints(
 
 void recompute_enabled_sets_from_marking_impl(
     const petri::PTPN& ptpn, const std::vector<int>& marking,
-    ReachabilityState& state,
-    const std::set<size_t>& force_reset_transitions) {
+    ReachabilityState& state, const std::set<size_t>& force_reset_transitions) {
   const std::vector<int> previous_marking = state.marking;
   state.marking = marking;
 
@@ -368,7 +396,8 @@ void recompute_enabled_sets_from_marking_impl(
     if (needs_initialization) {
       const auto& trans = ptpn.get_transition(t);
       state.timing.clocks[t].lower_bound = 0;
-      state.timing.clocks[t].upper_bound = effective_latest_for_transition(trans);
+      state.timing.clocks[t].upper_bound =
+          effective_latest_for_transition(trans);
       state.timing.clocks[t].state = ClockState::UNACTIVE;
       reset_transitions.insert(t);
     } else {
@@ -398,30 +427,29 @@ void recompute_enabled_sets_from_marking_impl(
     state.timing.w_lower_bounds[t] = 0;
   }
 
-  rebuild_zone_preserving_constraints(state, previous_zone,
-                                      previous_transition_to_h_clock,
-                                      previous_transition_to_w_clock,
-                                      previous_transition_has_w_domain,
-                                      previously_enabled, reset_transitions);
+  rebuild_zone_preserving_constraints(
+      state, previous_zone, previous_transition_to_h_clock,
+      previous_transition_to_w_clock, previous_transition_has_w_domain,
+      previously_enabled, reset_transitions);
   sync_zone_activity(state);
 
   spdlog::debug(
-      "[SCHED] recompute_enabled_sets_from_marking: previous_marking={}, new_marking={}, raw_enabled={}, reset={}, preserved={}",
-      format_int_vector(previous_marking),
-      format_int_vector(state.marking),
+      "[SCHED] recompute_enabled_sets_from_marking: previous_marking={}, "
+      "new_marking={}, raw_enabled={}, reset={}, preserved={}",
+      format_int_vector(previous_marking), format_int_vector(state.marking),
       format_transition_vector(raw_enabled, ptpn, true),
-      format_transition_vector(
-          std::vector<size_t>(reset_transitions.begin(), reset_transitions.end()), ptpn,
-          true),
+      format_transition_vector(std::vector<size_t>(reset_transitions.begin(),
+                                                   reset_transitions.end()),
+                               ptpn, true),
       format_transition_vector(
           std::vector<size_t>(preserved_transitions.begin(),
                               preserved_transitions.end()),
           ptpn, true));
-  spdlog::debug("[SCHED] previously_enabled={}",
-                format_transition_vector(
-                    std::vector<size_t>(previously_enabled.begin(),
-                                        previously_enabled.end()),
-                    ptpn, true));
+  spdlog::debug(
+      "[SCHED] previously_enabled={}",
+      format_transition_vector(std::vector<size_t>(previously_enabled.begin(),
+                                                   previously_enabled.end()),
+                               ptpn, true));
   spdlog::debug("[SCHED] enabled={}, active={}, suspended={}",
                 format_transition_vector(
                     std::vector<size_t>(state.scheduling.enabled.begin(),
@@ -456,7 +484,8 @@ void sync_zone_activity(ReachabilityState& state) {
 
     // W clocks always advance (never frozen)
     if (state.has_zone_w_clock_for_transition(t)) {
-      const size_t w_idx = static_cast<size_t>(state.w_clock_index_for_transition(t));
+      const size_t w_idx =
+          static_cast<size_t>(state.w_clock_index_for_transition(t));
       state.timing.zone.unfreeze_clock(w_idx);
     }
   }
@@ -573,7 +602,7 @@ std::string format_transition_vector(const std::vector<size_t>& trans_indices,
 }
 
 std::string format_transition_clock_summary(const ReachabilityState& state,
-                                           const petri::PTPN& ptpn) {
+                                            const petri::PTPN& ptpn) {
   std::ostringstream oss;
   bool first = true;
 
@@ -587,9 +616,15 @@ std::string format_transition_clock_summary(const ReachabilityState& state,
     const auto& clock = state.timing.clocks[t];
     std::string state_str;
     switch (clock.state) {
-      case ClockState::UNACTIVE: state_str = "UNACTIVE"; break;
-      case ClockState::ACTIVE: state_str = "ACTIVE"; break;
-      case ClockState::SUSPENDED: state_str = "SUSPENDED"; break;
+      case ClockState::UNACTIVE:
+        state_str = "UNACTIVE";
+        break;
+      case ClockState::ACTIVE:
+        state_str = "ACTIVE";
+        break;
+      case ClockState::SUSPENDED:
+        state_str = "SUSPENDED";
+        break;
     }
 
     std::string ub_str = (clock.upper_bound == INF_TIME)
@@ -606,13 +641,9 @@ std::string format_transition_clock_summary(const ReachabilityState& state,
 
 }  // namespace
 
-static void debug(const std::string& msg) {
-  spdlog::debug("[STATE] {}", msg);
-}
+static void debug(const std::string& msg) { spdlog::debug("[STATE] {}", msg); }
 
-static void info(const std::string& msg) {
-  spdlog::info("[STATE] {}", msg);
-}
+static void info(const std::string& msg) { spdlog::info("[STATE] {}", msg); }
 
 std::string StateClassReachabilityGraph::format_marking(
     const std::vector<int>& marking) {
@@ -693,14 +724,17 @@ std::string StateClassReachabilityGraph::format_named_dbm(
   std::vector<std::string> labels(state.timing.zone.size());
   labels[0] = "x0";
   size_t cell_width = 6;
-  for (size_t clock_idx = 1; clock_idx < state.timing.zone.size(); ++clock_idx) {
+  for (size_t clock_idx = 1; clock_idx < state.timing.zone.size();
+       ++clock_idx) {
     const TimedVariableRef variable = state.variable_for_clock(clock_idx);
     if (variable.kind == TimedVariableKind::ZERO ||
         variable.transition_id == std::numeric_limits<size_t>::max()) {
       labels[clock_idx] = "x" + std::to_string(clock_idx);
     } else {
-      const std::string prefix = variable.kind == TimedVariableKind::W ? "w" : "h";
-      labels[clock_idx] = prefix + "(" + format_transition_label(variable.transition_id) + ")";
+      const std::string prefix =
+          variable.kind == TimedVariableKind::W ? "w" : "h";
+      labels[clock_idx] =
+          prefix + "(" + format_transition_label(variable.transition_id) + ")";
       if (state.timing.zone.is_frozen(clock_idx)) {
         labels[clock_idx] += "[frozen]";
       }
@@ -713,18 +747,20 @@ std::string StateClassReachabilityGraph::format_named_dbm(
   oss << "DBM(size=" << state.timing.zone.size() << ")\n";
   oss << std::left << std::setw(static_cast<int>(cell_width)) << " " << "|";
   for (const auto& label : labels) {
-    oss << " " << std::left << std::setw(static_cast<int>(cell_width)) << label << "|";
+    oss << " " << std::left << std::setw(static_cast<int>(cell_width)) << label
+        << "|";
   }
   oss << "\n";
 
   for (size_t i = 0; i < state.timing.zone.size(); ++i) {
-    oss << std::left << std::setw(static_cast<int>(cell_width)) << labels[i] << "|";
+    oss << std::left << std::setw(static_cast<int>(cell_width)) << labels[i]
+        << "|";
     for (size_t j = 0; j < state.timing.zone.size(); ++j) {
       const int value = state.timing.zone.get_constraint(i, j);
       const std::string rendered =
           value == INF_TIME ? std::string("inf") : std::to_string(value);
-      oss << " " << std::left << std::setw(static_cast<int>(cell_width)) << rendered
-          << "|";
+      oss << " " << std::left << std::setw(static_cast<int>(cell_width))
+          << rendered << "|";
     }
     oss << "\n";
   }
@@ -750,7 +786,6 @@ std::string StateClassReachabilityGraph::format_named_dbm(
   return oss.str();
 }
 
-
 std::string StateClassReachabilityGraph::format_state_dump(
     const ReachabilityState& state) const {
   std::ostringstream oss;
@@ -759,7 +794,8 @@ std::string StateClassReachabilityGraph::format_state_dump(
   oss << "  Places: " << format_places(state.marking) << "\n";
   oss << "  Enabled: " << format_transitions(state.scheduling.enabled) << "\n";
   oss << "  Active: " << format_transitions(state.scheduling.active) << "\n";
-  oss << "  Suspended: " << format_transitions(state.scheduling.suspended) << "\n";
+  oss << "  Suspended: " << format_transitions(state.scheduling.suspended)
+      << "\n";
   oss << "  Clocks: " << format_transition_clock_summary(state, ptpn_) << "\n";
   oss << "  Zone:\n" << format_named_dbm(state);
   return oss.str();
@@ -770,7 +806,8 @@ void StateClassReachabilityGraph::log_state_class_details(
   spdlog::debug("{}{}", prefix, format_state_dump(state));
 }
 
-StateClassReachabilityGraph::StateClassReachabilityGraph(const petri::PTPN& ptpn)
+StateClassReachabilityGraph::StateClassReachabilityGraph(
+    const petri::PTPN& ptpn)
     : ptpn_(ptpn), next_state_id_(0), pruning_enabled_(false) {}
 
 size_t StateClassReachabilityGraph::build(size_t max_states) {
@@ -800,18 +837,21 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
     for (const auto& frontier_state : frontier) {
       ReachabilityState cur = frontier_state;
       SCVertex u = find_or_add_vertex(cur);
-      const ReachabilityState& graph_cur = boost::get(boost::vertex_name, graph_, u);
+      const ReachabilityState& graph_cur =
+          boost::get(boost::vertex_name, graph_, u);
       cur.metadata.state_id = graph_cur.metadata.state_id;
 
-      log_state_class_details(cur,
-                              "[STATE][Expand state " + std::to_string(cur.metadata.state_id) + "] ");
+      log_state_class_details(cur, "[STATE][Expand state " +
+                                       std::to_string(cur.metadata.state_id) +
+                                       "] ");
 
       const StateExpansionResult result = expand_state_candidates(cur);
       add_expansion_stats(stats_, result);
 
       for (const auto& candidate : result.candidates) {
         spdlog::debug("[STATE] State {} --{}@{}--> candidate",
-                      cur.metadata.state_id, format_transition_label(candidate.transition_id),
+                      cur.metadata.state_id,
+                      format_transition_label(candidate.transition_id),
                       candidate.edge.firing_time);
         log_state_class_details(candidate.state, "[STATE][Candidate] ");
 
@@ -819,7 +859,8 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
         SCVertex v;
         if (state_it != state_to_vertex_.end()) {
           v = state_it->second;
-          const ReachabilityState& existing_state = boost::get(boost::vertex_name, graph_, v);
+          const ReachabilityState& existing_state =
+              boost::get(boost::vertex_name, graph_, v);
           stats_.dedup_hits_count++;
           spdlog::debug("[DEDUP] candidate merged into existing state {}",
                         existing_state.metadata.state_id);
@@ -834,7 +875,8 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
           }
 
           v = find_or_add_vertex(candidate.state);
-          const ReachabilityState& new_graph_state = boost::get(boost::vertex_name, graph_, v);
+          const ReachabilityState& new_graph_state =
+              boost::get(boost::vertex_name, graph_, v);
           ReachabilityState queued_state = candidate.state;
           queued_state.metadata.state_id = new_graph_state.metadata.state_id;
           next_frontier.push_back(queued_state);
@@ -845,7 +887,8 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
                         new_graph_state.metadata.state_id);
           log_state_class_details(
               new_graph_state,
-              "[STATE][New state " + std::to_string(new_graph_state.metadata.state_id) + "] ");
+              "[STATE][New state " +
+                  std::to_string(new_graph_state.metadata.state_id) + "] ");
         }
 
         boost::add_edge(u, v, candidate.edge, graph_);
@@ -853,7 +896,8 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
       }
 
       spdlog::debug(
-          "[STATE] State {}: chosen={}, fired={}, frontier size={}, total states={}",
+          "[STATE] State {}: chosen={}, fired={}, frontier size={}, total "
+          "states={}",
           cur.metadata.state_id, result.chosen_count, result.fired_count,
           next_frontier.size(), stats_.total_states);
 
@@ -867,7 +911,8 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
 
   if (stats_.truncated) {
     spdlog::warn(
-        "[STATE] Build truncated at max_states={} with {} states and {} frontier states remaining",
+        "[STATE] Build truncated at max_states={} with {} states and {} "
+        "frontier states remaining",
         max_states, stats_.total_states, frontier.size());
   }
 
@@ -883,13 +928,14 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
   return stats_.total_states;
 }
 
-int StateClassReachabilityGraph::compute_firing_time(const ReachabilityState& state,
-                                                    size_t t) const {
+int StateClassReachabilityGraph::compute_firing_time(
+    const ReachabilityState& state, size_t t) const {
   if (t >= state.timing.clocks.size()) {
     return -1;
   }
 
-  if (!state.scheduling.enabled.count(t) || state.scheduling.suspended.count(t)) {
+  if (!state.scheduling.enabled.count(t) ||
+      state.scheduling.suspended.count(t)) {
     return -1;
   }
 
@@ -989,8 +1035,8 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
 
     ReachabilityState canonical_nxt = canonicalize(nxt, nxt);
     log_state_class_details(canonical_nxt, "[FIRE][Canonical successor] ");
-    result.candidates.push_back({canonical_nxt,
-                                 TransitionEdge(static_cast<int>(chosen), tau), chosen});
+    result.candidates.push_back(
+        {canonical_nxt, TransitionEdge(static_cast<int>(chosen), tau), chosen});
     result.fired_count++;
   }
 
@@ -999,8 +1045,8 @@ StateExpansionResult StateClassReachabilityGraph::expand_state_candidates(
   return result;
 }
 
-
-double StateClassReachabilityGraph::advance_time(ReachabilityState& state) const {
+double StateClassReachabilityGraph::advance_time(
+    ReachabilityState& state) const {
   log_state_class_details(state, "[TIME][Before advance] ");
 
   int min_delay = INF_TIME;
@@ -1028,12 +1074,14 @@ double StateClassReachabilityGraph::advance_time(ReachabilityState& state) const
   return static_cast<double>(min_delay);
 }
 
-std::tuple<bool, ReachabilityState, double> StateClassReachabilityGraph::fire_with_time(
+std::tuple<bool, ReachabilityState, double>
+StateClassReachabilityGraph::fire_with_time(
     size_t t, const ReachabilityState& from) const {
   return fire_with_dbm(t, from);
 }
 
-void StateClassReachabilityGraph::recompute_enabled_sets(ReachabilityState& state) const {
+void StateClassReachabilityGraph::recompute_enabled_sets(
+    ReachabilityState& state) const {
   recompute_enabled_sets_from_marking(state.marking, state);
 }
 
@@ -1049,22 +1097,18 @@ void StateClassReachabilityGraph::recompute_enabled_sets_from_marking(
                                            force_reset_transitions);
 }
 
-
-
 std::set<size_t> StateClassReachabilityGraph::select_active_per_core(
     const std::set<size_t>& enabled) const {
   return SchedulingAlgorithms::select_active_per_core(enabled, ptpn_);
 }
 
 std::set<size_t> StateClassReachabilityGraph::compute_suspended(
-    const std::set<size_t>& enabled,
-    const std::set<size_t>& active) const {
+    const std::set<size_t>& enabled, const std::set<size_t>& active) const {
   return SchedulingAlgorithms::compute_suspended(enabled, active, ptpn_);
 }
 
-
-
-void StateClassReachabilityGraph::suspend_transition(size_t t, ReachabilityState& state) const {
+void StateClassReachabilityGraph::suspend_transition(
+    size_t t, ReachabilityState& state) const {
   if (state.timing.clocks[t].state != ClockState::ACTIVE) {
     return;
   }
@@ -1080,7 +1124,8 @@ void StateClassReachabilityGraph::suspend_transition(size_t t, ReachabilityState
   log_state_class_details(state, "[SCHED][After suspend] ");
 }
 
-void StateClassReachabilityGraph::restore_transition(size_t t, ReachabilityState& state) const {
+void StateClassReachabilityGraph::restore_transition(
+    size_t t, ReachabilityState& state) const {
   if (state.timing.clocks[t].state != ClockState::SUSPENDED) {
     return;
   }
@@ -1092,15 +1137,14 @@ void StateClassReachabilityGraph::restore_transition(size_t t, ReachabilityState
   state.scheduling.active.insert(t);
   state.timing.clocks[t].state = ClockState::ACTIVE;
   if (state.has_zone_w_clock_for_transition(t)) {
-    const size_t w_idx = static_cast<size_t>(state.w_clock_index_for_transition(t));
+    const size_t w_idx =
+        static_cast<size_t>(state.w_clock_index_for_transition(t));
     state.timing.zone.reset_clock(w_idx);
   }
   sync_zone_activity(state);
 
   log_state_class_details(state, "[SCHED][After restore] ");
 }
-
-
 
 ReachabilityState StateClassReachabilityGraph::canonicalize(
     const ReachabilityState& a, const ReachabilityState& b) const {
@@ -1112,18 +1156,19 @@ bool StateClassReachabilityGraph::are_equivalent(
   return ::state_class::are_equivalent(a, b, canonicalization_mode_);
 }
 
-void StateClassReachabilityGraph::set_canonicalization_mode(CanonicalizationMode mode) {
+void StateClassReachabilityGraph::set_canonicalization_mode(
+    CanonicalizationMode mode) {
   canonicalization_mode_ = mode;
 }
 
-CanonicalizationMode StateClassReachabilityGraph::get_canonicalization_mode() const {
+CanonicalizationMode StateClassReachabilityGraph::get_canonicalization_mode()
+    const {
   return canonicalization_mode_;
 }
 
 void StateClassReachabilityGraph::set_pruning_enabled(bool enabled) {
   pruning_enabled_ = enabled;
 }
-
 
 ReachabilityState StateClassReachabilityGraph::create_initial_state() {
   ReachabilityState initial;
@@ -1141,11 +1186,10 @@ ReachabilityState StateClassReachabilityGraph::create_initial_state() {
   return initial;
 }
 
-
-
 std::vector<size_t> StateClassReachabilityGraph::select_per_core(
     const std::set<size_t>& enabled) const {
-  std::set<size_t> result = SchedulingAlgorithms::select_active_per_core(enabled, ptpn_);
+  std::set<size_t> result =
+      SchedulingAlgorithms::select_active_per_core(enabled, ptpn_);
   return std::vector<size_t>(result.begin(), result.end());
 }
 
@@ -1165,7 +1209,8 @@ void StateClassReachabilityGraph::apply_preemption(
   sync_zone_activity(state);
 }
 
-std::tuple<bool, ReachabilityState, double> StateClassReachabilityGraph::fire_with_dbm(
+std::tuple<bool, ReachabilityState, double>
+StateClassReachabilityGraph::fire_with_dbm(
     size_t trans_idx, const ReachabilityState& from_state) const {
   if (trans_idx >= from_state.timing.clocks.size()) {
     return {false, ReachabilityState(), 0.0};
@@ -1190,10 +1235,12 @@ std::tuple<bool, ReachabilityState, double> StateClassReachabilityGraph::fire_wi
                   format_transition_label(trans_idx), fire_delay);
     return {false, ReachabilityState(), 0.0};
   }
-  spdlog::debug("[DBM] after elapse_active_clocks(dt={}) for {}:\n{}", fire_delay,
-                format_transition_label(trans_idx), format_named_dbm(to));
+  spdlog::debug("[DBM] after elapse_active_clocks(dt={}) for {}:\n{}",
+                fire_delay, format_transition_label(trans_idx),
+                format_named_dbm(to));
 
-  if (to.has_zone_clock_for_transition(trans_idx) && to.timing.zone.size() > 0) {
+  if (to.has_zone_clock_for_transition(trans_idx) &&
+      to.timing.zone.size() > 0) {
     const size_t clock_idx =
         static_cast<size_t>(to.clock_index_for_transition(trans_idx));
     to.timing.zone = to.timing.zone.restrict_clock(clock_idx, alpha, beta);
@@ -1211,26 +1258,28 @@ std::tuple<bool, ReachabilityState, double> StateClassReachabilityGraph::fire_wi
   to.marking = petri::PTPN::fire(to.marking, ptpn_, trans_idx);
   if (to.marking.empty()) {
     spdlog::debug("[FIRE] {} produced empty marking, before={}, after={}",
-                  format_transition_label(trans_idx), format_places(before_marking),
-                  format_marking(to.marking));
+                  format_transition_label(trans_idx),
+                  format_places(before_marking), format_marking(to.marking));
     return {false, ReachabilityState(), 0.0};
   }
 
-  spdlog::debug("[FIRE] {} marking: {} -> {}", format_transition_label(trans_idx),
+  spdlog::debug("[FIRE] {} marking: {} -> {}",
+                format_transition_label(trans_idx),
                 format_places(before_marking), format_places(to.marking));
 
   recompute_enabled_sets_from_marking(to.marking, to, {trans_idx});
   log_state_class_details(to, "[FIRE][Successor after recompute] ");
 
-  spdlog::debug("[FIRE] {} fired successfully after delay {}, new cumulative={}",
-                format_transition_label(trans_idx), fire_delay,
-                to.metadata.cumulative_time);
+  spdlog::debug(
+      "[FIRE] {} fired successfully after delay {}, new cumulative={}",
+      format_transition_label(trans_idx), fire_delay,
+      to.metadata.cumulative_time);
 
   return {true, to, static_cast<double>(fire_delay)};
 }
 
-
-void StateClassReachabilityGraph::recompute_suspension(ReachabilityState& state) const {
+void StateClassReachabilityGraph::recompute_suspension(
+    ReachabilityState& state) const {
   const std::set<size_t> previously_active = state.scheduling.active;
 
   recompute_enabled_sets(state);
@@ -1244,16 +1293,16 @@ void StateClassReachabilityGraph::recompute_suspension(ReachabilityState& state)
   }
 
   if (chosen.empty() && !state.scheduling.enabled.empty()) {
-    const std::vector<size_t> fallback = select_per_core(state.scheduling.enabled);
+    const std::vector<size_t> fallback =
+        select_per_core(state.scheduling.enabled);
     chosen.assign(fallback.begin(), fallback.end());
   }
 
   apply_preemption(chosen, state);
 }
 
-
-
-SCVertex StateClassReachabilityGraph::find_or_add_vertex(const ReachabilityState& state) {
+SCVertex StateClassReachabilityGraph::find_or_add_vertex(
+    const ReachabilityState& state) {
   auto key = make_state_key(state);
   auto it = state_to_vertex_.find(key);
   if (it != state_to_vertex_.end()) {
@@ -1282,16 +1331,18 @@ bool StateClassReachabilityGraph::save_to_dot(
     typedef boost::graph_traits<SCGraph>::vertex_iterator SCVIterator;
     SCVIterator vi, vi_end;
     for (std::tie(vi, vi_end) = boost::vertices(graph_); vi != vi_end; ++vi) {
-      const ReachabilityState& state = boost::get(boost::vertex_name, graph_, *vi);
+      const ReachabilityState& state =
+          boost::get(boost::vertex_name, graph_, *vi);
       const std::string state_dump = format_state_dump(state);
       std::ostringstream summary;
       summary << "State " << state.metadata.state_id << "\n";
       summary << "t=" << state.metadata.cumulative_time << "\n";
       summary << "Places: " << format_places(state.marking) << "\n";
-      summary << "Active: " << format_transitions(state.scheduling.active) << "\n";
+      summary << "Active: " << format_transitions(state.scheduling.active)
+              << "\n";
       if (!state.scheduling.suspended.empty()) {
-        summary << "Suspended: " << format_transitions(state.scheduling.suspended)
-                << "\n";
+        summary << "Suspended: "
+                << format_transitions(state.scheduling.suspended) << "\n";
       }
       summary << "Enabled=" << state.scheduling.enabled.size()
               << ", clocks=" << state.timing.zone.size();
@@ -1308,8 +1359,10 @@ bool StateClassReachabilityGraph::save_to_dot(
       SCVertex src = boost::source(*ei, graph_);
       SCVertex tgt = boost::target(*ei, graph_);
       const TransitionEdge& edge = boost::get(boost::edge_name, graph_, *ei);
-      const ReachabilityState& src_state = boost::get(boost::vertex_name, graph_, src);
-      const ReachabilityState& tgt_state = boost::get(boost::vertex_name, graph_, tgt);
+      const ReachabilityState& src_state =
+          boost::get(boost::vertex_name, graph_, src);
+      const ReachabilityState& tgt_state =
+          boost::get(boost::vertex_name, graph_, tgt);
       const std::string edge_label =
           format_transition_label(edge.transition_id) + "\\n@" +
           std::to_string(edge.firing_time);
@@ -1343,7 +1396,8 @@ bool StateClassReachabilityGraph::save_to_json(
     SCVIterator vi, vi_end;
     bool first_state = true;
     for (std::tie(vi, vi_end) = boost::vertices(graph_); vi != vi_end; ++vi) {
-      const ReachabilityState& state = boost::get(boost::vertex_name, graph_, *vi);
+      const ReachabilityState& state =
+          boost::get(boost::vertex_name, graph_, *vi);
       if (!first_state) out << ",\n";
       first_state = false;
 
@@ -1358,12 +1412,16 @@ bool StateClassReachabilityGraph::save_to_json(
       out << "      \"marking_named\": \""
           << escape_json_string(format_places(state.marking)) << "\",\n";
       out << "      \"enabled\": \""
-          << escape_json_string(format_transitions(state.scheduling.enabled)) << "\",\n";
+          << escape_json_string(format_transitions(state.scheduling.enabled))
+          << "\",\n";
       out << "      \"active\": \""
-          << escape_json_string(format_transitions(state.scheduling.active)) << "\",\n";
+          << escape_json_string(format_transitions(state.scheduling.active))
+          << "\",\n";
       out << "      \"suspended\": \""
-          << escape_json_string(format_transitions(state.scheduling.suspended)) << "\",\n";
-      out << "      \"active_count\": " << state.scheduling.active.size() << ",\n";
+          << escape_json_string(format_transitions(state.scheduling.suspended))
+          << "\",\n";
+      out << "      \"active_count\": " << state.scheduling.active.size()
+          << ",\n";
       out << "      \"cumulative_time\": " << std::fixed << std::setprecision(2)
           << state.metadata.cumulative_time << ",\n";
       out << "      \"clock_summary\": \""
@@ -1371,8 +1429,8 @@ bool StateClassReachabilityGraph::save_to_json(
           << "\",\n";
       out << "      \"zone\": \"" << escape_json_string(format_named_dbm(state))
           << "\",\n";
-      out << "      \"dump\": \"" << escape_json_string(format_state_dump(state))
-          << "\"\n";
+      out << "      \"dump\": \""
+          << escape_json_string(format_state_dump(state)) << "\"\n";
       out << "    }";
     }
 
@@ -1386,8 +1444,10 @@ bool StateClassReachabilityGraph::save_to_json(
       SCVertex src = boost::source(*ei, graph_);
       SCVertex tgt = boost::target(*ei, graph_);
       const TransitionEdge& edge = boost::get(boost::edge_name, graph_, *ei);
-      const ReachabilityState& src_state = boost::get(boost::vertex_name, graph_, src);
-      const ReachabilityState& tgt_state = boost::get(boost::vertex_name, graph_, tgt);
+      const ReachabilityState& src_state =
+          boost::get(boost::vertex_name, graph_, src);
+      const ReachabilityState& tgt_state =
+          boost::get(boost::vertex_name, graph_, tgt);
 
       if (!first_trans) out << ",\n";
       first_trans = false;
@@ -1397,7 +1457,8 @@ bool StateClassReachabilityGraph::save_to_json(
       out << "      \"target\": " << tgt_state.metadata.state_id << ",\n";
       out << "      \"transition_id\": " << edge.transition_id << ",\n";
       out << "      \"transition_label\": \""
-          << escape_json_string(format_transition_label(edge.transition_id)) << "\",\n";
+          << escape_json_string(format_transition_label(edge.transition_id))
+          << "\",\n";
       out << "      \"firing_time\": " << std::fixed << std::setprecision(2)
           << edge.firing_time << "\n";
       out << "    }";

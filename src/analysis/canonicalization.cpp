@@ -1,21 +1,25 @@
 #include "canonicalization.h"
-#include "state.h"
 
 #include <algorithm>
 #include <iterator>
+
+#include "state.h"
 
 namespace state_class {
 
 namespace {
 
 bool has_dbm_identity(const ReachabilityState& state) {
-  return state.timing.zone.size() > 0 || !state.timing.transition_to_h_clock.empty() ||
+  return state.timing.zone.size() > 0 ||
+         !state.timing.transition_to_h_clock.empty() ||
          !state.timing.transition_to_w_clock.empty() ||
          !state.timing.clock_to_variable.empty();
 }
 
-bool can_intersect_zones(const ReachabilityState& a, const ReachabilityState& b) {
-  return has_dbm_identity(a) && has_dbm_identity(b) && a.timing.zone.size() > 0 &&
+bool can_intersect_zones(const ReachabilityState& a,
+                         const ReachabilityState& b) {
+  return has_dbm_identity(a) && has_dbm_identity(b) &&
+         a.timing.zone.size() > 0 &&
          a.timing.zone.size() == b.timing.zone.size() &&
          a.timing.transition_to_h_clock == b.timing.transition_to_h_clock &&
          a.timing.transition_to_w_clock == b.timing.transition_to_w_clock &&
@@ -49,8 +53,9 @@ void sync_zone_activity_with_sets(ReachabilityState& state) {
 
 }  // namespace
 
-ReachabilityState canonicalize(const ReachabilityState& a, const ReachabilityState& b,
-                        CanonicalizationMode mode) {
+ReachabilityState canonicalize(const ReachabilityState& a,
+                               const ReachabilityState& b,
+                               CanonicalizationMode mode) {
   ReachabilityState result;
 
   if (a.marking != b.marking) {
@@ -69,24 +74,30 @@ ReachabilityState canonicalize(const ReachabilityState& a, const ReachabilitySta
       result.scheduling.enabled.clear();
       std::set_union(a.scheduling.enabled.begin(), a.scheduling.enabled.end(),
                      b.scheduling.enabled.begin(), b.scheduling.enabled.end(),
-                     std::inserter(result.scheduling.enabled, result.scheduling.enabled.end()));
+                     std::inserter(result.scheduling.enabled,
+                                   result.scheduling.enabled.end()));
 
       result.scheduling.active.clear();
-      std::set_intersection(a.scheduling.active.begin(), a.scheduling.active.end(),
-                            b.scheduling.active.begin(), b.scheduling.active.end(),
-                            std::inserter(result.scheduling.active, result.scheduling.active.end()));
+      std::set_intersection(
+          a.scheduling.active.begin(), a.scheduling.active.end(),
+          b.scheduling.active.begin(), b.scheduling.active.end(),
+          std::inserter(result.scheduling.active,
+                        result.scheduling.active.end()));
 
       result.scheduling.suspended.clear();
-      std::set_intersection(a.scheduling.suspended.begin(), a.scheduling.suspended.end(),
-                            b.scheduling.suspended.begin(), b.scheduling.suspended.end(),
-                            std::inserter(result.scheduling.suspended, result.scheduling.suspended.end()));
+      std::set_intersection(
+          a.scheduling.suspended.begin(), a.scheduling.suspended.end(),
+          b.scheduling.suspended.begin(), b.scheduling.suspended.end(),
+          std::inserter(result.scheduling.suspended,
+                        result.scheduling.suspended.end()));
 
       if (mode == CanonicalizationMode::INTERSECTION &&
           can_intersect_zones(a, b)) {
         result.timing.transition_to_h_clock = a.timing.transition_to_h_clock;
         result.timing.transition_to_w_clock = a.timing.transition_to_w_clock;
         result.timing.clock_to_variable = a.timing.clock_to_variable;
-        result.timing.transition_has_w_domain = a.timing.transition_has_w_domain;
+        result.timing.transition_has_w_domain =
+            a.timing.transition_has_w_domain;
         result.timing.w_lower_bounds = a.timing.w_lower_bounds;
         result.timing.zone = a.timing.zone.intersection(b.timing.zone);
         sync_zone_activity_with_sets(result);
@@ -94,10 +105,13 @@ ReachabilityState canonicalize(const ReachabilityState& a, const ReachabilitySta
         break;
       }
 
-      const size_t num_clocks = std::min(a.timing.clocks.size(), b.timing.clocks.size());
+      const size_t num_clocks =
+          std::min(a.timing.clocks.size(), b.timing.clocks.size());
       result.timing.clocks.resize(num_clocks);
       result.timing.w_lower_bounds.resize(
-          std::min(a.timing.w_lower_bounds.size(), b.timing.w_lower_bounds.size()), 0);
+          std::min(a.timing.w_lower_bounds.size(),
+                   b.timing.w_lower_bounds.size()),
+          0);
 
       for (size_t i = 0; i < num_clocks; ++i) {
         const TransitionClock& ca = a.timing.clocks[i];
@@ -127,7 +141,8 @@ ReachabilityState canonicalize(const ReachabilityState& a, const ReachabilitySta
   }
 
   result.metadata.state_id = std::max(a.metadata.state_id, b.metadata.state_id);
-  result.metadata.cumulative_time = std::max(a.metadata.cumulative_time, b.metadata.cumulative_time);
+  result.metadata.cumulative_time =
+      std::max(a.metadata.cumulative_time, b.metadata.cumulative_time);
   return result;
 }
 
@@ -137,21 +152,27 @@ bool are_equivalent(const ReachabilityState& a, const ReachabilityState& b,
     return false;
   }
 
-  if (a.scheduling.enabled != b.scheduling.enabled || a.scheduling.active != b.scheduling.active ||
+  if (a.scheduling.enabled != b.scheduling.enabled ||
+      a.scheduling.active != b.scheduling.active ||
       a.scheduling.suspended != b.scheduling.suspended) {
     return false;
   }
 
   switch (mode) {
     case CanonicalizationMode::EQUALITY: {
-      const bool has_identity =
-          a.timing.zone.size() > 0 || b.timing.zone.size() > 0 ||
-          !a.timing.transition_to_h_clock.empty() || !b.timing.transition_to_h_clock.empty() ||
-          !a.timing.transition_to_w_clock.empty() || !b.timing.transition_to_w_clock.empty() ||
-          !a.timing.clock_to_variable.empty() || !b.timing.clock_to_variable.empty();
+      const bool has_identity = a.timing.zone.size() > 0 ||
+                                b.timing.zone.size() > 0 ||
+                                !a.timing.transition_to_h_clock.empty() ||
+                                !b.timing.transition_to_h_clock.empty() ||
+                                !a.timing.transition_to_w_clock.empty() ||
+                                !b.timing.transition_to_w_clock.empty() ||
+                                !a.timing.clock_to_variable.empty() ||
+                                !b.timing.clock_to_variable.empty();
       if (has_identity) {
-        return a.timing.transition_to_h_clock == b.timing.transition_to_h_clock &&
-               a.timing.transition_to_w_clock == b.timing.transition_to_w_clock &&
+        return a.timing.transition_to_h_clock ==
+                   b.timing.transition_to_h_clock &&
+               a.timing.transition_to_w_clock ==
+                   b.timing.transition_to_w_clock &&
                a.timing.clock_to_variable == b.timing.clock_to_variable &&
                a.timing.w_lower_bounds == b.timing.w_lower_bounds &&
                a.timing.zone == b.timing.zone;

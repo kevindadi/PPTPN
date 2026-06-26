@@ -1,6 +1,8 @@
 #ifndef ANALYSIS_GRAPH_H
 #define ANALYSIS_GRAPH_H
 
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/graph_traits.hpp>
 #include <limits>
 #include <set>
 #include <string>
@@ -8,11 +10,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include <boost/graph/adjacency_list.hpp>
-#include <boost/graph/graph_traits.hpp>
-
-#include "petri/petri.h"
 #include "canonicalization.h"
+#include "petri/petri.h"
 #include "state.h"
 
 namespace state_class {
@@ -25,8 +24,6 @@ typedef boost::adjacency_list<
 
 typedef boost::graph_traits<SCGraph>::vertex_descriptor SCVertex;
 typedef boost::graph_traits<SCGraph>::edge_descriptor SCEdge;
-
-
 
 #ifdef PTPN_ENABLE_TEST_ACCESS
 struct StateClassReachabilityGraphTestAccess;
@@ -61,21 +58,17 @@ class StateClassReachabilityGraph {
    */
   [[nodiscard]] CanonicalizationMode get_canonicalization_mode() const;
 
-
   void set_pruning_enabled(bool enabled);
 
   [[nodiscard]] bool is_pruning_enabled() const { return pruning_enabled_; }
-
 
   size_t build(size_t max_states = std::numeric_limits<size_t>::max());
 
   [[nodiscard]] const SCGraph& get_graph() const { return graph_; }
   [[nodiscard]] SCGraph& get_graph() { return graph_; }
 
-
   [[nodiscard]] SCVertex get_initial_vertex() const { return initial_vertex_; }
   [[nodiscard]] ReachabilityState create_initial_state();
-
 
   /**
    * advance_time - 时间推进
@@ -89,7 +82,8 @@ class StateClassReachabilityGraph {
    * 算法:
    *   1. min_ub = min(clocks[t].upper_bound) for t in active
    *   2. if min_ub == INF or min_ub <= 0: return 0
-   *   3. for t in active: clocks[t].lower_bound += min_ub; clocks[t].upper_bound += min_ub
+   *   3. for t in active: clocks[t].lower_bound += min_ub;
+   * clocks[t].upper_bound += min_ub
    *   4. cumulative_time += min_ub
    *   5. return min_ub
    */
@@ -126,11 +120,9 @@ class StateClassReachabilityGraph {
   void recompute_enabled_sets_from_marking(const std::vector<int>& marking,
                                            ReachabilityState& state) const;
 
-
-  void recompute_enabled_sets_from_marking(const std::vector<int>& marking,
-                                           ReachabilityState& state,
-                                           const std::set<size_t>& force_reset_transitions) const;
-
+  void recompute_enabled_sets_from_marking(
+      const std::vector<int>& marking, ReachabilityState& state,
+      const std::set<size_t>& force_reset_transitions) const;
 
   /**
    * select_active_per_core - 每个核心上最高优先级变迁集合（可并列）
@@ -156,7 +148,6 @@ class StateClassReachabilityGraph {
   std::set<size_t> compute_suspended(const std::set<size_t>& enabled,
                                      const std::set<size_t>& active) const;
 
-
   /**
    * canonicalize - 规范化两个状态
    *
@@ -164,13 +155,14 @@ class StateClassReachabilityGraph {
    * @param b 状态 B
    * @return 规范化后的状态
    */
-  ReachabilityState canonicalize(const ReachabilityState& a, const ReachabilityState& b) const;
+  ReachabilityState canonicalize(const ReachabilityState& a,
+                                 const ReachabilityState& b) const;
 
   /**
    * are_equivalent - 检查两个状态是否在当前模式下等价
    */
-  bool are_equivalent(const ReachabilityState& a, const ReachabilityState& b) const;
-
+  bool are_equivalent(const ReachabilityState& a,
+                      const ReachabilityState& b) const;
 
   /**
    * suspend_transition - 挂起变迁
@@ -192,7 +184,6 @@ class StateClassReachabilityGraph {
    */
   void restore_transition(size_t t, ReachabilityState& state) const;
 
-
   struct Statistics {
     size_t total_states = 0;
     size_t total_transitions = 0;
@@ -206,10 +197,8 @@ class StateClassReachabilityGraph {
 
   [[nodiscard]] const Statistics& get_statistics() const { return stats_; }
 
-
   bool save_to_dot(const std::string& file_path) const;
   bool save_to_json(const std::string& file_path) const;
-
 
  private:
   const petri::PTPN& ptpn_;
@@ -221,7 +210,7 @@ class StateClassReachabilityGraph {
 
   std::vector<size_t> select_per_core(const std::set<size_t>& enabled) const;
   void apply_preemption(const std::vector<size_t>& chosen,
-                       ReachabilityState& state) const;
+                        ReachabilityState& state) const;
 
   std::tuple<bool, ReachabilityState, double> fire_with_dbm(
       size_t trans_idx, const ReachabilityState& from_state) const;
@@ -241,7 +230,7 @@ class StateClassReachabilityGraph {
   std::string format_state_dump(const ReachabilityState& state) const;
 
   void log_state_class_details(const ReachabilityState& state,
-                              const std::string& prefix = "") const;
+                               const std::string& prefix = "") const;
 
   size_t next_state_id_ = 0;
   bool pruning_enabled_ = false;

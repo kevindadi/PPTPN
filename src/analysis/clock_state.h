@@ -9,14 +9,14 @@ namespace state_class {
 constexpr int INF_TIME = std::numeric_limits<int>::max();
 
 enum class ClockState {
-  UNACTIVE,   // 不在任何集合中（不活跃）
-  ACTIVE,     // 正在执行,时钟正常流逝
-  SUSPENDED   // 被挂起,时钟冻结
+  UNACTIVE,  // 不在任何集合中（不活跃）
+  ACTIVE,    // 正在执行,时钟正常流逝
+  SUSPENDED  // 被挂起,时钟冻结
 };
 
 struct TransitionClock {
   int lower_bound;   // 时钟下界 [lower, upper]
-  int upper_bound;    // 时钟上界
+  int upper_bound;   // 时钟上界
   ClockState state;  // 时钟状态
 
   TransitionClock()
@@ -37,22 +37,28 @@ struct TransitionClock {
 
   bool operator==(const TransitionClock& other) const {
     return lower_bound == other.lower_bound &&
-           upper_bound == other.upper_bound &&
-           state == other.state;
+           upper_bound == other.upper_bound && state == other.state;
   }
 
   bool operator<(const TransitionClock& other) const {
     if (state != other.state) return state < other.state;
-    if (lower_bound != other.lower_bound) return lower_bound < other.lower_bound;
+    if (lower_bound != other.lower_bound)
+      return lower_bound < other.lower_bound;
     return upper_bound < other.upper_bound;
   }
 
   std::string to_string() const {
     std::string state_str;
     switch (state) {
-      case ClockState::UNACTIVE: state_str = "UNACTIVE"; break;
-      case ClockState::ACTIVE: state_str = "ACTIVE"; break;
-      case ClockState::SUSPENDED: state_str = "SUSPENDED"; break;
+      case ClockState::UNACTIVE:
+        state_str = "UNACTIVE";
+        break;
+      case ClockState::ACTIVE:
+        state_str = "ACTIVE";
+        break;
+      case ClockState::SUSPENDED:
+        state_str = "SUSPENDED";
+        break;
     }
     return "[" + std::to_string(lower_bound) + ", " +
            (upper_bound == INF_TIME ? "inf" : std::to_string(upper_bound)) +

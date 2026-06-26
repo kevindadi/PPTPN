@@ -16,11 +16,7 @@ namespace state_class {
 
 constexpr size_t INVALID_TRANSITION_ID = std::numeric_limits<size_t>::max();
 
-enum class TimedVariableKind {
-  ZERO,
-  H,
-  W
-};
+enum class TimedVariableKind { ZERO, H, W };
 
 struct TimedVariableRef {
   TimedVariableKind kind = TimedVariableKind::ZERO;
@@ -47,7 +43,8 @@ struct TransitionEdge {
   double firing_time;
 
   TransitionEdge() : transition_id(-1), firing_time(0.0) {}
-  TransitionEdge(int tid, double time) : transition_id(tid), firing_time(time) {}
+  TransitionEdge(int tid, double time)
+      : transition_id(tid), firing_time(time) {}
 
   bool operator==(const TransitionEdge& other) const {
     return transition_id == other.transition_id &&
@@ -67,7 +64,8 @@ struct SchedulingState {
   std::set<size_t> suspended;
 
   bool operator==(const SchedulingState& other) const {
-    return enabled == other.enabled && active == other.active && suspended == other.suspended;
+    return enabled == other.enabled && active == other.active &&
+           suspended == other.suspended;
   }
 
   bool operator<(const SchedulingState& other) const {
@@ -148,7 +146,8 @@ struct ReachabilityState {
 
   ReachabilityState() = default;
 
-  explicit ReachabilityState(const std::vector<int>& m, size_t num_transitions = 0)
+  explicit ReachabilityState(const std::vector<int>& m,
+                             size_t num_transitions = 0)
       : marking(m) {
     if (num_transitions > 0) {
       timing.clocks.resize(num_transitions);
@@ -171,7 +170,8 @@ struct ReachabilityState {
   [[nodiscard]] TimedVariableRef variable_for_clock(size_t clock_idx) const;
   [[nodiscard]] size_t transition_for_clock(size_t clock_idx) const;
   [[nodiscard]] bool has_zone_clock_for_transition(size_t transition_id) const;
-  [[nodiscard]] bool has_zone_w_clock_for_transition(size_t transition_id) const;
+  [[nodiscard]] bool has_zone_w_clock_for_transition(
+      size_t transition_id) const;
   [[nodiscard]] int w_lower_bound(size_t transition_id) const;
   void set_w_lower_bound(size_t transition_id, int value);
 
