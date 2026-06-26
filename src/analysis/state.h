@@ -101,6 +101,7 @@ struct TimingState {
   std::vector<int> transition_to_h_clock;
   std::vector<int> transition_to_w_clock;
   std::vector<TimedVariableRef> clock_to_variable;
+  std::vector<bool> transition_has_w_domain;
   std::vector<int> w_lower_bounds;
 
   bool operator==(const TimingState& other) const {
@@ -108,6 +109,7 @@ struct TimingState {
            transition_to_h_clock == other.transition_to_h_clock &&
            transition_to_w_clock == other.transition_to_w_clock &&
            clock_to_variable == other.clock_to_variable &&
+           transition_has_w_domain == other.transition_has_w_domain &&
            w_lower_bounds == other.w_lower_bounds;
   }
 
@@ -118,6 +120,8 @@ struct TimingState {
     if (other.transition_to_w_clock < transition_to_w_clock) return false;
     if (clock_to_variable < other.clock_to_variable) return true;
     if (other.clock_to_variable < clock_to_variable) return false;
+    if (transition_has_w_domain < other.transition_has_w_domain) return true;
+    if (other.transition_has_w_domain < transition_has_w_domain) return false;
     if (w_lower_bounds < other.w_lower_bounds) return true;
     if (other.w_lower_bounds < w_lower_bounds) return false;
     if (zone < other.zone) return true;
@@ -131,6 +135,7 @@ struct TimingState {
     transition_to_h_clock.clear();
     transition_to_w_clock.clear();
     clock_to_variable.clear();
+    transition_has_w_domain.clear();
     w_lower_bounds.clear();
   }
 };
@@ -190,6 +195,7 @@ struct StateKey {
   std::vector<int> transition_to_h_clock;
   std::vector<int> transition_to_w_clock;
   std::vector<TimedVariableRef> clock_to_variable;
+  std::vector<bool> transition_has_w_domain;
   std::vector<int> w_lower_bounds;
   std::vector<int> zone_matrix;
   std::set<size_t> frozen_clocks;
@@ -200,6 +206,7 @@ struct StateKey {
            transition_to_h_clock == other.transition_to_h_clock &&
            transition_to_w_clock == other.transition_to_w_clock &&
            clock_to_variable == other.clock_to_variable &&
+           transition_has_w_domain == other.transition_has_w_domain &&
            w_lower_bounds == other.w_lower_bounds &&
            zone_matrix == other.zone_matrix &&
            frozen_clocks == other.frozen_clocks &&

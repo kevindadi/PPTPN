@@ -48,6 +48,9 @@ size_t StateKeyHash::operator()(const StateKey& key) const {
     hash_combine(seed, int_hash(static_cast<int>(variable.kind)));
     hash_combine(seed, size_hash(variable.transition_id));
   }
+  for (bool value : key.transition_has_w_domain) {
+    hash_combine(seed, size_hash(static_cast<size_t>(value)));
+  }
   for (size_t value : key.scheduling.enabled) {
     hash_combine(seed, size_hash(value));
   }

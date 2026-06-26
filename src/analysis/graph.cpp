@@ -82,6 +82,7 @@ bool elapse_active_clocks(ReachabilityState& state, int delay) {
   if (delay > 0 && state.timing.zone.size() > 0) {
     DBM next_zone = state.timing.zone;
 
+    // Advance H clocks for active transitions
     for (size_t t : state.scheduling.active) {
       if (!state.has_zone_clock_for_transition(t)) {
         continue;
@@ -95,13 +96,42 @@ bool elapse_active_clocks(ReachabilityState& state, int delay) {
       next_zone.set_constraint(0, clock_idx, updated_lower);
     }
 
+    // Advance W clocks for suspended transitions (differential elapse)
+    for (size_t t : state.scheduling.suspended) {
+      if (!state.has_zone_w_clock_for_transition(t)) {
+        continue;
+      }
+
+      const size_t w_idx = static_cast<size_t>(state.w_clock_index_for_transition(t));
+      const int current_w_lower = state.timing.zone.get_constraint(0, w_idx);
+      int updated_w_lower = current_w_lower;
+      safe_add_graph_bound(current_w_lower, -delay, updated_w_lower);
+      next_zone.set_constraint(0, w_idx, updated_w_lower);
+    }
+
     for (size_t i = 1; i < state.timing.zone.size(); ++i) {
       const size_t ti = state.transition_for_clock(i);
-      const int age_i = state.scheduling.active.count(ti) ? delay : 0;
+      int age_i = 0;
+      if (state.scheduling.active.count(ti)) {
+        age_i = delay;
+      } else if (state.scheduling.suspended.count(ti)) {
+        const auto var = state.variable_for_clock(i);
+        if (var.kind == TimedVariableKind::W) {
+          age_i = delay;  // W clocks also advance with time
+        }
+      }
 
       for (size_t j = 1; j < state.timing.zone.size(); ++j) {
         const size_t tj = state.transition_for_clock(j);
-        const int age_j = state.scheduling.active.count(tj) ? delay : 0;
+        int age_j = 0;
+        if (state.scheduling.active.count(tj)) {
+          age_j = delay;
+        } else if (state.scheduling.suspended.count(tj)) {
+          const auto var = state.variable_for_clock(j);
+          if (var.kind == TimedVariableKind::W) {
+            age_j = delay;
+          }
+        }
         const int delta_ij = age_i - age_j;
         if (delta_ij == 0) {
           continue;
@@ -130,6 +160,7 @@ bool elapse_active_clocks(ReachabilityState& state, int delay) {
   return true;
 }
 
+
 // State key helper using new clocks/active/suspended structure
 StateKey make_state_key(const ReachabilityState& state) {
   StateKey key;
@@ -137,6 +168,7 @@ StateKey make_state_key(const ReachabilityState& state) {
   key.transition_to_h_clock = state.timing.transition_to_h_clock;
   key.transition_to_w_clock = state.timing.transition_to_w_clock;
   key.clock_to_variable = state.timing.clock_to_variable;
+  key.transition_has_w_domain = state.timing.transition_has_w_domain;
   key.w_lower_bounds = state.timing.w_lower_bounds;
   key.zone_matrix = state.timing.zone.raw_matrix();
   key.frozen_clocks = state.timing.zone.frozen_clocks();
@@ -170,12 +202,15 @@ bool is_uninitialized_clock(const TransitionClock& clock) {
 void rebuild_zone_preserving_constraints(
     ReachabilityState& state, const DBM& previous_zone,
     const std::vector<int>& previous_transition_to_h_clock,
+    const std::vector<int>& previous_transition_to_w_clock,
+    const std::vector<bool>& previous_transition_has_w_domain,
     const std::set<size_t>& previously_enabled,
     const std::set<size_t>& reset_transitions) {
   state.timing.transition_to_h_clock.assign(state.timing.clocks.size(), -1);
   state.timing.transition_to_w_clock.assign(state.timing.clocks.size(), -1);
   state.timing.clock_to_variable.clear();
   state.timing.clock_to_variable.push_back({TimedVariableKind::ZERO, INVALID_TRANSITION_ID});
+  state.timing.transition_has_w_domain.resize(state.timing.clocks.size(), false);
 
   DBM next_zone(1);
   for (size_t t : state.scheduling.enabled) {
@@ -183,52 +218,100 @@ void rebuild_zone_preserving_constraints(
       continue;
     }
 
-    const size_t clock_idx = next_zone.add_clock();
-    state.timing.transition_to_h_clock[t] = static_cast<int>(clock_idx);
+    const size_t h_idx = next_zone.add_clock();
+    state.timing.transition_to_h_clock[t] = static_cast<int>(h_idx);
     state.timing.clock_to_variable.push_back({TimedVariableKind::H, t});
+
+    if (state.timing.transition_has_w_domain[t]) {
+      const size_t w_idx = next_zone.add_clock();
+      state.timing.transition_to_w_clock[t] = static_cast<int>(w_idx);
+      state.timing.clock_to_variable.push_back({TimedVariableKind::W, t});
+    }
   }
 
-  const auto has_previous_clock = [&](size_t t) {
+  const auto has_previous_h_clock = [&](size_t t) {
     return previously_enabled.count(t) && !reset_transitions.count(t) &&
            t < previous_transition_to_h_clock.size() &&
            previous_transition_to_h_clock[t] > 0 &&
            static_cast<size_t>(previous_transition_to_h_clock[t]) < previous_zone.size();
   };
+  const auto has_previous_w_clock = [&](size_t t) {
+    return t < previous_transition_has_w_domain.size() && previous_transition_has_w_domain[t] &&
+           t < previous_transition_to_w_clock.size() &&
+           previous_transition_to_w_clock[t] > 0 &&
+           static_cast<size_t>(previous_transition_to_w_clock[t]) < previous_zone.size();
+  };
 
-  for (size_t ti : state.scheduling.enabled) {
-    if (ti >= state.timing.transition_to_h_clock.size() ||
-        state.timing.transition_to_h_clock[ti] <= 0) {
+  for (size_t t : state.scheduling.enabled) {
+    if (t >= state.timing.transition_to_h_clock.size() || state.timing.transition_to_h_clock[t] <= 0) {
       continue;
     }
 
-    const size_t new_i = static_cast<size_t>(state.timing.transition_to_h_clock[ti]);
-    if (has_previous_clock(ti)) {
-      const size_t old_i = static_cast<size_t>(previous_transition_to_h_clock[ti]);
-      next_zone.set_constraint(0, new_i, previous_zone.get_constraint(0, old_i));
-      next_zone.set_constraint(new_i, 0, previous_zone.get_constraint(old_i, 0));
+    const size_t new_h = static_cast<size_t>(state.timing.transition_to_h_clock[t]);
+    if (has_previous_h_clock(t)) {
+      const size_t old_h = static_cast<size_t>(previous_transition_to_h_clock[t]);
+      next_zone.set_constraint(0, new_h, previous_zone.get_constraint(0, old_h));
+      next_zone.set_constraint(new_h, 0, previous_zone.get_constraint(old_h, 0));
     } else {
-      const auto& clock = state.timing.clocks[ti];
-      next_zone.set_constraint(0, new_i, -clock.lower_bound);
-      next_zone.set_constraint(new_i, 0, clock.upper_bound);
+      const auto& clock = state.timing.clocks[t];
+      next_zone.set_constraint(0, new_h, -clock.lower_bound);
+      next_zone.set_constraint(new_h, 0, clock.upper_bound);
+    }
+
+    if (state.timing.transition_has_w_domain[t] && state.timing.transition_to_w_clock[t] > 0) {
+      const size_t new_w = static_cast<size_t>(state.timing.transition_to_w_clock[t]);
+      if (state.scheduling.active.count(t)) {
+        next_zone.set_constraint(0, new_w, 0);
+        next_zone.set_constraint(new_w, 0, INF_TIME);
+      } else if (has_previous_w_clock(t)) {
+        const size_t old_w = static_cast<size_t>(previous_transition_to_w_clock[t]);
+        next_zone.set_constraint(0, new_w, previous_zone.get_constraint(0, old_w));
+        next_zone.set_constraint(new_w, 0, previous_zone.get_constraint(old_w, 0));
+      } else {
+        next_zone.set_constraint(0, new_w, -state.timing.w_lower_bound(t));
+        next_zone.set_constraint(new_w, 0, INF_TIME);
+      }
     }
   }
 
   for (size_t ti : state.scheduling.enabled) {
-    if (!has_previous_clock(ti)) {
-      continue;
+    if (has_previous_h_clock(ti)) {
+      const size_t new_hi = static_cast<size_t>(state.timing.transition_to_h_clock[ti]);
+      const size_t old_hi = static_cast<size_t>(previous_transition_to_h_clock[ti]);
+      for (size_t tj : state.scheduling.enabled) {
+        if (!has_previous_h_clock(tj)) {
+          continue;
+        }
+
+        const size_t new_hj = static_cast<size_t>(state.timing.transition_to_h_clock[tj]);
+        const size_t old_hj = static_cast<size_t>(previous_transition_to_h_clock[tj]);
+        next_zone.set_constraint(new_hi, new_hj,
+                                 previous_zone.get_constraint(old_hi, old_hj));
+      }
     }
 
-    const size_t new_i = static_cast<size_t>(state.timing.transition_to_h_clock[ti]);
-    const size_t old_i = static_cast<size_t>(previous_transition_to_h_clock[ti]);
-    for (size_t tj : state.scheduling.enabled) {
-      if (!has_previous_clock(tj)) {
-        continue;
-      }
+    if (state.timing.transition_has_w_domain[ti] && has_previous_w_clock(ti) &&
+        state.timing.transition_to_w_clock[ti] > 0) {
+      const size_t new_wi = static_cast<size_t>(state.timing.transition_to_w_clock[ti]);
+      const size_t old_wi = static_cast<size_t>(previous_transition_to_w_clock[ti]);
 
-      const size_t new_j = static_cast<size_t>(state.timing.transition_to_h_clock[tj]);
-      const size_t old_j = static_cast<size_t>(previous_transition_to_h_clock[tj]);
-      next_zone.set_constraint(new_i, new_j,
-                               previous_zone.get_constraint(old_i, old_j));
+      for (size_t tj : state.scheduling.enabled) {
+        if (has_previous_h_clock(tj)) {
+          const size_t new_hj = static_cast<size_t>(state.timing.transition_to_h_clock[tj]);
+          const size_t old_hj = static_cast<size_t>(previous_transition_to_h_clock[tj]);
+          next_zone.set_constraint(new_wi, new_hj,
+                                   previous_zone.get_constraint(old_wi, old_hj));
+          next_zone.set_constraint(new_hj, new_wi,
+                                   previous_zone.get_constraint(old_hj, old_wi));
+        }
+        if (state.timing.transition_has_w_domain[tj] && has_previous_w_clock(tj) &&
+            state.timing.transition_to_w_clock[tj] > 0) {
+          const size_t new_wj = static_cast<size_t>(state.timing.transition_to_w_clock[tj]);
+          const size_t old_wj = static_cast<size_t>(previous_transition_to_w_clock[tj]);
+          next_zone.set_constraint(new_wi, new_wj,
+                                   previous_zone.get_constraint(old_wi, old_wj));
+        }
+      }
     }
   }
 
@@ -249,6 +332,10 @@ void recompute_enabled_sets_from_marking_impl(
   const DBM previous_zone = state.timing.zone;
   const std::vector<int> previous_transition_to_h_clock =
       state.timing.transition_to_h_clock;
+  const std::vector<int> previous_transition_to_w_clock =
+      state.timing.transition_to_w_clock;
+  const std::vector<bool> previous_transition_has_w_domain =
+      state.timing.transition_has_w_domain;
 
   for (size_t t = 0; t < num_transitions; ++t) {
     if (petri::PTPN::is_enabled(marking, ptpn, t)) {
@@ -350,16 +437,20 @@ void sync_zone_activity(ReachabilityState& state) {
   }
 
   for (size_t t : state.scheduling.enabled) {
-    if (!state.has_zone_clock_for_transition(t)) {
-      continue;
+    if (state.has_zone_clock_for_transition(t)) {
+      const size_t clock_idx =
+          static_cast<size_t>(state.clock_index_for_transition(t));
+      if (state.scheduling.active.count(t)) {
+        state.timing.zone.unfreeze_clock(clock_idx);
+      } else {
+        state.timing.zone.freeze_clock(clock_idx);
+      }
     }
 
-    const size_t clock_idx =
-        static_cast<size_t>(state.clock_index_for_transition(t));
-    if (state.scheduling.active.count(t)) {
-      state.timing.zone.unfreeze_clock(clock_idx);
-    } else {
-      state.timing.zone.freeze_clock(clock_idx);
+    // W clocks always advance (never frozen)
+    if (state.has_zone_w_clock_for_transition(t)) {
+      const size_t w_idx = static_cast<size_t>(state.w_clock_index_for_transition(t));
+      state.timing.zone.unfreeze_clock(w_idx);
     }
   }
 

@@ -19,7 +19,8 @@ bool can_intersect_zones(const ReachabilityState& a, const ReachabilityState& b)
          a.timing.zone.size() == b.timing.zone.size() &&
          a.timing.transition_to_h_clock == b.timing.transition_to_h_clock &&
          a.timing.transition_to_w_clock == b.timing.transition_to_w_clock &&
-         a.timing.clock_to_variable == b.timing.clock_to_variable;
+         a.timing.clock_to_variable == b.timing.clock_to_variable &&
+         a.timing.transition_has_w_domain == b.timing.transition_has_w_domain;
 }
 
 void sync_zone_activity_with_sets(ReachabilityState& state) {
@@ -85,6 +86,7 @@ ReachabilityState canonicalize(const ReachabilityState& a, const ReachabilitySta
         result.timing.transition_to_h_clock = a.timing.transition_to_h_clock;
         result.timing.transition_to_w_clock = a.timing.transition_to_w_clock;
         result.timing.clock_to_variable = a.timing.clock_to_variable;
+        result.timing.transition_has_w_domain = a.timing.transition_has_w_domain;
         result.timing.w_lower_bounds = a.timing.w_lower_bounds;
         result.timing.zone = a.timing.zone.intersection(b.timing.zone);
         sync_zone_activity_with_sets(result);
