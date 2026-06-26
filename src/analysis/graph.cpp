@@ -37,6 +37,9 @@ std::string format_int_vector(const std::vector<int>& values);
 std::string format_transition_vector(const std::vector<size_t>& trans_indices,
                                      const petri::PTPN& ptpn,
                                      bool detailed);
+std::string escape_dot_string(const std::string& value);
+std::string escape_json_string(const std::string& value);
+std::string join_lines_for_dot(const std::string& value);
 std::pair<int, int> current_clock_bounds(const ReachabilityState& state, size_t t);
 void sync_zone_activity(ReachabilityState& state);
 
@@ -374,6 +377,66 @@ std::string format_int_vector(const std::vector<int>& values) {
   return result;
 }
 
+std::string escape_dot_string(const std::string& value) {
+  std::string escaped;
+  escaped.reserve(value.size());
+  for (char ch : value) {
+    switch (ch) {
+      case '\\':
+        escaped += "\\\\";
+        break;
+      case '"':
+        escaped += "\\\"";
+        break;
+      case '\n':
+        escaped += "\\n";
+        break;
+      default:
+        escaped += ch;
+        break;
+    }
+  }
+  return escaped;
+}
+
+std::string escape_json_string(const std::string& value) {
+  std::string escaped;
+  escaped.reserve(value.size());
+  for (char ch : value) {
+    switch (ch) {
+      case '\\':
+        escaped += "\\\\";
+        break;
+      case '"':
+        escaped += "\\\"";
+        break;
+      case '\n':
+        escaped += "\\n";
+        break;
+      case '\r':
+        escaped += "\\r";
+        break;
+      case '\t':
+        escaped += "\\t";
+        break;
+      default:
+        escaped += ch;
+        break;
+    }
+  }
+  return escaped;
+}
+
+std::string join_lines_for_dot(const std::string& value) {
+  std::string joined = value;
+  size_t pos = 0;
+  while ((pos = joined.find('\n', pos)) != std::string::npos) {
+    joined.replace(pos, 1, "\\n");
+    pos += 2;
+  }
+  return joined;
+}
+
 std::string format_transition_vector(const std::vector<size_t>& trans_indices,
                                      const petri::PTPN& ptpn,
                                      bool detailed = true) {
@@ -523,33 +586,37 @@ std::string StateClassReachabilityGraph::format_named_dbm(
 
   std::vector<std::string> labels(state.timing.zone.size());
   labels[0] = "x0";
+  size_t cell_width = 6;
   for (size_t clock_idx = 1; clock_idx < state.timing.zone.size(); ++clock_idx) {
     const size_t transition_id = state.transition_for_clock(clock_idx);
     if (transition_id == std::numeric_limits<size_t>::max()) {
       labels[clock_idx] = "x" + std::to_string(clock_idx);
-      continue;
+    } else {
+      labels[clock_idx] = format_transition_label(transition_id);
+      if (state.timing.zone.is_frozen(clock_idx)) {
+        labels[clock_idx] += "[frozen]";
+      }
     }
-
-    labels[clock_idx] = format_transition_label(transition_id);
-    if (state.timing.zone.is_frozen(clock_idx)) {
-      labels[clock_idx] += "[frozen]";
-    }
+    cell_width = std::max(cell_width, labels[clock_idx].size() + 2);
   }
+  cell_width = std::max(cell_width, std::string("Frozen clocks").size() + 2);
 
   std::ostringstream oss;
   oss << "DBM(size=" << state.timing.zone.size() << ")\n";
-  oss << std::left << std::setw(28) << " ";
+  oss << std::left << std::setw(static_cast<int>(cell_width)) << " " << "|";
   for (const auto& label : labels) {
-    oss << std::left << std::setw(28) << label;
+    oss << " " << std::left << std::setw(static_cast<int>(cell_width)) << label << "|";
   }
   oss << "\n";
 
   for (size_t i = 0; i < state.timing.zone.size(); ++i) {
-    oss << std::left << std::setw(28) << labels[i];
+    oss << std::left << std::setw(static_cast<int>(cell_width)) << labels[i] << "|";
     for (size_t j = 0; j < state.timing.zone.size(); ++j) {
       const int value = state.timing.zone.get_constraint(i, j);
-      oss << std::left << std::setw(28)
-          << (value == INF_TIME ? std::string("inf") : std::to_string(value));
+      const std::string rendered =
+          value == INF_TIME ? std::string("inf") : std::to_string(value);
+      oss << " " << std::left << std::setw(static_cast<int>(cell_width)) << rendered
+          << "|";
     }
     oss << "\n";
   }
@@ -1103,17 +1170,10 @@ bool StateClassReachabilityGraph::save_to_dot(
     SCVIterator vi, vi_end;
     for (std::tie(vi, vi_end) = boost::vertices(graph_); vi != vi_end; ++vi) {
       const ReachabilityState& state = boost::get(boost::vertex_name, graph_, *vi);
+      const std::string state_dump = format_state_dump(state);
       out << "  s" << state.metadata.state_id << " [label=\"";
-      out << "State " << state.metadata.state_id << "\\n";
-      out << "M: [";
-      for (size_t i = 0; i < state.marking.size(); ++i) {
-        if (i > 0) out << ", ";
-        out << state.marking[i];
-      }
-      out << "]\\n";
-      out << "Active: " << state.scheduling.active.size() << "\\n";
-      out << "Time: " << std::fixed << std::setprecision(2) << state.metadata.cumulative_time;
-      out << "\"];\n";
+      out << escape_dot_string(join_lines_for_dot(state_dump));
+      out << "\", tooltip=\"" << escape_dot_string(state_dump) << "\"];\n";
     }
 
     out << "\n";
@@ -1126,10 +1186,13 @@ bool StateClassReachabilityGraph::save_to_dot(
       const TransitionEdge& edge = boost::get(boost::edge_name, graph_, *ei);
       const ReachabilityState& src_state = boost::get(boost::vertex_name, graph_, src);
       const ReachabilityState& tgt_state = boost::get(boost::vertex_name, graph_, tgt);
+      const std::string edge_label =
+          format_transition_label(edge.transition_id) + "\\n@" +
+          std::to_string(edge.firing_time);
 
-      out << "  s" << src_state.metadata.state_id << " -> s" << tgt_state.metadata.state_id;
-      out << " [label=\"T" << edge.transition_id << "\\n@" << edge.firing_time
-          << "\"];\n";
+      out << "  s" << src_state.metadata.state_id << " -> s"
+          << tgt_state.metadata.state_id;
+      out << " [label=\"" << escape_dot_string(edge_label) << "\"];\n";
     }
 
     out << "}\n";
@@ -1168,9 +1231,24 @@ bool StateClassReachabilityGraph::save_to_json(
         out << state.marking[i];
       }
       out << "],\n";
+      out << "      \"marking_named\": \""
+          << escape_json_string(format_places(state.marking)) << "\",\n";
+      out << "      \"enabled\": \""
+          << escape_json_string(format_transitions(state.scheduling.enabled)) << "\",\n";
+      out << "      \"active\": \""
+          << escape_json_string(format_transitions(state.scheduling.active)) << "\",\n";
+      out << "      \"suspended\": \""
+          << escape_json_string(format_transitions(state.scheduling.suspended)) << "\",\n";
       out << "      \"active_count\": " << state.scheduling.active.size() << ",\n";
       out << "      \"cumulative_time\": " << std::fixed << std::setprecision(2)
-          << state.metadata.cumulative_time << "\n";
+          << state.metadata.cumulative_time << ",\n";
+      out << "      \"clock_summary\": \""
+          << escape_json_string(format_transition_clock_summary(state, ptpn_))
+          << "\",\n";
+      out << "      \"zone\": \"" << escape_json_string(format_named_dbm(state))
+          << "\",\n";
+      out << "      \"dump\": \"" << escape_json_string(format_state_dump(state))
+          << "\"\n";
       out << "    }";
     }
 
@@ -1194,6 +1272,8 @@ bool StateClassReachabilityGraph::save_to_json(
       out << "      \"source\": " << src_state.metadata.state_id << ",\n";
       out << "      \"target\": " << tgt_state.metadata.state_id << ",\n";
       out << "      \"transition_id\": " << edge.transition_id << ",\n";
+      out << "      \"transition_label\": \""
+          << escape_json_string(format_transition_label(edge.transition_id)) << "\",\n";
       out << "      \"firing_time\": " << std::fixed << std::setprecision(2)
           << edge.firing_time << "\n";
       out << "    }";

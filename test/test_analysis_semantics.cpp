@@ -1,3 +1,4 @@
+#include <fstream>
 #include <string>
 
 #include <gtest/gtest.h>
@@ -305,6 +306,40 @@ TEST(PtpnAnalysisSemanticsTest, NamedStateDumpIncludesNamesAndDbmHeaders) {
   EXPECT_NE(named_dbm.find("Frozen clocks:"), std::string::npos);
 }
 
+
+TEST(PtpnAnalysisSemanticsTest, NamedExportsIncludeReadableStateAndTransitionNames) {
+  const petri::PTPN ptpn = make_suspendable_same_core_net();
+  state_class::PTPNAnalyzer analyzer(ptpn);
+  ASSERT_GE(analyzer.build(4), 1u);
+
+  const std::string dot_path = "/tmp/ptpn_named_export.dot";
+  const std::string json_path = "/tmp/ptpn_named_export.json";
+
+  ASSERT_TRUE(analyzer.save_to_dot(dot_path));
+  ASSERT_TRUE(analyzer.save_to_json(json_path));
+
+  std::ifstream dot_in(dot_path);
+  ASSERT_TRUE(dot_in.is_open());
+  const std::string dot((std::istreambuf_iterator<char>(dot_in)),
+                        std::istreambuf_iterator<char>());
+
+  std::ifstream json_in(json_path);
+  ASSERT_TRUE(json_in.is_open());
+  const std::string json((std::istreambuf_iterator<char>(json_in)),
+                         std::istreambuf_iterator<char>());
+
+  EXPECT_NE(dot.find("P0(p0)=1"), std::string::npos);
+  EXPECT_NE(dot.find("T1(high_priority, priority=2, core=0, suspendable)"),
+            std::string::npos);
+  EXPECT_NE(dot.find("tooltip=\"State "), std::string::npos);
+
+  EXPECT_NE(json.find("\"marking_named\""), std::string::npos);
+  EXPECT_NE(json.find("\"zone\""), std::string::npos);
+  EXPECT_NE(json.find("T0(low_priority, priority=1, core=0, suspendable)"),
+            std::string::npos);
+  EXPECT_NE(json.find("T1(high_priority, priority=2, core=0, suspendable)"),
+            std::string::npos);
+}
 TEST(PtpnAnalysisSemanticsTest, OpenLowerBoundDelaysFiringByOneTick) {
   petri::PTPN ptpn;
   const size_t input = ptpn.add_place("p0", 1);
