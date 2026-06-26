@@ -1065,6 +1065,21 @@ std::tuple<bool, ReachabilityState, double> StateClassReachabilityGraph::fire_wi
   const auto& trans = ptpn_.get_transition(trans_idx);
   const auto [alpha, beta] = effective_time_bounds_for_transition(trans);
 
+  const int fire_delay = compute_firing_time(to, trans_idx);
+  if (fire_delay < 0) {
+    spdlog::debug("[FIRE] {} not firable from current state",
+                  format_transition_label(trans_idx));
+    return {false, ReachabilityState(), 0.0};
+  }
+
+  if (!elapse_active_clocks(to, fire_delay)) {
+    spdlog::debug("[FIRE] {} failed during elapse_active_clocks(dt={})",
+                  format_transition_label(trans_idx), fire_delay);
+    return {false, ReachabilityState(), 0.0};
+  }
+  spdlog::debug("[DBM] after elapse_active_clocks(dt={}) for {}:\n{}", fire_delay,
+                format_transition_label(trans_idx), format_named_dbm(to));
+
   if (to.has_zone_clock_for_transition(trans_idx) && to.timing.zone.size() > 0) {
     const size_t clock_idx =
         static_cast<size_t>(to.clock_index_for_transition(trans_idx));
@@ -1078,21 +1093,6 @@ std::tuple<bool, ReachabilityState, double> StateClassReachabilityGraph::fire_wi
     spdlog::debug("[DBM] after restrict_clock on {}:\n{}",
                   format_transition_label(trans_idx), format_named_dbm(to));
   }
-
-  const int fire_delay = compute_firing_time(to, trans_idx);
-  if (fire_delay < 0) {
-    spdlog::debug("[FIRE] {} not firable after restriction",
-                  format_transition_label(trans_idx));
-    return {false, ReachabilityState(), 0.0};
-  }
-
-  if (!elapse_active_clocks(to, fire_delay)) {
-    spdlog::debug("[FIRE] {} failed during elapse_active_clocks(dt={})",
-                  format_transition_label(trans_idx), fire_delay);
-    return {false, ReachabilityState(), 0.0};
-  }
-  spdlog::debug("[DBM] after elapse_active_clocks(dt={}) for {}:\n{}", fire_delay,
-                format_transition_label(trans_idx), format_named_dbm(to));
 
   const std::vector<int> before_marking = to.marking;
   to.marking = petri::PTPN::fire(to.marking, ptpn_, trans_idx);

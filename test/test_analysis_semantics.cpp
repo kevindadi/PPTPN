@@ -159,6 +159,22 @@ petri::PTPN make_newly_enabled_siblings_net() {
   return ptpn;
 }
 
+petri::PTPN make_delayed_single_fire_net() {
+  petri::PTPN ptpn;
+
+  const size_t input = ptpn.add_place("input", 1);
+  const size_t done = ptpn.add_place("done", 1);
+  ptpn.set_initial_marking(input, 1);
+
+  const size_t delayed =
+      ptpn.add_transition("delayed", petri::TimeInterval(5, 5), 1, -1, false);
+
+  ptpn.set_pre_arc(input, delayed, 1);
+  ptpn.set_post_arc(delayed, done, 1);
+
+  return ptpn;
+}
+
 petri::PTPN make_two_survivor_future_closed_net() {
   petri::PTPN ptpn;
 
@@ -279,6 +295,34 @@ TEST(PtpnAnalysisSemanticsTest, StrictBoundsDoNotBreakTimeFirstPriorityRule) {
 }
 
 
+
+TEST(PtpnAnalysisSemanticsTest, DelayedTransitionProducesSuccessorAndAdvancesTime) {
+  const petri::PTPN ptpn = make_delayed_single_fire_net();
+  state_class::PTPNAnalyzer analyzer(ptpn);
+
+  ASSERT_EQ(analyzer.build(8), 2u);
+
+  const auto& graph = analyzer.get_graph();
+  const auto initial = analyzer.get_initial_vertex();
+
+  std::vector<state_class::SCVertex> successors;
+  std::vector<double> firing_times;
+  for (auto [edge_it, edge_end] = boost::out_edges(initial, graph); edge_it != edge_end;
+       ++edge_it) {
+    const auto& edge = boost::get(boost::edge_name, graph, *edge_it);
+    successors.push_back(boost::target(*edge_it, graph));
+    firing_times.push_back(edge.firing_time);
+  }
+
+  ASSERT_EQ(successors.size(), 1u);
+  EXPECT_DOUBLE_EQ(firing_times[0], 5.0);
+
+  const auto& successor_state =
+      boost::get(boost::vertex_name, graph, successors[0]);
+  EXPECT_DOUBLE_EQ(successor_state.metadata.cumulative_time, 5.0);
+  EXPECT_EQ(successor_state.marking[0], 0);
+  EXPECT_EQ(successor_state.marking[1], 1);
+}
 TEST(PtpnAnalysisSemanticsTest, NamedStateDumpIncludesNamesAndDbmHeaders) {
   const petri::PTPN ptpn = make_suspendable_same_core_net();
   state_class::StateClassReachabilityGraph graph(ptpn);
@@ -305,7 +349,6 @@ TEST(PtpnAnalysisSemanticsTest, NamedStateDumpIncludesNamesAndDbmHeaders) {
             std::string::npos);
   EXPECT_NE(named_dbm.find("Frozen clocks:"), std::string::npos);
 }
-
 
 TEST(PtpnAnalysisSemanticsTest, NamedExportsIncludeReadableStateAndTransitionNames) {
   const petri::PTPN ptpn = make_suspendable_same_core_net();
