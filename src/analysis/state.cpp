@@ -121,6 +121,11 @@ void ReachabilityState::rebuild_zone_from_clocks() {
   timing.clock_to_variable.clear();
   timing.clock_to_variable.push_back({TimedVariableKind::ZERO, INVALID_TRANSITION_ID});
 
+  // W-lower-bounds sized to all transitions; only enabled-suspendable entries are meaningful
+  if (timing.w_lower_bounds.size() < timing.clocks.size()) {
+    timing.w_lower_bounds.resize(timing.clocks.size(), 0);
+  }
+
   for (size_t t : scheduling.enabled) {
     if (t >= timing.clocks.size()) {
       continue;
@@ -139,6 +144,28 @@ void ReachabilityState::rebuild_zone_from_clocks() {
     } else {
       timing.zone.freeze_clock(clock_idx);
     }
+  }
+
+  // W clocks: one per enabled suspendable transition
+  for (size_t t : scheduling.enabled) {
+    if (!scheduling.suspended.count(t)) {
+      continue;  // W only exists while suspended
+    }
+    if (t >= timing.clocks.size()) {
+      continue;
+    }
+
+    const size_t w_idx = timing.zone.add_clock();
+    timing.transition_to_w_clock[t] = static_cast<int>(w_idx);
+    timing.clock_to_variable.push_back({TimedVariableKind::W, t});
+
+    // w_lower(t) lower-bounds the W variable; W has no upper bound (accumulates freely)
+    const int w_val = timing.w_lower_bounds[t];
+    timing.zone.set_constraint(0, w_idx, -w_val);
+    timing.zone.set_constraint(w_idx, 0, INF_TIME);
+
+    // W always advances (never frozen)
+    timing.zone.unfreeze_clock(w_idx);
   }
 
   timing.zone.minimize();
