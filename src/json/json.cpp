@@ -3,6 +3,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <fstream>
 #include <optional>
 #include <set>
 #include <sstream>

@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <sstream>
 
+#include "analysis/clock_state.h"
 #include "analysis/scheduling.h"
 
 namespace state_class {
@@ -159,31 +160,41 @@ StateClass StateClassReachabilityGraph::compute_initial_class() {
 StateClass StateClassReachabilityGraph::time_elapse(
     const StateClass& state) const {
   StateClass out = state;
-  if (out.zone.size() == 0) {
+  const size_t n = out.zone.size();
+  if (n == 0) {
     return out;
   }
 
+  // Running clocks advance at rate 1; everything else (x0 and the frozen
+  // execution clocks of priority-filtered-out transitions) stays put.
   // V_run = { h_t : t in E_pri } U { w_t : t in suspended }.
-  // Step 1: release the upper bound of every running clock.
-  for (size_t t : out.priority_enabled) {
-    if (out.has_exec_clock(t)) {
-      out.zone.set_constraint(static_cast<size_t>(out.exec_index(t)), 0,
-                              INF_TIME);
-    }
-  }
-  for (size_t t : out.suspended) {
-    if (out.has_susp_clock(t)) {
-      out.zone.set_constraint(static_cast<size_t>(out.susp_index(t)), 0,
-                              INF_TIME);
+  std::vector<bool> running(n, false);
+  for (size_t i = 1; i < n && i < out.clock_vars.size(); ++i) {
+    const ClockVar& var = out.clock_vars[i];
+    if (var.kind == ClockKind::Suspension) {
+      running[i] = true;  // suspension clocks always advance
+    } else if (var.kind == ClockKind::Execution &&
+               out.priority_enabled.count(var.transition)) {
+      running[i] = true;  // active execution clocks advance
     }
   }
 
-  // Step 2 (entangle running clocks to grow synchronously) is a no-op here:
-  // `out` is a copy of the original, so the pairwise differences among running
-  // clocks already equal the originals.
+  // Release each running clock's upper bound relative to every stationary
+  // variable (x0 and the frozen clocks). The differences between two running
+  // clocks are left untouched, so they keep growing synchronously.
+  for (size_t i = 1; i < n; ++i) {
+    if (!running[i]) {
+      continue;
+    }
+    for (size_t j = 0; j < n; ++j) {
+      if (j != i && !running[j]) {
+        out.zone.set_constraint(i, j, INF_TIME);
+      }
+    }
+  }
 
-  // Step 3: impose strong time semantics by capping each active clock at its
-  // deadline upSI(t).
+  // Strong time semantics: cap each active execution clock at its deadline
+  // upSI(t) so time cannot advance past a transition that must fire.
   for (size_t t : out.priority_enabled) {
     if (!out.has_exec_clock(t)) {
       continue;
@@ -210,7 +221,8 @@ bool StateClassReachabilityGraph::is_firable(const StateClass& elapsed,
   }
 
   const size_t idx = static_cast<size_t>(elapsed.exec_index(t));
-  const int max_h = elapsed.zone.get_constraint(idx, 0);  // largest feasible h_t
+  const int max_h =
+      elapsed.zone.get_constraint(idx, 0);  // largest feasible h_t
   if (max_h == INF_TIME) {
     return true;
   }
@@ -252,10 +264,10 @@ void StateClassReachabilityGraph::build_successor_zone(
       if (source_index[j] < 0) {
         continue;
       }
-      zone.set_constraint(i, j,
-                          fired.get_constraint(
-                              static_cast<size_t>(source_index[i]),
-                              static_cast<size_t>(source_index[j])));
+      zone.set_constraint(
+          i, j,
+          fired.get_constraint(static_cast<size_t>(source_index[i]),
+                               static_cast<size_t>(source_index[j])));
     }
   }
 
@@ -302,8 +314,7 @@ bool StateClassReachabilityGraph::fire(const StateClass& elapsed, size_t t,
 
   const int h_lower = -elapsed.zone.get_constraint(0, idx);
   const int firing_instant = std::max(lower, h_lower);
-  successor.elapsed_time =
-      elapsed.elapsed_time + std::max(0, firing_instant);
+  successor.elapsed_time = elapsed.elapsed_time + std::max(0, firing_instant);
 
   return true;
 }
@@ -315,7 +326,8 @@ bool StateClassReachabilityGraph::find_match(const StateClass& state,
     return false;
   }
   for (SCVertex candidate : it->second) {
-    const StateClass& existing = boost::get(boost::vertex_name, graph_, candidate);
+    const StateClass& existing =
+        boost::get(boost::vertex_name, graph_, candidate);
     if (can_merge_into(state, existing, mode_)) {
       match = candidate;
       return true;
@@ -478,8 +490,7 @@ std::string StateClassReachabilityGraph::format_named_dbm(
   for (size_t i = 1; i < state.zone.size() && i < state.clock_vars.size();
        ++i) {
     const ClockVar& var = state.clock_vars[i];
-    const std::string prefix =
-        var.kind == ClockKind::Suspension ? "w" : "h";
+    const std::string prefix = var.kind == ClockKind::Suspension ? "w" : "h";
     labels[i] = prefix + "(T" + std::to_string(var.transition) + ")";
     cell_width = std::max(cell_width, labels[i].size() + 2);
   }
@@ -635,8 +646,8 @@ bool StateClassReachabilityGraph::save_to_json(
     out << "      \"target\": " << tgt_state.id << ",\n";
     out << "      \"transition_id\": " << edge.transition_id << ",\n";
     out << "      \"transition_label\": \""
-        << escape_json(format_transition_label(
-               static_cast<size_t>(edge.transition_id)))
+        << escape_json(
+               format_transition_label(static_cast<size_t>(edge.transition_id)))
         << "\",\n";
     out << "      \"firing_time\": " << std::fixed << std::setprecision(2)
         << edge.firing_time << "\n";

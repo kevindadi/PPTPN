@@ -7,7 +7,6 @@
 #include <string>
 #include <vector>
 
-#include "clock_state.h"
 #include "dbm.h"
 
 namespace state_class {
