@@ -1,379 +1,118 @@
 #ifndef ANALYSIS_PTPN_ANALYSIS_H
 #define ANALYSIS_PTPN_ANALYSIS_H
 
-/**
- * @file ptpn_analysis.h
- * @brief 公开的 PTPN 可达性分析接口
- *
- * 本文件提供对 PTPN（Priority Time Petri Net）可达性分析的高层封装.
- * 用户通过此类接口进行状态空间构建和分析.
- *
- * 核心设计:
- * - 使用 ReachabilityState（clocks/active/suspended）替代旧的 Z1/Z2 结构
- * - 支持三种规范化模式:EQUALITY / MAX_LOWER_BOUND / INTERSECTION
- * - 时间推进仅作用于 active 时钟,suspended 时钟自动冻结
- * - 抢占/恢复语义显式管理
- *
- * 使用示例:
- * @code
- *   PTPNAnalyzer analyzer(ptpn);
- *   analyzer.set_canonicalization_mode(CanonicalizationMode::MAX_LOWER_BOUND);
- *   size_t state_count = analyzer.build(max_states);
- *   analyzer.save_to_dot("output.dot");
- * @endcode
- */
-
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/graph_traits.hpp>
+#include <cstddef>
 #include <limits>
-#include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
-#include "canonicalization.h"
-#include "graph.h"
+#include "analysis/canonicalization.h"
+#include "analysis/state_class.h"
 #include "petri/petri.h"
-#include "state.h"
 
 namespace state_class {
 
-/**
- * PTPNAnalyzer - PTPN 可达性分析器
- *
- * 封装 StateClassReachabilityGraph,提供高层分析和持久化接口.
- * 所有底层可达性算法由 StateClassReachabilityGraph 实现.
- */
-class PTPNAnalyzer {
+// Boost graph where each vertex carries a symbolic state class and each edge
+// records which transition fired.
+typedef boost::adjacency_list<
+    boost::vecS, boost::vecS, boost::directedS,
+    boost::property<boost::vertex_name_t, StateClass>,
+    boost::property<boost::edge_name_t, FiringEdge> >
+    SCGraph;
+
+typedef boost::graph_traits<SCGraph>::vertex_descriptor SCVertex;
+typedef boost::graph_traits<SCGraph>::edge_descriptor SCEdge;
+
+#ifdef PTPN_ENABLE_TEST_ACCESS
+struct StateClassReachabilityGraphTestAccess;
+#endif
+
+// Builds the state-class reachability graph of a P-TPN following the symbolic
+// construction in unconfirmed/ptpn-formal-semantics.tex: time elapse on a joint
+// DBM, then a branch for every priority-enabled transition that can fire.
+class StateClassReachabilityGraph {
+#ifdef PTPN_ENABLE_TEST_ACCESS
+  friend struct StateClassReachabilityGraphTestAccess;
+#endif
+
  public:
-  /**
-   * 构造分析器.
-   *
-   * @param ptpn PTPN 网（拷贝构造）
-   */
-  explicit PTPNAnalyzer(const petri::PTPN& ptpn);
+  explicit StateClassReachabilityGraph(const petri::PTPN& net);
 
-  /**
-   * 构造分析器（移动语义）.
-   *
-   * @param ptpn PTPN 网（移动构造）
-   */
-  explicit PTPNAnalyzer(petri::PTPN&& ptpn) noexcept;
-
-  ~PTPNAnalyzer();
-
-  PTPNAnalyzer(const PTPNAnalyzer& other);
-  PTPNAnalyzer& operator=(const PTPNAnalyzer& other);
-  PTPNAnalyzer(PTPNAnalyzer&& other) noexcept;
-  PTPNAnalyzer& operator=(PTPNAnalyzer&& other) noexcept;
-
-  /**
-   * 设置规范化模式.
-   *
-   * @param mode EQUALITY（默认）/ MAX_LOWER_BOUND / INTERSECTION
-   */
   void set_canonicalization_mode(CanonicalizationMode mode);
-
-  /**
-   * 获取当前规范化模式.
-   */
   [[nodiscard]] CanonicalizationMode get_canonicalization_mode() const;
 
-  /**
-   * 启用/禁用状态剪枝（默认禁用）.
-   */
-  void set_pruning_enabled(bool enabled);
-
-  /**
-   * 查询剪枝是否启用.
-   */
-  [[nodiscard]] bool is_pruning_enabled() const;
-
-  /**
-   * build - 构建可达性图
-   *
-   * @param max_states 最大状态数
-   * @return 实际构建的状态数
-   */
+  // Explores the reachability graph, stopping once `max_states` classes exist.
+  // Returns the number of state classes discovered.
   size_t build(size_t max_states = std::numeric_limits<size_t>::max());
 
-  /**
-   * 获取底层可达性图（Boost.Graph）.
-   */
-  [[nodiscard]] const SCGraph& get_graph() const;
+  [[nodiscard]] const SCGraph& get_graph() const { return graph_; }
+  [[nodiscard]] SCGraph& get_graph() { return graph_; }
+  [[nodiscard]] SCVertex get_initial_vertex() const { return initial_vertex_; }
 
-  /**
-   * 获取初始状态顶点.
-   */
-  [[nodiscard]] SCVertex get_initial_vertex() const;
+  // The initial state class C0 = (M0, Omega0) with every clock pinned to zero.
+  StateClass compute_initial_class();
 
-  /**
-   * 获取状态数量.
-   */
-  [[nodiscard]] size_t state_count() const;
+  // TimeElapse operator: returns a copy of `state` whose zone has had time
+  // pushed forward (running clocks released and re-capped at their deadlines).
+  StateClass time_elapse(const StateClass& state) const;
 
-  /**
-   * 获取迁移数量.
-   */
-  [[nodiscard]] size_t transition_count() const;
+  // True when transition `t` admits a valuation h_t >= downSI(t) in `elapsed`.
+  bool is_firable(const StateClass& elapsed, size_t t) const;
 
-  /**
-   * 获取统计信息.
-   */
-  [[nodiscard]] const typename StateClassReachabilityGraph::Statistics&
-  get_statistics() const;
+  // Discrete firing: from the time-elapsed class, fire `t` and produce the
+  // successor class (marking, sets, layout and zone). Returns false if the
+  // firing domain is empty.
+  bool fire(const StateClass& elapsed, size_t t, StateClass& successor) const;
 
-  /**
-   * advance_time - 时间推进
-   *
-   * 推进所有 active 时钟直到当前活跃变迁中最早可发生的有效时间点.
-   * strict 端点会先归一化到整数时间域中的有效上下界;
-   * suspended 时钟保持冻结.
-   *
-   * @param state 当前状态（就地修改）
-   * @return 推进的时间量
-   */
-  double advance_time(ReachabilityState& state) const;
+  struct Statistics {
+    size_t total_states = 0;
+    size_t total_transitions = 0;
+    size_t dedup_hits = 0;
+    bool truncated = false;
+  };
 
-  /**
-   * fire_with_time - 带时间的变迁激发
-   *
-   * @param t 变迁索引
-   * @param from 起始状态
-   * @return {是否成功, 新状态, 激发时间}
-   */
-  std::tuple<bool, ReachabilityState, double> fire_with_time(
-      size_t t, const ReachabilityState& from) const;
+  [[nodiscard]] const Statistics& get_statistics() const { return stats_; }
 
-  /**
-   * recompute_enabled_sets - 重新计算使能/活跃/挂起集合
-   *
-   * @param state 目标状态
-   */
-  void recompute_enabled_sets(ReachabilityState& state) const;
-
-  /**
-   * recompute_enabled_sets_from_marking - 从给定 marking 计算
-   */
-  void recompute_enabled_sets_from_marking(const std::vector<int>& marking,
-                                           ReachabilityState& state) const;
-
-  /**
-   * select_active_per_core - 选择每个核心上最高优先级变迁
-   */
-  std::set<size_t> select_active_per_core(
-      const std::set<size_t>& enabled) const;
-
-  /**
-   * compute_suspended - 计算应该挂起的变迁集合
-   */
-  std::set<size_t> compute_suspended(const std::set<size_t>& enabled,
-                                     const std::set<size_t>& active) const;
-
-  /**
-   * suspend_transition - 挂起变迁
-   */
-  void suspend_transition(size_t t, ReachabilityState& state) const;
-
-  /**
-   * restore_transition - 恢复变迁
-   */
-  void restore_transition(size_t t, ReachabilityState& state) const;
-
-  /**
-   * canonicalize - 规范化两个状态
-   */
-  ReachabilityState canonicalize(const ReachabilityState& a,
-                                 const ReachabilityState& b) const;
-
-  /**
-   * are_equivalent - 检查两个状态是否等价
-   */
-  bool are_equivalent(const ReachabilityState& a,
-                      const ReachabilityState& b) const;
-
-  /**
-   * save_to_dot - 保存为 Graphviz DOT 格式
-   *
-   * @param file_path 输出文件路径
-   * @return 是否成功
-   */
   bool save_to_dot(const std::string& file_path) const;
-
-  /**
-   * save_to_json - 保存为 JSON 格式
-   *
-   * @param file_path 输出文件路径
-   * @return 是否成功
-   */
   bool save_to_json(const std::string& file_path) const;
 
-  /**
-   * create_initial_state - 创建初始状态
-   *
-   * 从 PTPN 的初始标识创建 ReachabilityState.
-   */
-  [[nodiscard]] ReachabilityState create_initial_state() const;
-
-  /**
-   * num_transitions - 变迁数量
-   */
-  [[nodiscard]] size_t num_transitions() const;
-
-  /**
-   * num_places - 库所数量
-   */
-  [[nodiscard]] size_t num_places() const;
-
-  /**
-   * get_ptpn - 获取底层 PTPN 网（const 引用）
-   */
-  [[nodiscard]] const petri::PTPN& get_ptpn() const;
-
  private:
-  std::unique_ptr<petri::PTPN> ptpn_;
-  std::unique_ptr<StateClassReachabilityGraph> graph_;
+  const petri::PTPN& net_;
+  SCGraph graph_;
+  SCVertex initial_vertex_ = 0;
+  Statistics stats_;
+  CanonicalizationMode mode_ = CanonicalizationMode::EQUALITY;
+  size_t next_id_ = 0;
+
+  std::unordered_map<std::vector<int>, std::vector<SCVertex>, MarkingHash>
+      vertices_by_marking_;
+
+  [[nodiscard]] int effective_earliest(size_t transition) const;
+  [[nodiscard]] int effective_latest(size_t transition) const;
+
+  // Fills struct_enabled / priority_enabled / suspended from state.marking.
+  void recompute_sets(StateClass& state) const;
+  // Builds clock_vars and the per-transition index maps from the sets.
+  void build_layout(StateClass& state) const;
+  // Builds a successor zone by carrying surviving clocks over from `fired`.
+  void build_successor_zone(StateClass& successor, const DBM& fired,
+                            const StateClass& source, size_t fired_transition)
+      const;
+
+  // Returns the vertex matching `state` under the current mode, or npos.
+  [[nodiscard]] bool find_match(const StateClass& state, SCVertex& match) const;
+  SCVertex add_state(StateClass state);
+
+  static std::string format_marking(const petri::PTPN& net,
+                                    const std::vector<int>& marking);
+  std::string format_transition_label(size_t transition_id) const;
+  std::string format_transitions(const std::set<size_t>& transitions) const;
+  std::string format_named_dbm(const StateClass& state) const;
+  std::string format_state_dump(const StateClass& state) const;
 };
-
-inline PTPNAnalyzer::PTPNAnalyzer(const petri::PTPN& ptpn)
-    : ptpn_(std::make_unique<petri::PTPN>(ptpn)),
-      graph_(std::make_unique<StateClassReachabilityGraph>(*ptpn_)) {}
-
-inline PTPNAnalyzer::PTPNAnalyzer(petri::PTPN&& ptpn) noexcept
-    : ptpn_(std::make_unique<petri::PTPN>(std::move(ptpn))),
-      graph_(std::make_unique<StateClassReachabilityGraph>(*ptpn_)) {}
-
-inline PTPNAnalyzer::~PTPNAnalyzer() = default;
-
-inline PTPNAnalyzer::PTPNAnalyzer(const PTPNAnalyzer& other)
-    : ptpn_(std::make_unique<petri::PTPN>(*other.ptpn_)),
-      graph_(std::make_unique<StateClassReachabilityGraph>(*other.graph_)) {}
-
-inline PTPNAnalyzer& PTPNAnalyzer::operator=(const PTPNAnalyzer& other) {
-  if (this != &other) {
-    ptpn_ = std::make_unique<petri::PTPN>(*other.ptpn_);
-    graph_ = std::make_unique<StateClassReachabilityGraph>(*other.graph_);
-  }
-  return *this;
-}
-
-inline PTPNAnalyzer::PTPNAnalyzer(PTPNAnalyzer&& other) noexcept
-    : ptpn_(std::move(other.ptpn_)), graph_(std::move(other.graph_)) {}
-
-inline PTPNAnalyzer& PTPNAnalyzer::operator=(PTPNAnalyzer&& other) noexcept {
-  if (this != &other) {
-    ptpn_ = std::move(other.ptpn_);
-    graph_ = std::move(other.graph_);
-  }
-  return *this;
-}
-
-inline void PTPNAnalyzer::set_canonicalization_mode(CanonicalizationMode mode) {
-  graph_->set_canonicalization_mode(mode);
-}
-
-inline CanonicalizationMode PTPNAnalyzer::get_canonicalization_mode() const {
-  return graph_->get_canonicalization_mode();
-}
-
-inline void PTPNAnalyzer::set_pruning_enabled(bool enabled) {
-  graph_->set_pruning_enabled(enabled);
-}
-
-inline bool PTPNAnalyzer::is_pruning_enabled() const {
-  return graph_->is_pruning_enabled();
-}
-
-inline size_t PTPNAnalyzer::build(size_t max_states) {
-  return graph_->build(max_states);
-}
-
-inline const SCGraph& PTPNAnalyzer::get_graph() const {
-  return graph_->get_graph();
-}
-
-inline SCVertex PTPNAnalyzer::get_initial_vertex() const {
-  return graph_->get_initial_vertex();
-}
-
-inline size_t PTPNAnalyzer::state_count() const {
-  return graph_->get_statistics().total_states;
-}
-
-inline size_t PTPNAnalyzer::transition_count() const {
-  return graph_->get_statistics().total_transitions;
-}
-
-inline const typename StateClassReachabilityGraph::Statistics&
-PTPNAnalyzer::get_statistics() const {
-  return graph_->get_statistics();
-}
-
-inline double PTPNAnalyzer::advance_time(ReachabilityState& state) const {
-  return graph_->advance_time(state);
-}
-
-inline std::tuple<bool, ReachabilityState, double> PTPNAnalyzer::fire_with_time(
-    size_t t, const ReachabilityState& from) const {
-  return graph_->fire_with_time(t, from);
-}
-
-inline void PTPNAnalyzer::recompute_enabled_sets(
-    ReachabilityState& state) const {
-  graph_->recompute_enabled_sets(state);
-}
-
-inline void PTPNAnalyzer::recompute_enabled_sets_from_marking(
-    const std::vector<int>& marking, ReachabilityState& state) const {
-  graph_->recompute_enabled_sets_from_marking(marking, state);
-}
-
-inline std::set<size_t> PTPNAnalyzer::select_active_per_core(
-    const std::set<size_t>& enabled) const {
-  return graph_->select_active_per_core(enabled);
-}
-
-inline std::set<size_t> PTPNAnalyzer::compute_suspended(
-    const std::set<size_t>& enabled, const std::set<size_t>& active) const {
-  return graph_->compute_suspended(enabled, active);
-}
-
-inline void PTPNAnalyzer::suspend_transition(size_t t,
-                                             ReachabilityState& state) const {
-  graph_->suspend_transition(t, state);
-}
-
-inline void PTPNAnalyzer::restore_transition(size_t t,
-                                             ReachabilityState& state) const {
-  graph_->restore_transition(t, state);
-}
-
-inline ReachabilityState PTPNAnalyzer::canonicalize(
-    const ReachabilityState& a, const ReachabilityState& b) const {
-  return graph_->canonicalize(a, b);
-}
-
-inline bool PTPNAnalyzer::are_equivalent(const ReachabilityState& a,
-                                         const ReachabilityState& b) const {
-  return graph_->are_equivalent(a, b);
-}
-
-inline bool PTPNAnalyzer::save_to_dot(const std::string& file_path) const {
-  return graph_->save_to_dot(file_path);
-}
-
-inline bool PTPNAnalyzer::save_to_json(const std::string& file_path) const {
-  return graph_->save_to_json(file_path);
-}
-
-inline ReachabilityState PTPNAnalyzer::create_initial_state() const {
-  return graph_->create_initial_state();
-}
-
-inline size_t PTPNAnalyzer::num_transitions() const {
-  return ptpn_->num_transitions();
-}
-
-inline size_t PTPNAnalyzer::num_places() const { return ptpn_->num_places(); }
-
-inline const petri::PTPN& PTPNAnalyzer::get_ptpn() const { return *ptpn_; }
 
 }  // namespace state_class
 

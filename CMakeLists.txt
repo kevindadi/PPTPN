@@ -115,8 +115,8 @@ add_library(PTPN_core STATIC
     src/tdg2ptopner/ptpn_to_ppn.cpp
     src/tdg2ptopner/tdg2ptopner.cpp
     src/analysis/dbm.cpp
-    src/analysis/state.cpp
-    src/analysis/graph.cpp
+    src/analysis/state_class.cpp
+    src/analysis/ptpn_analysis.cpp
     src/analysis/canonicalization.cpp
     src/analysis/scheduling.cpp
     src/parser/ptpn_parser.cpp

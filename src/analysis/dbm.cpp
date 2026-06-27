@@ -370,6 +370,28 @@ bool DBM::contains(const DBM& other) const {
   return frozen_clocks_ == other.frozen_clocks_;
 }
 
+bool DBM::included_in(const DBM& other) const {
+  if (clock_count_ != other.clock_count_) {
+    return false;
+  }
+
+  for (size_t i = 0; i < clock_count_; ++i) {
+    for (size_t j = 0; j < clock_count_; ++j) {
+      const int this_bound = matrix_[offset(i, j)];
+      const int other_bound = other.matrix_[other.offset(i, j)];
+
+      if (other_bound == INF_TIME) {
+        continue;  // other imposes no bound here; anything is contained
+      }
+      if (this_bound == INF_TIME || this_bound > other_bound) {
+        return false;  // this is looser than other on (i, j)
+      }
+    }
+  }
+
+  return true;
+}
+
 std::string DBM::to_string() const {
   if (clock_count_ == 0) {
     return "DBM(empty)";

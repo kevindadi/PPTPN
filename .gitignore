@@ -8,6 +8,7 @@ build
 main.pdf
 compile_commands.json
 paper
+unconfirmed
 docs/superpowers
 docs/ptpn-formal-semantics.*
 docs/ptpn-state-class-construction.*

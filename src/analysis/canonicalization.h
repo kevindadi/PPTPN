@@ -3,22 +3,27 @@
 
 namespace state_class {
 
+// How freshly computed state classes are matched against already discovered
+// ones. EQUALITY keeps the graph exact; the other two apply the zone-inclusion
+// abstraction from the formal document (a smaller zone is merged into a larger
+// one with the same marking).
 enum class CanonicalizationMode {
-  EQUALITY,         // 标识、时钟完全相等才合并
-  MAX_LOWER_BOUND,  // 取最大下界
-  INTERSECTION      // 取约束交集
+  EQUALITY,         // CheckEquality: identical marking, layout and DBM matrix
+  MAX_LOWER_BOUND,  // CheckInclusion: zone-inclusion abstraction
+  INTERSECTION,     // CheckInclusion: zone-inclusion abstraction
 };
 
-// 前向声明
-struct ReachabilityState;
+struct StateClass;
 
-// 规范化两个状态
-ReachabilityState canonicalize(const ReachabilityState& a,
-                               const ReachabilityState& b,
-                               CanonicalizationMode mode);
+// Exact match: same marking, same variable layout, identical DBM matrix.
+bool check_equality(const StateClass& a, const StateClass& b);
 
-// 检查两个状态是否在给定模式下等价
-bool are_equivalent(const ReachabilityState& a, const ReachabilityState& b,
+// Inclusion: same marking and layout, and a's zone is a subset of b's zone.
+bool check_inclusion(const StateClass& a, const StateClass& b);
+
+// True when `candidate` may be merged into the already-discovered `existing`
+// under `mode` (exact match for EQUALITY, zone inclusion otherwise).
+bool can_merge_into(const StateClass& candidate, const StateClass& existing,
                     CanonicalizationMode mode);
 
 }  // namespace state_class

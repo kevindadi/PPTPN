@@ -19,7 +19,7 @@
 #include <nlohmann/json.hpp>
 #include <variant>
 
-#include "analysis/graph.h"
+#include "analysis/ptpn_analysis.h"
 #include "json/json.h"
 #include "parser/ptpn_parser.h"
 #include "petri/export_dot.h"
