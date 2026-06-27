@@ -1,10 +1,11 @@
 #include "petri/export_ptpn.h"
 
-#include <limits>
 #include <spdlog/spdlog.h>
 
+#include <limits>
+
 namespace petri::exporting {
-  
+
 namespace {
 
 PlaceKind detect_place_kind(const std::string& name) {
@@ -57,7 +58,8 @@ PetriExportModel build_export_model(const petri::PTPN& ptpn) {
   for (size_t p = 0; p < pre.size(); ++p) {
     for (size_t t = 0; t < pre[p].size(); ++t) {
       if (pre[p][t] > 0) {
-        model.arcs.push_back({{NodeKind::PLACE, p}, {NodeKind::TRANSITION, t}, pre[p][t]});
+        model.arcs.push_back(
+            {{NodeKind::PLACE, p}, {NodeKind::TRANSITION, t}, pre[p][t]});
       }
     }
   }
@@ -66,13 +68,15 @@ PetriExportModel build_export_model(const petri::PTPN& ptpn) {
   for (size_t t = 0; t < post.size(); ++t) {
     for (size_t p = 0; p < post[t].size(); ++p) {
       if (post[t][p] > 0) {
-        model.arcs.push_back({{NodeKind::TRANSITION, t}, {NodeKind::PLACE, p}, post[t][p]});
+        model.arcs.push_back(
+            {{NodeKind::TRANSITION, t}, {NodeKind::PLACE, p}, post[t][p]});
       }
     }
   }
 
-  spdlog::info("[PETRI_EXPORT] Built export model: {} places, {} transitions, {} arcs",
-               model.places.size(), model.transitions.size(), model.arcs.size());
+  spdlog::info(
+      "[PETRI_EXPORT] Built export model: {} places, {} transitions, {} arcs",
+      model.places.size(), model.transitions.size(), model.arcs.size());
   return model;
 }
 

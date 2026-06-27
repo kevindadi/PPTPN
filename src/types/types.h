@@ -1,20 +1,15 @@
 #ifndef TYPES_H
 #define TYPES_H
 
-#include <map>
-#include <set>
 #include <string>
-#include <unordered_map>
 #include <variant>
 #include <vector>
-
-#include <functional>
 
 enum class TaskType { NORMAL, PERIOD, APERIOD, INTERRUPT };
 
 // 实时系统调度策略
 enum class SchedulePolicy {
-  FIXED,                     // Fixed Priority - 固定优先级（兼容别名,默认按 resume 处理）
+  FIXED,  // Fixed Priority - 固定优先级（兼容别名,默认按 resume 处理）
   FIXED_PRIOR_WITH_RESTART,  // Fixed Priority with restart
   FIXED_PRIOR_WITH_RESUME,   // Fixed Priority with resume
   RM,                        // Rate Monotonic - 周期越短优先级越高

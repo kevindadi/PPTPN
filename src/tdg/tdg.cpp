@@ -209,8 +209,8 @@ std::unordered_map<int, std::vector<std::string>> TDG::classify_priority() {
   }
 
   for (const auto& [core_id, tasks] : core_task) {
-    spdlog::info("{}", format_core_priority_order(core_id, tasks, tasks_priority,
-                                                  "[TDG]"));
+    spdlog::info("{}", format_core_priority_order(core_id, tasks,
+                                                  tasks_priority, "[TDG]"));
   }
 
   return core_task;

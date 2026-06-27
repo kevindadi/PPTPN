@@ -10,7 +10,8 @@ namespace {
 
 bool ends_with(const std::string& value, const std::string& suffix) {
   return value.size() >= suffix.size() &&
-         value.compare(value.size() - suffix.size(), suffix.size(), suffix) == 0;
+         value.compare(value.size() - suffix.size(), suffix.size(), suffix) ==
+             0;
 }
 
 bool contains(const std::string& value, const std::string& needle) {
@@ -49,7 +50,8 @@ float map_prior_to_float(int ptpn_priority, TransitionRole role) {
 PpnModel ptpn_to_ppn_model(const petri::PTPN& ptpn) {
   if (ptpn.num_places() > static_cast<size_t>(kPtopnerMaxPlaces) ||
       ptpn.num_transitions() > static_cast<size_t>(kPtopnerMaxPlaces)) {
-    throw std::runtime_error("Converted net exceeds PToPNer place/transition limit");
+    throw std::runtime_error(
+        "Converted net exceeds PToPNer place/transition limit");
   }
 
   PpnModel model;

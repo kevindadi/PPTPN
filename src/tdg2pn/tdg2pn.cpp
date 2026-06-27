@@ -1,8 +1,8 @@
 #include "tdg2pn.h"
 
-#include <algorithm>
-#include <limits>
 #include <spdlog/spdlog.h>
+
+#include <algorithm>
 #include <sstream>
 
 namespace converter {
@@ -25,7 +25,8 @@ struct TaskChainLayout {
     return 5 + 4 * lock_index;
   }
 
-  static size_t lock_release_transition(size_t chain_length, size_t lock_index) {
+  static size_t lock_release_transition(size_t chain_length,
+                                        size_t lock_index) {
     return chain_length - 4 - 2 * lock_index;
   }
 };
@@ -34,9 +35,9 @@ int encode_task_execution_priority(int task_priority) { return task_priority; }
 
 petri::TimeInterval immediate_interval() { return petri::TimeInterval(0, 0); }
 
-size_t add_control_transition(petri::PTPN& ptpn, const std::string& name,
-                              const petri::TimeInterval& interval =
-                                  petri::TimeInterval(0, 0)) {
+size_t add_control_transition(
+    petri::PTPN& ptpn, const std::string& name,
+    const petri::TimeInterval& interval = petri::TimeInterval(0, 0)) {
   return ptpn.add_transition(name, interval, kControlTransitionPriority,
                              kControlTransitionCore, /*suspendable=*/false);
 }
@@ -68,10 +69,9 @@ std::string format_core_priority_order(
 
 bool TDG2PN::has_non_self_successor(const tdg::TDG& tdg,
                                     const std::string& task_name) {
-  return std::any_of(tdg.tdg_edges.begin(), tdg.tdg_edges.end(),
-                     [&](const TdgEdge& edge) {
-                       return edge.leaves(task_name);
-                     });
+  return std::any_of(
+      tdg.tdg_edges.begin(), tdg.tdg_edges.end(),
+      [&](const TdgEdge& edge) { return edge.leaves(task_name); });
 }
 
 bool TDG2PN::has_self_loop_release(const tdg::TDG& tdg,
@@ -174,9 +174,8 @@ void TDG2PN::transform(const tdg::TDG& tdg, petri::PTPN& ptpn) {
     std::unordered_map<std::string, TaskConfig> tasks_config;
     for (const auto& node : tdg.all_task) {
       if (const auto* task = as_task_node(node)) {
-        tasks_config.emplace(task->name,
-                             TaskConfig{task->core, task->priority, task->time,
-                                        task->lock});
+        tasks_config.emplace(task->name, TaskConfig{task->core, task->priority,
+                                                    task->time, task->lock});
       }
     }
 
@@ -192,22 +191,26 @@ void TDG2PN::transform(const tdg::TDG& tdg, petri::PTPN& ptpn) {
 
     if (tdg.policy == SchedulePolicy::FIXED ||
         tdg.policy == SchedulePolicy::FIXED_PRIOR_WITH_RESUME) {
-      spdlog::info("[TDG2PN] Creating fixed-priority resume preemption relations");
+      spdlog::info(
+          "[TDG2PN] Creating fixed-priority resume preemption relations");
       const auto core_task = classify_tdg_priority(tdg);
       fixed_prior_with_resume(ptpn, core_task, tasks_config, tdg.nodes_type);
     } else if (tdg.policy == SchedulePolicy::FIXED_PRIOR_WITH_RESTART) {
-      spdlog::info("[TDG2PN] Creating fixed-priority restart preemption relations");
+      spdlog::info(
+          "[TDG2PN] Creating fixed-priority restart preemption relations");
       const auto core_task = classify_tdg_priority(tdg);
       fixed_prior_with_restart(ptpn, core_task, tasks_config, tdg.nodes_type);
     } else {
-      spdlog::info("[TDG2PN] Skipping preemption expansion for non-fixed policy");
+      spdlog::info(
+          "[TDG2PN] Skipping preemption expansion for non-fixed policy");
     }
 
     spdlog::info("[TDG2PN] Adding resources and bindings");
     add_resources_and_bindings_matrix(ptpn, tdg);
 
-    spdlog::info("[TDG2PN] TDG transformation completed: {} places, {} transitions",
-                 ptpn.places.size(), ptpn.transitions.size());
+    spdlog::info(
+        "[TDG2PN] TDG transformation completed: {} places, {} transitions",
+        ptpn.places.size(), ptpn.transitions.size());
 
     if (!ptpn.verify_structure()) {
       spdlog::warn("[TDG2PN] Structure verification failed, continuing anyway");
@@ -231,10 +234,11 @@ std::unordered_map<int, std::vector<std::string>> TDG2PN::classify_tdg_priority(
   for (auto& [core_id, tasks] : core_task) {
     std::sort(tasks.begin(), tasks.end(),
               [&](const std::string& left, const std::string& right) {
-                return tdg.tasks_priority.at(left) > tdg.tasks_priority.at(right);
+                return tdg.tasks_priority.at(left) >
+                       tdg.tasks_priority.at(right);
               });
-    spdlog::info("{}", format_core_priority_order(core_id, tasks,
-                                                  tdg.tasks_priority, "[TDG2PN]"));
+    spdlog::info("{}", format_core_priority_order(
+                           core_id, tasks, tdg.tasks_priority, "[TDG2PN]"));
   }
 
   return core_task;
@@ -262,7 +266,6 @@ std::unordered_map<std::string, int> TDG2PN::build_preempt_priorities(
   return priorities;
 }
 
-
 void TDG2PN::transform_vertices(petri::PTPN& ptpn, const tdg::TDG& tdg) {
   for (const auto& node_entry : tdg.nodes_type) {
     const std::string& vertex_name = node_entry.first;
@@ -273,15 +276,14 @@ void TDG2PN::transform_vertices(petri::PTPN& ptpn, const tdg::TDG& tdg) {
       const auto [start_idx, end_idx] = add_node_matrix(ptpn, node_type);
       ptpn.node_start_end_map[vertex_name] = {start_idx, end_idx};
 
-      const bool is_leaf =
-          !std::any_of(tdg.tdg_edges.begin(), tdg.tdg_edges.end(),
-                       [&](const TdgEdge& edge) {
-                         return edge.leaves(vertex_name);
-                       });
+      const bool is_leaf = !std::any_of(
+          tdg.tdg_edges.begin(), tdg.tdg_edges.end(),
+          [&](const TdgEdge& edge) { return edge.leaves(vertex_name); });
 
       if (is_leaf && as_task_node(node_type)) {
-        spdlog::debug("[TDG2PN] Leaf task will get consume transition later: {}",
-                      vertex_name);
+        spdlog::debug(
+            "[TDG2PN] Leaf task will get consume transition later: {}",
+            vertex_name);
       }
     } catch (const std::exception& e) {
       spdlog::error("[TDG2PN] Failed to transform vertex {}: {}", vertex_name,
@@ -340,14 +342,14 @@ void TDG2PN::handle_self_loop_edge_matrix(petri::PTPN& ptpn,
 void TDG2PN::handle_dashed_edge_matrix(petri::PTPN& ptpn,
                                        const std::string& source_name,
                                        const std::string& target_name) {
-  // Dashed edges are handled by periodic release bindings; no direct arc is added.
+  // Dashed edges are handled by periodic release bindings; no direct arc is
+  // added.
   (void)ptpn;
   (void)source_name;
   (void)target_name;
 }
 
-void TDG2PN::handle_normal_edge_matrix(petri::PTPN& ptpn,
-                                       const tdg::TDG& tdg,
+void TDG2PN::handle_normal_edge_matrix(petri::PTPN& ptpn, const tdg::TDG& tdg,
                                        const std::string& source_name,
                                        const std::string& target_name) {
   const auto source_it = ptpn.node_start_end_map.find(source_name);
@@ -400,21 +402,22 @@ void TDG2PN::handle_normal_edge_matrix(petri::PTPN& ptpn,
     return;
   }
 
-  const size_t bridge_transition = add_control_transition(
-      ptpn, source_name + "_to_" + target_name);
+  const size_t bridge_transition =
+      add_control_transition(ptpn, source_name + "_to_" + target_name);
 
   if (source_exit < ptpn.places.size() && target_entry < ptpn.places.size()) {
     ptpn.set_pre_arc(source_exit, bridge_transition, 1);
     ptpn.set_post_arc(bridge_transition, target_entry, 1);
   } else {
-    spdlog::warn("[TDG2PN] Unexpected node types for edge: {} -> {}", source_name,
-                 target_name);
+    spdlog::warn("[TDG2PN] Unexpected node types for edge: {} -> {}",
+                 source_name, target_name);
   }
 
   spdlog::debug("[TDG2PN] Added edge: {} -> {}", source_name, target_name);
 }
 
-void TDG2PN::add_resources_and_bindings_matrix(petri::PTPN& ptpn, const tdg::TDG& tdg) {
+void TDG2PN::add_resources_and_bindings_matrix(petri::PTPN& ptpn,
+                                               const tdg::TDG& tdg) {
   add_cpu_resource_matrix(ptpn, tdg.num_cpus, tdg.cores_per_cpu);
   add_lock_resource_matrix(ptpn, tdg.lock_set);
   task_bind_cpu_resource_matrix(ptpn, tdg.all_task);
@@ -465,8 +468,8 @@ void TDG2PN::task_bind_cpu_resource_matrix(
       continue;
     }
 
-    ptpn.set_pre_arc(ptpn.cpus_place[task->core], chain[TaskChainLayout::kGetCore],
-                     1);
+    ptpn.set_pre_arc(ptpn.cpus_place[task->core],
+                     chain[TaskChainLayout::kGetCore], 1);
     ptpn.set_post_arc(chain[chain.size() - 2], ptpn.cpus_place[task->core], 1);
   }
 }
@@ -519,8 +522,9 @@ void TDG2PN::bind_task_locks_matrix(
 
     const size_t acquire_transition =
         task_pt_chain[TaskChainLayout::lock_acquire_transition(lock_index)];
-    const size_t release_transition = task_pt_chain[TaskChainLayout::lock_release_transition(
-        task_pt_chain.size(), lock_index)];
+    const size_t release_transition =
+        task_pt_chain[TaskChainLayout::lock_release_transition(
+            task_pt_chain.size(), lock_index)];
 
     const auto lock_it = ptpn.locks_place.find(lock_type);
     if (lock_it == ptpn.locks_place.end()) {
@@ -546,29 +550,30 @@ void TDG2PN::bind_task_locks_matrix(
 
 std::pair<size_t, size_t> TDG2PN::add_node_matrix(petri::PTPN& ptpn,
                                                   const NodeType& node_type) {
-  return visit_node(node_type, [&](const auto& node) -> std::pair<size_t, size_t> {
-    using Node = std::decay_t<decltype(node)>;
+  return visit_node(
+      node_type, [&](const auto& node) -> std::pair<size_t, size_t> {
+        using Node = std::decay_t<decltype(node)>;
 
-    if constexpr (std::is_same_v<Node, TaskNode>) {
-      return add_task_node_matrix(ptpn, node);
-    }
+        if constexpr (std::is_same_v<Node, TaskNode>) {
+          return add_task_node_matrix(ptpn, node);
+        }
 
-    if constexpr (std::is_same_v<Node, JoinTask>) {
-      const size_t join_trans = add_control_transition(
-          ptpn, "Join" + std::to_string(ptpn.node_index++));
-      return {join_trans, join_trans};
-    }
+        if constexpr (std::is_same_v<Node, JoinTask>) {
+          const size_t join_trans = add_control_transition(
+              ptpn, "Join" + std::to_string(ptpn.node_index++));
+          return {join_trans, join_trans};
+        }
 
-    if constexpr (std::is_same_v<Node, ForkTask>) {
-      const size_t fork_trans = add_control_transition(
-          ptpn, "Fork" + std::to_string(ptpn.node_index++));
-      return {fork_trans, fork_trans};
-    }
+        if constexpr (std::is_same_v<Node, ForkTask>) {
+          const size_t fork_trans = add_control_transition(
+              ptpn, "Fork" + std::to_string(ptpn.node_index++));
+          return {fork_trans, fork_trans};
+        }
 
-    const size_t empty_place =
-        ptpn.add_place("Empty" + std::to_string(ptpn.node_index++), 1);
-    return {empty_place, empty_place};
-  });
+        const size_t empty_place =
+            ptpn.add_place("Empty" + std::to_string(ptpn.node_index++), 1);
+        return {empty_place, empty_place};
+      });
 }
 
 std::vector<size_t> TDG2PN::add_execution_chain(
@@ -595,20 +600,22 @@ std::vector<size_t> TDG2PN::add_execution_chain(
 
   size_t current_place = ready;
 
-  for (size_t segment_index = 0; segment_index < times.size(); ++segment_index) {
+  for (size_t segment_index = 0; segment_index < times.size();
+       ++segment_index) {
     const auto& [start, end] = times[segment_index];
     const std::string exec_name =
-        times.size() == 1 ? task_name + "exec"
-                          : task_name + "_exec_" + std::to_string(segment_index + 1);
+        times.size() == 1
+            ? task_name + "exec"
+            : task_name + "_exec_" + std::to_string(segment_index + 1);
     const size_t exec = ptpn.add_transition(
         exec_name, petri::TimeInterval(start, end), encoded_priority, core,
         /*suspendable=*/false);
 
     const bool is_last_segment = segment_index + 1 == times.size();
     const std::string next_place_name =
-        is_last_segment ? task_name + "exit"
-                        : task_name + "_seg_" + std::to_string(segment_index + 1) +
-                              "_done";
+        is_last_segment
+            ? task_name + "exit"
+            : task_name + "_seg_" + std::to_string(segment_index + 1) + "_done";
     const size_t next_place = ptpn.add_place(next_place_name, 1);
 
     ptpn.set_pre_arc(current_place, exec, 1);
@@ -622,9 +629,8 @@ std::vector<size_t> TDG2PN::add_execution_chain(
       const size_t lock_transition = ptpn.add_transition(
           lock_name, immediate_interval(), encoded_priority, core,
           /*suspendable=*/false);
-      const size_t hold_place =
-          ptpn.add_place(task_name + "_hold_" + std::to_string(segment_index + 1),
-                         1);
+      const size_t hold_place = ptpn.add_place(
+          task_name + "_hold_" + std::to_string(segment_index + 1), 1);
 
       ptpn.set_pre_arc(current_place, lock_transition, 1);
       ptpn.set_post_arc(lock_transition, hold_place, 1);
@@ -638,15 +644,15 @@ std::vector<size_t> TDG2PN::add_execution_chain(
 
 std::pair<size_t, size_t> TDG2PN::add_task_node_matrix(petri::PTPN& ptpn,
                                                        const TaskNode& task) {
-  std::vector<size_t> chain =
-      add_execution_chain(ptpn, task.name, task.time, task.lock, task.priority,
-                          task.core);
+  std::vector<size_t> chain = add_execution_chain(
+      ptpn, task.name, task.time, task.lock, task.priority, task.core);
   ptpn.node_pn_map[task.name] = chain;
   return {chain.front(), chain.back()};
 }
 
 void TDG2PN::add_monitor_matrix(petri::PTPN& ptpn, const std::string& task_name,
-                                int task_period_time, size_t start, size_t end) {
+                                int task_period_time, size_t start,
+                                size_t end) {
   const size_t deadline = ptpn.add_place(task_name + "deadline", 1);
   const size_t timeout = ptpn.add_place(task_name + "timeout", 1);
   const size_t ok = ptpn.add_place(task_name + "ok", 1);
@@ -657,7 +663,8 @@ void TDG2PN::add_monitor_matrix(petri::PTPN& ptpn, const std::string& task_name,
       petri::TimeInterval(task_period_time, task_period_time));
   const size_t ending = add_control_transition(ptpn, task_name + "ending");
   const size_t complete = add_control_transition(ptpn, task_name + "complete");
-  const size_t timeout_transition = add_control_transition(ptpn, task_name + "out");
+  const size_t timeout_transition =
+      add_control_transition(ptpn, task_name + "out");
 
   ptpn.set_post_arc(ending, end_place, 1);
   ptpn.set_pre_arc(end_place, complete, 1);
@@ -678,7 +685,6 @@ void TDG2PN::add_monitor_matrix(petri::PTPN& ptpn, const std::string& task_name,
   }
 }
 
-
 void TDG2PN::fixed_prior_with_restart(
     petri::PTPN& ptpn,
     const std::unordered_map<int, std::vector<std::string>>& core_task,
@@ -692,7 +698,10 @@ void TDG2PN::fixed_prior_with_restart(
           const std::vector<size_t>& l_t_pn, const std::vector<size_t>& h_t_pn,
           int preempt_priority, bool /* is_interrupt */) {
         if (l_t_pn.size() < 5 || h_t_pn.size() < 5) {
-          spdlog::warn("[TDG2PN] Task chain too short, skipping restart preemption: {} <- {}", l_t_name, h_t_name);
+          spdlog::warn(
+              "[TDG2PN] Task chain too short, skipping restart preemption: {} "
+              "<- {}",
+              l_t_name, h_t_name);
           return;
         }
 
@@ -706,11 +715,11 @@ void TDG2PN::fixed_prior_with_restart(
         const size_t h_entry = h_t_pn[0];
         const size_t h_ready = h_t_pn[2];
 
-        std::string preempt_name = h_t_name + "_restart_preempt_" + l_t_name + "_" +
-                                   std::to_string(ptpn.node_index++);
+        std::string preempt_name = h_t_name + "_restart_preempt_" + l_t_name +
+                                   "_" + std::to_string(ptpn.node_index++);
         petri::TimeInterval preempt_interval(0, 0);
-        size_t preempt_trans = ptpn.add_transition(preempt_name, preempt_interval,
-                                                   preempt_priority, h_tc.core, false);
+        size_t preempt_trans = ptpn.add_transition(
+            preempt_name, preempt_interval, preempt_priority, h_tc.core, false);
 
         ptpn.set_pre_arc(h_entry, preempt_trans, 1);
         ptpn.set_pre_arc(l_preempt_place, preempt_trans, 1);
@@ -720,7 +729,9 @@ void TDG2PN::fixed_prior_with_restart(
         if (!l_tc.locks.empty()) {
           constexpr size_t MIN_CHAIN_LENGTH = 9;
           if (l_t_pn.size() < MIN_CHAIN_LENGTH) {
-            spdlog::debug("[TDG2PN] Task chain too short for lock restart preemption: {}", l_t_name);
+            spdlog::debug(
+                "[TDG2PN] Task chain too short for lock restart preemption: {}",
+                l_t_name);
             return;
           }
 
@@ -735,12 +746,13 @@ void TDG2PN::fixed_prior_with_restart(
             }
 
             const size_t lock_preempt_place = l_t_pn[idx - 1];
-            std::string lock_preempt_name = h_t_name + "_restart_lock_preempt_" +
-                                            l_t_name + "_" +
-                                            std::to_string(ptpn.node_index++);
+            std::string lock_preempt_name =
+                h_t_name + "_restart_lock_preempt_" + l_t_name + "_" +
+                std::to_string(ptpn.node_index++);
             petri::TimeInterval lock_preempt_interval(0, 0);
-            size_t lock_preempt_trans = ptpn.add_transition(
-                lock_preempt_name, lock_preempt_interval, preempt_priority, h_tc.core, false);
+            size_t lock_preempt_trans =
+                ptpn.add_transition(lock_preempt_name, lock_preempt_interval,
+                                    preempt_priority, h_tc.core, false);
 
             ptpn.set_pre_arc(h_entry, lock_preempt_trans, 1);
             ptpn.set_pre_arc(lock_preempt_place, lock_preempt_trans, 1);
@@ -751,7 +763,8 @@ void TDG2PN::fixed_prior_with_restart(
       };
 
   for (const auto& [core_id, tasks] : core_task) {
-    spdlog::debug("[TDG2PN] Processing restart preemption for core {}", core_id);
+    spdlog::debug("[TDG2PN] Processing restart preemption for core {}",
+                  core_id);
 
     for (size_t i = 0; i < tasks.size(); ++i) {
       const std::string& h_t_name = tasks[i];
@@ -760,7 +773,8 @@ void TDG2PN::fixed_prior_with_restart(
         continue;
       }
       const TaskConfig& h_tc = h_t_it->second;
-      const auto preempt_priorities = build_preempt_priorities(tasks, tc, h_tc.priority);
+      const auto preempt_priorities =
+          build_preempt_priorities(tasks, tc, h_tc.priority);
 
       for (size_t j = i + 1; j < tasks.size(); ++j) {
         const std::string& l_t_name = tasks[j];
@@ -783,7 +797,8 @@ void TDG2PN::fixed_prior_with_restart(
         auto h_t_pns_it = ptpn.node_pn_map.find(h_t_name);
         if (l_t_pns_it == ptpn.node_pn_map.end() ||
             h_t_pns_it == ptpn.node_pn_map.end()) {
-          spdlog::warn("[TDG2PN] Cannot find task chain: {} or {}", l_t_name, h_t_name);
+          spdlog::warn("[TDG2PN] Cannot find task chain: {} or {}", l_t_name,
+                       h_t_name);
           continue;
         }
 
@@ -814,69 +829,78 @@ void TDG2PN::fixed_prior_with_resume(
     const std::unordered_map<std::string, NodeType>& nodes_type) {
   spdlog::info("[TDG2PN] Starting fixed-priority resume preemption addition");
 
-  auto handle_task_preemption =
-      [&](const std::string& l_t_name, const std::string& h_t_name,
-          const TaskConfig& l_tc, const TaskConfig& h_tc,
-          const std::vector<size_t>& l_t_pn, const std::vector<size_t>& h_t_pn,
-          int preempt_priority, bool is_interrupt) {
-        if (l_t_pn.size() < 5 || h_t_pn.size() < 5) {
-          spdlog::warn("[TDG2PN] Task chain too short, skipping resume preemption: {} <- {}", l_t_name, h_t_name);
-          return;
-        }
+  auto handle_task_preemption = [&](const std::string& l_t_name,
+                                    const std::string& h_t_name,
+                                    const TaskConfig& l_tc,
+                                    const TaskConfig& h_tc,
+                                    const std::vector<size_t>& l_t_pn,
+                                    const std::vector<size_t>& h_t_pn,
+                                    int preempt_priority, bool is_interrupt) {
+    if (l_t_pn.size() < 5 || h_t_pn.size() < 5) {
+      spdlog::warn(
+          "[TDG2PN] Task chain too short, skipping resume preemption: {} <- {}",
+          l_t_name, h_t_name);
+      return;
+    }
 
-        size_t l_exec = l_t_pn[3];
-        if (l_exec < ptpn.transitions.size()) {
-          ptpn.transitions[l_exec].suspendable = true;
-        }
+    size_t l_exec = l_t_pn[3];
+    if (l_exec < ptpn.transitions.size()) {
+      ptpn.transitions[l_exec].suspendable = true;
+    }
 
-        const size_t l_preempt_place = l_t_pn[2];
-        const size_t h_entry = h_t_pn[0];
-        const size_t h_ready = h_t_pn[2];
-        const size_t h_exit = h_t_pn[4];
+    const size_t l_preempt_place = l_t_pn[2];
+    const size_t h_entry = h_t_pn[0];
+    const size_t h_ready = h_t_pn[2];
+    const size_t h_exit = h_t_pn[4];
 
-        std::string suspended_name = l_t_name + "_suspended_" + h_t_name + "_" +
-                                     std::to_string(ptpn.node_index);
-        std::string preempt_name = h_t_name + "_resume_preempt_" + l_t_name + "_" +
-                                   std::to_string(ptpn.node_index);
-        std::string resume_name = l_t_name + "_resume_" + h_t_name + "_" +
-                                  std::to_string(ptpn.node_index);
+    std::string suspended_name = l_t_name + "_suspended_" + h_t_name + "_" +
+                                 std::to_string(ptpn.node_index);
+    std::string preempt_name = h_t_name + "_resume_preempt_" + l_t_name + "_" +
+                               std::to_string(ptpn.node_index);
+    std::string resume_name = l_t_name + "_resume_" + h_t_name + "_" +
+                              std::to_string(ptpn.node_index);
 
-        size_t suspended_place = ptpn.add_place(suspended_name, 1);
-        petri::TimeInterval immediate_interval(0, 0);
-        size_t preempt_trans = ptpn.add_transition(preempt_name, immediate_interval,
-                                                   preempt_priority, h_tc.core, false);
-        size_t resume_trans = ptpn.add_transition(resume_name, immediate_interval,
-                                                  kControlTransitionPriority, kControlTransitionCore, false);
-        ptpn.node_index++;
+    size_t suspended_place = ptpn.add_place(suspended_name, 1);
+    petri::TimeInterval immediate_interval(0, 0);
+    size_t preempt_trans = ptpn.add_transition(
+        preempt_name, immediate_interval, preempt_priority, h_tc.core, false);
+    size_t resume_trans = ptpn.add_transition(resume_name, immediate_interval,
+                                              kControlTransitionPriority,
+                                              kControlTransitionCore, false);
+    ptpn.node_index++;
 
-        ptpn.set_pre_arc(h_entry, preempt_trans, 1);
-        ptpn.set_pre_arc(l_preempt_place, preempt_trans, 1);
-        ptpn.set_post_arc(preempt_trans, h_ready, 1);
-        ptpn.set_post_arc(preempt_trans, suspended_place, 1);
+    ptpn.set_pre_arc(h_entry, preempt_trans, 1);
+    ptpn.set_pre_arc(l_preempt_place, preempt_trans, 1);
+    ptpn.set_post_arc(preempt_trans, h_ready, 1);
+    ptpn.set_post_arc(preempt_trans, suspended_place, 1);
 
-        ptpn.set_pre_arc(suspended_place, resume_trans, 1);
-        ptpn.set_pre_arc(h_exit, resume_trans, 1);
-        ptpn.set_post_arc(resume_trans, h_exit, 1);
-        ptpn.set_post_arc(resume_trans, l_preempt_place, 1);
-      };
+    ptpn.set_pre_arc(suspended_place, resume_trans, 1);
+    ptpn.set_pre_arc(h_exit, resume_trans, 1);
+    ptpn.set_post_arc(resume_trans, h_exit, 1);
+    ptpn.set_post_arc(resume_trans, l_preempt_place, 1);
+  };
 
   auto handle_lock_preempt =
       [&](const std::string& l_t_name, const std::string& h_t_name,
           const TaskConfig& h_tc, const std::vector<size_t>& l_t_pn,
-          size_t l_preempt_place, int preempt_priority,
-          size_t h_entry, size_t h_ready, size_t h_exit) {
-        std::string lock_suspended_name = l_t_name + "_lock_suspended_" + h_t_name + "_" +
+          size_t l_preempt_place, int preempt_priority, size_t h_entry,
+          size_t h_ready, size_t h_exit) {
+        std::string lock_suspended_name = l_t_name + "_lock_suspended_" +
+                                          h_t_name + "_" +
                                           std::to_string(ptpn.node_index);
-        std::string lock_preempt_name = h_t_name + "_resume_lock_preempt_" + l_t_name + "_" +
+        std::string lock_preempt_name = h_t_name + "_resume_lock_preempt_" +
+                                        l_t_name + "_" +
                                         std::to_string(ptpn.node_index);
-        std::string lock_resume_name = l_t_name + "_lock_resume_" + h_t_name + "_" +
-                                       std::to_string(ptpn.node_index);
+        std::string lock_resume_name = l_t_name + "_lock_resume_" + h_t_name +
+                                       "_" + std::to_string(ptpn.node_index);
         size_t lock_suspended_place = ptpn.add_place(lock_suspended_name, 1);
         petri::TimeInterval immediate_interval(0, 0);
-        size_t lock_preempt_trans = ptpn.add_transition(
-            lock_preempt_name, immediate_interval, preempt_priority, h_tc.core, false);
+        size_t lock_preempt_trans =
+            ptpn.add_transition(lock_preempt_name, immediate_interval,
+                                preempt_priority, h_tc.core, false);
         size_t lock_resume_trans = ptpn.add_transition(
-            lock_resume_name, immediate_interval, kControlTransitionPriority, kControlTransitionCore, false);
+            lock_resume_name, immediate_interval, kControlTransitionPriority,
+            kControlTransitionCore, false);
         ptpn.node_index++;
 
         ptpn.set_pre_arc(h_entry, lock_preempt_trans, 1);
@@ -900,7 +924,8 @@ void TDG2PN::fixed_prior_with_resume(
         continue;
       }
       const TaskConfig& h_tc = h_t_it->second;
-      const auto preempt_priorities = build_preempt_priorities(tasks, tc, h_tc.priority);
+      const auto preempt_priorities =
+          build_preempt_priorities(tasks, tc, h_tc.priority);
 
       for (size_t j = i + 1; j < tasks.size(); ++j) {
         const std::string& l_t_name = tasks[j];
@@ -923,7 +948,8 @@ void TDG2PN::fixed_prior_with_resume(
         auto h_t_pns_it = ptpn.node_pn_map.find(h_t_name);
         if (l_t_pns_it == ptpn.node_pn_map.end() ||
             h_t_pns_it == ptpn.node_pn_map.end()) {
-          spdlog::warn("[TDG2PN] Cannot find task chain: {} or {}", l_t_name, h_t_name);
+          spdlog::warn("[TDG2PN] Cannot find task chain: {} or {}", l_t_name,
+                       h_t_name);
           continue;
         }
 
@@ -951,12 +977,14 @@ void TDG2PN::fixed_prior_with_resume(
           const size_t num_locks = l_tc.locks.size();
 
           // Spin locks block preemption while held.
-          const bool all_spin = std::all_of(
-              l_tc.locks.begin(), l_tc.locks.end(), [](const std::string& lock) {
-                return lock.find("spin") != std::string::npos;
-              });
+          const bool all_spin =
+              std::all_of(l_tc.locks.begin(), l_tc.locks.end(),
+                          [](const std::string& lock) {
+                            return lock.find("spin") != std::string::npos;
+                          });
           if (!all_spin) {
-            // Exec transitions during spin-lock critical sections cannot suspend.
+            // Exec transitions during spin-lock critical sections cannot
+            // suspend.
             std::set<size_t> non_suspendable_exec_indices;
             for (size_t lock_index = 0; lock_index < num_locks; ++lock_index) {
               if (l_tc.locks[lock_index].find("spin") != std::string::npos) {
@@ -968,16 +996,17 @@ void TDG2PN::fixed_prior_with_resume(
             const size_t h_ready = h_t_pn[TaskChainLayout::kReady];
             const size_t h_exit = h_t_pn.back();
 
-            // Walk every preemptible place starting at the first segment boundary.
+            // Walk every preemptible place starting at the first segment
+            // boundary.
             for (size_t chain_idx = TaskChainLayout::kFirstSegDone;
                  chain_idx + 1 < l_t_pn.size(); chain_idx += 2) {
               if (non_suspendable_exec_indices.count(chain_idx + 1) > 0) {
                 continue;
               }
 
-              handle_lock_preempt(l_t_name, h_t_name, h_tc, l_t_pn, l_t_pn[chain_idx],
-                                  preempt_priority_it->second, h_entry, h_ready,
-                                  h_exit);
+              handle_lock_preempt(
+                  l_t_name, h_t_name, h_tc, l_t_pn, l_t_pn[chain_idx],
+                  preempt_priority_it->second, h_entry, h_ready, h_exit);
             }
           }
         }

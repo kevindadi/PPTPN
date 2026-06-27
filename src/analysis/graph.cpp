@@ -9,10 +9,7 @@
 #include <sstream>
 #include <vector>
 
-#include "json/json.h"
 #include "scheduling.h"
-#include "tdg/tdg.h"
-#include "tdg2pn/tdg2pn.h"
 
 namespace state_class {
 
