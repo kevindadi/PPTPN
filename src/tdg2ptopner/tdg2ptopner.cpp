@@ -28,7 +28,7 @@ Tdg2PtopnerResult export_ptpn_to_ppn_file(const petri::PTPN& ptpn,
 }
 
 Tdg2PtopnerResult transform_to_ppn_file(const tdg::TDG& tdg,
-                                          const std::string& output_path) {
+                                        const std::string& output_path) {
   Tdg2PtopnerResult result;
   result.validation = validate_for_ptopner(tdg);
   if (!result.validation.ok) {
@@ -43,7 +43,8 @@ Tdg2PtopnerResult transform_to_ppn_file(const tdg::TDG& tdg,
   try {
     petri::PTPN ptpn;
     converter::TDG2PN::transform(tdg, ptpn);
-    Tdg2PtopnerResult export_result = export_ptpn_to_ppn_file(ptpn, output_path);
+    Tdg2PtopnerResult export_result =
+        export_ptpn_to_ppn_file(ptpn, output_path);
     export_result.validation = result.validation;
     return export_result;
   } catch (const std::exception& e) {

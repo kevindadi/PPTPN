@@ -28,7 +28,8 @@ bool PTPN::verify_structure() const {
   }
 
   if (M0.size() != places.size()) {
-    spdlog::error("[PETRI] Initial marking dimension mismatch with places count");
+    spdlog::error(
+        "[PETRI] Initial marking dimension mismatch with places count");
     is_valid = false;
   }
 

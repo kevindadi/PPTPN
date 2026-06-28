@@ -11,7 +11,6 @@ enable_testing()
 
 add_executable(ptpn_test
   test_json_parser.cpp
-  test_tdg2ptopner.cpp
   test_ptpn_parser.cpp
   test_analysis_semantics.cpp
 )

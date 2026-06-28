@@ -9,8 +9,9 @@
 #include <unistd.h>
 #endif
 
-#include <CLI/CLI.hpp>
 #include <spdlog/spdlog.h>
+
+#include <CLI/CLI.hpp>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -18,17 +19,17 @@
 #include <nlohmann/json.hpp>
 #include <variant>
 
+#include "analysis/ptpn_analysis.h"
 #include "json/json.h"
-#include "tdg/tdg.h"
-#include "petri/petri.h"
+#include "parser/ptpn_parser.h"
 #include "petri/export_dot.h"
 #include "petri/export_ptpn.h"
 #include "petri/export_romeo.h"
-#include "parser/ptpn_parser.h"
+#include "petri/petri.h"
+#include "tdg/tdg.h"
 #include "tdg2pn/tdg2pn.h"
-#include "tdg2ptopner/validate.h"
 #include "tdg2ptopner/tdg2ptopner.h"
-#include "analysis/graph.h"
+#include "tdg2ptopner/validate.h"
 
 using namespace std;
 namespace fs = std::filesystem;
@@ -94,8 +95,9 @@ state_class::CanonicalizationMode parse_canonicalization(const string& mode) {
 }
 
 void add_common_analyze_options(CLI::App* cmd, AnalyzeOptions& opts) {
-  cmd->add_option("-m,--max-states", opts.max_states,
-                  "Maximum number of states in reachability graph (default: 10000)");
+  cmd->add_option(
+      "-m,--max-states", opts.max_states,
+      "Maximum number of states in reachability graph (default: 10000)");
   cmd->add_option("--tina", opts.tina_file, "Export to Tina .net format");
   cmd->add_option("--romeo", opts.romeo_file, "Export to Romeo CTS format");
   cmd->add_option("--ppn", opts.ppn_file, "Export to PToPNer .ppn format");
@@ -106,16 +108,20 @@ void add_common_analyze_options(CLI::App* cmd, AnalyzeOptions& opts) {
       ->check(CLI::IsMember({"equality", "max-lower", "intersection"}));
 }
 
-int run_ptpn_analysis(const petri::PTPN& ptpn, const fs::path& output_dir,
-                      const string& input_label, const AnalyzeOptions& opts,
-                      size_t initial_memory, const chrono::time_point<chrono::high_resolution_clock>& pipeline_start) {
+int run_ptpn_analysis(
+    const petri::PTPN& ptpn, const fs::path& output_dir,
+    const string& input_label, const AnalyzeOptions& opts,
+    size_t initial_memory,
+    const chrono::time_point<chrono::high_resolution_clock>& pipeline_start) {
   const fs::path ptpn_dot_path = output_dir / "ptpn.dot";
   const fs::path state_class_dot_path = output_dir / "state-class-graph.dot";
 
   if (!opts.ppn_file.empty()) {
-    const auto ppn_export = ptopner_export::export_ptpn_to_ppn_file(ptpn, opts.ppn_file);
+    const auto ppn_export =
+        ptopner_export::export_ptpn_to_ppn_file(ptpn, opts.ppn_file);
     if (!ppn_export.success) {
-      cerr << "ERROR: PToPNer export failed: " << ppn_export.error_message << endl;
+      cerr << "ERROR: PToPNer export failed: " << ppn_export.error_message
+           << endl;
       return 1;
     }
     spdlog::info("[OUTPUT] PToPNer .ppn exported to: {}", opts.ppn_file);
@@ -132,20 +138,24 @@ int run_ptpn_analysis(const petri::PTPN& ptpn, const fs::path& output_dir,
     spdlog::warn("[OUTPUT] Failed to save PTPN");
   }
 
-  const auto canonicalization = parse_canonicalization(opts.canonicalization_mode);
+  const auto canonicalization =
+      parse_canonicalization(opts.canonicalization_mode);
   state_class::StateClassReachabilityGraph reachability_graph(ptpn);
   reachability_graph.set_canonicalization_mode(canonicalization);
   spdlog::info("[SCG] Canonicalization mode: {}", opts.canonicalization_mode);
   const size_t state_count = reachability_graph.build(opts.max_states);
   const auto& reachability_stats = reachability_graph.get_statistics();
   if (reachability_stats.truncated) {
-    spdlog::warn("[SCG] Reachability graph truncated at {} states; use --max-states to raise the bound",
-                 opts.max_states);
+    spdlog::warn(
+        "[SCG] Reachability graph truncated at {} states; use --max-states to "
+        "raise the bound",
+        opts.max_states);
   } else {
     spdlog::info("[SCG] Reachability graph built with {} states", state_count);
   }
   if (reachability_graph.save_to_dot(state_class_dot_path.string())) {
-    spdlog::info("[OUTPUT] State class graph saved to: {}", state_class_dot_path.string());
+    spdlog::info("[OUTPUT] State class graph saved to: {}",
+                 state_class_dot_path.string());
   } else {
     spdlog::warn("[OUTPUT] Failed to save state class graph");
   }
@@ -166,8 +176,8 @@ int run_ptpn_analysis(const petri::PTPN& ptpn, const fs::path& output_dir,
   const auto total_duration =
       chrono::duration_cast<chrono::milliseconds>(end_time - pipeline_start);
   const size_t total_memory = get_memory_usage() - initial_memory;
-  spdlog::info("\n[STATS] {} analysis: {} ms, {} KB", input_label, total_duration.count(),
-               total_memory);
+  spdlog::info("\n[STATS] {} analysis: {} ms, {} KB", input_label,
+               total_duration.count(), total_memory);
 
   return 0;
 }
@@ -181,7 +191,8 @@ int run_tdg_pipeline(const string& input_file, const AnalyzeOptions& opts,
   parse::Parser parser;
   const auto parse_result = parser.parse_file(input_file);
   if (!parse_result.success) {
-    cerr << "ERROR: Failed to parse JSON file: " << parse_result.error_message << endl;
+    cerr << "ERROR: Failed to parse JSON file: " << parse_result.error_message
+         << endl;
     return 1;
   }
 
@@ -201,8 +212,8 @@ int run_tdg_pipeline(const string& input_file, const AnalyzeOptions& opts,
     }
   }
 
-  spdlog::info("[TDG] Configuration: {} CPUs, {} cores per CPU", parser.get_num_cpus(),
-               parser.get_cores_per_cpu());
+  spdlog::info("[TDG] Configuration: {} CPUs, {} cores per CPU",
+               parser.get_num_cpus(), parser.get_cores_per_cpu());
 
   tdg::TDG tdg(parser.get_num_cpus(), parser.get_cores_per_cpu());
   tdg.parse_json(input_file);
@@ -216,15 +227,18 @@ int run_tdg_pipeline(const string& input_file, const AnalyzeOptions& opts,
   spdlog::info("[OUTPUT] TDG DOT exported to: {}", tdg_dot_path.string());
 
   if (!write_wcet_json(tdg, wcet_json_path)) {
-    spdlog::warn("[OUTPUT] Failed to save WCET JSON to: {}", wcet_json_path.string());
+    spdlog::warn("[OUTPUT] Failed to save WCET JSON to: {}",
+                 wcet_json_path.string());
   } else {
     spdlog::info("[OUTPUT] WCET JSON exported to: {}", wcet_json_path.string());
   }
 
   const auto tdg_end = chrono::high_resolution_clock::now();
-  const auto tdg_duration = chrono::duration_cast<chrono::milliseconds>(tdg_end - tdg_start);
+  const auto tdg_duration =
+      chrono::duration_cast<chrono::milliseconds>(tdg_end - tdg_start);
   const size_t tdg_memory = get_memory_usage() - initial_memory;
-  spdlog::info("\n[STATS] TDG parsing: {} ms, {} KB", tdg_duration.count(), tdg_memory);
+  spdlog::info("\n[STATS] TDG parsing: {} ms, {} KB", tdg_duration.count(),
+               tdg_memory);
 
   if (!opts.ppn_file.empty()) {
     const auto ppn_validation = ptopner_export::validate_for_ptopner(tdg);
@@ -250,7 +264,8 @@ int run_tdg_pipeline(const string& input_file, const AnalyzeOptions& opts,
   spdlog::info("  Places: {}", ptpn.num_places());
   spdlog::info("  Transitions: {}", ptpn.num_transitions());
 
-  return run_ptpn_analysis(ptpn, output_dir, "TDG", opts, initial_memory, pipeline_start);
+  return run_ptpn_analysis(ptpn, output_dir, "TDG", opts, initial_memory,
+                           pipeline_start);
 }
 
 int run_ptpn_pipeline(const string& input_file, const AnalyzeOptions& opts,
@@ -260,7 +275,8 @@ int run_ptpn_pipeline(const string& input_file, const AnalyzeOptions& opts,
 
   const petri::PTPN ptpn = parser::PTPNBuilder::parse_file(input_file);
   if (parser::PTPNBuilder::has_error()) {
-    cerr << "ERROR: Failed to parse PTPN file: " << parser::PTPNBuilder::error_message() << endl;
+    cerr << "ERROR: Failed to parse PTPN file: "
+         << parser::PTPNBuilder::error_message() << endl;
     return 1;
   }
 
@@ -271,7 +287,8 @@ int run_ptpn_pipeline(const string& input_file, const AnalyzeOptions& opts,
   const fs::path input_path(input_file);
   const fs::path output_dir = input_path.parent_path();
 
-  return run_ptpn_analysis(ptpn, output_dir, "PTPN", opts, initial_memory, pipeline_start);
+  return run_ptpn_analysis(ptpn, output_dir, "PTPN", opts, initial_memory,
+                           pipeline_start);
 }
 
 }  // namespace
@@ -305,11 +322,13 @@ int main(int argc, char* argv[]) {
   CLI::App app{"PTPN - Priority Timed Petri Net Analyzer"};
   app.set_version_flag("-v,--version", "1.0.0");
   app.require_subcommand(1);
-  app.footer("Usage:\n"
-             "  ptpn tdg -f <input.json>     Analyze from TDG JSON\n"
-             "  ptpn ptpn -f <model.ptpn>    Analyze from PTPN source\n"
-             "\n"
-             "Run 'ptpn <subcommand> -h' for subcommand-specific options and examples.");
+  app.footer(
+      "Usage:\n"
+      "  ptpn tdg -f <input.json>     Analyze from TDG JSON\n"
+      "  ptpn ptpn -f <model.ptpn>    Analyze from PTPN source\n"
+      "\n"
+      "Run 'ptpn <subcommand> -h' for subcommand-specific options and "
+      "examples.");
 
   AnalyzeOptions tdg_opts;
   AnalyzeOptions ptpn_opts;
@@ -317,20 +336,24 @@ int main(int argc, char* argv[]) {
   string ptpn_file;
 
   auto* tdg_cmd = app.add_subcommand("tdg", "Analyze from TDG JSON input");
-  tdg_cmd->add_option("-f,--file", tdg_file, "Input TDG JSON file")->required(true);
+  tdg_cmd->add_option("-f,--file", tdg_file, "Input TDG JSON file")
+      ->required(true);
   add_common_analyze_options(tdg_cmd, tdg_opts);
-  tdg_cmd->footer("Examples:\n"
-                  "  ptpn tdg -f example/single_lock/input.json\n"
-                  "  ptpn tdg -f input.json --romeo output.cts -m 1000\n"
-                  "  ptpn tdg -f input.json --ppn output.ppn --debug");
+  tdg_cmd->footer(
+      "Examples:\n"
+      "  ptpn tdg -f example/single_lock/input.json\n"
+      "  ptpn tdg -f input.json --romeo output.cts -m 1000\n"
+      "  ptpn tdg -f input.json --ppn output.ppn --debug");
 
   auto* ptpn_cmd = app.add_subcommand("ptpn", "Analyze from PTPN source file");
-  ptpn_cmd->add_option("-f,--file", ptpn_file, "Input .ptpn source file")->required(true);
+  ptpn_cmd->add_option("-f,--file", ptpn_file, "Input .ptpn source file")
+      ->required(true);
   add_common_analyze_options(ptpn_cmd, ptpn_opts);
-  ptpn_cmd->footer("Examples:\n"
-                   "  ptpn ptpn -f example/common/simple.ptpn\n"
-                   "  ptpn ptpn -f model.ptpn --canonicalization max-lower\n"
-                   "  ptpn ptpn -f model.ptpn --romeo output.cts --debug");
+  ptpn_cmd->footer(
+      "Examples:\n"
+      "  ptpn ptpn -f example/common/simple.ptpn\n"
+      "  ptpn ptpn -f model.ptpn --canonicalization max-lower\n"
+      "  ptpn ptpn -f model.ptpn --romeo output.cts --debug");
 
   CLI11_PARSE(app, argc, argv);
 

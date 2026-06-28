@@ -5,15 +5,12 @@
 #include <iostream>
 #include <limits>
 #include <map>
-#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-#include "../types/types.h"
 
 namespace petri {
 
@@ -26,11 +23,9 @@ struct TimeInterval {
   bool left_open;
   bool right_open;
 
-  TimeInterval(int e = 0, int l = INF,
-               bool left_open = false,
+  TimeInterval(int e = 0, int l = INF, bool left_open = false,
                bool right_open = false)
-      : earliest(e), latest(l),
-        left_open(left_open), right_open(right_open) {
+      : earliest(e), latest(l), left_open(left_open), right_open(right_open) {
     if (earliest < 0) {
       throw std::invalid_argument("earliest time must be non-negative");
     }
@@ -51,12 +46,12 @@ struct TimeInterval {
   }
 
   [[nodiscard]] bool has_non_empty_integer_domain() const {
-    return effective_latest() == INF || effective_earliest() <= effective_latest();
+    return effective_latest() == INF ||
+           effective_earliest() <= effective_latest();
   }
 
   [[nodiscard]] bool is_valid() const {
-    return earliest >= 0 &&
-           (latest == INF || latest >= earliest) &&
+    return earliest >= 0 && (latest == INF || latest >= earliest) &&
            has_non_empty_integer_domain();
   }
 
@@ -195,8 +190,7 @@ class PTPN {
     return Post;
   }
 
-  static bool is_enabled(const Marking& M, const PTPN& net,
-                         size_t trans_idx) {
+  static bool is_enabled(const Marking& M, const PTPN& net, size_t trans_idx) {
     if (trans_idx >= net.transitions.size()) {
       throw std::out_of_range("Invalid transition index");
     }
@@ -211,7 +205,8 @@ class PTPN {
     }
 
     for (const auto& [place_idx, weight] : net.post_arcs[trans_idx]) {
-      const int consumed = place_idx < net.Pre.size() ? net.Pre[place_idx][trans_idx] : 0;
+      const int consumed =
+          place_idx < net.Pre.size() ? net.Pre[place_idx][trans_idx] : 0;
       const int produced = weight;
       const int resulting_tokens = M[place_idx] - consumed + produced;
       if (net.places[place_idx].capacity != INF &&
@@ -226,8 +221,7 @@ class PTPN {
     return is_enabled(M0, *this, trans_idx);
   }
 
-  static Marking fire(const Marking& M, const PTPN& net,
-                      size_t trans_idx) {
+  static Marking fire(const Marking& M, const PTPN& net, size_t trans_idx) {
     if (!is_enabled(M, net, trans_idx)) {
       throw std::runtime_error("Transition is not enabled");
     }

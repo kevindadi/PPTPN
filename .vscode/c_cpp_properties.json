@@ -1,27 +1,42 @@
 {
   "configurations": [
     {
-      "name": "PTPN (Linux, compile_commands)",
-      "compileCommands": "${workspaceFolder}/build/compile_commands.json",
-      "compilerPath": "/usr/bin/c++",
+      "name": "Linux",
+      "compileCommands": "${workspaceFolder}/compile_commands.json",
+      "compilerPath": "/usr/bin/g++",
       "cStandard": "c17",
       "cppStandard": "c++17",
+      "intelliSenseMode": "linux-gcc-x64",
       "includePath": [
         "${workspaceFolder}/src",
         "${workspaceFolder}/build/_deps/json-src/include",
         "${workspaceFolder}/build/_deps/spdlog-src/include",
         "${workspaceFolder}/build/_deps/fmt-src/include",
         "${workspaceFolder}/build/vcpkg_installed/x64-linux/include"
-      ],
-      "intelliSenseMode": "gcc-x64"
+      ]
     },
     {
-      "name": "PToPNer (Linux, compile_commands)",
-      "compileCommands": "${workspaceFolder}/tools/PToPNer/build/compile_commands.json",
-      "compilerPath": "/usr/bin/c++",
+      "name": "Mac",
+      "compileCommands": "${workspaceFolder}/compile_commands.json",
+      "compilerPath": "/usr/bin/clang++",
       "cStandard": "c17",
       "cppStandard": "c++17",
-      "intelliSenseMode": "gcc-x64"
+      "intelliSenseMode": "macos-clang-arm64",
+      "includePath": [
+        "${workspaceFolder}/src",
+        "${workspaceFolder}/build/_deps/json-src/include",
+        "${workspaceFolder}/build/_deps/spdlog-src/include",
+        "${workspaceFolder}/build/_deps/fmt-src/include",
+        "${workspaceFolder}/build/vcpkg_installed/arm64-osx/include"
+      ]
+    },
+    {
+      "name": "PToPNer",
+      "compileCommands": "${workspaceFolder}/tools/PToPNer/build/compile_commands.json",
+      "compilerPath": "/usr/bin/g++",
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "intelliSenseMode": "linux-gcc-x64"
     }
   ],
   "version": 4

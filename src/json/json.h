@@ -1,11 +1,9 @@
 #ifndef JSON_TDG_PARSER_H
 #define JSON_TDG_PARSER_H
 
-#include <fstream>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #include "../types/types.h"
 
@@ -27,9 +25,7 @@ struct ValidationResult {
     errors.push_back(err);
   }
 
-  void add_warning(const std::string& warn) {
-    warnings.push_back(warn);
-  }
+  void add_warning(const std::string& warn) { warnings.push_back(warn); }
 };
 
 struct JsonNode {
@@ -74,9 +70,15 @@ class Parser {
   int get_num_cpus() const { return graph_.num_cpus; }
   int get_cores_per_cpu() const { return graph_.cores_per_cpu; }
   SchedulePolicy get_policy() const { return graph_.policy; }
-  const std::vector<StartBinding>& get_start_tasks() const { return graph_.start_tasks; }
-  const std::vector<std::string>& get_end_tasks() const { return graph_.end_tasks; }
-  const std::vector<PeriodicBinding>& get_periodic_tasks() const { return graph_.periodic_tasks; }
+  const std::vector<StartBinding>& get_start_tasks() const {
+    return graph_.start_tasks;
+  }
+  const std::vector<std::string>& get_end_tasks() const {
+    return graph_.end_tasks;
+  }
+  const std::vector<PeriodicBinding>& get_periodic_tasks() const {
+    return graph_.periodic_tasks;
+  }
   const std::vector<JsonNode>& get_nodes() const { return graph_.nodes; }
   const std::vector<JsonEdge>& get_edges() const { return graph_.edges; }
   const std::string& get_original_json() const { return original_json_; }
@@ -105,7 +107,8 @@ std::string format_locks_with_type(const std::vector<std::string>& locks);
 
 // 时间区间计算
 int calculate_time_interval_count(int lock_count);
-std::string get_time_interval_label(int index, const std::vector<std::string>& locks);
+std::string get_time_interval_label(int index,
+                                    const std::vector<std::string>& locks);
 
 }  // namespace parse
 

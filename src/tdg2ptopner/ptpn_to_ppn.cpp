@@ -8,11 +8,10 @@ namespace ptopner_export {
 
 namespace {
 
-constexpr int kTaskPriorityScale = 100;
-
 bool ends_with(const std::string& value, const std::string& suffix) {
   return value.size() >= suffix.size() &&
-         value.compare(value.size() - suffix.size(), suffix.size(), suffix) == 0;
+         value.compare(value.size() - suffix.size(), suffix.size(), suffix) ==
+             0;
 }
 
 bool contains(const std::string& value, const std::string& needle) {
@@ -37,17 +36,13 @@ TransitionRole classify_transition(const std::string& name) {
 float map_prior_to_float(int ptpn_priority, TransitionRole role) {
   switch (role) {
     case TransitionRole::CONTROL:
-    case TransitionRole::EXEC:
       return 0.0F;
-    case TransitionRole::GET_CORE: {
-      const int base = ptpn_priority / kTaskPriorityScale;
-      return static_cast<float>(base) + 0.2F;
-    }
-    case TransitionRole::PREEMPT: {
-      const int base = ptpn_priority / kTaskPriorityScale;
-      const int offset = ptpn_priority % kTaskPriorityScale;
-      return static_cast<float>(base) + static_cast<float>(offset - 97) * 0.1F;
-    }
+    case TransitionRole::EXEC:
+      return static_cast<float>(ptpn_priority);
+    case TransitionRole::GET_CORE:
+      return static_cast<float>(ptpn_priority) + 0.2F;
+    case TransitionRole::PREEMPT:
+      return static_cast<float>(ptpn_priority) + 0.1F;
   }
   return 0.0F;
 }
@@ -55,7 +50,8 @@ float map_prior_to_float(int ptpn_priority, TransitionRole role) {
 PpnModel ptpn_to_ppn_model(const petri::PTPN& ptpn) {
   if (ptpn.num_places() > static_cast<size_t>(kPtopnerMaxPlaces) ||
       ptpn.num_transitions() > static_cast<size_t>(kPtopnerMaxPlaces)) {
-    throw std::runtime_error("Converted net exceeds PToPNer place/transition limit");
+    throw std::runtime_error(
+        "Converted net exceeds PToPNer place/transition limit");
   }
 
   PpnModel model;

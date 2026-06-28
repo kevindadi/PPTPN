@@ -1,23 +1,53 @@
 cmake_minimum_required(VERSION 3.27)
 
 # vcpkg toolchain must be set before project()
-if(DEFINED ENV{VCPKG_ROOT})
-    set(VCPKG_ROOT $ENV{VCPKG_ROOT})
-elseif(DEFINED ENV{VCPKG_INSTALLATION_ROOT})
-    set(VCPKG_ROOT $ENV{VCPKG_INSTALLATION_ROOT})
-elseif(EXISTS "$ENV{HOME}/vcpkg")
-    set(VCPKG_ROOT "$ENV{HOME}/vcpkg")
-elseif(EXISTS "/Users/kevin/vcpkg")
-    set(VCPKG_ROOT "/Users/kevin/vcpkg")
+if(CMAKE_TOOLCHAIN_FILE MATCHES "[/\\\\]vcpkg\\.cmake$")
+    message(STATUS "Using vcpkg toolchain: ${CMAKE_TOOLCHAIN_FILE}")
+else()
+    foreach(_ptpn_vcpkg_root
+        "$ENV{VCPKG_ROOT}"
+        "$ENV{VCPKG_INSTALLATION_ROOT}"
+        "$ENV{HOME}/vcpkg"
+    )
+        if(_ptpn_vcpkg_root AND EXISTS "${_ptpn_vcpkg_root}/scripts/buildsystems/vcpkg.cmake")
+            set(CMAKE_TOOLCHAIN_FILE "${_ptpn_vcpkg_root}/scripts/buildsystems/vcpkg.cmake"
+                CACHE FILEPATH "Vcpkg toolchain file")
+            message(STATUS "Using vcpkg from: ${_ptpn_vcpkg_root}")
+            break()
+        endif()
+    endforeach()
+    unset(_ptpn_vcpkg_root)
 endif()
 
-if(VCPKG_ROOT AND EXISTS "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
-    message(STATUS "Using vcpkg from: ${VCPKG_ROOT}")
-    set(CMAKE_TOOLCHAIN_FILE "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
-        CACHE STRING "Vcpkg toolchain file")
+# Pick a host-matching triplet when vcpkg is active and the caller did not set one.
+if(CMAKE_TOOLCHAIN_FILE MATCHES "[/\\\\]vcpkg\\.cmake$" AND NOT VCPKG_TARGET_TRIPLET)
+    if(DEFINED ENV{VCPKG_DEFAULT_TRIPLET} AND NOT "$ENV{VCPKG_DEFAULT_TRIPLET}" STREQUAL "")
+        set(VCPKG_TARGET_TRIPLET "$ENV{VCPKG_DEFAULT_TRIPLET}" CACHE STRING "vcpkg target triplet")
+    elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+        if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+            set(VCPKG_TARGET_TRIPLET "arm64-osx" CACHE STRING "vcpkg target triplet")
+        else()
+            set(VCPKG_TARGET_TRIPLET "x64-osx" CACHE STRING "vcpkg target triplet")
+        endif()
+    elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+        if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+            set(VCPKG_TARGET_TRIPLET "arm64-linux" CACHE STRING "vcpkg target triplet")
+        else()
+            set(VCPKG_TARGET_TRIPLET "x64-linux" CACHE STRING "vcpkg target triplet")
+        endif()
+    elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+        if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "ARM64|aarch64")
+            set(VCPKG_TARGET_TRIPLET "arm64-windows" CACHE STRING "vcpkg target triplet")
+        else()
+            set(VCPKG_TARGET_TRIPLET "x64-windows" CACHE STRING "vcpkg target triplet")
+        endif()
+    endif()
+    if(VCPKG_TARGET_TRIPLET)
+        message(STATUS "vcpkg target triplet: ${VCPKG_TARGET_TRIPLET}")
+    endif()
 endif()
 
-project(PTPN)
+project(PTPN LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -57,9 +87,16 @@ FetchContent_Declare(fmt
 )
 FetchContent_MakeAvailable(fmt)
 
-find_package(Boost CONFIG REQUIRED COMPONENTS graph filesystem thread date_time)
-include_directories(${Boost_INCLUDE_DIRS})
-message(STATUS "Boost include dir: ${Boost_INCLUDE_DIRS}")
+set(PTPN_BOOST_COMPONENTS graph filesystem thread date_time)
+
+# CONFIG mode (vcpkg / BoostConfig.cmake); fall back to FindBoost on system installs.
+find_package(Boost CONFIG QUIET COMPONENTS ${PTPN_BOOST_COMPONENTS})
+if(Boost_FOUND)
+    message(STATUS "Boost ${Boost_VERSION} (CONFIG)")
+else()
+    find_package(Boost REQUIRED COMPONENTS ${PTPN_BOOST_COMPONENTS})
+    message(STATUS "Boost ${Boost_VERSION} (system paths)")
+endif()
 
 include_directories(src)
 
@@ -78,8 +115,8 @@ add_library(PTPN_core STATIC
     src/tdg2ptopner/ptpn_to_ppn.cpp
     src/tdg2ptopner/tdg2ptopner.cpp
     src/analysis/dbm.cpp
-    src/analysis/state.cpp
-    src/analysis/graph.cpp
+    src/analysis/state_class.cpp
+    src/analysis/ptpn_analysis.cpp
     src/analysis/canonicalization.cpp
     src/analysis/scheduling.cpp
     src/parser/ptpn_parser.cpp

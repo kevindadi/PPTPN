@@ -1,10 +1,9 @@
-#include <unordered_map>
-
 #include "validate.h"
 
 #include <algorithm>
 #include <set>
 #include <sstream>
+#include <unordered_map>
 #include <variant>
 
 namespace ptopner_export {
@@ -125,9 +124,10 @@ size_t estimate_transitions(const tdg::TDG& tdg) {
     core_tasks[task.core].push_back(task.name);
   }
   for (auto& [core_id, tasks] : core_tasks) {
-    std::sort(tasks.begin(), tasks.end(), [&](const std::string& a, const std::string& b) {
-      return tdg.tasks_priority.at(a) > tdg.tasks_priority.at(b);
-    });
+    std::sort(tasks.begin(), tasks.end(),
+              [&](const std::string& a, const std::string& b) {
+                return tdg.tasks_priority.at(a) > tdg.tasks_priority.at(b);
+              });
     for (size_t i = 0; i < tasks.size(); ++i) {
       for (size_t j = i + 1; j < tasks.size(); ++j) {
         transitions += 1;
@@ -137,7 +137,8 @@ size_t estimate_transitions(const tdg::TDG& tdg) {
 
   transitions += tdg.periodic_tasks.size();
 
-  std::set<std::string> consume_tasks(tdg.end_tasks.begin(), tdg.end_tasks.end());
+  std::set<std::string> consume_tasks(tdg.end_tasks.begin(),
+                                      tdg.end_tasks.end());
   for (const auto& node_entry : tdg.nodes_type) {
     const std::string& vertex_name = node_entry.first;
     const NodeType& node_type = node_entry.second;
@@ -156,7 +157,8 @@ size_t estimate_transitions(const tdg::TDG& tdg) {
   return transitions;
 }
 
-void validate_size_limits(const tdg::TDG& tdg, PtopnerValidationResult& result) {
+void validate_size_limits(const tdg::TDG& tdg,
+                          PtopnerValidationResult& result) {
   const size_t places = estimate_places(tdg);
   const size_t transitions = estimate_transitions(tdg);
   if (places > static_cast<size_t>(kPtopnerMaxPlaces) ||
@@ -178,7 +180,8 @@ void validate_warnings(const tdg::TDG& tdg, PtopnerValidationResult& result) {
   }
 
   if (!tdg.periodic_tasks.empty()) {
-    result.warnings.push_back("检测到 periodic 配置,将复用 tdg2pn 的 period release 建模");
+    result.warnings.push_back(
+        "检测到 periodic 配置,将复用 tdg2pn 的 period release 建模");
   }
 }
 

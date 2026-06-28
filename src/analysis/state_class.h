@@ -1,0 +1,116 @@
+#ifndef ANALYSIS_STATE_CLASS_H
+#define ANALYSIS_STATE_CLASS_H
+
+#include <cstddef>
+#include <limits>
+#include <set>
+#include <string>
+#include <vector>
+
+#include "dbm.h"
+
+namespace state_class {
+
+constexpr size_t NO_TRANSITION = std::numeric_limits<size_t>::max();
+
+// Every column/row of the joint DBM corresponds to one timed variable.
+enum class ClockKind {
+  Zero,        // the reference variable x0 (always lives at index 0)
+  Execution,   // h_t: how long transition t has effectively been running
+  Suspension,  // w_t: how long suspendable transition t has been suspended
+};
+
+// Maps a DBM column index back to the variable it represents.
+struct ClockVar {
+  ClockKind kind = ClockKind::Zero;
+  size_t transition = NO_TRANSITION;
+
+  bool operator==(const ClockVar& other) const {
+    return kind == other.kind && transition == other.transition;
+  }
+  bool operator<(const ClockVar& other) const {
+    if (kind != other.kind) return kind < other.kind;
+    return transition < other.transition;
+  }
+};
+
+// One edge of the state-class graph: which transition fired, plus the earliest
+// feasible firing instant kept only for display (the true timing is symbolic).
+struct FiringEdge {
+  int transition_id = -1;
+  double firing_time = 0.0;
+
+  FiringEdge() = default;
+  FiringEdge(int id, double time) : transition_id(id), firing_time(time) {}
+
+  bool operator==(const FiringEdge& other) const {
+    return transition_id == other.transition_id &&
+           firing_time == other.firing_time;
+  }
+
+  [[nodiscard]] std::string to_string() const;
+};
+
+// Symbolic state class C = (M, Omega) together with the scheduler-facing sets
+// that the priority semantics needs. The DBM `zone` ranges over the dynamic
+// variable vector X = {x0} U {h_t : t in struct_enabled}
+//                       U {w_t : t in suspended}.
+struct StateClass {
+  std::vector<int> marking;  // M
+  DBM zone;                  // Omega
+
+  std::vector<ClockVar> clock_vars;           // index -> variable; [0] is Zero
+  std::vector<int> exec_clock_of_transition;  // transition -> h_t index or -1
+  std::vector<int> susp_clock_of_transition;  // transition -> w_t index or -1
+
+  std::set<size_t> struct_enabled;    // E_struct(M)
+  std::set<size_t> priority_enabled;  // E_pri(M): active transitions
+  std::set<size_t> suspended;         // (E_struct \ E_pri) intersect T2
+
+  double elapsed_time = 0.0;  // auxiliary metadata, excluded from identity
+  size_t id = 0;              // assigned when inserted into the graph
+
+  [[nodiscard]] int exec_index(size_t transition) const {
+    return transition < exec_clock_of_transition.size()
+               ? exec_clock_of_transition[transition]
+               : -1;
+  }
+  [[nodiscard]] int susp_index(size_t transition) const {
+    return transition < susp_clock_of_transition.size()
+               ? susp_clock_of_transition[transition]
+               : -1;
+  }
+  [[nodiscard]] bool has_exec_clock(size_t transition) const {
+    return exec_index(transition) > 0;
+  }
+  [[nodiscard]] bool has_susp_clock(size_t transition) const {
+    return susp_index(transition) > 0;
+  }
+};
+
+// Exact-identity key used for fast deduplication in equality mode.
+struct StateClassKey {
+  std::vector<int> marking;
+  std::vector<ClockVar> clock_vars;
+  std::vector<int> zone_matrix;
+
+  bool operator==(const StateClassKey& other) const {
+    return marking == other.marking && clock_vars == other.clock_vars &&
+           zone_matrix == other.zone_matrix;
+  }
+};
+
+struct StateClassKeyHash {
+  size_t operator()(const StateClassKey& key) const;
+};
+
+// Hashes the marking alone so candidates that might merge land in one bucket.
+struct MarkingHash {
+  size_t operator()(const std::vector<int>& marking) const;
+};
+
+StateClassKey make_state_class_key(const StateClass& state);
+
+}  // namespace state_class
+
+#endif  // ANALYSIS_STATE_CLASS_H

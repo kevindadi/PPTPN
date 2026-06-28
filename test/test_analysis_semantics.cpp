@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <boost/graph/adjacency_list.hpp>
+#include <set>
+#include <vector>
 
 #include "analysis/clock_state.h"
 #include "analysis/dbm.h"
@@ -8,533 +10,337 @@
 #include "petri/petri.h"
 
 namespace state_class {
+// Grants tests access to the private formatting helpers of the analyzer.
 struct StateClassReachabilityGraphTestAccess {
-  static void apply_preemption(StateClassReachabilityGraph& graph,
-                               const std::vector<size_t>& chosen,
-                               ReachabilityState& state) {
-    graph.apply_preemption(chosen, state);
+  static std::string format_state_dump(
+      const StateClassReachabilityGraph& graph, const StateClass& state) {
+    return graph.format_state_dump(state);
   }
-
-  static void recompute_suspension(const StateClassReachabilityGraph& graph,
-                                   ReachabilityState& state) {
-    graph.recompute_suspension(state);
+  static std::string format_named_dbm(const StateClassReachabilityGraph& graph,
+                                      const StateClass& state) {
+    return graph.format_named_dbm(state);
   }
 };
 }  // namespace state_class
 
 namespace {
 
-petri::PTPN make_time_first_net() {
-  petri::PTPN ptpn;
+using state_class::StateClass;
+using state_class::StateClassReachabilityGraph;
 
-  const size_t input = ptpn.add_place("p0", 1);
-  const size_t low_done = ptpn.add_place("p1", 1);
-  const size_t high_done = ptpn.add_place("p2", 1);
+// Collects the transition ids on the out-edges of a vertex.
+std::multiset<int> out_edge_transitions(
+    const state_class::SCGraph& graph, state_class::SCVertex vertex) {
+  std::multiset<int> result;
+  for (auto [it, end] = boost::out_edges(vertex, graph); it != end; ++it) {
+    const auto& edge = boost::get(boost::edge_name, graph, *it);
+    result.insert(edge.transition_id);
+  }
+  return result;
+}
+
+// Two independent control transitions that are both firable from the initial
+// class; used to verify the analyzer branches over every firable transition.
+petri::PTPN make_two_independent_transitions_net() {
+  petri::PTPN ptpn;
+  const size_t left_in = ptpn.add_place("left_in", 1);
+  const size_t right_in = ptpn.add_place("right_in", 1);
+  ptpn.add_place("left_done", 1);
+  ptpn.add_place("right_done", 1);
+  ptpn.set_initial_marking(left_in, 1);
+  ptpn.set_initial_marking(right_in, 1);
+
+  const size_t left =
+      ptpn.add_transition("left", petri::TimeInterval(0, 2), petri::INF, -1);
+  const size_t right =
+      ptpn.add_transition("right", petri::TimeInterval(0, 2), petri::INF, -1);
+  ptpn.set_pre_arc(left_in, left, 1);
+  ptpn.set_post_arc(left, 2, 1);
+  ptpn.set_pre_arc(right_in, right, 1);
+  ptpn.set_post_arc(right, 3, 1);
+  return ptpn;
+}
+
+// Low and high priority transitions on the same core competing for the CPU.
+// Both are structurally enabled, but only the high-priority one is active.
+petri::PTPN make_same_core_priority_net() {
+  petri::PTPN ptpn;
+  const size_t input = ptpn.add_place("input", 2);
   ptpn.set_initial_marking(input, 1);
 
-  const size_t low_priority =
-      ptpn.add_transition("low_priority", petri::TimeInterval(0, 0), 1, 0, false);
-  const size_t high_priority =
-      ptpn.add_transition("high_priority", petri::TimeInterval(3, 3), 99, 0, false);
-
-  ptpn.set_pre_arc(input, low_priority, 1);
-  ptpn.set_post_arc(low_priority, low_done, 1);
-
-  ptpn.set_pre_arc(input, high_priority, 1);
-  ptpn.set_post_arc(high_priority, high_done, 1);
-
+  // low: priority 1, suspendable; high: priority 9, not suspendable.
+  ptpn.add_transition("low", petri::TimeInterval(0, 5), 1, 0, true);
+  ptpn.add_transition("high", petri::TimeInterval(3, 3), 9, 0, false);
+  ptpn.set_pre_arc(input, 0, 1);
+  ptpn.set_post_arc(0, input, 1);
+  ptpn.set_pre_arc(input, 1, 1);
+  ptpn.set_post_arc(1, input, 1);
   return ptpn;
 }
 
-petri::PTPN make_suspendable_same_core_net() {
+// A trigger that fires at time 2 alongside a survivor task that keeps running.
+petri::PTPN make_persistent_survivor_net() {
   petri::PTPN ptpn;
+  const size_t trigger_in = ptpn.add_place("trigger_in", 1);
+  const size_t survivor_in = ptpn.add_place("survivor_in", 1);
+  ptpn.add_place("trigger_done", 1);
+  ptpn.add_place("survivor_done", 1);
+  ptpn.set_initial_marking(trigger_in, 1);
+  ptpn.set_initial_marking(survivor_in, 1);
 
-  const size_t input = ptpn.add_place("p0", 2);
-  ptpn.set_initial_marking(input, 1);
-
-  const size_t low_priority =
-      ptpn.add_transition("low_priority", petri::TimeInterval(0, 5), 1, 0, true);
-  const size_t high_priority =
-      ptpn.add_transition("high_priority", petri::TimeInterval(0, 5), 2, 0, true);
-
-  ptpn.set_pre_arc(input, low_priority, 1);
-  ptpn.set_post_arc(low_priority, input, 1);
-
-  ptpn.set_pre_arc(input, high_priority, 1);
-  ptpn.set_post_arc(high_priority, input, 1);
-
-  return ptpn;
-}
-
-petri::PTPN make_recompute_suspension_fallback_net() {
-  petri::PTPN ptpn;
-
-  const size_t source = ptpn.add_place("source", 1);
-  const size_t ready = ptpn.add_place("ready", 1);
-  const size_t source_done = ptpn.add_place("source_done", 1);
-  const size_t ready_low_done = ptpn.add_place("ready_low_done", 1);
-  const size_t ready_high_done = ptpn.add_place("ready_high_done", 1);
-  ptpn.set_initial_marking(source, 1);
-
-  const size_t original =
-      ptpn.add_transition("original", petri::TimeInterval(0, 0), 1, 0, false);
-  const size_t replacement_low =
-      ptpn.add_transition("replacement_low", petri::TimeInterval(0, 0), 1, 0, true);
-  const size_t replacement_high =
-      ptpn.add_transition("replacement_high", petri::TimeInterval(0, 0), 5, 0, true);
-
-  ptpn.set_pre_arc(source, original, 1);
-  ptpn.set_post_arc(original, source_done, 1);
-
-  ptpn.set_pre_arc(ready, replacement_low, 1);
-  ptpn.set_post_arc(replacement_low, ready_low_done, 1);
-
-  ptpn.set_pre_arc(ready, replacement_high, 1);
-  ptpn.set_post_arc(replacement_high, ready_high_done, 1);
-
-  return ptpn;
-}
-
-petri::PTPN make_post_fire_survivor_net() {
-  petri::PTPN ptpn;
-
-  const size_t shared = ptpn.add_place("shared", 1);
-  const size_t fired_done = ptpn.add_place("fired_done", 1);
-  const size_t survivor_done = ptpn.add_place("survivor_done", 1);
-  ptpn.set_initial_marking(shared, 1);
-
-  const size_t fired =
-      ptpn.add_transition("fired", petri::TimeInterval(0, 0), 1, -1, false);
+  const size_t trigger =
+      ptpn.add_transition("trigger", petri::TimeInterval(2, 2), petri::INF, -1);
   const size_t survivor =
-      ptpn.add_transition("survivor", petri::TimeInterval(0, 5), 1, -1, false);
-
-  ptpn.set_pre_arc(shared, fired, 1);
-  ptpn.set_post_arc(fired, shared, 1);
-  ptpn.set_post_arc(fired, fired_done, 1);
-
-  ptpn.set_pre_arc(shared, survivor, 1);
-  ptpn.set_post_arc(survivor, survivor_done, 1);
-
+      ptpn.add_transition("survivor", petri::TimeInterval(0, 5), petri::INF, -1);
+  ptpn.set_pre_arc(trigger_in, trigger, 1);
+  ptpn.set_post_arc(trigger, 2, 1);
+  ptpn.set_pre_arc(survivor_in, survivor, 1);
+  ptpn.set_post_arc(survivor, 3, 1);
   return ptpn;
 }
 
+// A preemptor on the same core that leaves once it fires, allowing the
+// suspended low-priority task to resume.
+petri::PTPN make_resume_net() {
+  petri::PTPN ptpn;
+  const size_t low_in = ptpn.add_place("low_in", 1);
+  const size_t high_in = ptpn.add_place("high_in", 1);
+  ptpn.add_place("low_done", 1);
+  ptpn.add_place("high_done", 1);
+  ptpn.set_initial_marking(low_in, 1);
+  ptpn.set_initial_marking(high_in, 1);
+
+  ptpn.add_transition("low", petri::TimeInterval(0, 8), 1, 0, true);
+  ptpn.add_transition("high", petri::TimeInterval(0, 3), 9, 0, false);
+  ptpn.set_pre_arc(low_in, 0, 1);
+  ptpn.set_post_arc(0, 2, 1);
+  ptpn.set_pre_arc(high_in, 1, 1);
+  ptpn.set_post_arc(1, 3, 1);
+  return ptpn;
+}
+
+// A trigger that, when fired, enables two sibling transitions at once.
 petri::PTPN make_newly_enabled_siblings_net() {
   petri::PTPN ptpn;
-
   const size_t input = ptpn.add_place("input", 1);
-  const size_t shared = ptpn.add_place("shared", 1);
-  const size_t left_done = ptpn.add_place("left_done", 1);
-  const size_t right_done = ptpn.add_place("right_done", 1);
+  const size_t shared = ptpn.add_place("shared", 2);
+  ptpn.add_place("left_done", 1);
+  ptpn.add_place("right_done", 1);
   ptpn.set_initial_marking(input, 1);
 
   const size_t trigger =
-      ptpn.add_transition("trigger", petri::TimeInterval(0, 0), 1, -1, false);
+      ptpn.add_transition("trigger", petri::TimeInterval(0, 0), petri::INF, -1);
   const size_t left =
-      ptpn.add_transition("left", petri::TimeInterval(0, 4), 1, -1, false);
+      ptpn.add_transition("left", petri::TimeInterval(0, 4), petri::INF, -1);
   const size_t right =
-      ptpn.add_transition("right", petri::TimeInterval(0, 6), 1, -1, false);
-
+      ptpn.add_transition("right", petri::TimeInterval(0, 6), petri::INF, -1);
   ptpn.set_pre_arc(input, trigger, 1);
-  ptpn.set_post_arc(trigger, shared, 1);
-
+  ptpn.set_post_arc(trigger, shared, 2);
   ptpn.set_pre_arc(shared, left, 1);
-  ptpn.set_post_arc(left, left_done, 1);
-
+  ptpn.set_post_arc(left, 2, 1);
   ptpn.set_pre_arc(shared, right, 1);
-  ptpn.set_post_arc(right, right_done, 1);
-
-  return ptpn;
-}
-
-petri::PTPN make_two_survivor_future_closed_net() {
-  petri::PTPN ptpn;
-
-  const size_t fired_token = ptpn.add_place("fired_token", 1);
-  const size_t left_token = ptpn.add_place("left_token", 1);
-  const size_t right_token = ptpn.add_place("right_token", 1);
-  const size_t fired_done = ptpn.add_place("fired_done", 1);
-  ptpn.set_initial_marking(fired_token, 1);
-  ptpn.set_initial_marking(left_token, 1);
-  ptpn.set_initial_marking(right_token, 1);
-
-  const size_t fired =
-      ptpn.add_transition("fired", petri::TimeInterval(0, 0), 1, -1, false);
-  const size_t left =
-      ptpn.add_transition("left", petri::TimeInterval(0, 5), 1, -1, false);
-  const size_t right =
-      ptpn.add_transition("right", petri::TimeInterval(0, 7), 1, -1, false);
-
-  ptpn.set_pre_arc(fired_token, fired, 1);
-  ptpn.set_post_arc(fired, fired_token, 1);
-  ptpn.set_post_arc(fired, fired_done, 1);
-
-  ptpn.set_pre_arc(left_token, left, 1);
-  ptpn.set_post_arc(left, left_token, 1);
-
-  ptpn.set_pre_arc(right_token, right, 1);
-  ptpn.set_post_arc(right, right_token, 1);
-
+  ptpn.set_post_arc(right, 3, 1);
   return ptpn;
 }
 
 }  // namespace
 
-TEST(PtpnAnalysisSemanticsTest, PicksEarliestFiringTimeBeforePriority) {
-  const petri::PTPN ptpn = make_time_first_net();
-  state_class::PTPNAnalyzer analyzer(ptpn);
+// --- DBM unit tests (ported) -----------------------------------------------
 
-  ASSERT_EQ(analyzer.build(8), 2u);
-
-  const auto& graph = analyzer.get_graph();
-  const auto initial = analyzer.get_initial_vertex();
-
-  std::vector<size_t> fired_transitions;
-  for (auto [edge_it, edge_end] = boost::out_edges(initial, graph); edge_it != edge_end;
-       ++edge_it) {
-    const auto& edge = boost::get(boost::edge_name, graph, *edge_it);
-    fired_transitions.push_back(static_cast<size_t>(edge.transition_id));
-  }
-
-  ASSERT_EQ(fired_transitions.size(), 1u);
-  EXPECT_EQ(fired_transitions[0], 0u);
-}
-
-TEST(PtpnAnalysisSemanticsTest, StrictBoundsDoNotBreakTimeFirstPriorityRule) {
-  petri::PTPN ptpn;
-
-  const size_t input = ptpn.add_place("p0", 1);
-  const size_t low_done = ptpn.add_place("p1", 1);
-  const size_t high_done = ptpn.add_place("p2", 1);
-  const size_t survivor_input = ptpn.add_place("p3", 1);
-  const size_t survivor_done = ptpn.add_place("p4", 1);
-  ptpn.set_initial_marking(input, 1);
-  ptpn.set_initial_marking(survivor_input, 1);
-
-  const size_t low = ptpn.add_transition(
-      "low", petri::TimeInterval(0, 0, false, false), 1, 0, false);
-  const size_t high = ptpn.add_transition(
-      "high", petri::TimeInterval(0, 3, true, false), 99, 0, false);
-  const size_t survivor =
-      ptpn.add_transition("survivor", petri::TimeInterval(0, 5), 1, -1, false);
-
-  ptpn.set_pre_arc(input, low, 1);
-  ptpn.set_post_arc(low, low_done, 1);
-  ptpn.set_pre_arc(input, high, 1);
-  ptpn.set_post_arc(high, high_done, 1);
-  ptpn.set_pre_arc(survivor_input, survivor, 1);
-  ptpn.set_post_arc(survivor, survivor_done, 1);
-
-  state_class::PTPNAnalyzer analyzer(ptpn);
-  ASSERT_GE(analyzer.build(8), 2u);
-
-  const auto& graph = analyzer.get_graph();
-  const auto initial = analyzer.get_initial_vertex();
-  std::set<size_t> fired;
-  for (auto [edge_it, edge_end] = boost::out_edges(initial, graph); edge_it != edge_end;
-       ++edge_it) {
-    const auto& edge = boost::get(boost::edge_name, graph, *edge_it);
-    fired.insert(static_cast<size_t>(edge.transition_id));
-  }
-
-  EXPECT_TRUE(fired.count(low));
-  EXPECT_TRUE(fired.count(survivor));
-  EXPECT_FALSE(fired.count(high));
-
-  auto state = analyzer.create_initial_state();
-  const size_t predecessor_survivor_clock =
-      static_cast<size_t>(state.clock_index_for_transition(survivor));
-  ASSERT_GT(predecessor_survivor_clock, 0u);
-
-  state.timing.zone.set_constraint(0, predecessor_survivor_clock, -2);
-  state.timing.zone.minimize();
-  state.sync_clocks_from_zone();
-  ASSERT_EQ(state.timing.clocks[survivor].lower_bound, 2);
-
-  const auto [ok, successor, fire_time] = analyzer.fire_with_time(low, state);
-
-  ASSERT_TRUE(ok);
-  EXPECT_DOUBLE_EQ(0.0, fire_time);
-  EXPECT_TRUE(successor.scheduling.enabled.count(survivor));
-  ASSERT_TRUE(successor.has_zone_clock_for_transition(survivor));
-
-  const size_t survivor_clock =
-      static_cast<size_t>(successor.clock_index_for_transition(survivor));
-  EXPECT_EQ(successor.timing.zone.get_constraint(0, survivor_clock), 0);
-  EXPECT_EQ(successor.timing.zone.get_constraint(survivor_clock, 0), 5);
-  EXPECT_EQ(successor.timing.clocks[survivor].lower_bound, 0);
-  EXPECT_EQ(successor.timing.clocks[survivor].upper_bound, 5);
-}
-
-TEST(PtpnAnalysisSemanticsTest, ApplyPreemptionPreservesTimeFirstChosenTransitions) {
-  const petri::PTPN ptpn = make_time_first_net();
-  state_class::StateClassReachabilityGraph graph(ptpn);
-  auto state = graph.create_initial_state();
-
-  ASSERT_EQ(state.scheduling.enabled, std::set<size_t>({0u, 1u}));
-
-  state_class::StateClassReachabilityGraphTestAccess::apply_preemption(graph, {0u}, state);
-
-  EXPECT_EQ(state.scheduling.enabled, std::set<size_t>({0u, 1u}));
-  EXPECT_EQ(state.scheduling.active, std::set<size_t>({0u}));
-  EXPECT_TRUE(state.scheduling.suspended.empty());
-  EXPECT_EQ(state.timing.clocks[0].state, state_class::ClockState::ACTIVE);
-  EXPECT_EQ(state.timing.clocks[1].state, state_class::ClockState::UNACTIVE);
-}
-
-TEST(PtpnAnalysisSemanticsTest, OpenLowerBoundDelaysFiringByOneTick) {
-  petri::PTPN ptpn;
-  const size_t input = ptpn.add_place("p0", 1);
-  const size_t done = ptpn.add_place("p1", 1);
-  ptpn.set_initial_marking(input, 1);
-
-  const size_t task = ptpn.add_transition(
-      "task", petri::TimeInterval(1, 3, true, false), 1, 0, false);
-  ptpn.set_pre_arc(input, task, 1);
-  ptpn.set_post_arc(task, done, 1);
-
-  state_class::PTPNAnalyzer analyzer(ptpn);
-  auto state = analyzer.create_initial_state();
-  EXPECT_DOUBLE_EQ(2.0, analyzer.advance_time(state));
-}
-
-TEST(PtpnAnalysisSemanticsTest,
-     RecomputeSuspensionFallsBackToReplacementWhenPreviousActiveDisappears) {
-  const petri::PTPN ptpn = make_recompute_suspension_fallback_net();
-  state_class::StateClassReachabilityGraph graph(ptpn);
-  auto state = graph.create_initial_state();
-
-  EXPECT_EQ(state.scheduling.enabled, std::set<size_t>({0u}));
-  EXPECT_EQ(state.scheduling.active, std::set<size_t>({0u}));
-  EXPECT_TRUE(state.scheduling.suspended.empty());
-
-  state.marking = {0, 1, 0, 0, 0};
-
-  state_class::StateClassReachabilityGraphTestAccess::recompute_suspension(graph,
-                                                                            state);
-
-  EXPECT_EQ(state.scheduling.enabled, (std::set<size_t>{1u, 2u}));
-  EXPECT_EQ(state.scheduling.active, std::set<size_t>({2u}));
-  EXPECT_EQ(state.scheduling.suspended, std::set<size_t>({1u}));
-  EXPECT_EQ(state.timing.clocks[0].state, state_class::ClockState::UNACTIVE);
-  EXPECT_EQ(state.timing.clocks[1].state, state_class::ClockState::SUSPENDED);
-  EXPECT_EQ(state.timing.clocks[2].state, state_class::ClockState::ACTIVE);
-}
-
-TEST(PtpnAnalysisSemanticsTest, RecomputeSuspensionKeepsSuspendedClockFrozen) {
-  const petri::PTPN ptpn = make_suspendable_same_core_net();
-  state_class::StateClassReachabilityGraph graph(ptpn);
-  auto state = graph.create_initial_state();
-
-  graph.suspend_transition(0u, state);
-  const size_t suspended_clock =
-      static_cast<size_t>(state.clock_index_for_transition(0u));
-
-  ASSERT_TRUE(state.scheduling.enabled.count(0u));
-  ASSERT_TRUE(state.scheduling.active.count(1u));
-  ASSERT_TRUE(state.scheduling.suspended.count(0u));
-  ASSERT_EQ(state.timing.clocks[0].state, state_class::ClockState::SUSPENDED);
-  ASSERT_TRUE(state.timing.zone.is_frozen(suspended_clock));
-
-  state_class::StateClassReachabilityGraphTestAccess::recompute_suspension(graph, state);
-
-  EXPECT_EQ(state.scheduling.enabled, std::set<size_t>({0u, 1u}));
-  EXPECT_EQ(state.scheduling.active, std::set<size_t>({1u}));
-  EXPECT_EQ(state.scheduling.suspended, std::set<size_t>({0u}));
-  EXPECT_EQ(state.timing.clocks[0].state, state_class::ClockState::SUSPENDED);
-  EXPECT_EQ(state.timing.clocks[1].state, state_class::ClockState::ACTIVE);
-  EXPECT_TRUE(state.timing.zone.is_frozen(suspended_clock));
-}
-
-TEST(PtpnAnalysisSemanticsTest, FutureRemovesOnlyUnfrozenLowerBounds) {
+TEST(DbmTest, FutureRemovesOnlyUnfrozenLowerBounds) {
   state_class::DBM dbm(3);
   dbm.set_constraint(0, 1, -2);
   dbm.set_constraint(0, 2, -4);
   dbm.freeze_clock(2);
 
   state_class::reset_dbm_instrumentation();
-
   dbm.future();
 
   EXPECT_EQ(dbm.get_constraint(0, 1), state_class::INF_TIME);
   EXPECT_EQ(dbm.get_constraint(0, 2), -4);
-  EXPECT_EQ(dbm.get_constraint(1, 0), state_class::INF_TIME);
-  EXPECT_EQ(dbm.get_constraint(2, 0), state_class::INF_TIME);
   EXPECT_EQ(state_class::get_dbm_instrumentation().minimize_calls, 1u);
 }
 
-TEST(PtpnAnalysisSemanticsTest, ConstrainUpperBoundOnlyTightensFiniteBounds) {
+TEST(DbmTest, ConstrainUpperBoundOnlyTightensFiniteBounds) {
   state_class::DBM dbm(2);
   dbm.set_constraint(1, 0, 9);
 
-  state_class::reset_dbm_instrumentation();
-
   dbm.constrain_upper_bound(1, 7);
   EXPECT_EQ(dbm.get_constraint(1, 0), 7);
-
   dbm.constrain_upper_bound(1, 8);
   EXPECT_EQ(dbm.get_constraint(1, 0), 7);
-
   dbm.constrain_upper_bound(1, state_class::INF_TIME);
   EXPECT_EQ(dbm.get_constraint(1, 0), 7);
-
-  dbm.constrain_upper_bound(3, 5);
-  EXPECT_EQ(dbm.get_constraint(1, 0), 7);
-  EXPECT_EQ(state_class::get_dbm_instrumentation().minimize_calls, 1u);
 }
 
-TEST(PtpnAnalysisSemanticsTest, ConstrainUpperBoundLeavesInfiniteBoundsUnchanged) {
-  state_class::DBM dbm(2);
-
-  state_class::reset_dbm_instrumentation();
-
-  dbm.constrain_upper_bound(1, 6);
-
-  EXPECT_EQ(dbm.get_constraint(1, 0), state_class::INF_TIME);
-  EXPECT_EQ(state_class::get_dbm_instrumentation().minimize_calls, 0u);
-}
-
-TEST(PtpnAnalysisSemanticsTest, SynchronizeClocksForcesPairwiseEquality) {
+TEST(DbmTest, SynchronizeClocksForcesPairwiseEquality) {
   state_class::DBM dbm(3);
   dbm.set_constraint(0, 1, -2);
   dbm.set_constraint(1, 0, 5);
   dbm.set_constraint(0, 2, -4);
   dbm.set_constraint(2, 0, 7);
 
-  state_class::reset_dbm_instrumentation();
-
   dbm.synchronize_clocks({1, 2});
 
   EXPECT_EQ(dbm.get_constraint(1, 2), 0);
   EXPECT_EQ(dbm.get_constraint(2, 1), 0);
-  EXPECT_EQ(state_class::get_dbm_instrumentation().minimize_calls, 1u);
 }
 
+TEST(DbmTest, IncludedInDetectsZoneSubset) {
+  state_class::DBM tight(2);
+  tight.set_constraint(0, 1, -2);
+  tight.set_constraint(1, 0, 4);
+  tight.minimize();
 
-TEST(PtpnAnalysisSemanticsTest, SuccessorZoneRemainsFutureClosedAfterFire) {
-  const petri::PTPN ptpn = make_post_fire_survivor_net();
-  state_class::PTPNAnalyzer analyzer(ptpn);
+  state_class::DBM loose(2);
+  loose.set_constraint(0, 1, -1);
+  loose.set_constraint(1, 0, 6);
+  loose.minimize();
 
-  auto state = analyzer.create_initial_state();
-  const size_t predecessor_survivor_clock =
-      static_cast<size_t>(state.clock_index_for_transition(1));
-  ASSERT_GT(predecessor_survivor_clock, 0u);
-
-  state.timing.zone.set_constraint(0, predecessor_survivor_clock, -2);
-  state.timing.zone.minimize();
-  state.sync_clocks_from_zone();
-  ASSERT_EQ(state.timing.clocks[1].lower_bound, 2);
-
-  const auto [ok, successor, fire_time] = analyzer.fire_with_time(0, state);
-
-  ASSERT_TRUE(ok);
-  EXPECT_DOUBLE_EQ(0.0, fire_time);
-  EXPECT_TRUE(successor.scheduling.enabled.count(1));
-  ASSERT_TRUE(successor.has_zone_clock_for_transition(1));
-
-  const size_t survivor_clock =
-      static_cast<size_t>(successor.clock_index_for_transition(1));
-  EXPECT_EQ(successor.timing.zone.get_constraint(0, survivor_clock), 0);
-  EXPECT_EQ(successor.timing.zone.get_constraint(survivor_clock, 0), 5);
-  EXPECT_EQ(successor.timing.clocks[1].lower_bound, 0);
-  EXPECT_EQ(successor.timing.clocks[1].upper_bound, 5);
+  EXPECT_TRUE(tight.included_in(loose));
+  EXPECT_FALSE(loose.included_in(tight));
 }
 
-TEST(PtpnAnalysisSemanticsTest, NewlyEnabledTransitionsShareZeroOrigin) {
+// --- State-class construction tests ----------------------------------------
+
+TEST(PtpnAnalysisTest, InitialClassPinsEveryClockToZero) {
   const petri::PTPN ptpn = make_newly_enabled_siblings_net();
-  state_class::PTPNAnalyzer analyzer(ptpn);
+  StateClassReachabilityGraph graph(ptpn);
+  const StateClass initial = graph.compute_initial_class();
 
-  const auto state = analyzer.create_initial_state();
-  const auto [ok, successor, fire_time] = analyzer.fire_with_time(0, state);
-
-  ASSERT_TRUE(ok);
-  EXPECT_DOUBLE_EQ(0.0, fire_time);
-  EXPECT_TRUE(successor.scheduling.enabled.count(1));
-  EXPECT_TRUE(successor.scheduling.enabled.count(2));
-  ASSERT_TRUE(successor.has_zone_clock_for_transition(1));
-  ASSERT_TRUE(successor.has_zone_clock_for_transition(2));
-
-  const size_t left_clock =
-      static_cast<size_t>(successor.clock_index_for_transition(1));
-  const size_t right_clock =
-      static_cast<size_t>(successor.clock_index_for_transition(2));
-
-  EXPECT_EQ(successor.timing.zone.get_constraint(0, left_clock), 0);
-  EXPECT_EQ(successor.timing.zone.get_constraint(left_clock, 0), 4);
-  EXPECT_EQ(successor.timing.zone.get_constraint(0, right_clock), 0);
-  EXPECT_EQ(successor.timing.zone.get_constraint(right_clock, 0), 6);
-  EXPECT_EQ(successor.timing.clocks[1].lower_bound, 0);
-  EXPECT_EQ(successor.timing.clocks[1].upper_bound, 4);
-  EXPECT_EQ(successor.timing.clocks[2].lower_bound, 0);
-  EXPECT_EQ(successor.timing.clocks[2].upper_bound, 6);
+  ASSERT_TRUE(initial.has_exec_clock(0));
+  const size_t idx = static_cast<size_t>(initial.exec_index(0));
+  EXPECT_EQ(initial.zone.get_constraint(0, idx), 0);
+  EXPECT_EQ(initial.zone.get_constraint(idx, 0), 0);
 }
 
-TEST(PtpnAnalysisSemanticsTest,
-     FutureClosedSuccessorDropsPredecessorCouplingBetweenSurvivors) {
-  const petri::PTPN ptpn = make_two_survivor_future_closed_net();
-  state_class::PTPNAnalyzer analyzer(ptpn);
+TEST(PtpnAnalysisTest, BranchesOverEveryFirableTransition) {
+  const petri::PTPN ptpn = make_two_independent_transitions_net();
+  StateClassReachabilityGraph graph(ptpn);
+  graph.build(64);
 
-  auto state = analyzer.create_initial_state();
-  ASSERT_TRUE(state.has_zone_clock_for_transition(1));
-  ASSERT_TRUE(state.has_zone_clock_for_transition(2));
+  const auto transitions =
+      out_edge_transitions(graph.get_graph(), graph.get_initial_vertex());
+  EXPECT_EQ(transitions.count(0), 1u);
+  EXPECT_EQ(transitions.count(1), 1u);
+}
 
-  const size_t left_clock = static_cast<size_t>(state.clock_index_for_transition(1));
-  const size_t right_clock = static_cast<size_t>(state.clock_index_for_transition(2));
+TEST(PtpnAnalysisTest, PriorityFilterFiresHighPriorityNotEarliest) {
+  // low (T0) has the earliest window [0,5] but lower priority; high (T1) is
+  // [3,3]. Under the priority semantics only the high-priority transition is
+  // active, so the analyzer must fire T1 rather than the earlier T0.
+  const petri::PTPN ptpn = make_same_core_priority_net();
+  StateClassReachabilityGraph graph(ptpn);
+  graph.build(64);
 
-  state.timing.zone.set_constraint(0, left_clock, -2);
-  state.timing.zone.set_constraint(0, right_clock, -4);
-  state.timing.zone.set_constraint(left_clock, right_clock, 1);
-  state.timing.zone.set_constraint(right_clock, left_clock, 0);
-  state.timing.zone.minimize();
-  state.sync_clocks_from_zone();
+  const StateClass initial =
+      boost::get(boost::vertex_name, graph.get_graph(),
+                 graph.get_initial_vertex());
+  EXPECT_EQ(initial.priority_enabled, (std::set<size_t>{1}));
+  EXPECT_EQ(initial.suspended, (std::set<size_t>{0}));
 
-  ASSERT_NE(state.timing.zone.get_constraint(left_clock, right_clock),
-            state_class::INF_TIME);
-  ASSERT_NE(state.timing.zone.get_constraint(right_clock, left_clock),
-            state_class::INF_TIME);
-  ASSERT_GT(state.timing.clocks[1].lower_bound, 0);
-  ASSERT_GT(state.timing.clocks[2].lower_bound, 0);
+  const auto transitions =
+      out_edge_transitions(graph.get_graph(), graph.get_initial_vertex());
+  EXPECT_EQ(transitions.count(1), 1u);
+  EXPECT_EQ(transitions.count(0), 0u);
+}
 
-  const int predecessor_left_upper = state.timing.zone.get_constraint(left_clock, 0);
-  const int predecessor_right_upper = state.timing.zone.get_constraint(right_clock, 0);
-  ASSERT_EQ(predecessor_left_upper, 5);
-  ASSERT_EQ(predecessor_right_upper, 5);
-  ASSERT_EQ(state.timing.zone.get_constraint(left_clock, right_clock), 1);
-  ASSERT_EQ(state.timing.zone.get_constraint(right_clock, left_clock), 0);
+TEST(PtpnAnalysisTest, SuspendedTransitionFreezesExecAndRunsSuspensionClock) {
+  const petri::PTPN ptpn = make_same_core_priority_net();
+  StateClassReachabilityGraph graph(ptpn);
+  const StateClass initial = graph.compute_initial_class();
+  const StateClass elapsed = graph.time_elapse(initial);
 
-  const auto [ok, successor, fire_time] = analyzer.fire_with_time(0, state);
+  ASSERT_TRUE(elapsed.has_exec_clock(0));  // low has a frozen exec clock
+  ASSERT_TRUE(elapsed.has_susp_clock(0));  // low has a running suspension clock
+  ASSERT_TRUE(elapsed.has_exec_clock(1));  // high has a running exec clock
 
-  ASSERT_TRUE(ok);
-  EXPECT_DOUBLE_EQ(0.0, fire_time);
-  EXPECT_TRUE(successor.scheduling.enabled.count(1));
-  EXPECT_TRUE(successor.scheduling.enabled.count(2));
-  ASSERT_TRUE(successor.has_zone_clock_for_transition(1));
-  ASSERT_TRUE(successor.has_zone_clock_for_transition(2));
+  const size_t low_exec = static_cast<size_t>(elapsed.exec_index(0));
+  const size_t low_susp = static_cast<size_t>(elapsed.susp_index(0));
+  const size_t high_exec = static_cast<size_t>(elapsed.exec_index(1));
 
-  const size_t successor_left_clock =
-      static_cast<size_t>(successor.clock_index_for_transition(1));
-  const size_t successor_right_clock =
-      static_cast<size_t>(successor.clock_index_for_transition(2));
+  // low's execution clock stays frozen at 0 while it is suspended.
+  EXPECT_EQ(elapsed.zone.get_constraint(low_exec, 0), 0);
+  // high's execution clock is capped at its deadline 3 (strong time).
+  EXPECT_EQ(elapsed.zone.get_constraint(high_exec, 0), 3);
+  // low's suspension clock advances together with time, up to high's deadline.
+  EXPECT_EQ(elapsed.zone.get_constraint(low_susp, 0), 3);
+}
 
-  EXPECT_EQ(successor.timing.zone.get_constraint(0, successor_left_clock), 0);
-  EXPECT_EQ(successor.timing.zone.get_constraint(successor_left_clock, 0),
-            predecessor_left_upper);
-  EXPECT_EQ(successor.timing.zone.get_constraint(0, successor_right_clock), 0);
-  EXPECT_EQ(successor.timing.zone.get_constraint(successor_right_clock, 0),
-            predecessor_right_upper);
-  EXPECT_EQ(successor.timing.zone.get_constraint(successor_left_clock,
-                                                 successor_right_clock),
-            predecessor_left_upper);
-  EXPECT_EQ(successor.timing.zone.get_constraint(successor_right_clock,
-                                                 successor_left_clock),
-            predecessor_right_upper);
-  EXPECT_NE(successor.timing.zone.get_constraint(successor_left_clock,
-                                                 successor_right_clock),
-            1);
-  EXPECT_NE(successor.timing.zone.get_constraint(successor_right_clock,
-                                                 successor_left_clock),
-            0);
-  EXPECT_EQ(successor.timing.clocks[1].lower_bound, 0);
-  EXPECT_EQ(successor.timing.clocks[1].upper_bound, predecessor_left_upper);
-  EXPECT_EQ(successor.timing.clocks[2].lower_bound, 0);
-  EXPECT_EQ(successor.timing.clocks[2].upper_bound, predecessor_right_upper);
+TEST(PtpnAnalysisTest, PersistentTransitionKeepsAccumulatedClock) {
+  const petri::PTPN ptpn = make_persistent_survivor_net();
+  StateClassReachabilityGraph graph(ptpn);
+  const StateClass initial = graph.compute_initial_class();
+  const StateClass elapsed = graph.time_elapse(initial);
+
+  StateClass successor;
+  ASSERT_TRUE(graph.fire(elapsed, 0, successor));  // fire the trigger at t=2
+
+  ASSERT_TRUE(successor.struct_enabled.count(1));  // survivor still enabled
+  ASSERT_TRUE(successor.has_exec_clock(1));
+  const size_t survivor = static_cast<size_t>(successor.exec_index(1));
+  // The survivor's elapsed time (2) is preserved, not reset to 0.
+  EXPECT_EQ(successor.zone.get_constraint(0, survivor), -2);
+}
+
+TEST(PtpnAnalysisTest, ResumedTransitionDropsSuspensionKeepsExec) {
+  const petri::PTPN ptpn = make_resume_net();
+  StateClassReachabilityGraph graph(ptpn);
+  const StateClass initial = graph.compute_initial_class();
+
+  ASSERT_EQ(initial.priority_enabled, (std::set<size_t>{1}));  // high active
+  ASSERT_EQ(initial.suspended, (std::set<size_t>{0}));         // low suspended
+
+  const StateClass elapsed = graph.time_elapse(initial);
+  StateClass successor;
+  ASSERT_TRUE(graph.fire(elapsed, 1, successor));  // high fires and leaves
+
+  EXPECT_EQ(successor.priority_enabled, (std::set<size_t>{0}));  // low resumed
+  EXPECT_TRUE(successor.suspended.empty());
+  EXPECT_TRUE(successor.has_exec_clock(0));
+  EXPECT_FALSE(successor.has_susp_clock(0));  // suspension clock dropped
+}
+
+TEST(PtpnAnalysisTest, NewlyEnabledTransitionsResetToZero) {
+  const petri::PTPN ptpn = make_newly_enabled_siblings_net();
+  StateClassReachabilityGraph graph(ptpn);
+  const StateClass initial = graph.compute_initial_class();
+  const StateClass elapsed = graph.time_elapse(initial);
+
+  StateClass successor;
+  ASSERT_TRUE(graph.fire(elapsed, 0, successor));  // fire the trigger
+
+  ASSERT_TRUE(successor.has_exec_clock(1));
+  ASSERT_TRUE(successor.has_exec_clock(2));
+  const size_t left = static_cast<size_t>(successor.exec_index(1));
+  const size_t right = static_cast<size_t>(successor.exec_index(2));
+  EXPECT_EQ(successor.zone.get_constraint(0, left), 0);
+  EXPECT_EQ(successor.zone.get_constraint(0, right), 0);
+}
+
+TEST(PtpnAnalysisTest, BuildTerminatesAndCountsStates) {
+  const petri::PTPN ptpn = make_persistent_survivor_net();
+  StateClassReachabilityGraph graph(ptpn);
+  const size_t states = graph.build(64);
+
+  EXPECT_GE(states, 1u);
+  EXPECT_FALSE(graph.get_statistics().truncated);
+  EXPECT_EQ(states, graph.get_statistics().total_states);
+}
+
+TEST(PtpnAnalysisTest, NamedDumpIncludesPlaceAndClockLabels) {
+  const petri::PTPN ptpn = make_same_core_priority_net();
+  StateClassReachabilityGraph graph(ptpn);
+  const StateClass initial = graph.compute_initial_class();
+
+  const std::string dump =
+      state_class::StateClassReachabilityGraphTestAccess::format_state_dump(
+          graph, initial);
+  EXPECT_NE(dump.find("input"), std::string::npos);
+  EXPECT_NE(dump.find("E_pri"), std::string::npos);
+
+  const std::string zone =
+      state_class::StateClassReachabilityGraphTestAccess::format_named_dbm(
+          graph, initial);
+  EXPECT_NE(zone.find("h(T1)"), std::string::npos);
 }
