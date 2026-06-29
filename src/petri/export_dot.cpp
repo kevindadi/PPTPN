@@ -73,10 +73,10 @@ std::string format_place_label(const ExportPlace& place) {
 std::string format_transition_label(const ExportTransition& transition) {
   std::string label = transition.name;
 
-  if (should_show_scheduling_meta(transition)) {
-    label += "\nπ=" + std::to_string(transition.priority) +
-             "  core=" + std::to_string(transition.core);
-  }
+  // Always show the (core, priority) pair so the scheduling intent of every
+  // transition (including control transitions) is visible at a glance.
+  label += "\n(core=" + std::to_string(transition.core) +
+           ", π=" + std::to_string(transition.priority) + ")";
 
   label += "\nI=[" + std::string(transition.left_open ? "(" : "[") +
            format_int_or_infinity(transition.earliest) + ", " +

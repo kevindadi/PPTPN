@@ -185,16 +185,16 @@ The lowering must treat these fields by transition role rather than assigning th
 
 | Transition kind | Examples | Time interval | Priority field | Core field | Suspendable | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| CPU acquisition | `get_core_t` | `I=[0,0]` | task priority | task core | `false` | Structural step that consumes `core_c_p` and moves the task into `ready_p`. |
+| CPU acquisition | `get_core_t` | `I=[0,0]` | task priority | task core | `false` | Moves the task into `ready_p`. Consumes `core_c_p` only for the structural policies; the resume policy has no CPU place, so it just advances the chain. |
 | Lock acquisition | `lock_k_t` | `I=[0,0]` | task priority | task core | `false` | Structural step that consumes the lock token. |
 | Execution segment | `exec_i_t` | task WCET interval | task priority | task core | policy-dependent | The only task-body transition that consumes modeled execution time. |
 | Periodic release | `release_t(P)` | `I=[P,P]` | none | none | `false` | Generates periodic arrivals; it is not a CPU-scheduled task execution step. |
 | Dependency connector | `A_to_B` | `I=[0,0]` | none | none | `false` | Used only to preserve place-transition-place alternation for `task -> task` edges. |
 | End consumer | `consume_t` | `I=[0,0]` | none | none | `false` | Removes terminal tokens from configured end tasks. |
-| Restart preemption | `H_restart_preempt_L` | `I=[0,0]` | high-task priority | high-task core | `false` | Scheduling-control transition; preempts `L` and sends it back to `L_entry_p`. |
-| Resume preemption | `H_resume_preempt_L` | `I=[0,0]` | high-task priority | high-task core | `false` | Scheduling-control transition; preempts `L` and moves it to a suspended place. |
-| Resume recovery | `L_resume_H` | `I=[0,0]` | high-task priority | high-task core | `false` | Scheduling-control transition enabled by `H_exit_p`; restores `L` to its original preemption point. |
+| Restart preemption | `H_restart_preempt_L` | `I=[0,0]` | high-task priority | high-task core | `false` | Scheduling-control transition (restart policy only); preempts `L` and sends it back to `L_entry_p`. |
 | Fork / join control | fork/join node transition | `I=[0,0]` | none | none | `false` | Structural synchronization transition, not a CPU execution step. |
+
+The resume policy adds no scheduling-control transitions of its own: preemption and resume are handled by the analysis engine (see `fixed_prior_with_resume` below), so there are no `H_resume_preempt_L` / `L_resume_H` transitions.
 
 ### Rules for priority and core assignment
 
@@ -225,13 +225,13 @@ The fixed-priority variants keep the FIFO base task chains and add static preemp
 | Aspect | FIFO | `fixed_prior_with_restart` | `fixed_prior_with_resume` |
 | --- | --- | --- | --- |
 | Base task chain | kept | kept | kept |
-| CPU resource model | kept | kept | kept |
+| CPU resource model | kept | kept | removed (engine per-core priority filter) |
 | Lock resource model | kept | kept | kept |
-| Preemption paths | none | added | added |
-| Low-priority token after preemption | n/a | returns to task entry | moves to suspended place |
-| Recovery after high-priority completion | n/a | low task restarts from entry | low task resumes at the same preemption point |
-| `suspendable` | all `false` | lower-priority execution segments may become `true` | lower-priority execution segments may become `true` |
-| Spin-lock preemption paths | n/a | not added | not added |
+| Preemption paths | none | added (structural) | none (engine-native) |
+| Low-priority token after preemption | n/a | returns to task entry | stays in place; execution clock frozen |
+| Recovery after high-priority completion | n/a | low task restarts from entry | engine unfreezes the execution clock and resumes |
+| `suspendable` | all `false` | lower-priority execution segments may become `true` | all execution segments `true` (except spin-lock sections) |
+| Spin-lock preemption paths | n/a | not added | n/a (spin-lock sections stay non-suspendable) |
 
 ### `fixed_prior_with_restart`
 
@@ -243,20 +243,47 @@ H_entry_p + L_preempt_p -> restart_preempt_t -> H_ready_p + L_entry_p
 
 Use this when you want the cheaper static model in which a preempted task restarts from the beginning of its task chain.
 
-### `fixed_prior_with_resume`
+Lowering notes (restart):
 
-This variant extends the FIFO base net with a suspended place and a resume transition for each allowed preemption point.
-
-```text
-H_entry_p + L_preempt_p -> resume_preempt_t -> H_ready_p + L_suspended_p
-H_exit_p + L_suspended_p -> resume_t -> L_preempt_p
-```
-
-Use this when you want the usual real-time preempt-resume semantics, where the preempted task continues from the exact point where it was interrupted.
-
-In both variants:
-
-1. Priority is already known during lowering because tasks are grouped by core and sorted before preemption arcs are added.
+1. Priority is known during lowering because tasks are grouped by core and
+   sorted before preemption arcs are added.
 2. Only selected low-priority execution segments are marked `suspendable`.
 3. `fork` and `join` nodes do not participate in preemption expansion.
-4. No extra lock-specific preemption path is added once a `spin` lock is encountered.
+4. No extra lock-specific preemption path is added once a `spin` lock is
+   encountered.
+
+### `fixed_prior_with_resume`
+
+This variant (and the legacy `fixed` alias) no longer emits any structural
+preemption sub-net, and it does not create the CPU-resource place. Preemption is
+expressed entirely by the analysis engine:
+
+- `Scheduling::filter_priority_per_core` keeps only the highest-priority
+  structurally enabled transition(s) per core, which provides both CPU mutual
+  exclusion and fixed-priority arbitration.
+- A preempted (lower-priority) execution segment is marked `suspendable`, so it
+  enters the suspended set. The engine freezes its execution clock during
+  `time_elapse` and preserves it across firings (`build_successor_zone`); when
+  the higher-priority task completes, the segment resumes from the exact frozen
+  value. This supports mid-segment preemption, which the old structural sub-net
+  could not.
+
+Because there is no resource place or token-shuffling sub-net, the previous
+core-token accounting deadlocks cannot occur.
+
+Lowering notes (resume):
+
+1. All execution segments are marked `suspendable`, except segments inside a
+   `spin`-lock critical section (a spin-lock holder keeps the CPU).
+2. `get_core` and lock transitions remain non-suspendable, zero-time control
+   steps; `get_core` is kept only to preserve the task-chain layout.
+3. `fork` and `join` nodes do not participate in preemption.
+
+Known limitations of the engine-native model:
+
+- Two same-core transitions with equal priority are both kept by the filter, so
+  per-core mutual exclusion is not enforced for ties. Fixed-priority schedules
+  normally use distinct per-core priorities.
+- The pure priority filter cannot express "a spin-lock holder keeps the CPU and
+  cannot be preempted while spinning"; spin-lock sections are approximated by
+  keeping their execution segments non-suspendable.
