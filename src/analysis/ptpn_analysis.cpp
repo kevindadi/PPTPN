@@ -588,7 +588,8 @@ bool StateClassReachabilityGraph::save_to_dot(
     const StateClass& tgt_state = boost::get(boost::vertex_name, graph_, tgt);
     const std::string window =
         "[" + std::to_string(edge.firing_min) + ", " +
-        (edge.firing_max == INF_TIME ? "inf" : std::to_string(edge.firing_max)) +
+        (edge.firing_max == INF_TIME ? "inf"
+                                     : std::to_string(edge.firing_max)) +
         "]";
     const std::string label =
         format_transition_label(static_cast<size_t>(edge.transition_id)) +
