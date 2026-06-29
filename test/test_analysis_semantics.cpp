@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "analysis/clock_state.h"
+#include "analysis/clock_state.h"
 #include "analysis/dbm.h"
 #include "analysis/ptpn_analysis.h"
 #include "petri/petri.h"

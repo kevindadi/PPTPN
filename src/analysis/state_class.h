@@ -34,18 +34,22 @@ struct ClockVar {
   }
 };
 
-// One edge of the state-class graph: which transition fired, plus the earliest
-// feasible firing instant kept only for display (the true timing is symbolic).
+// One edge of the state-class graph: which transition fired, plus the feasible
+// firing window of its execution clock h_t at the moment it fires. The window
+// [firing_min, firing_max] is the real (symbolic) timing; firing_max may be
+// +infinity (INF_TIME).
 struct FiringEdge {
   int transition_id = -1;
-  double firing_time = 0.0;
+  int firing_min = 0;
+  int firing_max = 0;
 
   FiringEdge() = default;
-  FiringEdge(int id, double time) : transition_id(id), firing_time(time) {}
+  FiringEdge(int id, int window_min, int window_max)
+      : transition_id(id), firing_min(window_min), firing_max(window_max) {}
 
   bool operator==(const FiringEdge& other) const {
     return transition_id == other.transition_id &&
-           firing_time == other.firing_time;
+           firing_min == other.firing_min && firing_max == other.firing_max;
   }
 
   [[nodiscard]] std::string to_string() const;
