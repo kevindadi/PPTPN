@@ -1,6 +1,8 @@
 #include "analysis/scheduling.h"
 
+#include <algorithm>
 #include <map>
+#include <vector>
 
 namespace state_class {
 
@@ -22,22 +24,46 @@ std::set<size_t> Scheduling::filter_priority_per_core(
   // attribute. The control core (-1) is treated like any other group, so
   // control transitions are filtered by priority too (e.g. a resume transition
   // with a higher priority suppresses ordinary control steps for that instant).
-  std::map<int, int> highest_priority_per_core;
+  std::map<int, std::vector<size_t>> per_core;
   for (size_t t : struct_enabled) {
-    const auto& trans = net.get_transition(t);
-    auto it = highest_priority_per_core.find(trans.core);
-    if (it == highest_priority_per_core.end()) {
-      highest_priority_per_core[trans.core] = trans.priority;
-    } else if (trans.priority > it->second) {
-      it->second = trans.priority;
-    }
+    per_core[net.get_transition(t).core].push_back(t);
   }
 
   std::set<size_t> active;
-  for (size_t t : struct_enabled) {
-    const auto& trans = net.get_transition(t);
-    if (trans.priority == highest_priority_per_core[trans.core]) {
-      active.insert(t);
+  for (auto& [core, group] : per_core) {
+    const int capacity = net.parallelism_of_core(core);
+
+    if (capacity <= 0) {
+      // Unbounded group (control core, or nets without a parallelism model):
+      // keep every transition sharing the highest priority on this core.
+      int max_priority = net.get_transition(group.front()).priority;
+      for (size_t t : group) {
+        max_priority = std::max(max_priority, net.get_transition(t).priority);
+      }
+      for (size_t t : group) {
+        if (net.get_transition(t).priority == max_priority) {
+          active.insert(t);
+        }
+      }
+      continue;
+    }
+
+    // Bounded resource: at most `capacity` transitions may run at once, so keep
+    // the highest-priority ones. Ties are broken by transition index, giving a
+    // deterministic selection that enforces mutual exclusion (capacity 1) or a
+    // fixed degree of parallelism (capacity = cores_per_cpu).
+    std::sort(group.begin(), group.end(), [&](size_t a, size_t b) {
+      const int pa = net.get_transition(a).priority;
+      const int pb = net.get_transition(b).priority;
+      if (pa != pb) {
+        return pa > pb;
+      }
+      return a < b;
+    });
+    const size_t keep =
+        std::min(static_cast<size_t>(capacity), group.size());
+    for (size_t i = 0; i < keep; ++i) {
+      active.insert(group[i]);
     }
   }
 

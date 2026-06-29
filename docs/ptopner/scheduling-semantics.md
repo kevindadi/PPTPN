@@ -21,10 +21,20 @@ attribute (taken straight from the JSON / `.ptpn` input).
 
 ### Per-core priority filtering (including the control core)
 
-`E_pri` keeps, within every core group, only the structurally enabled
-transitions with the maximal priority on that core (ties allowed). **The control
-core (`core = -1`) is treated like any other group** — control transitions are
-filtered by priority too, they are no longer "always kept".
+`E_pri` keeps, within every core group, the highest-priority structurally
+enabled transitions on that core, up to the core's parallelism bound. **The
+control core (`core = -1`) is treated like any other group** — control
+transitions are filtered by priority too, they are no longer "always kept".
+
+A core's bound comes from `PTPN::core_parallelism` (via `parallelism_of_core`):
+
+- A real core under the resume policy is bounded to **1** (one task per core).
+  When several transitions tie at the top priority, the filter keeps the one
+  with the smallest transition index, so per-core mutual exclusion is always
+  enforced.
+- A core with **no** registered bound (the control core, and every core under
+  the restart / PToPNer paths) is unbounded: the filter keeps *all* transitions
+  at the maximal priority of that group.
 
 Ordinary control transitions all share priority `0`, so they never spuriously
 suppress one another. (The `fixed_prior_with_resume` policy no longer emits any
@@ -55,9 +65,11 @@ static std::set<size_t> filter_priority_per_core(
 ```
 
 `filter_priority_per_core`:
-1. Compute the max priority per core group keyed by `transition.core`
-   (the `-1` group is not special-cased).
-2. Keep every transition whose priority equals the max of its own core group.
+1. Group structurally enabled transitions by `transition.core`.
+2. For each group, read its bound `K = net.parallelism_of_core(core)`.
+   - `K <= 0` (unbounded): keep every transition at the group's max priority.
+   - `K >= 1`: sort by priority (descending), then transition index (ascending),
+     and keep the first `K`. Real cores under the resume policy use `K = 1`.
 
 ## When these sets are recomputed
 
@@ -76,8 +88,12 @@ forward. Suspension state is recomputed only when the marking changes.
 The `fixed_prior_with_resume` policy (and the legacy `fixed` alias) relies on the
 sets above to model preemption directly, instead of any structural encoding:
 
-- It does NOT create the CPU-resource place. Per-core mutual exclusion and
-  fixed-priority arbitration come from `filter_priority_per_core` alone.
+- It does NOT create the CPU-resource place. Instead it registers a parallelism
+  bound of **1 for every real core** (`PTPN::core_parallelism`), so the priority
+  filter keeps at most one active transition per core. This enforces CPU mutual
+  exclusion (one task per core, matching the physical model) and fixed-priority
+  arbitration in a single step. When two equal-priority transitions contend on a
+  core, the filter keeps the lower transition index, a deterministic tie-break.
 - It does NOT generate the preempt/suspended/resume sub-net. A preempted
   execution segment is marked `suspendable`, so it lands in the suspended set,
   freezes its `h` clock, and resumes from the frozen value once the higher-
@@ -85,11 +101,14 @@ sets above to model preemption directly, instead of any structural encoding:
   surviving clock). This permits mid-segment preemption.
 
 The `fixed_prior_with_restart` policy and the PToPNer export path keep the
-structural CPU place and structural preemption sub-net unchanged.
+structural CPU place and structural preemption sub-net unchanged. They register
+no parallelism bound, so the filter falls back to "keep every highest-priority
+transition" for them.
 
-Known limitations of the resume model: same-core equal-priority transitions are
-both kept (ties not mutually excluded), and spin-lock "hold the CPU" behavior is
-only approximated by keeping spin-lock execution segments non-suspendable.
+Note: multi-core parallelism per CPU (`cores_per_cpu` > 1) is intentionally not
+modeled here -- the resume policy fixes the bound at one task per core. Spin-lock
+"hold the CPU" behavior is only approximated by keeping spin-lock execution
+segments non-suspendable.
 
 ## Key files
 

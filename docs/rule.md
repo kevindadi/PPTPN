@@ -225,7 +225,7 @@ The fixed-priority variants keep the FIFO base task chains and add static preemp
 | Aspect | FIFO | `fixed_prior_with_restart` | `fixed_prior_with_resume` |
 | --- | --- | --- | --- |
 | Base task chain | kept | kept | kept |
-| CPU resource model | kept | kept | removed (engine per-core priority filter) |
+| CPU resource model | kept | kept | removed (engine per-core priority filter, bound 1 task/core) |
 | Lock resource model | kept | kept | kept |
 | Preemption paths | none | added (structural) | none (engine-native) |
 | Low-priority token after preemption | n/a | returns to task entry | stays in place; execution clock frozen |
@@ -258,9 +258,12 @@ This variant (and the legacy `fixed` alias) no longer emits any structural
 preemption sub-net, and it does not create the CPU-resource place. Preemption is
 expressed entirely by the analysis engine:
 
-- `Scheduling::filter_priority_per_core` keeps only the highest-priority
-  structurally enabled transition(s) per core, which provides both CPU mutual
-  exclusion and fixed-priority arbitration.
+- The lowering registers a parallelism bound of `1` for every real core in
+  `PTPN::core_parallelism`. `Scheduling::filter_priority_per_core` then keeps at
+  most one transition per core — the highest-priority structurally enabled one,
+  breaking ties by the smallest transition index — which provides both CPU mutual
+  exclusion (one task per core) and fixed-priority arbitration. Multi-core
+  parallelism per CPU (`cores_per_cpu` > 1) is intentionally not modeled.
 - A preempted (lower-priority) execution segment is marked `suspendable`, so it
   enters the suspended set. The engine freezes its execution clock during
   `time_elapse` and preserves it across firings (`build_successor_zone`); when
@@ -281,9 +284,10 @@ Lowering notes (resume):
 
 Known limitations of the engine-native model:
 
-- Two same-core transitions with equal priority are both kept by the filter, so
-  per-core mutual exclusion is not enforced for ties. Fixed-priority schedules
-  normally use distinct per-core priorities.
+- Each real core is bound to a single task, so `cores_per_cpu` > 1 does not yield
+  intra-CPU parallelism; the model is one task per core. When same-core
+  transitions tie at the top priority, the tie is broken deterministically by
+  transition index rather than explored as alternatives.
 - The pure priority filter cannot express "a spin-lock holder keeps the CPU and
   cannot be preempted while spinning"; spin-lock sections are approximated by
   keeping their execution segments non-suspendable.

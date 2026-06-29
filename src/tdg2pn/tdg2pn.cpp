@@ -178,6 +178,7 @@ void TDG2PN::transform(const tdg::TDG& tdg, petri::PTPN& ptpn) {
     ptpn.node_start_end_map.clear();
     ptpn.node_pn_map.clear();
     ptpn.cpus_place.clear();
+    ptpn.core_parallelism.clear();
     ptpn.locks_place.clear();
     ptpn.node_index = 0;
 
@@ -432,10 +433,17 @@ void TDG2PN::add_resources_and_bindings_matrix(petri::PTPN& ptpn,
                                                const tdg::TDG& tdg) {
   // The resume policy expresses per-core mutual exclusion and preemption purely
   // through the analysis engine's per-core priority filter, so it omits the
-  // structural CPU-resource place. Other policies (restart / PToPNer export)
-  // keep the place-based encoding.
+  // structural CPU-resource place. Instead it records each CPU's parallelism
+  // (cores_per_cpu) so the filter keeps at most that many tasks active per CPU.
+  // Other policies (restart / PToPNer export) keep the place-based encoding.
   if (!is_resume_policy(tdg.policy)) {
     add_cpu_resource_matrix(ptpn, tdg.num_cpus, tdg.cores_per_cpu);
+  } else {
+    // One task per core, matching the physical model (cores_per_cpu parallelism
+    // is intentionally not used here).
+    for (int cpu = 0; cpu < tdg.num_cpus; ++cpu) {
+      ptpn.core_parallelism[cpu] = 1;
+    }
   }
   add_lock_resource_matrix(ptpn, tdg.lock_set);
   if (!is_resume_policy(tdg.policy)) {

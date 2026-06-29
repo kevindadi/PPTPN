@@ -271,6 +271,50 @@ TEST(PtpnAnalysisTest, ControlTransitionsAreAlsoPriorityFiltered) {
   EXPECT_EQ(initial.priority_enabled, (std::set<size_t>{1}));
 }
 
+// Builds two equal-priority execution transitions on the same real core (0).
+petri::PTPN make_same_core_equal_priority_net() {
+  petri::PTPN ptpn;
+  const size_t a_in = ptpn.add_place("a_in", 1);
+  const size_t b_in = ptpn.add_place("b_in", 1);
+  ptpn.add_place("a_done", 1);
+  ptpn.add_place("b_done", 1);
+  ptpn.set_initial_marking(a_in, 1);
+  ptpn.set_initial_marking(b_in, 1);
+
+  ptpn.add_transition("a_exec", petri::TimeInterval(1, 2), 5, 0, true);
+  ptpn.add_transition("b_exec", petri::TimeInterval(1, 2), 5, 0, true);
+  ptpn.set_pre_arc(a_in, 0, 1);
+  ptpn.set_post_arc(0, 2, 1);
+  ptpn.set_pre_arc(b_in, 1, 1);
+  ptpn.set_post_arc(1, 3, 1);
+  return ptpn;
+}
+
+TEST(PtpnAnalysisTest, CoreCapacityOneEnforcesMutualExclusion) {
+  // Equal priority on the same core would tie; with a capacity of one only a
+  // single transition stays active (the lower index wins the deterministic
+  // tie-break) and the other is suspended.
+  petri::PTPN ptpn = make_same_core_equal_priority_net();
+  ptpn.core_parallelism[0] = 1;
+
+  StateClassReachabilityGraph graph(ptpn);
+  const StateClass initial = graph.compute_initial_class();
+  EXPECT_EQ(initial.priority_enabled, (std::set<size_t>{0}));
+  EXPECT_EQ(initial.suspended, (std::set<size_t>{1}));
+}
+
+TEST(PtpnAnalysisTest, CoreCapacityTwoAllowsParallelExecution) {
+  // The same core declared with two slots lets both equal-priority tasks run
+  // in parallel, so both are active and neither is suspended.
+  petri::PTPN ptpn = make_same_core_equal_priority_net();
+  ptpn.core_parallelism[0] = 2;
+
+  StateClassReachabilityGraph graph(ptpn);
+  const StateClass initial = graph.compute_initial_class();
+  EXPECT_EQ(initial.priority_enabled, (std::set<size_t>{0, 1}));
+  EXPECT_TRUE(initial.suspended.empty());
+}
+
 TEST(PtpnAnalysisTest, SuspendedTransitionFreezesExecAndRunsSuspensionClock) {
   const petri::PTPN ptpn = make_same_core_priority_net();
   StateClassReachabilityGraph graph(ptpn);

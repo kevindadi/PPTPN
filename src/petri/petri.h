@@ -378,6 +378,17 @@ class PTPN {
     return result;
   }
 
+  // How many transitions may run simultaneously on `core_id`. Returns 0 to mean
+  // "no bound": the control core (-1) is never resource-limited, and cores
+  // without a registered parallelism keep the legacy highest-priority behaviour.
+  [[nodiscard]] int parallelism_of_core(int core_id) const {
+    if (core_id < 0) {
+      return 0;
+    }
+    auto it = core_parallelism.find(core_id);
+    return it == core_parallelism.end() ? 0 : it->second;
+  }
+
   [[nodiscard]] std::vector<size_t> get_enabled_transitions_by_core(
       int core_id) const {
     std::vector<size_t> result;
@@ -424,6 +435,11 @@ class PTPN {
   std::unordered_map<std::string, std::vector<size_t>> node_pn_map;
   std::vector<size_t> cpus_place;
   std::unordered_map<std::string, size_t> locks_place;
+  // Maximum number of transitions that may run simultaneously on a real core
+  // (i.e. the CPU's cores_per_cpu). Used by the scheduler's per-core priority
+  // filter to bound parallelism. An absent entry means "no bound" (the legacy
+  // behaviour of keeping every highest-priority transition).
+  std::unordered_map<int, int> core_parallelism;
   int node_index = 0;
 };
 

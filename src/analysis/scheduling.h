@@ -18,8 +18,12 @@ class Scheduling {
                                              const petri::Marking& marking);
 
   // E_pri(M): within every core group (identified by the transition's `core`
-  // attribute, including the control core -1) keep only the structurally
-  // enabled transitions with the highest priority on that core (ties allowed).
+  // attribute) keep the highest-priority structurally enabled transitions.
+  // If the core declares a parallelism bound K (net.parallelism_of_core),
+  // at most K transitions stay active (highest priority first, ties broken by
+  // transition index) so mutual exclusion / multi-core parallelism is enforced.
+  // Unbounded groups (the control core -1, or nets without a parallelism model)
+  // keep every transition sharing the maximal priority (ties allowed).
   static std::set<size_t> filter_priority_per_core(
       const std::set<size_t>& struct_enabled, const petri::PTPN& net);
 };
