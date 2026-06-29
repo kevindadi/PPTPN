@@ -11,6 +11,10 @@ namespace {
 
 constexpr int kControlTransitionPriority = 0;
 constexpr int kControlTransitionCore = -1;
+// A preempted task must be returned to its ready place before any ordinary
+// control step runs, so its resume transition lives on the control core but
+// carries a strictly higher priority than other control transitions.
+constexpr int kResumeTransitionPriority = kControlTransitionPriority + 1;
 
 // Indices into the per-task place/transition chain stored in node_pn_map.
 struct TaskChainLayout {
@@ -865,7 +869,7 @@ void TDG2PN::fixed_prior_with_resume(
     size_t preempt_trans = ptpn.add_transition(
         preempt_name, immediate_interval, preempt_priority, h_tc.core, false);
     size_t resume_trans = ptpn.add_transition(resume_name, immediate_interval,
-                                              kControlTransitionPriority,
+                                              kResumeTransitionPriority,
                                               kControlTransitionCore, false);
     ptpn.node_index++;
 
@@ -899,7 +903,7 @@ void TDG2PN::fixed_prior_with_resume(
             ptpn.add_transition(lock_preempt_name, immediate_interval,
                                 preempt_priority, h_tc.core, false);
         size_t lock_resume_trans = ptpn.add_transition(
-            lock_resume_name, immediate_interval, kControlTransitionPriority,
+            lock_resume_name, immediate_interval, kResumeTransitionPriority,
             kControlTransitionCore, false);
         ptpn.node_index++;
 

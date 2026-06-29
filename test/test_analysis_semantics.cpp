@@ -246,6 +246,31 @@ TEST(PtpnAnalysisTest, PriorityFilterFiresHighPriorityNotEarliest) {
   EXPECT_EQ(transitions.count(0), 0u);
 }
 
+TEST(PtpnAnalysisTest, ControlTransitionsAreAlsoPriorityFiltered) {
+  // Two control transitions (core -1) of different priority, both enabled.
+  // The control core is now a normal core group, so only the higher-priority
+  // one is active (this is what lets a resume transition win over ordinary
+  // control steps).
+  petri::PTPN ptpn;
+  const size_t low_in = ptpn.add_place("low_in", 1);
+  const size_t high_in = ptpn.add_place("high_in", 1);
+  ptpn.add_place("low_done", 1);
+  ptpn.add_place("high_done", 1);
+  ptpn.set_initial_marking(low_in, 1);
+  ptpn.set_initial_marking(high_in, 1);
+
+  ptpn.add_transition("low_ctrl", petri::TimeInterval(0, 0), 0, -1);
+  ptpn.add_transition("high_ctrl", petri::TimeInterval(0, 0), 1, -1);
+  ptpn.set_pre_arc(low_in, 0, 1);
+  ptpn.set_post_arc(0, 2, 1);
+  ptpn.set_pre_arc(high_in, 1, 1);
+  ptpn.set_post_arc(1, 3, 1);
+
+  StateClassReachabilityGraph graph(ptpn);
+  const StateClass initial = graph.compute_initial_class();
+  EXPECT_EQ(initial.priority_enabled, (std::set<size_t>{1}));
+}
+
 TEST(PtpnAnalysisTest, SuspendedTransitionFreezesExecAndRunsSuspensionClock) {
   const petri::PTPN ptpn = make_same_core_priority_net();
   StateClassReachabilityGraph graph(ptpn);

@@ -17,9 +17,9 @@ class Scheduling {
   static std::set<size_t> structural_enabled(const petri::PTPN& net,
                                              const petri::Marking& marking);
 
-  // E_pri(M): for each core (core >= 0) keep the structurally enabled
-  // transitions with the highest priority on that core (ties allowed). Control
-  // transitions (core < 0) are always kept.
+  // E_pri(M): within every core group (identified by the transition's `core`
+  // attribute, including the control core -1) keep only the structurally
+  // enabled transitions with the highest priority on that core (ties allowed).
   static std::set<size_t> filter_priority_per_core(
       const std::set<size_t>& struct_enabled, const petri::PTPN& net);
 };
