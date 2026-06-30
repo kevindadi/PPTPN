@@ -6,8 +6,8 @@
 
 namespace state_class {
 
-std::set<size_t> Scheduling::structural_enabled(
-    const petri::PTPN& net, const petri::Marking& marking) {
+std::set<size_t> Scheduling::structural_enabled(const petri::PTPN& net,
+                                                const petri::Marking& marking) {
   std::set<size_t> enabled;
   const size_t num_transitions = net.num_transitions();
   for (size_t t = 0; t < num_transitions; ++t) {
@@ -60,8 +60,7 @@ std::set<size_t> Scheduling::filter_priority_per_core(
       }
       return a < b;
     });
-    const size_t keep =
-        std::min(static_cast<size_t>(capacity), group.size());
+    const size_t keep = std::min(static_cast<size_t>(capacity), group.size());
     for (size_t i = 0; i < keep; ++i) {
       active.insert(group[i]);
     }
