@@ -389,7 +389,25 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
         if (up != INF_TIME && (fire_max == INF_TIME || up < fire_max)) {
           fire_max = up;
         }
-        const FiringEdge edge(static_cast<int>(t), fire_min, fire_max);
+
+        // Global dwell in the source class before this firing. h_t advances at
+        // rate 1 during the dwell, so dwell = fire_value - h_t(entry). The entry
+        // range of h_t comes from the pre-elapse zone (same layout, same index).
+        const int hcidx = current.exec_index(t);
+        int dwell_min = fire_min;
+        int dwell_max = fire_max;
+        if (hcidx > 0) {
+          const size_t cidx = static_cast<size_t>(hcidx);
+          const int entry_low = -current.zone.get_constraint(0, cidx);
+          const int entry_high = current.zone.get_constraint(cidx, 0);
+          dwell_min = std::max(0, fire_min - entry_high);
+          dwell_max = (fire_max == INF_TIME || entry_low == INF_TIME)
+                          ? INF_TIME
+                          : std::max(0, fire_max - entry_low);
+        }
+        FiringEdge edge(static_cast<int>(t), fire_min, fire_max);
+        edge.dwell_min = dwell_min;
+        edge.dwell_max = dwell_max;
 
         SCVertex v;
         if (find_match(successor, v)) {
@@ -591,9 +609,13 @@ bool StateClassReachabilityGraph::save_to_dot(
         (edge.firing_max == INF_TIME ? "inf"
                                      : std::to_string(edge.firing_max)) +
         "]";
+    const std::string dwell =
+        "[" + std::to_string(edge.dwell_min) + ", " +
+        (edge.dwell_max == INF_TIME ? "inf" : std::to_string(edge.dwell_max)) +
+        "]";
     const std::string label =
         format_transition_label(static_cast<size_t>(edge.transition_id)) +
-        "\\n@" + window;
+        "\\n@" + window + " dwell=" + dwell;
     out << "  s" << src_state.id << " -> s" << tgt_state.id << " [label=\""
         << escape_dot(label) << "\"];\n";
   }
@@ -671,6 +693,11 @@ bool StateClassReachabilityGraph::save_to_json(
     out << "      \"firing_max\": "
         << (edge.firing_max == INF_TIME ? "null"
                                         : std::to_string(edge.firing_max))
+        << ",\n";
+    out << "      \"dwell_min\": " << edge.dwell_min << ",\n";
+    out << "      \"dwell_max\": "
+        << (edge.dwell_max == INF_TIME ? "null"
+                                       : std::to_string(edge.dwell_max))
         << "\n";
     out << "    }";
   }

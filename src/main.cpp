@@ -20,6 +20,7 @@
 #include <optional>
 #include <variant>
 
+#include "analysis/metrics.h"
 #include "analysis/ptpn_analysis.h"
 #include "json/json.h"
 #include "parser/ptpn_parser.h"
@@ -47,6 +48,7 @@ struct ExportTargets {
   string wcet_json;
   string ptpn_dot;
   string scg_dot;
+  string metrics_json;
   string romeo_file;
   string ppn_file;
   string tina_file;
@@ -72,12 +74,12 @@ struct ExportCommandOptions {
 bool has_any_export(const ExportTargets& exports) {
   return !exports.tdg_dot.empty() || !exports.wcet_json.empty() ||
          !exports.ptpn_dot.empty() || !exports.scg_dot.empty() ||
-         !exports.romeo_file.empty() || !exports.ppn_file.empty() ||
-         !exports.tina_file.empty();
+         !exports.metrics_json.empty() || !exports.romeo_file.empty() ||
+         !exports.ppn_file.empty() || !exports.tina_file.empty();
 }
 
 bool should_run_analysis(const PipelineOptions& opts) {
-  if (!opts.exports.scg_dot.empty()) {
+  if (!opts.exports.scg_dot.empty() || !opts.exports.metrics_json.empty()) {
     return true;
   }
   return !opts.skip_analysis;
@@ -171,6 +173,8 @@ void add_export_target_options(CLI::App* cmd, ExportTargets& exports) {
                   "Write PTPN structure Graphviz DOT to PATH");
   cmd->add_option("--export-scg", exports.scg_dot,
                   "Write state-class reachability graph DOT to PATH");
+  cmd->add_option("--export-metrics", exports.metrics_json,
+                  "Write performance metrics JSON to PATH");
   cmd->add_option("--romeo", exports.romeo_file, "Export Romeo CTS to PATH");
   cmd->add_option("--ppn", exports.ppn_file, "Export PToPNer .ppn to PATH");
   cmd->add_option("--tina", exports.tina_file,
@@ -331,6 +335,33 @@ int run_ptpn_postprocess(
                      opts.exports.scg_dot);
       } else {
         spdlog::warn("[OUTPUT] Failed to export state class graph");
+        return 1;
+      }
+    }
+
+    if (!opts.exports.metrics_json.empty()) {
+      const bool exact =
+          canonicalization == state_class::CanonicalizationMode::EQUALITY;
+      if (!exact) {
+        spdlog::warn(
+            "[METRICS] Canonicalization '{}' merges state classes; metrics are "
+            "approximate. Use --canonicalization equality for sound bounds",
+            opts.canonicalization_mode);
+      }
+      state_class::MetricsAnalyzer analyzer(reachability_graph.get_graph(), ptpn,
+                                            reachability_graph.get_initial_vertex(),
+                                            exact);
+      const state_class::MetricsReport report = analyzer.analyze();
+      if (state_class::MetricsAnalyzer::save_to_json(report,
+                                                     opts.exports.metrics_json)) {
+        spdlog::info("[OUTPUT] Metrics exported to: {}",
+                     opts.exports.metrics_json);
+        spdlog::info("[METRICS] schedulable={}, bounded={}, deadlocks={}",
+                     report.schedulable ? "true" : "false",
+                     report.bounded ? "true" : "false",
+                     report.deadlock_states.size());
+      } else {
+        spdlog::warn("[OUTPUT] Failed to export metrics");
         return 1;
       }
     }
