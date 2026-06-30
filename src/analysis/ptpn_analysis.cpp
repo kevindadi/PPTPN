@@ -378,12 +378,18 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
           continue;
         }
 
-        const int h_lower = -elapsed.zone.get_constraint(
-            0, static_cast<size_t>(elapsed.exec_index(t)));
-        const int firing_instant =
-            std::max({0, effective_earliest(t), h_lower});
-        const FiringEdge edge(static_cast<int>(t),
-                              static_cast<double>(firing_instant));
+        // The real firing window of h_t: intersect its feasible range in the
+        // time-elapsed zone with the static interval [downSI, upSI].
+        const size_t hidx = static_cast<size_t>(elapsed.exec_index(t));
+        const int h_low = -elapsed.zone.get_constraint(0, hidx);
+        const int h_high = elapsed.zone.get_constraint(hidx, 0);
+        const int up = effective_latest(t);
+        const int fire_min = std::max({0, effective_earliest(t), h_low});
+        int fire_max = h_high;
+        if (up != INF_TIME && (fire_max == INF_TIME || up < fire_max)) {
+          fire_max = up;
+        }
+        const FiringEdge edge(static_cast<int>(t), fire_min, fire_max);
 
         SCVertex v;
         if (find_match(successor, v)) {
@@ -427,19 +433,26 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
 
 std::string StateClassReachabilityGraph::format_marking(
     const petri::PTPN& net, const std::vector<int>& marking) {
+  // Only list the marked places, referenced by name, so the dump stays
+  // readable on large nets.
   std::string out = "[";
   bool first = true;
   for (size_t i = 0; i < marking.size(); ++i) {
+    if (marking[i] <= 0) {
+      continue;
+    }
     if (!first) {
       out += ", ";
     }
     first = false;
-    if (i < net.num_places()) {
-      out += "P" + std::to_string(i) + "(" + net.get_place(i).name +
-             ")=" + std::to_string(marking[i]);
-    } else {
-      out += "P" + std::to_string(i) + "=" + std::to_string(marking[i]);
+    out += i < net.num_places() ? net.get_place(i).name
+                                : ("P" + std::to_string(i));
+    if (marking[i] != 1) {
+      out += "(" + std::to_string(marking[i]) + ")";
     }
+  }
+  if (first) {
+    out += "empty";
   }
   out += "]";
   return out;
@@ -573,9 +586,14 @@ bool StateClassReachabilityGraph::save_to_dot(
     const FiringEdge& edge = boost::get(boost::edge_name, graph_, *ei);
     const StateClass& src_state = boost::get(boost::vertex_name, graph_, src);
     const StateClass& tgt_state = boost::get(boost::vertex_name, graph_, tgt);
+    const std::string window =
+        "[" + std::to_string(edge.firing_min) + ", " +
+        (edge.firing_max == INF_TIME ? "inf"
+                                     : std::to_string(edge.firing_max)) +
+        "]";
     const std::string label =
         format_transition_label(static_cast<size_t>(edge.transition_id)) +
-        "\\n@" + std::to_string(edge.firing_time);
+        "\\n@" + window;
     out << "  s" << src_state.id << " -> s" << tgt_state.id << " [label=\""
         << escape_dot(label) << "\"];\n";
   }
@@ -649,8 +667,11 @@ bool StateClassReachabilityGraph::save_to_json(
         << escape_json(
                format_transition_label(static_cast<size_t>(edge.transition_id)))
         << "\",\n";
-    out << "      \"firing_time\": " << std::fixed << std::setprecision(2)
-        << edge.firing_time << "\n";
+    out << "      \"firing_min\": " << edge.firing_min << ",\n";
+    out << "      \"firing_max\": "
+        << (edge.firing_max == INF_TIME ? "null"
+                                        : std::to_string(edge.firing_max))
+        << "\n";
     out << "    }";
   }
 

@@ -17,10 +17,9 @@ namespace state_class {
 
 // Boost graph where each vertex carries a symbolic state class and each edge
 // records which transition fired.
-typedef boost::adjacency_list<
-    boost::vecS, boost::vecS, boost::directedS,
-    boost::property<boost::vertex_name_t, StateClass>,
-    boost::property<boost::edge_name_t, FiringEdge> >
+typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS,
+                              boost::property<boost::vertex_name_t, StateClass>,
+                              boost::property<boost::edge_name_t, FiringEdge> >
     SCGraph;
 
 typedef boost::graph_traits<SCGraph>::vertex_descriptor SCVertex;
@@ -99,8 +98,8 @@ class StateClassReachabilityGraph {
   void build_layout(StateClass& state) const;
   // Builds a successor zone by carrying surviving clocks over from `fired`.
   void build_successor_zone(StateClass& successor, const DBM& fired,
-                            const StateClass& source, size_t fired_transition)
-      const;
+                            const StateClass& source,
+                            size_t fired_transition) const;
 
   // Returns the vertex matching `state` under the current mode, or npos.
   [[nodiscard]] bool find_match(const StateClass& state, SCVertex& match) const;

@@ -50,8 +50,8 @@ class DBM {
   void prune();
   [[nodiscard]] bool contains(const DBM& other) const;
 
-  // Returns true when this zone is a subset of `other`, i.e. every constraint of
-  // this DBM is at least as tight as the matching constraint in `other`
+  // Returns true when this zone is a subset of `other`, i.e. every constraint
+  // of this DBM is at least as tight as the matching constraint in `other`
   // (this[i,j] <= other[i,j] for all i,j, with +inf treated as the loosest
   // bound). Both DBMs must already be canonical (minimized) for this to be a
   // sound geometric inclusion test.

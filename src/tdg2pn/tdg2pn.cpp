@@ -33,6 +33,16 @@ struct TaskChainLayout {
 
 int encode_task_execution_priority(int task_priority) { return task_priority; }
 
+// The resume policy (and the legacy "fixed" alias) no longer relies on the
+// structural CPU-resource place or the preempt/suspended/resume sub-net.
+// Preemption is expressed natively by the analysis engine (per-core priority
+// filtering + execution-clock freeze), so its execution segments are marked
+// suspendable. The restart policy keeps the structural encoding untouched.
+bool is_resume_policy(SchedulePolicy policy) {
+  return policy == SchedulePolicy::FIXED ||
+         policy == SchedulePolicy::FIXED_PRIOR_WITH_RESUME;
+}
+
 petri::TimeInterval immediate_interval() { return petri::TimeInterval(0, 0); }
 
 size_t add_control_transition(
@@ -168,6 +178,7 @@ void TDG2PN::transform(const tdg::TDG& tdg, petri::PTPN& ptpn) {
     ptpn.node_start_end_map.clear();
     ptpn.node_pn_map.clear();
     ptpn.cpus_place.clear();
+    ptpn.core_parallelism.clear();
     ptpn.locks_place.clear();
     ptpn.node_index = 0;
 
@@ -192,9 +203,9 @@ void TDG2PN::transform(const tdg::TDG& tdg, petri::PTPN& ptpn) {
     if (tdg.policy == SchedulePolicy::FIXED ||
         tdg.policy == SchedulePolicy::FIXED_PRIOR_WITH_RESUME) {
       spdlog::info(
-          "[TDG2PN] Creating fixed-priority resume preemption relations");
-      const auto core_task = classify_tdg_priority(tdg);
-      fixed_prior_with_resume(ptpn, core_task, tasks_config, tdg.nodes_type);
+          "[TDG2PN] Resume preemption is expressed by the analysis engine "
+          "(per-core priority filter + execution-clock freeze); no structural "
+          "preempt/resume sub-net is generated");
     } else if (tdg.policy == SchedulePolicy::FIXED_PRIOR_WITH_RESTART) {
       spdlog::info(
           "[TDG2PN] Creating fixed-priority restart preemption relations");
@@ -267,13 +278,15 @@ std::unordered_map<std::string, int> TDG2PN::build_preempt_priorities(
 }
 
 void TDG2PN::transform_vertices(petri::PTPN& ptpn, const tdg::TDG& tdg) {
+  const bool resume_mode = is_resume_policy(tdg.policy);
   for (const auto& node_entry : tdg.nodes_type) {
     const std::string& vertex_name = node_entry.first;
     const NodeType& node_type = node_entry.second;
     spdlog::debug("[TDG2PN] Processing vertex: {}", vertex_name);
 
     try {
-      const auto [start_idx, end_idx] = add_node_matrix(ptpn, node_type);
+      const auto [start_idx, end_idx] =
+          add_node_matrix(ptpn, node_type, resume_mode);
       ptpn.node_start_end_map[vertex_name] = {start_idx, end_idx};
 
       const bool is_leaf = !std::any_of(
@@ -418,9 +431,24 @@ void TDG2PN::handle_normal_edge_matrix(petri::PTPN& ptpn, const tdg::TDG& tdg,
 
 void TDG2PN::add_resources_and_bindings_matrix(petri::PTPN& ptpn,
                                                const tdg::TDG& tdg) {
-  add_cpu_resource_matrix(ptpn, tdg.num_cpus, tdg.cores_per_cpu);
+  // The resume policy expresses per-core mutual exclusion and preemption purely
+  // through the analysis engine's per-core priority filter, so it omits the
+  // structural CPU-resource place. Instead it records each CPU's parallelism
+  // (cores_per_cpu) so the filter keeps at most that many tasks active per CPU.
+  // Other policies (restart / PToPNer export) keep the place-based encoding.
+  if (!is_resume_policy(tdg.policy)) {
+    add_cpu_resource_matrix(ptpn, tdg.num_cpus, tdg.cores_per_cpu);
+  } else {
+    // One task per core, matching the physical model (cores_per_cpu parallelism
+    // is intentionally not used here).
+    for (int cpu = 0; cpu < tdg.num_cpus; ++cpu) {
+      ptpn.core_parallelism[cpu] = 1;
+    }
+  }
   add_lock_resource_matrix(ptpn, tdg.lock_set);
-  task_bind_cpu_resource_matrix(ptpn, tdg.all_task);
+  if (!is_resume_policy(tdg.policy)) {
+    task_bind_cpu_resource_matrix(ptpn, tdg.all_task);
+  }
   task_bind_lock_resource_matrix(ptpn, tdg.all_task, tdg.task_locks_map);
 }
 
@@ -549,13 +577,14 @@ void TDG2PN::bind_task_locks_matrix(
 }
 
 std::pair<size_t, size_t> TDG2PN::add_node_matrix(petri::PTPN& ptpn,
-                                                  const NodeType& node_type) {
+                                                  const NodeType& node_type,
+                                                  bool resume_mode) {
   return visit_node(
       node_type, [&](const auto& node) -> std::pair<size_t, size_t> {
         using Node = std::decay_t<decltype(node)>;
 
         if constexpr (std::is_same_v<Node, TaskNode>) {
-          return add_task_node_matrix(ptpn, node);
+          return add_task_node_matrix(ptpn, node, resume_mode);
         }
 
         if constexpr (std::is_same_v<Node, JoinTask>) {
@@ -579,7 +608,8 @@ std::pair<size_t, size_t> TDG2PN::add_node_matrix(petri::PTPN& ptpn,
 std::vector<size_t> TDG2PN::add_execution_chain(
     petri::PTPN& ptpn, const std::string& task_name,
     const std::vector<std::pair<int, int>>& times,
-    const std::vector<std::string>& locks, int priority, int core) {
+    const std::vector<std::string>& locks, int priority, int core,
+    bool resume_mode) {
   if (times.empty()) {
     throw std::runtime_error("Task has no execution segments: " + task_name);
   }
@@ -607,9 +637,16 @@ std::vector<size_t> TDG2PN::add_execution_chain(
         times.size() == 1
             ? task_name + "exec"
             : task_name + "_exec_" + std::to_string(segment_index + 1);
-    const size_t exec = ptpn.add_transition(
-        exec_name, petri::TimeInterval(start, end), encoded_priority, core,
-        /*suspendable=*/false);
+    // In resume mode the engine models preemption by freezing the execution
+    // clock, so execution segments are suspendable. Spin-lock critical sections
+    // must keep the CPU, so those segments stay non-suspendable.
+    const bool segment_holds_spin_lock =
+        segment_index < locks.size() &&
+        locks[segment_index].find("spin") != std::string::npos;
+    const bool exec_suspendable = resume_mode && !segment_holds_spin_lock;
+    const size_t exec =
+        ptpn.add_transition(exec_name, petri::TimeInterval(start, end),
+                            encoded_priority, core, exec_suspendable);
 
     const bool is_last_segment = segment_index + 1 == times.size();
     const std::string next_place_name =
@@ -643,9 +680,11 @@ std::vector<size_t> TDG2PN::add_execution_chain(
 }
 
 std::pair<size_t, size_t> TDG2PN::add_task_node_matrix(petri::PTPN& ptpn,
-                                                       const TaskNode& task) {
-  std::vector<size_t> chain = add_execution_chain(
-      ptpn, task.name, task.time, task.lock, task.priority, task.core);
+                                                       const TaskNode& task,
+                                                       bool resume_mode) {
+  std::vector<size_t> chain =
+      add_execution_chain(ptpn, task.name, task.time, task.lock, task.priority,
+                          task.core, resume_mode);
   ptpn.node_pn_map[task.name] = chain;
   return {chain.front(), chain.back()};
 }
@@ -820,201 +859,6 @@ void TDG2PN::fixed_prior_with_restart(
   }
 
   spdlog::info("[TDG2PN] Fixed-priority restart preemption tasks added");
-}
-
-void TDG2PN::fixed_prior_with_resume(
-    petri::PTPN& ptpn,
-    const std::unordered_map<int, std::vector<std::string>>& core_task,
-    const std::unordered_map<std::string, TaskConfig>& tc,
-    const std::unordered_map<std::string, NodeType>& nodes_type) {
-  spdlog::info("[TDG2PN] Starting fixed-priority resume preemption addition");
-
-  auto handle_task_preemption = [&](const std::string& l_t_name,
-                                    const std::string& h_t_name,
-                                    const TaskConfig& l_tc,
-                                    const TaskConfig& h_tc,
-                                    const std::vector<size_t>& l_t_pn,
-                                    const std::vector<size_t>& h_t_pn,
-                                    int preempt_priority, bool is_interrupt) {
-    if (l_t_pn.size() < 5 || h_t_pn.size() < 5) {
-      spdlog::warn(
-          "[TDG2PN] Task chain too short, skipping resume preemption: {} <- {}",
-          l_t_name, h_t_name);
-      return;
-    }
-
-    size_t l_exec = l_t_pn[3];
-    if (l_exec < ptpn.transitions.size()) {
-      ptpn.transitions[l_exec].suspendable = true;
-    }
-
-    const size_t l_preempt_place = l_t_pn[2];
-    const size_t h_entry = h_t_pn[0];
-    const size_t h_ready = h_t_pn[2];
-    const size_t h_exit = h_t_pn[4];
-
-    std::string suspended_name = l_t_name + "_suspended_" + h_t_name + "_" +
-                                 std::to_string(ptpn.node_index);
-    std::string preempt_name = h_t_name + "_resume_preempt_" + l_t_name + "_" +
-                               std::to_string(ptpn.node_index);
-    std::string resume_name = l_t_name + "_resume_" + h_t_name + "_" +
-                              std::to_string(ptpn.node_index);
-
-    size_t suspended_place = ptpn.add_place(suspended_name, 1);
-    petri::TimeInterval immediate_interval(0, 0);
-    size_t preempt_trans = ptpn.add_transition(
-        preempt_name, immediate_interval, preempt_priority, h_tc.core, false);
-    size_t resume_trans = ptpn.add_transition(resume_name, immediate_interval,
-                                              kControlTransitionPriority,
-                                              kControlTransitionCore, false);
-    ptpn.node_index++;
-
-    ptpn.set_pre_arc(h_entry, preempt_trans, 1);
-    ptpn.set_pre_arc(l_preempt_place, preempt_trans, 1);
-    ptpn.set_post_arc(preempt_trans, h_ready, 1);
-    ptpn.set_post_arc(preempt_trans, suspended_place, 1);
-
-    ptpn.set_pre_arc(suspended_place, resume_trans, 1);
-    ptpn.set_pre_arc(h_exit, resume_trans, 1);
-    ptpn.set_post_arc(resume_trans, h_exit, 1);
-    ptpn.set_post_arc(resume_trans, l_preempt_place, 1);
-  };
-
-  auto handle_lock_preempt =
-      [&](const std::string& l_t_name, const std::string& h_t_name,
-          const TaskConfig& h_tc, const std::vector<size_t>& l_t_pn,
-          size_t l_preempt_place, int preempt_priority, size_t h_entry,
-          size_t h_ready, size_t h_exit) {
-        std::string lock_suspended_name = l_t_name + "_lock_suspended_" +
-                                          h_t_name + "_" +
-                                          std::to_string(ptpn.node_index);
-        std::string lock_preempt_name = h_t_name + "_resume_lock_preempt_" +
-                                        l_t_name + "_" +
-                                        std::to_string(ptpn.node_index);
-        std::string lock_resume_name = l_t_name + "_lock_resume_" + h_t_name +
-                                       "_" + std::to_string(ptpn.node_index);
-        size_t lock_suspended_place = ptpn.add_place(lock_suspended_name, 1);
-        petri::TimeInterval immediate_interval(0, 0);
-        size_t lock_preempt_trans =
-            ptpn.add_transition(lock_preempt_name, immediate_interval,
-                                preempt_priority, h_tc.core, false);
-        size_t lock_resume_trans = ptpn.add_transition(
-            lock_resume_name, immediate_interval, kControlTransitionPriority,
-            kControlTransitionCore, false);
-        ptpn.node_index++;
-
-        ptpn.set_pre_arc(h_entry, lock_preempt_trans, 1);
-        ptpn.set_pre_arc(l_preempt_place, lock_preempt_trans, 1);
-        ptpn.set_post_arc(lock_preempt_trans, h_ready, 1);
-        ptpn.set_post_arc(lock_preempt_trans, lock_suspended_place, 1);
-
-        ptpn.set_pre_arc(lock_suspended_place, lock_resume_trans, 1);
-        ptpn.set_pre_arc(h_exit, lock_resume_trans, 1);
-        ptpn.set_post_arc(lock_resume_trans, h_exit, 1);
-        ptpn.set_post_arc(lock_resume_trans, l_preempt_place, 1);
-      };
-
-  for (const auto& [core_id, tasks] : core_task) {
-    spdlog::debug("[TDG2PN] Processing resume preemption for core {}", core_id);
-
-    for (size_t i = 0; i < tasks.size(); ++i) {
-      const std::string& h_t_name = tasks[i];
-      const auto h_t_it = tc.find(h_t_name);
-      if (h_t_it == tc.end()) {
-        continue;
-      }
-      const TaskConfig& h_tc = h_t_it->second;
-      const auto preempt_priorities =
-          build_preempt_priorities(tasks, tc, h_tc.priority);
-
-      for (size_t j = i + 1; j < tasks.size(); ++j) {
-        const std::string& l_t_name = tasks[j];
-
-        auto l_t_it = tc.find(l_t_name);
-        if (l_t_it == tc.end()) {
-          continue;
-        }
-        const auto preempt_priority_it = preempt_priorities.find(l_t_name);
-        if (preempt_priority_it == preempt_priorities.end()) {
-          continue;
-        }
-
-        const TaskConfig& l_tc = l_t_it->second;
-        if (l_tc.priority == h_tc.priority) {
-          continue;
-        }
-
-        auto l_t_pns_it = ptpn.node_pn_map.find(l_t_name);
-        auto h_t_pns_it = ptpn.node_pn_map.find(h_t_name);
-        if (l_t_pns_it == ptpn.node_pn_map.end() ||
-            h_t_pns_it == ptpn.node_pn_map.end()) {
-          spdlog::warn("[TDG2PN] Cannot find task chain: {} or {}", l_t_name,
-                       h_t_name);
-          continue;
-        }
-
-        const std::vector<size_t>& h_t_pn = h_t_pns_it->second;
-        const std::vector<size_t>& l_t_pn = l_t_pns_it->second;
-
-        if (l_t_pn.size() < 5 || h_t_pn.size() < 5) {
-          continue;
-        }
-
-        bool is_interrupt = false;
-        auto node_type_it = nodes_type.find(h_t_name);
-        if (node_type_it != nodes_type.end() &&
-            std::holds_alternative<TaskNode>(node_type_it->second)) {
-          const auto& task = std::get<TaskNode>(node_type_it->second);
-          is_interrupt = (task.task_type == TaskType::INTERRUPT);
-        }
-
-        // Base preemption path from the ready place.
-        handle_task_preemption(l_t_name, h_t_name, l_tc, h_tc, l_t_pn, h_t_pn,
-                               preempt_priority_it->second, is_interrupt);
-
-        // Additional preemption points along the lock-holding segments.
-        if (!l_tc.locks.empty()) {
-          const size_t num_locks = l_tc.locks.size();
-
-          // Spin locks block preemption while held.
-          const bool all_spin =
-              std::all_of(l_tc.locks.begin(), l_tc.locks.end(),
-                          [](const std::string& lock) {
-                            return lock.find("spin") != std::string::npos;
-                          });
-          if (!all_spin) {
-            // Exec transitions during spin-lock critical sections cannot
-            // suspend.
-            std::set<size_t> non_suspendable_exec_indices;
-            for (size_t lock_index = 0; lock_index < num_locks; ++lock_index) {
-              if (l_tc.locks[lock_index].find("spin") != std::string::npos) {
-                non_suspendable_exec_indices.insert(5 + 4 * lock_index + 2);
-              }
-            }
-
-            const size_t h_entry = h_t_pn[TaskChainLayout::kEntry];
-            const size_t h_ready = h_t_pn[TaskChainLayout::kReady];
-            const size_t h_exit = h_t_pn.back();
-
-            // Walk every preemptible place starting at the first segment
-            // boundary.
-            for (size_t chain_idx = TaskChainLayout::kFirstSegDone;
-                 chain_idx + 1 < l_t_pn.size(); chain_idx += 2) {
-              if (non_suspendable_exec_indices.count(chain_idx + 1) > 0) {
-                continue;
-              }
-
-              handle_lock_preempt(
-                  l_t_name, h_t_name, h_tc, l_t_pn, l_t_pn[chain_idx],
-                  preempt_priority_it->second, h_entry, h_ready, h_exit);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  spdlog::info("[TDG2PN] Fixed-priority resume preemption tasks added");
 }
 
 }  // namespace converter

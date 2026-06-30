@@ -3,6 +3,8 @@
 #include <functional>
 #include <sstream>
 
+#include "analysis/clock_state.h"
+
 namespace state_class {
 
 namespace {
@@ -13,7 +15,8 @@ void hash_combine(size_t& seed, size_t value) {
 
 std::string FiringEdge::to_string() const {
   std::ostringstream oss;
-  oss << "T" << transition_id << "@" << firing_time;
+  oss << "T" << transition_id << "@[" << firing_min << ", "
+      << (firing_max == INF_TIME ? "inf" : std::to_string(firing_max)) << "]";
   return oss.str();
 }
 

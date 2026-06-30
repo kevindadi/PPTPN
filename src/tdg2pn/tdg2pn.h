@@ -29,13 +29,16 @@ class TDG2PN {
   static void transform_vertices(petri::PTPN& ptpn, const tdg::TDG& tdg);
   static void transform_edges(petri::PTPN& ptpn, const tdg::TDG& tdg);
   static std::pair<size_t, size_t> add_node_matrix(petri::PTPN& ptpn,
-                                                   const NodeType& node_type);
+                                                   const NodeType& node_type,
+                                                   bool resume_mode);
   static std::pair<size_t, size_t> add_task_node_matrix(petri::PTPN& ptpn,
-                                                        const TaskNode& task);
+                                                        const TaskNode& task,
+                                                        bool resume_mode);
   static std::vector<size_t> add_execution_chain(
       petri::PTPN& ptpn, const std::string& task_name,
       const std::vector<std::pair<int, int>>& times,
-      const std::vector<std::string>& locks, int priority, int core);
+      const std::vector<std::string>& locks, int priority, int core,
+      bool resume_mode);
   static void add_monitor_matrix(petri::PTPN& ptpn,
                                  const std::string& task_name,
                                  int task_period_time, size_t start,
@@ -52,11 +55,6 @@ class TDG2PN {
   static bool has_self_loop_release(const tdg::TDG& tdg,
                                     const std::string& task_name);
   static void fixed_prior_with_restart(
-      petri::PTPN& ptpn,
-      const std::unordered_map<int, std::vector<std::string>>& core_task,
-      const std::unordered_map<std::string, TaskConfig>& tc,
-      const std::unordered_map<std::string, NodeType>& nodes_type);
-  static void fixed_prior_with_resume(
       petri::PTPN& ptpn,
       const std::unordered_map<int, std::vector<std::string>>& core_task,
       const std::unordered_map<std::string, TaskConfig>& tc,
