@@ -175,7 +175,7 @@ void validate_warnings(const tdg::TDG& tdg, PtopnerValidationResult& result) {
   for (const auto& edge : tdg.tdg_edges) {
     if (edge.is_dashed()) {
       result.warnings.push_back("虚线边 " + edge.source + " -> " + edge.target +
-                                " 将被忽略（与 tdg2pn 一致）");
+                                " 将被忽略(与 tdg2pn 一致)");
     }
   }
 
