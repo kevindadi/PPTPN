@@ -13,6 +13,7 @@ add_executable(ptpn_test
   test_json_parser.cpp
   test_ptpn_parser.cpp
   test_analysis_semantics.cpp
+  test_metrics.cpp
 )
 
 target_link_libraries(ptpn_test

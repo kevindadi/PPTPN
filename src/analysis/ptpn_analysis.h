@@ -111,6 +111,14 @@ class StateClassReachabilityGraph {
   std::string format_transitions(const std::set<size_t>& transitions) const;
   std::string format_named_dbm(const StateClass& state) const;
   std::string format_state_dump(const StateClass& state) const;
+  // Human-readable local clock zone as a conjunction of DBM constraints (per
+  // clock bounds plus non-trivial differences). No global timestamp: a state
+  // class is a symbolic set, so only the symbolic clock domain is shown.
+  std::vector<std::string> format_zone_constraints(const StateClass& state,
+                                                   bool html) const;
+  // Graphviz HTML-like node label: black identity (state id / marking / enabled
+  // sets) and the local clock zone with h-clocks and w-clocks colour-coded.
+  std::string format_state_label_html(const StateClass& state) const;
 };
 
 }  // namespace state_class

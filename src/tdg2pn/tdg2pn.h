@@ -61,6 +61,7 @@ class TDG2PN {
       const std::unordered_map<std::string, NodeType>& nodes_type);
   static void add_resources_and_bindings_matrix(petri::PTPN& ptpn,
                                                 const tdg::TDG& tdg);
+  static void populate_task_info(petri::PTPN& ptpn, const tdg::TDG& tdg);
   static void add_cpu_resource_matrix(petri::PTPN& ptpn, int cpus,
                                       int cores_per_cpu);
   static void add_lock_resource_matrix(petri::PTPN& ptpn,

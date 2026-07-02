@@ -2,7 +2,7 @@
 
 ## Core claim
 
-This repository’s state class is explicit and scheduler-facing: a state is not just a marking plus an anonymous zone. It carries the marking, the DBM-backed time representation, the transition↔clock mapping, and the three scheduler sets `E` / `X` / `R` as first-class fields. Time advances only for `active` transitions; `suspended` transitions keep their clocks frozen.
+This repository's state class is explicit and scheduler-facing: a state is not just a marking plus an anonymous zone. It carries the marking, the DBM-backed time representation, the transition↔clock mapping, and the three scheduler sets `E` / `X` / `R` as first-class fields. Time advances only for `active` transitions; `suspended` transitions keep their clocks frozen.
 
 ## State-class structure
 
@@ -52,6 +52,7 @@ struct TransitionClock {
 ```
 
 `ClockState` (`src/analysis/clock_state.h:10`) has exactly three cases:
+
 - `UNACTIVE` — transition not currently ticking
 - `ACTIVE` — clock advances with time
 - `SUSPENDED` — clock is frozen
@@ -63,6 +64,7 @@ The DBM implementation in `src/analysis/dbm.h` exposes the operations this seman
 `src/analysis/graph.h:80` documents `StateClassReachabilityGraph::advance_time` as the time-elapse step.
 
 Its contract is:
+
 1. Find the minimum upper bound among `active` transitions.
 2. Advance all `active` clocks by that amount.
 3. Keep `suspended` clocks frozen.
@@ -81,12 +83,14 @@ std::tuple<bool, StateClass, double> fire_with_time(
 ```
 
 Its role is:
+
 1. Check whether transition `t` is time-feasible in the current state.
 2. Compute the firing time.
 3. Produce the successor marking and timed state.
 4. Recompute `enabled`, `active`, and `suspended` for the new marking.
 
 So the split is:
+
 - `advance_time()` handles pure time elapse.
 - `fire_with_time()` handles one symbolic firing step.
 - `recompute_enabled_sets()` rebuilds the scheduler-facing sets after the marking changes.
@@ -115,7 +119,7 @@ That is why state identity in `StateKey` (`src/analysis/state.h:107`) includes `
 
 - Roméo centers timed semantics on symbolic zone transformation and timed firability checks.
 - This repository also uses a symbolic timed domain, but it exposes scheduler consequences as explicit state fields.
-- Practical effect: here you can directly ask “which transitions are enabled, active, or suspended in this state?” without reconstructing that from implicit priority constraints.
+- Practical effect: here you can directly ask "which transitions are enabled, active, or suspended in this state?" without reconstructing that from implicit priority constraints.
 
 ## Further reading
 

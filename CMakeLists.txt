@@ -119,6 +119,7 @@ add_library(PTPN_core STATIC
     src/analysis/ptpn_analysis.cpp
     src/analysis/canonicalization.cpp
     src/analysis/scheduling.cpp
+    src/analysis/metrics.cpp
     src/parser/ptpn_parser.cpp
 )
 target_include_directories(PTPN_core PUBLIC src)

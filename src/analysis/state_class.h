@@ -38,18 +38,32 @@ struct ClockVar {
 // firing window of its execution clock h_t at the moment it fires. The window
 // [firing_min, firing_max] is the real (symbolic) timing; firing_max may be
 // +infinity (INF_TIME).
+//
+// [dwell_min, dwell_max] is the global time the net may spend in the SOURCE
+// state class before this firing (the amount every active clock advances). It is
+// the per-edge time weight all timing metrics build on; dwell_max may be
+// +infinity (INF_TIME).
 struct FiringEdge {
   int transition_id = -1;
   int firing_min = 0;
   int firing_max = 0;
+  int dwell_min = 0;
+  int dwell_max = 0;
 
   FiringEdge() = default;
   FiringEdge(int id, int window_min, int window_max)
       : transition_id(id), firing_min(window_min), firing_max(window_max) {}
+  FiringEdge(int id, int window_min, int window_max, int stay_min, int stay_max)
+      : transition_id(id),
+        firing_min(window_min),
+        firing_max(window_max),
+        dwell_min(stay_min),
+        dwell_max(stay_max) {}
 
   bool operator==(const FiringEdge& other) const {
     return transition_id == other.transition_id &&
-           firing_min == other.firing_min && firing_max == other.firing_max;
+           firing_min == other.firing_min && firing_max == other.firing_max &&
+           dwell_min == other.dwell_min && dwell_max == other.dwell_max;
   }
 
   [[nodiscard]] std::string to_string() const;

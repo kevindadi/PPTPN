@@ -103,6 +103,20 @@ struct Transition {
 
 using Marking = std::vector<int>;
 
+// Per-task scheduling metadata, attached to the lowered net so the metrics layer
+// can reason about deadlines/periods/utilisation without re-reading the TDG. It
+// is populated by the TDG->PTPN lowering; a direct `.ptpn` model leaves it empty
+// and task-level metrics degrade gracefully.
+struct TaskInfo {
+  int core = -1;
+  int priority = 0;
+  int wcet = 0;      // sum of execution-segment upper bounds
+  int bcet = 0;      // sum of execution-segment lower bounds
+  int period = 0;    // 0 means "not periodic"
+  int deadline = 0;  // 0 means "none"; defaults to period when implicit
+  std::vector<std::string> locks;
+};
+
 class PTPN {
  public:
   PTPN() = default;
@@ -440,6 +454,9 @@ class PTPN {
   // filter to bound parallelism. An absent entry means "no bound" (the legacy
   // behaviour of keeping every highest-priority transition).
   std::unordered_map<int, int> core_parallelism;
+  // Per-task scheduling metadata keyed by TDG node name (see TaskInfo). Empty for
+  // direct .ptpn input.
+  std::unordered_map<std::string, TaskInfo> task_info;
   int node_index = 0;
 };
 
