@@ -63,12 +63,12 @@ transitions (name contains `exec`), and the deadline-monitor place
 
 ### Tier 0 — structural / correctness
 
-| Metric | Definition | Algorithm |
-| --- | --- | --- |
-| Boundedness / max queue | `max_tokens_per_place[p] = max_v M_v[p]`; compared against capacity | one pass over vertices, `O(V·P)` |
-| Max in-flight (per task) | max simultaneous tokens across the task's chain places | one pass, `O(V·P)` |
-| Deadlock / illegitimate sink | a vertex with no successor while a task chain place still holds a token or a `<task>timeout` token is set | one pass over sinks |
-| Deadline miss / schedulability | reachability of any `<task>timeout` token | BFS from initial; the path to the first miss is reported as `deadline_miss_witness` |
+| Metric                         | Definition                                                                                                | Algorithm                                                                           |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Boundedness / max queue        | `max_tokens_per_place[p] = max_v M_v[p]`; compared against capacity                                       | one pass over vertices, `O(V·P)`                                                    |
+| Max in-flight (per task)       | max simultaneous tokens across the task's chain places                                                    | one pass, `O(V·P)`                                                                  |
+| Deadlock / illegitimate sink   | a vertex with no successor while a task chain place still holds a token or a `<task>timeout` token is set | one pass over sinks                                                                 |
+| Deadline miss / schedulability | reachability of any `<task>timeout` token                                                                 | BFS from initial; the path to the first miss is reported as `deadline_miss_witness` |
 
 `schedulable = (no timeout reachable) AND (no illegitimate deadlock)`.
 
@@ -87,7 +87,7 @@ the completion edge:
   while still in flight under `EQUALITY`), so WCRT is reported as `inf`
   (unbounded / starvation).
 - **BCRT**: shortest path with weight `dwell_min`, then lifted to `max(path,
-  bcet)` because the independent per-edge `dwell_min` sum ignores cross-state DBM
+bcet)` because the independent per-edge `dwell_min` sum ignores cross-state DBM
   correlation and would otherwise underestimate; `bcet` is an independent sound
   lower bound, and the true BCRT is `≥` both.
 - **Jitter**: `WCRT − BCRT`.

@@ -272,8 +272,7 @@ void MetricsAnalyzer::compute_structural(MetricsReport& report) {
         work_remaining = true;
         break;
       }
-      if (task.has_timeout &&
-          state_of_[v]->marking[task.timeout_place] > 0) {
+      if (task.has_timeout && state_of_[v]->marking[task.timeout_place] > 0) {
         work_remaining = true;
         break;
       }
@@ -360,9 +359,8 @@ void MetricsAnalyzer::compute_task_timing(MetricsReport& report) {
       for (const Edge& e : out_edges_[v]) {
         const int w = weight(v, e);
         const bool completes =
-            task.has_end &&
-            state_of_[e.target]->marking[task.end_place] >
-                state_of_[v]->marking[task.end_place];
+            task.has_end && state_of_[e.target]->marking[task.end_place] >
+                                state_of_[v]->marking[task.end_place];
         if (completes) {
           DPResult cand;
           cand.reachable = true;
@@ -537,12 +535,13 @@ void MetricsAnalyzer::compute_locks(MetricsReport& report) {
         lm.worst_hold.infinite = true;
         hold_inf = true;
       } else {
-        lm.worst_hold.value = std::max(lm.worst_hold.value,
-                                       static_cast<long long>(state_dwell));
+        lm.worst_hold.value =
+            std::max(lm.worst_hold.value, static_cast<long long>(state_dwell));
         total_hold += state_dwell;
       }
 
-      // Waiting: another task that needs this lock is in flight while it is held.
+      // Waiting: another task that needs this lock is in flight while it is
+      // held.
       bool contended = false;
       for (const TaskTopology& task : tasks_) {
         const auto info_it = net_.task_info.find(task.name);
@@ -699,10 +698,9 @@ void MetricsAnalyzer::compute_utilisation(MetricsReport& report) {
     for (size_t v : region) {
       const bool busy_here = core_busy(core, v);
       for (const Edge& e : out_edges_[v]) {
-        const double mid =
-            is_inf(e.dwell_max)
-                ? static_cast<double>(e.dwell_min)
-                : 0.5 * (e.dwell_min + e.dwell_max);
+        const double mid = is_inf(e.dwell_max)
+                               ? static_cast<double>(e.dwell_min)
+                               : 0.5 * (e.dwell_min + e.dwell_max);
         total += mid;
         if (busy_here) {
           busy += mid;

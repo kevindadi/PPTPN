@@ -64,12 +64,25 @@ std::string escape_json(const std::string& value) {
   return out;
 }
 
-std::string join_lines_for_dot(const std::string& value) {
-  std::string out = value;
-  size_t pos = 0;
-  while ((pos = out.find('\n', pos)) != std::string::npos) {
-    out.replace(pos, 1, "\\n");
-    pos += 2;
+// Escapes the characters that are special inside Graphviz HTML-like labels.
+std::string html_escape(const std::string& value) {
+  std::string out;
+  out.reserve(value.size());
+  for (char ch : value) {
+    switch (ch) {
+      case '&':
+        out += "&amp;";
+        break;
+      case '<':
+        out += "&lt;";
+        break;
+      case '>':
+        out += "&gt;";
+        break;
+      default:
+        out += ch;
+        break;
+    }
   }
   return out;
 }
@@ -565,6 +578,128 @@ std::string StateClassReachabilityGraph::format_state_dump(
   return oss.str();
 }
 
+std::vector<std::string> StateClassReachabilityGraph::format_zone_constraints(
+    const StateClass& state, bool html) const {
+  std::vector<std::string> lines;
+  const size_t n = state.zone.size();
+  if (n <= 1) {
+    return lines;  // only the reference x0: no active clock
+  }
+
+  const std::string le = html ? "&le;" : "<=";
+  const std::string ge = html ? "&ge;" : ">=";
+  const std::string minus = html ? "&minus;" : "-";
+
+  auto clock_name = [&](size_t i) {
+    const ClockVar& var = state.clock_vars[i];
+    const std::string prefix =
+        var.kind == ClockKind::Suspension ? "w" : "h";
+    return prefix + "(T" + std::to_string(var.transition) + ")";
+  };
+
+  // Per-clock bounds: -D[0][i] <= x_i <= D[i][0].
+  for (size_t i = 1; i < n && i < state.clock_vars.size(); ++i) {
+    const int upper = state.zone.get_constraint(i, 0);
+    const int lower_raw = state.zone.get_constraint(0, i);
+    const int lower =
+        lower_raw == INF_TIME ? 0 : std::max(0, -lower_raw);  // clocks are >= 0
+    const std::string name = clock_name(i);
+    std::string body;
+    if (upper != INF_TIME && upper == lower) {
+      body = name + " = " + std::to_string(upper);
+    } else if (upper == INF_TIME) {
+      body = name + " " + ge + " " + std::to_string(lower);
+    } else {
+      body = std::to_string(lower) + " " + le + " " + name + " " + le + " " +
+             std::to_string(upper);
+    }
+    lines.push_back(body);
+  }
+
+  // Non-trivial differences: only those tighter than what the per-clock bounds
+  // already imply, so canonical zones stay uncluttered.
+  for (size_t i = 1; i < n; ++i) {
+    for (size_t j = 1; j < n; ++j) {
+      if (i == j) {
+        continue;
+      }
+      const int dij = state.zone.get_constraint(i, j);
+      if (dij == INF_TIME) {
+        continue;
+      }
+      const int upper_i = state.zone.get_constraint(i, 0);
+      const int lower_j_raw = state.zone.get_constraint(0, j);
+      const int lower_j =
+          lower_j_raw == INF_TIME ? 0 : std::max(0, -lower_j_raw);
+      const int implied =
+          upper_i == INF_TIME ? INF_TIME : upper_i - lower_j;
+      if (implied != INF_TIME && dij >= implied) {
+        continue;  // already implied by the individual bounds
+      }
+      lines.push_back(clock_name(i) + " " + minus + " " + clock_name(j) + " " +
+                      le + " " + std::to_string(dij));
+    }
+  }
+  return lines;
+}
+
+std::string StateClassReachabilityGraph::format_state_label_html(
+    const StateClass& state) const {
+  // Colour palette (readable on white, print friendly).
+  constexpr const char* kIdentity = "#111111";  // state id / marking / enabled
+  constexpr const char* kExecClock = "#1f6feb";  // h_t execution clocks (blue)
+  constexpr const char* kSuspClock = "#e05d00";  // w_t suspension clocks (amber)
+  constexpr const char* kDiff = "#6a737d";       // clock differences (grey)
+
+  auto row = [](const std::string& color, const std::string& body,
+                const char* align) {
+    return "<tr><td align=\"" + std::string(align) +
+           "\" balign=\"left\"><font color=\"" + color + "\">" + body +
+           "</font></td></tr>";
+  };
+
+  std::string html =
+      "<<table border=\"0\" cellborder=\"0\" cellspacing=\"0\" "
+      "cellpadding=\"1\">";
+
+  html += row(kIdentity, "<b>State " + std::to_string(state.id) + "</b>",
+              "center");
+  html += row(kIdentity,
+              "M = " + html_escape(format_marking(net_, state.marking)), "left");
+  html += row(kIdentity,
+              "E_pri: " + html_escape(format_transitions(state.priority_enabled)),
+              "left");
+  if (!state.suspended.empty()) {
+    html += row(kIdentity,
+                "susp: " + html_escape(format_transitions(state.suspended)),
+                "left");
+  }
+
+  // Separator before the symbolic clock zone.
+  html +=
+      "<hr/><tr><td align=\"center\"><font color=\"" + std::string(kIdentity) +
+      "\"><i>clock zone</i></font></td></tr>";
+
+  const std::vector<std::string> constraints =
+      format_zone_constraints(state, /*html=*/true);
+  if (constraints.empty()) {
+    html += row(kDiff, "(no active clock)", "center");
+  } else {
+    for (const std::string& c : constraints) {
+      const char* color = kDiff;
+      if (c.rfind("h(", 0) == 0) {
+        color = kExecClock;
+      } else if (c.rfind("w(", 0) == 0) {
+        color = kSuspClock;
+      }
+      html += row(color, c, "left");
+    }
+  }
+
+  html += "</table>>";
+  return html;
+}
+
 bool StateClassReachabilityGraph::save_to_dot(
     const std::string& file_path) const {
   std::ofstream out(file_path);
@@ -574,24 +709,18 @@ bool StateClassReachabilityGraph::save_to_dot(
 
   out << "digraph StateClassGraph {\n";
   out << "  rankdir=LR;\n";
-  out << "  node [shape=box];\n\n";
+  out << "  node [shape=box, fontname=\"Helvetica\", color=\"#111111\"];\n";
+  out << "  edge [fontname=\"Helvetica\"];\n\n";
 
+  // A state class is a symbolic set derived from time intervals, not a concrete
+  // point on a global timeline. The node therefore shows the LOCAL clock zone
+  // (DBM constraints), never a fixed absolute timestamp.
   typedef boost::graph_traits<SCGraph>::vertex_iterator VIt;
   VIt vi, vi_end;
   for (std::tie(vi, vi_end) = boost::vertices(graph_); vi != vi_end; ++vi) {
     const StateClass& state = boost::get(boost::vertex_name, graph_, *vi);
-    std::ostringstream summary;
-    summary << "State " << state.id << "\n";
-    summary << "t=" << state.elapsed_time << "\n";
-    summary << "M=" << format_marking(net_, state.marking) << "\n";
-    summary << "active=" << format_transitions(state.priority_enabled);
-    if (!state.suspended.empty()) {
-      summary << "\nsusp=" << format_transitions(state.suspended);
-    }
-
-    out << "  s" << state.id << " [label=\""
-        << escape_dot(join_lines_for_dot(summary.str())) << "\", tooltip=\""
-        << escape_dot(format_state_dump(state)) << "\"];\n";
+    out << "  s" << state.id << " [label=" << format_state_label_html(state)
+        << ", tooltip=\"" << escape_dot(format_state_dump(state)) << "\"];\n";
   }
 
   out << "\n";
