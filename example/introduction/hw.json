@@ -16,7 +16,7 @@
       "type": "task",
       "priority": 97,
       "core": 0,
-      "time": [[3, 8]],
+      "time": [[4, 6]],
       "locks": []
     },
     {
@@ -24,7 +24,7 @@
       "type": "task",
       "priority": 98,
       "core": 0,
-      "time": [[2, 5]],
+      "time": [[2, 3]],
       "locks": []
     },
     {
@@ -32,7 +32,7 @@
       "type": "task",
       "priority": 96,
       "core": 0,
-      "time": [[1, 3]],
+      "time": [[2, 10]],
       "locks": []
     }
   ],

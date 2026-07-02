@@ -5,19 +5,14 @@
 .cursor
 
 build
-main.pdf
+
 compile_commands.json
 paper
 unconfirmed
-docs/superpowers
-docs/ptpn-formal-semantics.*
-docs/ptpn-state-class-construction.*
+
 **.dot
 **.ppn
 **.ptpn
-wcet.json
+**.pdf
+**.log
 
-test_debug
-
-Testing
-tools/romeo-3.10.11/

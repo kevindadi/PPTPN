@@ -87,7 +87,8 @@ class TDG2PN {
                                         const std::string& target_name);
   static void handle_normal_edge_matrix(petri::PTPN& ptpn, const tdg::TDG& tdg,
                                         const std::string& source_name,
-                                        const std::string& target_name);
+                                        const std::string& target_name,
+                                        const std::string& label);
 };
 
 }  // namespace converter

@@ -33,6 +33,8 @@ struct JsonNode {
   std::string type;
   int priority = 100;
   int core = 0;
+  bool has_priority = false;  // whether "priority" was present in the JSON
+  bool has_core = false;      // whether "core" was present in the JSON
   std::vector<std::pair<int, int>> time;
   std::vector<std::string> locks;
 
