@@ -76,9 +76,6 @@ class TDG2PN {
       const std::vector<std::string>& lock_types,
       const std::vector<size_t>& task_pt_chain,
       const std::map<std::string, std::vector<std::string>>& task_locks);
-  static bool is_self_loop_edge(const std::string& source,
-                                const std::string& target);
-  static bool is_dashed_edge(const std::string& edge);
   static void handle_self_loop_edge_matrix(petri::PTPN& ptpn,
                                            const std::string& label,
                                            const std::string& source_name);

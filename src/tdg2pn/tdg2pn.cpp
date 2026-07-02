@@ -245,6 +245,61 @@ void TDG2PN::add_periodic_release_bindings(petri::PTPN& ptpn,
   }
 }
 
+// ===========================================================================
+//  TDG  ->  PTPN   lowering pipeline
+// ===========================================================================
+//
+//  transform() turns a Task Dependency Graph into a Priority Timed Petri Net
+//  in five ordered stages:
+//
+//    TDG ─▶ [1] vertices ─▶ [2] edges ─▶ [3] bindings ─▶ [4] scheduling ─▶ [5]
+//    resources
+//
+//    [1] transform_vertices    every TDG node -> a place/transition fragment
+//    [2] transform_edges       TDG edges wire the fragments together
+//    [3] start/periodic/end    initial tokens, periodic releases, sink
+//    consumers [4] preemption model      resume: engine-level filter (no
+//    sub-net);
+//                              restart: structural preempt/resume arcs
+//    [5] resources + metadata  core/lock resource places, then task_info
+//
+// ---------------------------------------------------------------------------
+//  [1] Node lowering  (add_node_matrix)
+// ---------------------------------------------------------------------------
+//
+//    task node -> a place/transition "chain" (add_execution_chain):
+//
+//        (entry) ──▶ [get_core] ──▶ (ready) ──▶ [exec] ──▶ (exit)
+//         place       T [0,0]        place      T [a,b]     place
+//
+//      With N locks the single exec splits into 2N+1 timed segments; each lock
+//      inserts an immediate acquire transition plus a hold place:
+//
+//        (ready) ─▶[exec_1]─▶(seg_done)─▶[lock_1]─▶(hold_1)─▶[exec_2]─▶ ...
+//        ─▶(exit)
+//
+//    fork / join -> a single transition (default [0,0], core -1, prio 0; the
+//                   interval, core and priority are overridable from JSON)
+//    empty       -> a single place
+//
+//    node_start_end_map[name] = (start, end) records each fragment's entry/exit
+//    for stage [2]; node_pn_map[name] keeps the full task chain for resources.
+//
+// ---------------------------------------------------------------------------
+//  [2] Edge lowering  (handle_normal_edge_matrix)
+// ---------------------------------------------------------------------------
+//
+//    task ─▶ task        a bridge transition whose interval is parsed from the
+//                        edge label:
+//
+//        (src.exit) ──▶ [src_to_tgt  <label>] ──▶ (tgt.entry)
+//
+//    task ─▶ fork/join   (src.exit place) ──▶ [fork/join transition]   label
+//    ignored fork/join ─▶ task   [fork/join transition] ──▶ (tgt.entry place)
+//    label ignored self-loop           label = period -> deadline monitor
+//    sub-net dashed style        periodic release binding (no direct arc added)
+//
+// ===========================================================================
 void TDG2PN::transform(const tdg::TDG& tdg, petri::PTPN& ptpn) {
   try {
     spdlog::info("[TDG2PN] Starting TDG to PTPN transformation");
@@ -450,15 +505,6 @@ void TDG2PN::transform_edges(petri::PTPN& ptpn, const tdg::TDG& tdg) {
       throw;
     }
   }
-}
-
-bool TDG2PN::is_self_loop_edge(const std::string& source,
-                               const std::string& target) {
-  return source == target;
-}
-
-bool TDG2PN::is_dashed_edge(const std::string& style) {
-  return style.find("dashed") != std::string::npos;
 }
 
 void TDG2PN::handle_self_loop_edge_matrix(petri::PTPN& ptpn,
