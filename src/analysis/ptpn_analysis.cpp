@@ -686,11 +686,13 @@ std::string StateClassReachabilityGraph::format_state_label_html(
     html += row(kDiff, "(no active clock)", "center");
   } else {
     for (const std::string& c : constraints) {
-      const char* color = kDiff;
-      if (c.rfind("h(", 0) == 0) {
-        color = kExecClock;
-      } else if (c.rfind("w(", 0) == 0) {
-        color = kSuspClock;
+      const char* color = kDiff;  // clock differences stay grey
+      if (c.find("&minus;") == std::string::npos) {
+        if (c.find("w(") != std::string::npos) {
+          color = kSuspClock;
+        } else if (c.find("h(") != std::string::npos) {
+          color = kExecClock;
+        }
       }
       html += row(color, c, "left");
     }
