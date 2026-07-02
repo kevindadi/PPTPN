@@ -8,7 +8,8 @@
     "shared_locks": [],
     "policy": "fixed",
     "end": ["B", "F"],
-    "start": ["A", "F"]
+    "start": ["A", "F"],
+    "periodic": [{ "task": "A", "period": 20 }]
   },
   "nodes": [
     {
@@ -16,7 +17,7 @@
       "type": "task",
       "priority": 97,
       "core": 0,
-      "time": [[8, 8]],
+      "time": [[4, 6]],
       "locks": []
     },
     {
@@ -24,7 +25,7 @@
       "type": "task",
       "priority": 98,
       "core": 0,
-      "time": [[5, 5]],
+      "time": [[2, 3]],
       "locks": []
     },
     {
@@ -32,7 +33,7 @@
       "type": "task",
       "priority": 96,
       "core": 0,
-      "time": [[3, 3]],
+      "time": [[2, 10]],
       "locks": []
     }
   ],

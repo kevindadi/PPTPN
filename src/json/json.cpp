@@ -312,6 +312,8 @@ JsonNode Parser::parse_node_object(const json& node_obj) {
   JsonNode node;
   node.id = node_obj.value("id", "");
   node.type = node_obj.value("type", "");
+  node.has_priority = node_obj.contains("priority");
+  node.has_core = node_obj.contains("core");
   node.priority = node_obj.value("priority", node.priority);
   node.core = node_obj.value("core", node.core);
 
@@ -389,11 +391,25 @@ ValidationResult Parser::validate() const {
       }
     }
 
-    if ((node.type == kNodeTypeFork || node.type == kNodeTypeJoin) &&
-        (node.priority != 100 || node.core != 0 || !node.time.empty() ||
-         !node.locks.empty())) {
-      result.add_warning("Node " + node.id + " is " + node.type +
-                         " but has task attributes (priority/core/time/locks)");
+    if (node.type == kNodeTypeFork || node.type == kNodeTypeJoin) {
+      // Fork/Join may carry a firing interval, a core, and a priority; locks
+      // are still meaningless for a synchronisation transition.
+      if (!node.locks.empty()) {
+        result.add_warning("Node " + node.id + " is " + node.type +
+                           " but declares locks (ignored)");
+      }
+      if (node.time.size() > 1) {
+        result.add_warning("Node " + node.id + " is " + node.type +
+                           " with multiple time intervals; only the first is "
+                           "used");
+      }
+      if (node.has_core && node.core != -1 &&
+          (node.core < 0 || node.core > max_core)) {
+        result.add_error("Invalid core number for " + node.type + " node " +
+                         node.id + ": " + std::to_string(node.core) +
+                         " (valid: -1 for control core, or 0-" +
+                         std::to_string(max_core) + ")");
+      }
     }
   }
 
@@ -520,10 +536,22 @@ NodeType JsonNode::to_node_type() const {
     return task;
   }
   if (type == kNodeTypeFork) {
-    return ForkTask{id};
+    ForkTask fork{id};
+    if (!time.empty()) {
+      fork.time = time.front();
+    }
+    fork.core = has_core ? core : -1;
+    fork.priority = has_priority ? priority : 0;
+    return fork;
   }
   if (type == kNodeTypeJoin) {
-    return JoinTask{id};
+    JoinTask join{id};
+    if (!time.empty()) {
+      join.time = time.front();
+    }
+    join.core = has_core ? core : -1;
+    join.priority = has_priority ? priority : 0;
+    return join;
   }
   return EmptyTask{id};
 }

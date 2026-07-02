@@ -36,9 +36,14 @@ struct TaskNode {
   TaskType task_type = TaskType::NORMAL;
 };
 
+// Fork/Join are modelled as PTPN transitions. By default they are zero-time
+// control transitions on the control core (-1), but the JSON may override the
+// firing interval, the core (to place the sync on a real CPU), and the priority.
 struct ForkTask {
   std::string name;
   std::pair<int, int> time = std::make_pair(0, 0);
+  int core = -1;
+  int priority = 0;
   ForkTask() = default;
   ForkTask(const std::string& n) : name(n) {}
 };
@@ -46,6 +51,8 @@ struct ForkTask {
 struct JoinTask {
   std::string name;
   std::pair<int, int> time = std::make_pair(0, 0);
+  int core = -1;
+  int priority = 0;
   JoinTask() = default;
   JoinTask(const std::string& n) : name(n) {}
 };

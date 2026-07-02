@@ -169,7 +169,7 @@ void add_export_target_options(CLI::App* cmd, ExportTargets& exports) {
                   "Write TDG Graphviz DOT to PATH");
   cmd->add_option("--export-wcet", exports.wcet_json,
                   "Write per-task WCET summary JSON to PATH");
-  cmd->add_option("--export-ptpn-dot", exports.ptpn_dot,
+  cmd->add_option("--export-ptpn", exports.ptpn_dot,
                   "Write PTPN structure Graphviz DOT to PATH");
   cmd->add_option("--export-scg", exports.scg_dot,
                   "Write state-class reachability graph DOT to PATH");
@@ -348,12 +348,12 @@ int run_ptpn_postprocess(
             "approximate. Use --canonicalization equality for sound bounds",
             opts.canonicalization_mode);
       }
-      state_class::MetricsAnalyzer analyzer(reachability_graph.get_graph(), ptpn,
-                                            reachability_graph.get_initial_vertex(),
-                                            exact);
+      state_class::MetricsAnalyzer analyzer(
+          reachability_graph.get_graph(), ptpn,
+          reachability_graph.get_initial_vertex(), exact);
       const state_class::MetricsReport report = analyzer.analyze();
-      if (state_class::MetricsAnalyzer::save_to_json(report,
-                                                     opts.exports.metrics_json)) {
+      if (state_class::MetricsAnalyzer::save_to_json(
+              report, opts.exports.metrics_json)) {
         spdlog::info("[OUTPUT] Metrics exported to: {}",
                      opts.exports.metrics_json);
         spdlog::info("[METRICS] schedulable={}, bounded={}, deadlocks={}",
@@ -464,7 +464,8 @@ int run_ptpn_pipeline(const string& input_file, const PipelineOptions& opts,
 
 int run_export_romeo(const ExportCommandOptions& opts) {
   const fs::path input_path(opts.input_file);
-  const InputFormat format = resolve_input_format(input_path, opts.input_format);
+  const InputFormat format =
+      resolve_input_format(input_path, opts.input_format);
 
   if (format == InputFormat::PTPN) {
     spdlog::info("[EXPORT] Romeo from PTPN source: {}", opts.input_file);
@@ -499,7 +500,8 @@ int run_export_romeo(const ExportCommandOptions& opts) {
 
 int run_export_ptopner(const ExportCommandOptions& opts) {
   const fs::path input_path(opts.input_file);
-  const InputFormat format = resolve_input_format(input_path, opts.input_format);
+  const InputFormat format =
+      resolve_input_format(input_path, opts.input_format);
 
   if (format == InputFormat::PTPN) {
     spdlog::info("[EXPORT] PToPNer from PTPN source: {}", opts.input_file);
@@ -520,7 +522,8 @@ int run_export_ptopner(const ExportCommandOptions& opts) {
   }
 
   if (opts.policy_override.has_value()) {
-    if (opts.policy_override.value() != SchedulePolicy::FIXED_PRIOR_WITH_RESTART) {
+    if (opts.policy_override.value() !=
+        SchedulePolicy::FIXED_PRIOR_WITH_RESTART) {
       cerr << "ERROR: PToPNer export requires fixed_prior_with_restart policy"
            << endl;
       return 1;
@@ -549,9 +552,8 @@ void configure_export_subcommand(CLI::App* cmd, ExportCommandOptions& opts,
       ->required(true);
   cmd->add_option("-o,--output", opts.output_file, "Output file path")
       ->required(true);
-  cmd->add_option(
-         "--from", opts.input_format,
-         "Input format: auto, tdg, or ptpn (default: auto)")
+  cmd->add_option("--from", opts.input_format,
+                  "Input format: auto, tdg, or ptpn (default: auto)")
       ->check(CLI::IsMember({"auto", "tdg", "ptpn"}));
   cmd->add_flag("--debug", opts.debug_mode, "Enable debug logging");
   cmd->footer(footer);
@@ -612,11 +614,10 @@ int main(int argc, char* argv[]) {
       ->required(true);
   add_common_pipeline_options(tdg_cmd, tdg_opts);
   tdg_cmd
-      ->add_option(
-          "--policy", tdg_policy_string,
-          "Override TDG scheduling policy for lowering "
-          "(fixed_prior_with_resume for native analysis, "
-          "fixed_prior_with_restart for PToPNer)")
+      ->add_option("--policy", tdg_policy_string,
+                   "Override TDG scheduling policy for lowering "
+                   "(fixed_prior_with_resume for native analysis, "
+                   "fixed_prior_with_restart for PToPNer)")
       ->transform([&tdg_opts](const string& value) {
         tdg_opts.policy_override = parse_policy_option(value);
         return value;
@@ -624,7 +625,8 @@ int main(int argc, char* argv[]) {
   tdg_cmd->footer(
       "Examples:\n"
       "  ptpn tdg -f example/common/input.json\n"
-      "  ptpn tdg -f input.json --export-scg scg.dot --export-ptpn-dot net.dot\n"
+      "  ptpn tdg -f input.json --export-scg scg.dot --export-ptpn-dot "
+      "net.dot\n"
       "  ptpn tdg -f input.json --policy fixed_prior_with_resume --romeo "
       "out.cts\n"
       "  ptpn tdg -f input.json --policy fixed_prior_with_restart --ppn "
@@ -647,8 +649,7 @@ int main(int argc, char* argv[]) {
   export_cmd->require_subcommand(1);
 
   auto* export_romeo_cmd = export_cmd->add_subcommand(
-      "romeo",
-      "Export Romeo CTS (resume-style TDG lowering recommended)");
+      "romeo", "Export Romeo CTS (resume-style TDG lowering recommended)");
   configure_export_subcommand(
       export_romeo_cmd, romeo_export_opts,
       "Examples:\n"
@@ -657,17 +658,15 @@ int main(int argc, char* argv[]) {
       "--policy fixed_prior_with_resume\n"
       "  ptpn export romeo -f model.ptpn -o out.cts --from ptpn");
   export_romeo_cmd
-      ->add_option(
-          "--policy", romeo_policy_string,
-          "Override TDG scheduling policy (default: use JSON policy)")
+      ->add_option("--policy", romeo_policy_string,
+                   "Override TDG scheduling policy (default: use JSON policy)")
       ->transform([&romeo_export_opts](const string& value) {
         romeo_export_opts.policy_override = parse_policy_option(value);
         return value;
       });
 
   auto* export_ptopner_cmd = export_cmd->add_subcommand(
-      "ptopner",
-      "Export PToPNer .ppn (restart-style TDG lowering required)");
+      "ptopner", "Export PToPNer .ppn (restart-style TDG lowering required)");
   configure_export_subcommand(
       export_ptopner_cmd, ptopner_export_opts,
       "Examples:\n"

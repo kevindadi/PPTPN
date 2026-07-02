@@ -45,6 +45,80 @@ bool is_resume_policy(SchedulePolicy policy) {
 
 petri::TimeInterval immediate_interval() { return petri::TimeInterval(0, 0); }
 
+// Trims ASCII whitespace from both ends of a string.
+std::string trim(const std::string& text) {
+  const auto begin = text.find_first_not_of(" \t\r\n");
+  if (begin == std::string::npos) {
+    return "";
+  }
+  const auto end = text.find_last_not_of(" \t\r\n");
+  return text.substr(begin, end - begin + 1);
+}
+
+// Parses a single time bound. Accepts a non-negative integer, or an unbounded
+// marker (inf / +inf / ∞ / *) mapped to petri::INF. Returns false on failure.
+bool parse_time_bound(const std::string& token, int& out) {
+  const std::string value = trim(token);
+  if (value.empty()) {
+    return false;
+  }
+  if (value == "inf" || value == "+inf" || value == "∞" || value == "*") {
+    out = petri::INF;
+    return true;
+  }
+  try {
+    size_t consumed = 0;
+    const long parsed = std::stol(value, &consumed);
+    if (consumed != value.size() || parsed < 0) {
+      return false;
+    }
+    out = static_cast<int>(parsed);
+    return true;
+  } catch (const std::exception&) {
+    return false;
+  }
+}
+
+// Converts a TDG edge label into the firing interval of the bridge transition
+// it induces. Supported forms (surrounding []/() brackets are tolerated):
+//   ""        -> [0, 0]   (immediate)
+//   "a"       -> [a, a]
+//   "a,b"     -> [a, b]   (b may be an unbounded marker)
+// Any malformed label falls back to [0, 0] with a warning.
+petri::TimeInterval parse_edge_interval(const std::string& label,
+                                        const std::string& source_name,
+                                        const std::string& target_name) {
+  std::string body = trim(label);
+  if (!body.empty() && (body.front() == '[' || body.front() == '(') &&
+      (body.back() == ']' || body.back() == ')')) {
+    body = trim(body.substr(1, body.size() - 2));
+  }
+  if (body.empty()) {
+    return immediate_interval();
+  }
+
+  const auto comma = body.find(',');
+  int earliest = 0;
+  int latest = 0;
+  bool ok = false;
+  if (comma == std::string::npos) {
+    ok = parse_time_bound(body, earliest);
+    latest = earliest;
+  } else {
+    ok = parse_time_bound(body.substr(0, comma), earliest) &&
+         parse_time_bound(body.substr(comma + 1), latest);
+  }
+
+  if (!ok || earliest == petri::INF ||
+      (latest != petri::INF && latest < earliest)) {
+    spdlog::warn(
+        "[TDG2PN] Invalid time label '{}' on edge {} -> {}; using [0, 0]",
+        label, source_name, target_name);
+    return immediate_interval();
+  }
+  return petri::TimeInterval(earliest, latest);
+}
+
 size_t add_control_transition(
     petri::PTPN& ptpn, const std::string& name,
     const petri::TimeInterval& interval = petri::TimeInterval(0, 0)) {
@@ -171,6 +245,61 @@ void TDG2PN::add_periodic_release_bindings(petri::PTPN& ptpn,
   }
 }
 
+// ===========================================================================
+//  TDG  ->  PTPN   lowering pipeline
+// ===========================================================================
+//
+//  transform() turns a Task Dependency Graph into a Priority Timed Petri Net
+//  in five ordered stages:
+//
+//    TDG ─▶ [1] vertices ─▶ [2] edges ─▶ [3] bindings ─▶ [4] scheduling ─▶ [5]
+//    resources
+//
+//    [1] transform_vertices    every TDG node -> a place/transition fragment
+//    [2] transform_edges       TDG edges wire the fragments together
+//    [3] start/periodic/end    initial tokens, periodic releases, sink
+//    consumers [4] preemption model      resume: engine-level filter (no
+//    sub-net);
+//                              restart: structural preempt/resume arcs
+//    [5] resources + metadata  core/lock resource places, then task_info
+//
+// ---------------------------------------------------------------------------
+//  [1] Node lowering  (add_node_matrix)
+// ---------------------------------------------------------------------------
+//
+//    task node -> a place/transition "chain" (add_execution_chain):
+//
+//        (entry) ──▶ [get_core] ──▶ (ready) ──▶ [exec] ──▶ (exit)
+//         place       T [0,0]        place      T [a,b]     place
+//
+//      With N locks the single exec splits into 2N+1 timed segments; each lock
+//      inserts an immediate acquire transition plus a hold place:
+//
+//        (ready) ─▶[exec_1]─▶(seg_done)─▶[lock_1]─▶(hold_1)─▶[exec_2]─▶ ...
+//        ─▶(exit)
+//
+//    fork / join -> a single transition (default [0,0], core -1, prio 0; the
+//                   interval, core and priority are overridable from JSON)
+//    empty       -> a single place
+//
+//    node_start_end_map[name] = (start, end) records each fragment's entry/exit
+//    for stage [2]; node_pn_map[name] keeps the full task chain for resources.
+//
+// ---------------------------------------------------------------------------
+//  [2] Edge lowering  (handle_normal_edge_matrix)
+// ---------------------------------------------------------------------------
+//
+//    task ─▶ task        a bridge transition whose interval is parsed from the
+//                        edge label:
+//
+//        (src.exit) ──▶ [src_to_tgt  <label>] ──▶ (tgt.entry)
+//
+//    task ─▶ fork/join   (src.exit place) ──▶ [fork/join transition]   label
+//    ignored fork/join ─▶ task   [fork/join transition] ──▶ (tgt.entry place)
+//    label ignored self-loop           label = period -> deadline monitor
+//    sub-net dashed style        periodic release binding (no direct arc added)
+//
+// ===========================================================================
 void TDG2PN::transform(const tdg::TDG& tdg, petri::PTPN& ptpn) {
   try {
     spdlog::info("[TDG2PN] Starting TDG to PTPN transformation");
@@ -369,21 +498,13 @@ void TDG2PN::transform_edges(petri::PTPN& ptpn, const tdg::TDG& tdg) {
         continue;
       }
 
-      handle_normal_edge_matrix(ptpn, tdg, edge.source, edge.target);
+      handle_normal_edge_matrix(ptpn, tdg, edge.source, edge.target,
+                                edge.label);
     } catch (const std::exception& exception) {
       spdlog::error("[TDG2PN] Failed to transform edge: {}", exception.what());
       throw;
     }
   }
-}
-
-bool TDG2PN::is_self_loop_edge(const std::string& source,
-                               const std::string& target) {
-  return source == target;
-}
-
-bool TDG2PN::is_dashed_edge(const std::string& style) {
-  return style.find("dashed") != std::string::npos;
 }
 
 void TDG2PN::handle_self_loop_edge_matrix(petri::PTPN& ptpn,
@@ -412,7 +533,8 @@ void TDG2PN::handle_dashed_edge_matrix(petri::PTPN& ptpn,
 
 void TDG2PN::handle_normal_edge_matrix(petri::PTPN& ptpn, const tdg::TDG& tdg,
                                        const std::string& source_name,
-                                       const std::string& target_name) {
+                                       const std::string& target_name,
+                                       const std::string& label) {
   const auto source_it = ptpn.node_start_end_map.find(source_name);
   const auto target_it = ptpn.node_start_end_map.find(target_name);
 
@@ -463,8 +585,13 @@ void TDG2PN::handle_normal_edge_matrix(petri::PTPN& ptpn, const tdg::TDG& tdg,
     return;
   }
 
-  const size_t bridge_transition =
-      add_control_transition(ptpn, source_name + "_to_" + target_name);
+  // A task -> task edge is realised by a dedicated bridge transition, whose
+  // firing interval comes from the edge label (fork/join-adjacent edges wire
+  // directly into the fork/join transition and ignore the label).
+  const petri::TimeInterval interval =
+      parse_edge_interval(label, source_name, target_name);
+  const size_t bridge_transition = add_control_transition(
+      ptpn, source_name + "_to_" + target_name, interval);
 
   if (source_exit < ptpn.places.size() && target_entry < ptpn.places.size()) {
     ptpn.set_pre_arc(source_exit, bridge_transition, 1);
@@ -636,14 +763,18 @@ std::pair<size_t, size_t> TDG2PN::add_node_matrix(petri::PTPN& ptpn,
         }
 
         if constexpr (std::is_same_v<Node, JoinTask>) {
-          const size_t join_trans = add_control_transition(
-              ptpn, "Join" + std::to_string(ptpn.node_index++));
+          const petri::TimeInterval interval(node.time.first, node.time.second);
+          const size_t join_trans = ptpn.add_transition(
+              "Join" + std::to_string(ptpn.node_index++), interval,
+              node.priority, node.core, /*suspendable=*/false);
           return {join_trans, join_trans};
         }
 
         if constexpr (std::is_same_v<Node, ForkTask>) {
-          const size_t fork_trans = add_control_transition(
-              ptpn, "Fork" + std::to_string(ptpn.node_index++));
+          const petri::TimeInterval interval(node.time.first, node.time.second);
+          const size_t fork_trans = ptpn.add_transition(
+              "Fork" + std::to_string(ptpn.node_index++), interval,
+              node.priority, node.core, /*suspendable=*/false);
           return {fork_trans, fork_trans};
         }
 
