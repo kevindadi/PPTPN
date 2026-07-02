@@ -8,7 +8,8 @@
     "shared_locks": [],
     "policy": "fixed",
     "end": ["B", "F"],
-    "start": ["A", "F"]
+    "start": ["A", "F"],
+    "periodic": [{ "task": "A", "period": 20 }]
   },
   "nodes": [
     {
