@@ -44,6 +44,12 @@
     "editor.wordWrapColumn": 120,
     "editor.rulers": [120]
   },
+  "[plaintext]": {
+    "editor.wordWrap": "wordWrapColumn",
+    "editor.wordWrapColumn": 120,
+    "editor.rulers": [120],
+    "editor.formatOnSave": false
+  },
   "clang-format.executable": "clang-format",
   "clang-format.style": "file",
   "latex-workshop.latex.tools": [
