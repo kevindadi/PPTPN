@@ -2,7 +2,7 @@
 
 ## Core claim
 
-PToPNer export is not a generic "any TDG can be emitted" path. This repository validates a TDG against a narrower compatibility profile first, and only accepts models that match PToPNer's supported subset: `fixed_prior_with_restart`, point intervals only, no lock modeling, and bounded net size.
+PToPNer export is not a generic "any TDG can be emitted" path. This repository validates a TDG against a narrower compatibility profile first, and only accepts models that match PToPNer's supported subset: `fixed_prior_with_restart`, point intervals only, and no lock modeling.
 
 ## Main export chain
 
@@ -52,17 +52,6 @@ So PToPNer export accepts deterministic durations, not general `[earliest, lates
 
 This means the PToPNer path currently does not support shared-lock semantics.
 
-### 4. Estimated net size must stay under the PToPNer bound
-
-`validate_size_limits` (`src/tdg2ptopner/validate.cpp:159`) estimates places and transitions, then rejects if either side exceeds `kPtopnerMaxPlaces`.
-
-The estimate is not just "number of original TDG nodes":
-
-- places grow with CPUs, task fragments, self-loops, and periodic releases
-- transitions grow with task segments, joins/forks, non-dashed edges, self-loops, periodic releases, terminal consumes, and same-core preemption relationships
-
-So a TDG may fail export even when the source graph itself looks modest.
-
 ## Warning-only behavior
 
 `validate_warnings` (`src/tdg2ptopner/validate.cpp:172`) emits warnings for two cases.
@@ -90,20 +79,18 @@ Typical failure explanations are therefore semantic / compatibility explanations
 - wrong scheduling policy
 - non-point execution times
 - lock usage
-- net blow-up beyond the tool limit
 
 ## Key files
 
 - `src/main.cpp:230` — validation call in CLI path
 - `src/tdg2ptopner/validate.cpp:22` — point-interval validation
 - `src/tdg2ptopner/validate.cpp:48` — lock rejection
-- `src/tdg2ptopner/validate.cpp:159` — size-limit validation
-- `src/tdg2ptopner/validate.cpp:172` — warning-only cases
+- `src/tdg2ptopner/validate.cpp:78` — warning-only cases
 - `src/tdg2ptopner/validate.cpp:187` — top-level `validate_for_ptopner`
 
 ## FAQ-style quick answers
 
-- "Why can't this TDG export?" → first check policy, intervals, locks, then size.
+- "Why can't this TDG export?" → first check policy, intervals, and locks.
 - "Do dashed edges block export?" → no; they are ignored with a warning.
 - "Do periodic tasks block export?" → no; they warn and reuse existing release modeling.
 - "Why are point intervals required?" → because this export path targets a narrower deterministic subset than the full PTPN analysis path.

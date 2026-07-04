@@ -19,7 +19,7 @@
       "type": "task",
       "priority": 96,
       "core": 0,
-      "time": [[3, 8]],
+      "time": [[8, 8]],
       "locks": []
     },
     {
@@ -27,7 +27,7 @@
       "type": "task",
       "priority": 97,
       "core": 0,
-      "time": [[3, 5]],
+      "time": [[5, 5]],
       "locks": []
     },
     {
@@ -35,7 +35,7 @@
       "type": "task",
       "priority": 98,
       "core": 0,
-      "time": [[8, 10]],
+      "time": [[8, 8]],
       "locks": []
     },
     {
@@ -43,7 +43,7 @@
       "type": "task",
       "priority": 99,
       "core": 0,
-      "time": [[6, 8]],
+      "time": [[8, 8]],
       "locks": []
     },
     {
@@ -51,7 +51,7 @@
       "type": "task",
       "priority": 100,
       "core": 0,
-      "time": [[15, 18]],
+      "time": [[28, 28]],
       "locks": []
     },
     {

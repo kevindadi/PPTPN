@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Run p-bench / s-bench / t-bench examples and collect DOT exports + timing stats.
+"""Run p-bench / s-bench / t-bench examples and collect exports + timing stats.
 
 Outputs (mirroring each benchmark subfolder):
   example/ptpn/<suite>/<case>.{ptpn,scg}.dot
-  example/romeo/<suite>/<case>.{ptpn,scg}.dot  (+ .cts)
-  example/ptopner/<suite>/<case>.{ptpn,scg}.dot (+ .ppn when validation passes)
+  example/romeo/<suite>/<case>.cts
+  example/ptopner/<suite>/<case>.ppn   (s-bench skipped)
 
 Summary written to example/bench-summary.json (and .csv).
 """
@@ -25,6 +25,7 @@ EXAMPLE = ROOT / "example"
 DEFAULT_PTPN = ROOT / "build" / "ptpn"
 
 BENCH_SUITES = ("p-bench", "s-bench", "t-bench")
+SKIP_PTOPNER_SUITES = frozenset({"s-bench"})
 
 RE_PLACES = re.compile(r"Places:\s*(\d+)")
 RE_TRANSITIONS = re.compile(r"Transitions:\s*(\d+)")
@@ -63,19 +64,16 @@ class RunStats:
 
 PROFILES: dict[str, dict] = {
     "ptpn": {
+        "mode": "tdg_dots",
         "policy": None,
-        "export_romeo": False,
-        "export_ppn": False,
     },
     "romeo": {
+        "mode": "tdg_cts",
         "policy": "fixed_prior_with_resume",
-        "export_romeo": True,
-        "export_ppn": False,
     },
     "ptopner": {
+        "mode": "export_ppn",
         "policy": "fixed_prior_with_restart",
-        "export_romeo": False,
-        "export_ppn": True,
     },
 }
 
@@ -114,6 +112,36 @@ def parse_log(text: str) -> dict:
     return stats
 
 
+def apply_parsed(result: RunStats, log: str) -> None:
+    parsed = parse_log(log)
+    for key, value in parsed.items():
+        setattr(result, key, value)
+
+
+def run_tdg_case(
+    ptpn_bin: Path,
+    input_path: Path,
+    max_states: int,
+    policy: str | None,
+    exports: list[tuple[str, str]],
+) -> tuple[int, str]:
+    cmd = [
+        str(ptpn_bin),
+        "tdg",
+        "-f",
+        str(input_path),
+        "-m",
+        str(max_states),
+    ]
+    if policy:
+        cmd.extend(["--policy", policy])
+    for flag, path in exports:
+        cmd.extend([flag, path])
+
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    return proc.returncode, proc.stdout + proc.stderr
+
+
 def run_case(
     ptpn_bin: Path,
     suite: str,
@@ -126,54 +154,64 @@ def run_case(
     cfg = PROFILES[profile]
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    ptpn_dot = out_dir / f"{case}.ptpn.dot"
-    scg_dot = out_dir / f"{case}.scg.dot"
-    romeo_cts = out_dir / f"{case}.cts"
-    ppn_file = out_dir / f"{case}.ppn"
-
-    cmd = [
-        str(ptpn_bin),
-        "tdg",
-        "-f",
-        str(input_path),
-        "-m",
-        str(max_states),
-        "--export-ptpn",
-        str(ptpn_dot),
-        "--export-scg",
-        str(scg_dot),
-    ]
-    if cfg["policy"]:
-        cmd.extend(["--policy", cfg["policy"]])
-    if cfg["export_romeo"]:
-        cmd.extend(["--romeo", str(romeo_cts)])
-
     result = RunStats(suite=suite, case=case, profile=profile, ok=False)
 
-    try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except OSError as exc:
-        result.error = str(exc)
-        return result
+    if cfg["mode"] == "tdg_dots":
+        ptpn_dot = out_dir / f"{case}.ptpn.dot"
+        scg_dot = out_dir / f"{case}.scg.dot"
+        try:
+            code, log = run_tdg_case(
+                ptpn_bin,
+                input_path,
+                max_states,
+                cfg["policy"],
+                [
+                    ("--export-ptpn", str(ptpn_dot)),
+                    ("--export-scg", str(scg_dot)),
+                ],
+            )
+        except OSError as exc:
+            result.error = str(exc)
+            return result
 
-    log = proc.stdout + proc.stderr
-    parsed = parse_log(log)
-    for key, value in parsed.items():
-        setattr(result, key, value)
+        apply_parsed(result, log)
+        result.outputs = [str(ptpn_dot), str(scg_dot)]
 
-    outputs = [str(ptpn_dot), str(scg_dot)]
-    if cfg["export_romeo"] and romeo_cts.exists():
-        outputs.append(str(romeo_cts))
+        if code != 0:
+            result.error = log.strip()[:500]
+            return result
+        missing = [p for p in (ptpn_dot, scg_dot) if not p.exists()]
+        if missing:
+            result.error = f"missing output: {', '.join(str(p) for p in missing)}"
+            return result
 
-    # PToPNer .ppn is attempted separately so DOT export still succeeds when
-    # validation fails (common for p-bench / s-bench interval tasks).
-    if cfg["export_ppn"]:
-        ppn_cmd = [
+    elif cfg["mode"] == "tdg_cts":
+        cts_file = out_dir / f"{case}.cts"
+        try:
+            code, log = run_tdg_case(
+                ptpn_bin,
+                input_path,
+                max_states,
+                cfg["policy"],
+                [("--romeo", str(cts_file))],
+            )
+        except OSError as exc:
+            result.error = str(exc)
+            return result
+
+        apply_parsed(result, log)
+        result.outputs = [str(cts_file)]
+
+        if code != 0:
+            result.error = log.strip()[:500]
+            return result
+        if not cts_file.exists():
+            result.error = f"missing output: {cts_file}"
+            return result
+
+    elif cfg["mode"] == "export_ppn":
+        ppn_file = out_dir / f"{case}.ppn"
+        cmd = [
             str(ptpn_bin),
             "export",
             "ptopner",
@@ -182,33 +220,41 @@ def run_case(
             "-o",
             str(ppn_file),
             "--policy",
-            "fixed_prior_with_restart",
+            cfg["policy"],
         ]
-        ppn_proc = subprocess.run(
-            ppn_cmd, capture_output=True, text=True, check=False
-        )
-        if ppn_proc.returncode == 0 and ppn_file.exists():
-            outputs.append(str(ppn_file))
-            result.ppn_exported = True
-        else:
-            err = (ppn_proc.stderr or ppn_proc.stdout or "").strip()
+        try:
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True, check=False
+            )
+        except OSError as exc:
+            result.error = str(exc)
+            return result
+
+        log = proc.stdout + proc.stderr
+        apply_parsed(result, log)
+        result.outputs = [str(ppn_file)]
+
+        if proc.returncode != 0:
+            err = log.strip()
             result.ppn_error = err.splitlines()[0][:200] if err else "export failed"
+            result.error = err[:500]
+            return result
+        if not ppn_file.exists():
+            result.error = f"missing output: {ppn_file}"
+            result.ppn_error = result.error
+            return result
+        result.ppn_exported = True
 
-    result.outputs = outputs
-
-    if proc.returncode != 0:
-        result.error = (proc.stderr or proc.stdout or "unknown error").strip()
-        if len(result.error) > 500:
-            result.error = result.error[:500] + "..."
-        return result
-
-    missing = [p for p in (ptpn_dot, scg_dot) if not p.exists()]
-    if missing:
-        result.error = f"missing output: {', '.join(str(p) for p in missing)}"
+    else:
+        result.error = f"unknown profile mode: {cfg['mode']}"
         return result
 
     result.ok = True
     return result
+
+
+def should_run(profile: str, suite: str) -> bool:
+    return not (profile == "ptopner" and suite in SKIP_PTOPNER_SUITES)
 
 
 def write_summary(rows: list[RunStats], json_path: Path, csv_path: Path) -> None:
@@ -216,6 +262,7 @@ def write_summary(rows: list[RunStats], json_path: Path, csv_path: Path) -> None
     payload = {
         "profiles": list(PROFILES.keys()),
         "suites": list(BENCH_SUITES),
+        "skip_ptopner_suites": sorted(SKIP_PTOPNER_SUITES),
         "runs": [asdict(r) for r in rows],
     }
     json_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -323,10 +370,15 @@ def main() -> int:
         return 1
 
     rows: list[RunStats] = []
+    skipped = 0
 
     for suite, input_path in cases:
         case = input_path.stem
         for profile in args.profiles:
+            if not should_run(profile, suite):
+                skipped += 1
+                continue
+
             out_dir = EXAMPLE / profile / suite
             if args.dry_run:
                 print(f"[dry-run] {profile}/{suite}/{case} -> {out_dir}/")
@@ -357,13 +409,15 @@ def main() -> int:
     print()
     print(f"summary: {summary_json}")
     print(f"summary: {summary_csv}")
+    if skipped:
+        print(f"note: skipped {skipped} ptopner run(s) for {sorted(SKIP_PTOPNER_SUITES)}")
 
     failed = sum(1 for r in rows if not r.ok)
     ppn_failed = sum(
-        1 for r in rows if r.profile == "ptopner" and r.ok and not r.ppn_exported
+        1 for r in rows if r.profile == "ptopner" and not r.ppn_exported
     )
     if ppn_failed:
-        print(f"note: {ppn_failed} ptopner run(s) wrote DOT but .ppn export failed")
+        print(f"note: {ppn_failed} ptopner run(s) failed to export .ppn")
     return 1 if failed else 0
 
 
