@@ -1,0 +1,73 @@
+{
+  "graph": {
+    "name": "CommonGraph"
+  },
+  "configuration": {
+    "num_cpus": 2,
+    "cores_per_cpu": 1,
+    "shared_locks": [],
+    "policy": "fixed",
+    "end": ["C", "F"],
+    "periodic": [
+      { "task": "A", "period": 100 },
+      { "task": "D", "period": 3000 }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "A",
+      "type": "task",
+      "priority": 97,
+      "core": 0,
+      "time": [[8, 8]],
+      "locks": []
+    },
+    {
+      "id": "B",
+      "type": "task",
+      "priority": 98,
+      "core": 0,
+      "time": [[5, 5]],
+      "locks": []
+    },
+    {
+      "id": "C",
+      "type": "task",
+      "priority": 99,
+      "core": 1,
+      "time": [[8, 8]],
+      "locks": []
+    },
+    {
+      "id": "D",
+      "type": "task",
+      "priority": 97,
+      "core": 1,
+      "time": [[8, 8]],
+      "locks": []
+    },
+    {
+      "id": "E",
+      "type": "task",
+      "priority": 98,
+      "core": 1,
+      "time": [[28, 28]],
+      "locks": []
+    },
+    {
+      "id": "F",
+      "type": "task",
+      "priority": 96,
+      "core": 0,
+      "time": [[3, 3]],
+      "locks": []
+    }
+  ],
+  "edges": [
+    { "source": "A", "target": "B", "label": "0,0" },
+    { "source": "B", "target": "C", "label": "0,0" },
+    { "source": "D", "target": "E", "label": "0,0" },
+    { "source": "E", "target": "C", "label": "0,0" },
+    { "source": "D", "target": "F", "label": "0,0" }
+  ]
+}
