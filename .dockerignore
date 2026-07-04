@@ -1,0 +1,13 @@
+.git
+.github
+.vscode
+.cursor
+build
+**/build
+**/vcpkg_installed
+compile_commands.json
+**/*.dot
+**/*.ppn
+**/*.cts
+tools
+agent-transcripts
