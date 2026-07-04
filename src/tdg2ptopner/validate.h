@@ -8,8 +8,6 @@
 
 namespace ptopner_export {
 
-constexpr int kPtopnerMaxPlaces = 30;
-
 struct PtopnerValidationResult {
   bool ok = true;
   std::vector<std::string> errors;

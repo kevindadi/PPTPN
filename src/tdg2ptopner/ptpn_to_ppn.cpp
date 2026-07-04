@@ -2,8 +2,6 @@
 
 #include <stdexcept>
 
-#include "validate.h"
-
 namespace ptopner_export {
 
 namespace {
@@ -48,12 +46,6 @@ float map_prior_to_float(int ptpn_priority, TransitionRole role) {
 }
 
 PpnModel ptpn_to_ppn_model(const petri::PTPN& ptpn) {
-  if (ptpn.num_places() > static_cast<size_t>(kPtopnerMaxPlaces) ||
-      ptpn.num_transitions() > static_cast<size_t>(kPtopnerMaxPlaces)) {
-    throw std::runtime_error(
-        "Converted net exceeds PToPNer place/transition limit");
-  }
-
   PpnModel model;
   const auto& marking = ptpn.get_marking();
   model.places.reserve(ptpn.num_places());

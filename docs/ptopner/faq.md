@@ -49,12 +49,11 @@
 
 ## 为什么某个 TDG 不能导出到 PToPNer？
 
-先看 `src/tdg2ptopner/validate.cpp:187` 的 `validate_for_ptopner`.最常见的四类硬失败是:
+先看 `src/tdg2ptopner/validate.cpp` 的 `validate_for_ptopner`.最常见的三类硬失败是:
 
 1. 调度策略不是 `fixed_prior_with_restart`
 2. 存在非点区间 `min != max`
 3. 使用了锁
-4. 估算出的网规模超限
 
 文档入口:`docs/ptopner/ptopner-export-and-limits.md`.
 

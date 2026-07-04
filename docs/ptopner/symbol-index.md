@@ -49,7 +49,6 @@
 | `validate_for_ptopner` | `src/tdg2ptopner/validate.cpp:187` | top-level validation entry |
 | `validate_point_intervals` | `src/tdg2ptopner/validate.cpp:22` | rejects non-point time intervals |
 | `validate_no_locks` | `src/tdg2ptopner/validate.cpp:48` | rejects TDG with lock modeling |
-| `validate_size_limits` | `src/tdg2ptopner/validate.cpp:159` | enforces kPtopnerMaxPlaces bound |
 | `export_ptpn_to_ppn_file` | `src/tdg2ptopner/tdg2ptopner.cpp` | actual .ppn file generation |
 
 ## TDG lowering

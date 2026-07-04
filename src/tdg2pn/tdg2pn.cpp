@@ -723,21 +723,24 @@ void TDG2PN::bind_task_locks_matrix(
   for (size_t lock_index = 0; lock_index < lock_count; ++lock_index) {
     const std::string& lock_type = lock_types[lock_index];
 
-    const size_t acquire_transition =
-        task_pt_chain[TaskChainLayout::lock_acquire_transition(lock_index)];
-    const size_t release_transition =
-        task_pt_chain[TaskChainLayout::lock_release_transition(
-            task_pt_chain.size(), lock_index)];
+    const size_t acquire_chain_index =
+        TaskChainLayout::lock_acquire_transition(lock_index);
+    const size_t release_chain_index =
+        TaskChainLayout::lock_release_transition(task_pt_chain.size(),
+                                               lock_index);
+
+    if (acquire_chain_index >= task_pt_chain.size() ||
+        release_chain_index >= task_pt_chain.size()) {
+      throw std::runtime_error(
+          "Task chain layout does not match lock structure for: " + task_name);
+    }
+
+    const size_t acquire_transition = task_pt_chain[acquire_chain_index];
+    const size_t release_transition = task_pt_chain[release_chain_index];
 
     const auto lock_it = ptpn.locks_place.find(lock_type);
     if (lock_it == ptpn.locks_place.end()) {
       throw std::runtime_error("Lock place not found: " + lock_type);
-    }
-
-    if (acquire_transition >= task_pt_chain.size() ||
-        release_transition >= task_pt_chain.size()) {
-      throw std::runtime_error(
-          "Task chain layout does not match lock structure for: " + task_name);
     }
 
     if (acquire_transition < ptpn.transitions.size()) {

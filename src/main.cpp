@@ -43,6 +43,23 @@ namespace {
 
 enum class InputFormat { AUTO, TDG, PTPN };
 
+using PipelineClock = chrono::high_resolution_clock;
+
+long long elapsed_ms(const PipelineClock::time_point& start) {
+  return chrono::duration_cast<chrono::milliseconds>(PipelineClock::now() -
+                                                       start)
+      .count();
+}
+
+void log_step_timing(const string& step, long long ms,
+                     const string& detail = {}) {
+  if (detail.empty()) {
+    spdlog::info("[STATS] {}: {} ms", step, ms);
+  } else {
+    spdlog::info("[STATS] {}: {} ms ({})", step, ms, detail);
+  }
+}
+
 struct ExportTargets {
   string tdg_dot;
   string wcet_json;
@@ -317,8 +334,15 @@ int run_ptpn_postprocess(
     state_class::StateClassReachabilityGraph reachability_graph(ptpn);
     reachability_graph.set_canonicalization_mode(canonicalization);
     spdlog::info("[SCG] Canonicalization mode: {}", opts.canonicalization_mode);
+    const auto scg_start = PipelineClock::now();
     const size_t state_count = reachability_graph.build(opts.max_states);
     const auto& reachability_stats = reachability_graph.get_statistics();
+    log_step_timing(
+        "SCG build", elapsed_ms(scg_start),
+        "states=" + to_string(reachability_stats.total_states) +
+            ", edges=" + to_string(reachability_stats.total_transitions) +
+            ", dedup_hits=" + to_string(reachability_stats.dedup_hits) +
+            (reachability_stats.truncated ? ", truncated" : ""));
     if (reachability_stats.truncated) {
       spdlog::warn(
           "[SCG] Reachability graph truncated at {} states; use --max-states "
@@ -330,7 +354,9 @@ int run_ptpn_postprocess(
     }
 
     if (!opts.exports.scg_dot.empty()) {
+      const auto scg_export_start = PipelineClock::now();
       if (reachability_graph.save_to_dot(opts.exports.scg_dot)) {
+        log_step_timing("SCG DOT export", elapsed_ms(scg_export_start));
         spdlog::info("[OUTPUT] State class graph exported to: {}",
                      opts.exports.scg_dot);
       } else {
@@ -348,12 +374,14 @@ int run_ptpn_postprocess(
             "approximate. Use --canonicalization equality for sound bounds",
             opts.canonicalization_mode);
       }
+      const auto metrics_start = PipelineClock::now();
       state_class::MetricsAnalyzer analyzer(
           reachability_graph.get_graph(), ptpn,
           reachability_graph.get_initial_vertex(), exact);
       const state_class::MetricsReport report = analyzer.analyze();
       if (state_class::MetricsAnalyzer::save_to_json(
               report, opts.exports.metrics_json)) {
+        log_step_timing("Metrics analysis", elapsed_ms(metrics_start));
         spdlog::info("[OUTPUT] Metrics exported to: {}",
                      opts.exports.metrics_json);
         spdlog::info("[METRICS] schedulable={}, bounded={}, deadlocks={}",
@@ -369,19 +397,19 @@ int run_ptpn_postprocess(
     spdlog::info("[SCG] Reachability analysis skipped");
   }
 
-  const auto end_time = chrono::high_resolution_clock::now();
+  const auto end_time = PipelineClock::now();
   const auto total_duration =
       chrono::duration_cast<chrono::milliseconds>(end_time - pipeline_start);
   const size_t total_memory = get_memory_usage() - initial_memory;
-  spdlog::info("\n[STATS] {} pipeline: {} ms, {} KB", input_label,
-               total_duration.count(), total_memory);
+  log_step_timing(input_label + " pipeline (total)",
+                  total_duration.count(), to_string(total_memory) + " KB");
   return 0;
 }
 
 int run_tdg_pipeline(const string& input_file, PipelineOptions opts,
                      size_t initial_memory) {
-  const auto pipeline_start = chrono::high_resolution_clock::now();
-  const auto tdg_start = chrono::high_resolution_clock::now();
+  const auto pipeline_start = PipelineClock::now();
+  const auto tdg_start = PipelineClock::now();
   spdlog::info("[TDG] Loading JSON: {}", input_file);
 
   parse::Parser parser;
@@ -410,12 +438,10 @@ int run_tdg_pipeline(const string& input_file, PipelineOptions opts,
     spdlog::info("[OUTPUT] WCET JSON exported to: {}", opts.exports.wcet_json);
   }
 
-  const auto tdg_end = chrono::high_resolution_clock::now();
-  const auto tdg_duration =
-      chrono::duration_cast<chrono::milliseconds>(tdg_end - tdg_start);
+  const auto tdg_end = PipelineClock::now();
   const size_t tdg_memory = get_memory_usage() - initial_memory;
-  spdlog::info("\n[STATS] TDG parsing: {} ms, {} KB", tdg_duration.count(),
-               tdg_memory);
+  log_step_timing("TDG parsing", elapsed_ms(tdg_start),
+                  to_string(tdg_memory) + " KB");
 
   if (!opts.exports.ppn_file.empty()) {
     if (validate_ptopner_tdg(tdg) != 0) {
@@ -424,7 +450,9 @@ int run_tdg_pipeline(const string& input_file, PipelineOptions opts,
   }
 
   petri::PTPN ptpn;
+  const auto lowering_start = PipelineClock::now();
   build_ptpn_from_tdg(tdg, ptpn);
+  log_step_timing("TDG2PN lowering", elapsed_ms(lowering_start));
 
   if (!should_run_analysis(opts) && !has_any_export(opts.exports)) {
     spdlog::warn(
@@ -438,7 +466,8 @@ int run_tdg_pipeline(const string& input_file, PipelineOptions opts,
 
 int run_ptpn_pipeline(const string& input_file, const PipelineOptions& opts,
                       size_t initial_memory) {
-  const auto pipeline_start = chrono::high_resolution_clock::now();
+  const auto pipeline_start = PipelineClock::now();
+  const auto parse_start = PipelineClock::now();
   spdlog::info("[PTPN] Loading source: {}", input_file);
 
   const petri::PTPN ptpn = parser::PTPNBuilder::parse_file(input_file);
@@ -447,6 +476,8 @@ int run_ptpn_pipeline(const string& input_file, const PipelineOptions& opts,
          << parser::PTPNBuilder::error_message() << endl;
     return 1;
   }
+
+  log_step_timing("PTPN parsing", elapsed_ms(parse_start));
 
   spdlog::info("[PTPN] Parse completed");
   spdlog::info("  Places: {}", ptpn.num_places());

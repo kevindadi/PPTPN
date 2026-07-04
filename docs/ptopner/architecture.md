@@ -71,7 +71,7 @@ const auto ppn_validation = ptopner_export::validate_for_ptopner(tdg);
 const auto ppn_export = ptopner_export::export_ptpn_to_ppn_file(ptpn, opts.ppn_file);
 ```
 
-Validation and export live in `src/tdg2ptopner/validate.cpp` and `src/tdg2ptopner/tdg2ptopner.cpp`. The export is constrained: point intervals only, no locks, `fixed_prior_with_restart` policy, and size limits apply.
+Validation and export live in `src/tdg2ptopner/validate.cpp` and `src/tdg2ptopner/tdg2ptopner.cpp`. The export is constrained: point intervals only, no locks, and `fixed_prior_with_restart` policy.
 
 ## Key file map
 
@@ -83,7 +83,7 @@ Validation and export live in `src/tdg2ptopner/validate.cpp` and `src/tdg2ptopne
 | `src/analysis/state.h` | StateClass: marking, clocks, zone, enabled, active, suspended |
 | `src/analysis/scheduling.h/.cpp` | SchedulingAlgorithms: select_active_per_core, compute_suspended, should_suspend/should_restore |
 | `src/tdg2pn/tdg2pn.h/.cpp` | TDG → PTPN lowering |
-| `src/tdg2ptopner/validate.cpp` | PToPNer validation: point intervals, no locks, fixed_prior_with_restart, size limits |
+| `src/tdg2ptopner/validate.cpp` | PToPNer validation: point intervals, no locks, fixed_prior_with_restart |
 | `src/tdg2ptopner/tdg2ptopner.cpp` | PTPN → .ppn export |
 
 ## Further reading

@@ -1,0 +1,149 @@
+{
+  "profiles": [
+    "ptpn",
+    "romeo",
+    "ptopner"
+  ],
+  "suites": [
+    "p-bench",
+    "s-bench",
+    "t-bench"
+  ],
+  "skip_ptopner_suites": [
+    "s-bench"
+  ],
+  "runs": [
+    {
+      "suite": "p-bench",
+      "case": "initial",
+      "profile": "ptopner",
+      "ok": true,
+      "error": "",
+      "places": 22,
+      "transitions": 27,
+      "scg_states": null,
+      "scg_edges": null,
+      "scg_dedup_hits": null,
+      "scg_truncated": false,
+      "ms_tdg2pn": null,
+      "ms_scg_build": null,
+      "ms_scg_dot": null,
+      "ms_total": null,
+      "ppn_exported": true,
+      "ppn_error": "",
+      "outputs": [
+        "/Users/kevin/local-repos/PTPN/example/ptopner/p-bench/initial.ppn"
+      ]
+    },
+    {
+      "suite": "p-bench",
+      "case": "no-period",
+      "profile": "ptopner",
+      "ok": true,
+      "error": "",
+      "places": 20,
+      "transitions": 25,
+      "scg_states": null,
+      "scg_edges": null,
+      "scg_dedup_hits": null,
+      "scg_truncated": false,
+      "ms_tdg2pn": null,
+      "ms_scg_build": null,
+      "ms_scg_dot": null,
+      "ms_total": null,
+      "ppn_exported": true,
+      "ppn_error": "",
+      "outputs": [
+        "/Users/kevin/local-repos/PTPN/example/ptopner/p-bench/no-period.ppn"
+      ]
+    },
+    {
+      "suite": "p-bench",
+      "case": "same-core",
+      "profile": "ptopner",
+      "ok": true,
+      "error": "",
+      "places": 19,
+      "transitions": 25,
+      "scg_states": null,
+      "scg_edges": null,
+      "scg_dedup_hits": null,
+      "scg_truncated": false,
+      "ms_tdg2pn": null,
+      "ms_scg_build": null,
+      "ms_scg_dot": null,
+      "ms_total": null,
+      "ppn_exported": true,
+      "ppn_error": "",
+      "outputs": [
+        "/Users/kevin/local-repos/PTPN/example/ptopner/p-bench/same-core.ppn"
+      ]
+    },
+    {
+      "suite": "p-bench",
+      "case": "same-priority",
+      "profile": "ptopner",
+      "ok": true,
+      "error": "",
+      "places": 22,
+      "transitions": 21,
+      "scg_states": null,
+      "scg_edges": null,
+      "scg_dedup_hits": null,
+      "scg_truncated": false,
+      "ms_tdg2pn": null,
+      "ms_scg_build": null,
+      "ms_scg_dot": null,
+      "ms_total": null,
+      "ppn_exported": true,
+      "ppn_error": "",
+      "outputs": [
+        "/Users/kevin/local-repos/PTPN/example/ptopner/p-bench/same-priority.ppn"
+      ]
+    },
+    {
+      "suite": "p-bench",
+      "case": "single-core-diff-priority",
+      "profile": "ptopner",
+      "ok": true,
+      "error": "",
+      "places": 18,
+      "transitions": 27,
+      "scg_states": null,
+      "scg_edges": null,
+      "scg_dedup_hits": null,
+      "scg_truncated": false,
+      "ms_tdg2pn": null,
+      "ms_scg_build": null,
+      "ms_scg_dot": null,
+      "ms_total": null,
+      "ppn_exported": true,
+      "ppn_error": "",
+      "outputs": [
+        "/Users/kevin/local-repos/PTPN/example/ptopner/p-bench/single-core-diff-priority.ppn"
+      ]
+    },
+    {
+      "suite": "p-bench",
+      "case": "single-core-same-priority",
+      "profile": "ptopner",
+      "ok": true,
+      "error": "",
+      "places": 18,
+      "transitions": 17,
+      "scg_states": null,
+      "scg_edges": null,
+      "scg_dedup_hits": null,
+      "scg_truncated": false,
+      "ms_tdg2pn": null,
+      "ms_scg_build": null,
+      "ms_scg_dot": null,
+      "ms_total": null,
+      "ppn_exported": true,
+      "ppn_error": "",
+      "outputs": [
+        "/Users/kevin/local-repos/PTPN/example/ptopner/p-bench/single-core-same-priority.ppn"
+      ]
+    }
+  ]
+}
