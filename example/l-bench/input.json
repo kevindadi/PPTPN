@@ -1,0 +1,60 @@
+{
+  "graph": {
+    "name": "LBench20PeriodicTasks"
+  },
+  "configuration": {
+    "num_cpus": 20,
+    "cores_per_cpu": 1,
+    "shared_locks": [],
+    "policy": "fixed",
+    "end": [
+      "J00", "J01", "J02", "J03", "J04", "J05", "J06", "J07", "J08", "J09",
+      "J10", "J11", "J12", "J13", "J14", "J15", "J16", "J17", "J18", "J19"
+    ],
+    "periodic": [
+      { "task": "J00", "period": 100 },
+      { "task": "J01", "period": 100 },
+      { "task": "J02", "period": 100 },
+      { "task": "J03", "period": 100 },
+      { "task": "J04", "period": 100 },
+      { "task": "J05", "period": 100 },
+      { "task": "J06", "period": 100 },
+      { "task": "J07", "period": 100 },
+      { "task": "J08", "period": 100 },
+      { "task": "J09", "period": 100 },
+      { "task": "J10", "period": 100 },
+      { "task": "J11", "period": 100 },
+      { "task": "J12", "period": 100 },
+      { "task": "J13", "period": 100 },
+      { "task": "J14", "period": 100 },
+      { "task": "J15", "period": 100 },
+      { "task": "J16", "period": 100 },
+      { "task": "J17", "period": 100 },
+      { "task": "J18", "period": 100 },
+      { "task": "J19", "period": 100 }
+    ]
+  },
+  "nodes": [
+    { "id": "J00", "type": "task", "priority": 50, "core": 0, "time": [[2, 4]], "locks": [] },
+    { "id": "J01", "type": "task", "priority": 50, "core": 1, "time": [[2, 4]], "locks": [] },
+    { "id": "J02", "type": "task", "priority": 50, "core": 2, "time": [[2, 4]], "locks": [] },
+    { "id": "J03", "type": "task", "priority": 50, "core": 3, "time": [[2, 4]], "locks": [] },
+    { "id": "J04", "type": "task", "priority": 50, "core": 4, "time": [[2, 4]], "locks": [] },
+    { "id": "J05", "type": "task", "priority": 50, "core": 5, "time": [[2, 4]], "locks": [] },
+    { "id": "J06", "type": "task", "priority": 50, "core": 6, "time": [[2, 4]], "locks": [] },
+    { "id": "J07", "type": "task", "priority": 50, "core": 7, "time": [[2, 4]], "locks": [] },
+    { "id": "J08", "type": "task", "priority": 50, "core": 8, "time": [[2, 4]], "locks": [] },
+    { "id": "J09", "type": "task", "priority": 50, "core": 9, "time": [[2, 4]], "locks": [] },
+    { "id": "J10", "type": "task", "priority": 50, "core": 10, "time": [[2, 4]], "locks": [] },
+    { "id": "J11", "type": "task", "priority": 50, "core": 11, "time": [[2, 4]], "locks": [] },
+    { "id": "J12", "type": "task", "priority": 50, "core": 12, "time": [[2, 4]], "locks": [] },
+    { "id": "J13", "type": "task", "priority": 50, "core": 13, "time": [[2, 4]], "locks": [] },
+    { "id": "J14", "type": "task", "priority": 50, "core": 14, "time": [[2, 4]], "locks": [] },
+    { "id": "J15", "type": "task", "priority": 50, "core": 15, "time": [[2, 4]], "locks": [] },
+    { "id": "J16", "type": "task", "priority": 50, "core": 16, "time": [[2, 4]], "locks": [] },
+    { "id": "J17", "type": "task", "priority": 50, "core": 17, "time": [[2, 4]], "locks": [] },
+    { "id": "J18", "type": "task", "priority": 50, "core": 18, "time": [[2, 4]], "locks": [] },
+    { "id": "J19", "type": "task", "priority": 50, "core": 19, "time": [[2, 4]], "locks": [] }
+  ],
+  "edges": []
+}
