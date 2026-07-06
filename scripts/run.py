@@ -20,7 +20,7 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 EXAMPLE = ROOT / "example"
 DEFAULT_PTPN = ROOT / "build" / "ptpn"
 
@@ -359,9 +359,13 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if not args.dry_run and not args.ptpn.is_file():
-        print(f"error: ptpn not found: {args.ptpn}", file=sys.stderr)
-        print("build first: cmake -B build -G Ninja && cmake --build build", file=sys.stderr)
+    ptpn_bin = args.ptpn.expanduser()
+    if not ptpn_bin.is_absolute():
+        ptpn_bin = (ROOT / ptpn_bin).resolve()
+
+    if not args.dry_run and not ptpn_bin.is_file():
+        print(f"error: ptpn not found: {ptpn_bin}", file=sys.stderr)
+        print("build first: ./scripts/build.py", file=sys.stderr)
         return 1
 
     cases = discover_cases(args.suites)
@@ -386,7 +390,7 @@ def main() -> int:
 
             print(f"[*] {profile}/{suite}/{case} ...", flush=True)
             row = run_case(
-                args.ptpn,
+                ptpn_bin,
                 suite,
                 input_path,
                 profile,
