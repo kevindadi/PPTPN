@@ -19,13 +19,14 @@ A **Priority Timed Petri Net** analyzer for real-time scheduling. It lowers task
 | **Direct** | `ptpn ptpn -f model.ptpn` | PTPN source file | `.ptpn` → PTPN → analysis |
 
 ```text
-# TDG path
-JSON ──► Parser ──► TDG ──► TDG2PN ──► PTPN ──► State-Class Analysis
-                                              └──► optional DOT / Romeo / PToPNer / metrics
+# TDG path (three parallel export/analysis pipelines)
+JSON ──► TDG ──► tdg2pn ──► PTPN ──► State-Class Analysis / DOT / metrics
+           │
+           ├──► tdg2romeo ──► Romeo .cts
+           └──► tdg2ptopner ──► PToPNer .ppn
 
 # Direct path
-.ptpn ──► Parser ──► PTPN ──► State-Class Analysis
-                          └──► optional DOT / Romeo / PToPNer / metrics
+.ptpn ──► Parser ──► PTPN ──► State-Class Analysis / DOT / metrics
 ```
 
 ## Quick Start
@@ -128,7 +129,7 @@ ctest --test-dir build --output-on-failure
 |------------|---------|
 | `ptpn tdg` | Load TDG JSON, lower to PTPN, analyze and/or export |
 | `ptpn ptpn` | Load `.ptpn` source, analyze and/or export |
-| `ptpn export romeo` | Export Romeo CTS (`-f` input, `-o` output) |
+| `ptpn export romeo` | Export Romeo CTS from TDG JSON (`--format scheduling-net\|inhibitor-arc`) |
 | `ptpn export ptopner` | Export PToPNer `.ppn` (`-f` input, `-o` output) |
 
 ### Common Options (`tdg` / `ptpn`)
@@ -157,7 +158,7 @@ ctest --test-dir build --output-on-failure
 | `--export-ptpn PATH` | PTPN structure Graphviz DOT |
 | `--export-scg PATH` | State-class reachability graph DOT |
 | `--export-metrics PATH` | Performance / schedulability metrics JSON |
-| `--romeo PATH` | Romeo CTS |
+| `--romeo PATH` | Romeo CTS (via `tdg2romeo`, TDG mode only) |
 | `--ppn PATH` | PToPNer `.ppn` |
 | `--tina PATH` | Tina `.net` (not implemented) |
 
@@ -174,8 +175,9 @@ JSON `configuration.policy` and `--policy` accept values such as:
 | `fixed_prior_with_restart` | Structural restart preemption (required for PToPNer export) |
 | `fifo`, `rm`, `dm`, `edf`, `llf`, `pip`, `pcp`, `srp` | Other policies (see [docs/json_format.md](docs/json_format.md)) |
 
-- **Native analysis / Romeo:** prefer `fixed` or `fixed_prior_with_resume`
-- **PToPNer `.ppn` export:** requires `fixed_prior_with_restart`
+- **Native P-TPN analysis:** prefer `fixed` or `fixed_prior_with_resume` (tdg2pn lowering)
+- **Romeo `.cts` export:** uses `tdg2romeo` directly from TDG; scheduling policy in JSON does not affect Romeo encoding
+- **PToPNer `.ppn` export:** requires `fixed_prior_with_restart` (tdg2ptopner)
 
 ### Examples
 
@@ -191,17 +193,21 @@ JSON `configuration.policy` and `--policy` accept values such as:
 ./build/ptpn tdg -f example/p-bench/initial.json \
   --no-analysis --export-wcet wcet.json
 
-# TDG: Romeo export with resume policy
-./build/ptpn tdg -f example/p-bench/initial.json \
-  --policy fixed_prior_with_resume --romeo out.cts
+# TDG: Romeo export (scheduling-net, default)
+./build/ptpn export romeo -f example/p-bench/initial.json -o out.cts
+
+# TDG: Romeo export (inhibitor-arc style)
+./build/ptpn export romeo -f example/p-bench/initial.json -o out.cts --format inhibitor-arc
+
+# TDG pipeline with inline Romeo export
+./build/ptpn tdg -f example/p-bench/initial.json --no-analysis --romeo out.cts
 
 # PTPN: max-lower canonicalization + metrics
 ./build/ptpn ptpn -f model.ptpn \
   --canonicalization max-lower --export-metrics metrics.json
 
 # Standalone export subcommands
-./build/ptpn export romeo -f example/p-bench/initial.json -o out.cts \
-  --policy fixed_prior_with_resume
+./build/ptpn export romeo -f example/p-bench/initial.json -o out.cts
 ./build/ptpn export ptopner -f example/p-bench/initial.json -o out.ppn \
   --policy fixed_prior_with_restart
 ```
@@ -226,8 +232,9 @@ TDG JSON format: [docs/json_format.md](docs/json_format.md). PTPN language: [doc
 | JSON parser | [src/json/](src/json/) | TDG JSON parsing and validation |
 | TDG | [src/tdg/](src/tdg/) | Task dependency graph model |
 | PTPN parser | [src/parser/](src/parser/) | `.ptpn` language parsing |
-| PTPN core | [src/petri/](src/petri/) | Petri net model and DOT/Romeo export |
+| PTPN core | [src/petri/](src/petri/) | P-TPN model and DOT export |
 | TDG2PN | [src/tdg2pn/](src/tdg2pn/) | TDG → PTPN lowering ([rules](docs/rule.md)) |
+| TDG2Romeo | [src/tdg2romeo/](src/tdg2romeo/) | TDG → Romeo `.cts` ([rules](docs/tdg2romeo/conversion-rules.md)) |
 | PToPNer | [src/tdg2ptopner/](src/tdg2ptopner/) | PToPNer validation and `.ppn` export |
 | Analysis | [src/analysis/](src/analysis/) | State classes, DBM, scheduling, metrics |
 | Examples | [example/](example/) | TDG benchmark inputs |
@@ -241,7 +248,8 @@ TDG JSON format: [docs/json_format.md](docs/json_format.md). PTPN language: [doc
 | [docs/ptpn-language-spec.md](docs/ptpn-language-spec.md) | PTPN domain language |
 | [docs/rule.md](docs/rule.md) | TDG → PTPN lowering rules |
 | [docs/ptopner/](docs/ptopner/) | PToPNer export, scheduling semantics, metrics |
-| [docs/romeo/](docs/romeo/) | Romeo-related semantics notes |
+| [docs/tdg2romeo/](docs/tdg2romeo/) | TDG → Romeo conversion rules |
+| [docs/romeo/](docs/romeo/) | Romeo engine semantics notes |
 | [CLAUDE.md](CLAUDE.md) | Developer / agent orientation |
 
 ## Third-Party Dependencies

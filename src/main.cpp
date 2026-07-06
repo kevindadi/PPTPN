@@ -25,12 +25,12 @@
 #include "parser/ptpn_parser.h"
 #include "petri/export_dot.h"
 #include "petri/export_ptpn.h"
-#include "petri/export_romeo.h"
 #include "petri/petri.h"
 #include "tdg/tdg.h"
 #include "tdg2pn/tdg2pn.h"
 #include "tdg2ptopner/tdg2ptopner.h"
 #include "tdg2ptopner/validate.h"
+#include "tdg2romeo/tdg2romeo.h"
 #include "types/types.h"
 
 using namespace std;
@@ -73,13 +73,17 @@ struct PipelineOptions {
   string canonicalization_mode = "equality";
   bool skip_analysis = false;
   optional<SchedulePolicy> policy_override;
+  string romeo_format = "scheduling-net";
+  bool romeo_explicit_core_places = true;
   ExportTargets exports;
 };
 
 struct ExportCommandOptions {
   string input_file;
   string output_file;
-  string input_format = "auto";
+  string input_format = "tdg";
+  string romeo_format = "scheduling-net";
+  bool romeo_explicit_core_places = true;
   optional<SchedulePolicy> policy_override;
   bool debug_mode = false;
 };
@@ -164,6 +168,24 @@ SchedulePolicy parse_policy_option(const string& policy) {
   return parsed;
 }
 
+romeo_export::RomeoFormat parse_romeo_format(const string& format) {
+  if (format == "inhibitor-arc" || format == "inhibitor_arc") {
+    return romeo_export::RomeoFormat::InhibitorArc;
+  }
+  if (format == "scheduling-net" || format == "scheduling_net") {
+    return romeo_export::RomeoFormat::SchedulingNet;
+  }
+  throw CLI::ValidationError(format, "Expected scheduling-net or inhibitor-arc");
+}
+
+romeo_export::RomeoExportOptions make_romeo_export_options(const string& format,
+                                                           bool explicit_core_places) {
+  romeo_export::RomeoExportOptions opts;
+  opts.format = parse_romeo_format(format);
+  opts.explicit_core_places = explicit_core_places;
+  return opts;
+}
+
 void apply_policy_override(tdg::TDG& tdg, const optional<SchedulePolicy>& policy_override) {
   if (!policy_override.has_value()) {
     return;
@@ -215,13 +237,14 @@ int validate_ptopner_tdg(const tdg::TDG& tdg) {
   return 0;
 }
 
-int export_romeo_from_ptpn(const petri::PTPN& ptpn, const string& output_path) {
-  const auto export_model = petri::exporting::build_export_model(ptpn);
-  if (petri::exporting::save_to_romeo_cts(export_model, output_path)) {
+int export_romeo_from_tdg(const tdg::TDG& tdg, const string& output_path,
+                          const romeo_export::RomeoExportOptions& opts) {
+  const auto result = romeo_export::export_tdg_to_romeo_cts(tdg, output_path, opts);
+  if (result.success) {
     spdlog::info("[OUTPUT] Romeo CTS exported to: {}", output_path);
     return 0;
   }
-  cerr << "ERROR: Failed to export Romeo CTS" << endl;
+  cerr << "ERROR: Failed to export Romeo CTS: " << result.error_message << endl;
   return 1;
 }
 
@@ -300,12 +323,6 @@ int run_ptpn_postprocess(const petri::PTPN& ptpn, const string& input_label,
 
   if (!opts.exports.tina_file.empty()) {
     spdlog::info("[OUTPUT] Tina export not implemented");
-  }
-
-  if (!opts.exports.romeo_file.empty()) {
-    if (export_romeo_from_ptpn(ptpn, opts.exports.romeo_file) != 0) {
-      return 1;
-    }
   }
 
   if (should_run_analysis(opts)) {
@@ -416,15 +433,33 @@ int run_tdg_pipeline(const string& input_file, PipelineOptions opts, size_t init
     }
   }
 
+  if (!opts.exports.romeo_file.empty()) {
+    const auto romeo_opts =
+        make_romeo_export_options(opts.romeo_format, opts.romeo_explicit_core_places);
+    if (export_romeo_from_tdg(tdg, opts.exports.romeo_file, romeo_opts) != 0) {
+      return 1;
+    }
+  }
+
+  const bool needs_ptpn = should_run_analysis(opts) || !opts.exports.ptpn_dot.empty() ||
+                          !opts.exports.ppn_file.empty() || !opts.exports.scg_dot.empty() ||
+                          !opts.exports.metrics_json.empty();
+
+  if (!needs_ptpn) {
+    if (!has_any_export(opts.exports)) {
+      spdlog::warn("[MAIN] No exports requested and analysis disabled; nothing to do");
+      return 0;
+    }
+    const auto end_time = PipelineClock::now();
+    log_step_timing("TDG pipeline (total)", elapsed_ms(pipeline_start),
+                    to_string(get_memory_usage() - initial_memory) + " KB");
+    return 0;
+  }
+
   petri::PTPN ptpn;
   const auto lowering_start = PipelineClock::now();
   build_ptpn_from_tdg(tdg, ptpn);
   log_step_timing("TDG2PN lowering", elapsed_ms(lowering_start));
-
-  if (!should_run_analysis(opts) && !has_any_export(opts.exports)) {
-    spdlog::warn("[MAIN] No exports requested and analysis disabled; nothing to do");
-    return 0;
-  }
 
   return run_ptpn_postprocess(ptpn, "TDG", opts, pipeline_start, initial_memory);
 }
@@ -457,16 +492,10 @@ int run_ptpn_pipeline(const string& input_file, const PipelineOptions& opts,
 
 int run_export_romeo(const ExportCommandOptions& opts) {
   const fs::path input_path(opts.input_file);
-  const InputFormat format = resolve_input_format(input_path, opts.input_format);
-
-  if (format == InputFormat::PTPN) {
-    spdlog::info("[EXPORT] Romeo from PTPN source: {}", opts.input_file);
-    const petri::PTPN ptpn = parser::PTPNBuilder::parse_file(opts.input_file);
-    if (parser::PTPNBuilder::has_error()) {
-      cerr << "ERROR: Failed to parse PTPN file: " << parser::PTPNBuilder::error_message() << endl;
-      return 1;
-    }
-    return export_romeo_from_ptpn(ptpn, opts.output_file);
+  if (opts.input_format == "ptpn" ||
+      (opts.input_format == "auto" && input_path.extension() == ".ptpn")) {
+    cerr << "ERROR: Romeo export accepts TDG JSON only (use tdg2romeo, not PTPN input)" << endl;
+    return 1;
   }
 
   spdlog::info("[EXPORT] Romeo from TDG JSON: {}", opts.input_file);
@@ -476,17 +505,9 @@ int run_export_romeo(const ExportCommandOptions& opts) {
     return 1;
   }
 
-  apply_policy_override(tdg, opts.policy_override);
-  if (!opts.policy_override.has_value()) {
-    spdlog::info(
-        "[EXPORT] Using TDG policy {} (Romeo path typically uses "
-        "fixed_prior_with_resume or fixed)",
-        schedule_policy_to_string(tdg.policy));
-  }
-
-  petri::PTPN ptpn;
-  build_ptpn_from_tdg(tdg, ptpn);
-  return export_romeo_from_ptpn(ptpn, opts.output_file);
+  const auto romeo_opts =
+      make_romeo_export_options(opts.romeo_format, opts.romeo_explicit_core_places);
+  return export_romeo_from_tdg(tdg, opts.output_file, romeo_opts);
 }
 
 int run_export_ptopner(const ExportCommandOptions& opts) {
@@ -534,10 +555,10 @@ int run_export_ptopner(const ExportCommandOptions& opts) {
 }
 
 void configure_export_subcommand(CLI::App* cmd, ExportCommandOptions& opts, const string& footer) {
-  cmd->add_option("-f,--file", opts.input_file, "Input TDG JSON or .ptpn file")->required(true);
+  cmd->add_option("-f,--file", opts.input_file, "Input TDG JSON file")->required(true);
   cmd->add_option("-o,--output", opts.output_file, "Output file path")->required(true);
-  cmd->add_option("--from", opts.input_format, "Input format: auto, tdg, or ptpn (default: auto)")
-      ->check(CLI::IsMember({"auto", "tdg", "ptpn"}));
+  cmd->add_option("--from", opts.input_format, "Input format: tdg (default: tdg)")
+      ->check(CLI::IsMember({"tdg", "auto"}));
   cmd->add_flag("--debug", opts.debug_mode, "Enable debug logging");
   cmd->footer(footer);
 }
@@ -589,12 +610,20 @@ int main(int argc, char* argv[]) {
   string tdg_file;
   string ptpn_file;
   string tdg_policy_string;
-  string romeo_policy_string;
   string ptopner_policy_string;
+  bool romeo_no_core_places = false;
+  bool export_romeo_no_core_places = false;
 
   auto* tdg_cmd = app.add_subcommand("tdg", "Analyze from TDG JSON input");
   tdg_cmd->add_option("-f,--file", tdg_file, "Input TDG JSON file")->required(true);
   add_common_pipeline_options(tdg_cmd, tdg_opts);
+  tdg_cmd
+      ->add_option("--format", tdg_opts.romeo_format,
+                   "Romeo export format: scheduling-net or inhibitor-arc "
+                   "(default: scheduling-net)")
+      ->check(CLI::IsMember({"scheduling-net", "inhibitor-arc"}));
+  tdg_cmd->add_flag("--romeo-no-core-places", romeo_no_core_places,
+                    "Omit explicit core resource places in Romeo export");
   tdg_cmd
       ->add_option("--policy", tdg_policy_string,
                    "Override TDG scheduling policy for lowering "
@@ -613,7 +642,8 @@ int main(int argc, char* argv[]) {
       "out.cts\n"
       "  ptpn tdg -f input.json --policy fixed_prior_with_restart --ppn "
       "out.ppn\n"
-      "  ptpn tdg -f input.json --no-analysis --export-wcet wcet.json");
+      "  ptpn tdg -f input.json --no-analysis --export-wcet wcet.json\n"
+      "  ptpn tdg -f input.json --romeo out.cts --format scheduling-net");
 
   auto* ptpn_cmd = app.add_subcommand("ptpn", "Analyze from PTPN source file");
   ptpn_cmd->add_option("-f,--file", ptpn_file, "Input .ptpn source file")->required(true);
@@ -623,26 +653,23 @@ int main(int argc, char* argv[]) {
       "  ptpn ptpn -f example/common/simple.ptpn\n"
       "  ptpn ptpn -f model.ptpn --export-scg scg.dot --canonicalization "
       "max-lower\n"
-      "  ptpn ptpn -f model.ptpn --no-analysis --romeo out.cts --debug");
+      "  ptpn ptpn -f model.ptpn --no-analysis --export-ptpn net.dot");
 
   auto* export_cmd = app.add_subcommand("export", "Export to Romeo or PToPNer formats");
   export_cmd->require_subcommand(1);
 
   auto* export_romeo_cmd = export_cmd->add_subcommand(
-      "romeo", "Export Romeo CTS (resume-style TDG lowering recommended)");
+      "romeo", "Export Romeo CTS directly from TDG JSON (tdg2romeo)");
   configure_export_subcommand(export_romeo_cmd, romeo_export_opts,
                               "Examples:\n"
-                              "  ptpn export romeo -f example/common/input.json -o out.cts\n"
-                              "  ptpn export romeo -f input.json -o out.cts "
-                              "--policy fixed_prior_with_resume\n"
-                              "  ptpn export romeo -f model.ptpn -o out.cts --from ptpn");
+                              "  ptpn export romeo -f example/p-bench/initial.json -o out.cts\n"
+                              "  ptpn export romeo -f input.json -o out.cts --format inhibitor-arc");
   export_romeo_cmd
-      ->add_option("--policy", romeo_policy_string,
-                   "Override TDG scheduling policy (default: use JSON policy)")
-      ->transform([&romeo_export_opts](const string& value) {
-        romeo_export_opts.policy_override = parse_policy_option(value);
-        return value;
-      });
+      ->add_option("--format", romeo_export_opts.romeo_format,
+                   "Romeo format: scheduling-net or inhibitor-arc (default: scheduling-net)")
+      ->check(CLI::IsMember({"scheduling-net", "inhibitor-arc"}));
+  export_romeo_cmd->add_flag("--romeo-no-core-places", export_romeo_no_core_places,
+                             "Omit explicit core resource places in Romeo export");
 
   auto* export_ptopner_cmd = export_cmd->add_subcommand(
       "ptopner", "Export PToPNer .ppn (restart-style TDG lowering required)");
@@ -685,12 +712,14 @@ int main(int argc, char* argv[]) {
   const size_t initial_memory = get_memory_usage();
 
   if (tdg_cmd->parsed()) {
+    tdg_opts.romeo_explicit_core_places = !romeo_no_core_places;
     return run_tdg_pipeline(tdg_file, tdg_opts, initial_memory);
   }
   if (ptpn_cmd->parsed()) {
     return run_ptpn_pipeline(ptpn_file, ptpn_opts, initial_memory);
   }
   if (export_romeo_cmd->parsed()) {
+    romeo_export_opts.romeo_explicit_core_places = !export_romeo_no_core_places;
     return run_export_romeo(romeo_export_opts);
   }
   if (export_ptopner_cmd->parsed()) {

@@ -108,8 +108,13 @@ add_library(PTPN_core STATIC
     src/petri/petri.cpp
     src/petri/export_ptpn.cpp
     src/petri/export_dot.cpp
-    src/petri/export_romeo.cpp
     src/tdg2pn/tdg2pn.cpp
+    src/tdg2romeo/cts_writer.cpp
+    src/tdg2romeo/encode_common.cpp
+    src/tdg2romeo/inhibitor_arc.cpp
+    src/tdg2romeo/scheduling_net.cpp
+    src/tdg2romeo/tdg2romeo.cpp
+    src/tdg2romeo/tdg_helpers.cpp
     src/tdg2ptopner/validate.cpp
     src/tdg2ptopner/export_ppn.cpp
     src/tdg2ptopner/ptpn_to_ppn.cpp
