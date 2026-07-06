@@ -9,7 +9,7 @@ enum class TaskType { NORMAL, PERIOD, APERIOD, INTERRUPT };
 
 // 实时系统调度策略
 enum class SchedulePolicy {
-  FIXED,  // Fixed Priority - 固定优先级(兼容别名,默认按 resume 处理)
+  FIXED,                     // Fixed Priority - 固定优先级(兼容别名,默认按 resume 处理)
   FIXED_PRIOR_WITH_RESTART,  // Fixed Priority with restart
   FIXED_PRIOR_WITH_RESUME,   // Fixed Priority with resume
   RM,                        // Rate Monotonic - 周期越短优先级越高
@@ -45,6 +45,7 @@ struct ForkTask {
   int core = -1;
   int priority = 0;
   ForkTask() = default;
+
   ForkTask(const std::string& n) : name(n) {}
 };
 
@@ -54,6 +55,7 @@ struct JoinTask {
   int core = -1;
   int priority = 0;
   JoinTask() = default;
+
   JoinTask(const std::string& n) : name(n) {}
 };
 
@@ -89,13 +91,18 @@ struct TdgEdge {
   std::string label;
   std::string style;
 
-  [[nodiscard]] bool is_self_loop() const { return source == target; }
+  [[nodiscard]] bool is_self_loop() const {
+    return source == target;
+  }
+
   [[nodiscard]] bool is_dashed() const {
     return style.find("dashed") != std::string::npos;
   }
+
   [[nodiscard]] bool leaves(const std::string& node) const {
     return source == node && target != node;
   }
+
   [[nodiscard]] bool enters(const std::string& node) const {
     return target == node && source != node;
   }
@@ -117,8 +124,7 @@ inline TaskNode* as_task_node(NodeType& node) {
 }
 
 inline bool is_fork_or_join(const NodeType& node) {
-  return std::holds_alternative<ForkTask>(node) ||
-         std::holds_alternative<JoinTask>(node);
+  return std::holds_alternative<ForkTask>(node) || std::holds_alternative<JoinTask>(node);
 }
 
 // Applies a visitor to each NodeType alternative (C++17 std::visit wrapper).

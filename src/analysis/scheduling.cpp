@@ -18,8 +18,8 @@ std::set<size_t> Scheduling::structural_enabled(const petri::PTPN& net,
   return enabled;
 }
 
-std::set<size_t> Scheduling::filter_priority_per_core(
-    const std::set<size_t>& struct_enabled, const petri::PTPN& net) {
+std::set<size_t> Scheduling::filter_priority_per_core(const std::set<size_t>& struct_enabled,
+                                                      const petri::PTPN& net) {
   // Every transition competes within its core group, identified by the `core`
   // attribute. The control core (-1) is treated like any other group, so
   // control transitions are filtered by priority too (e.g. a resume transition

@@ -65,7 +65,9 @@ DBM& DBM::operator=(const DBM& other) {
   return *this;
 }
 
-size_t DBM::offset(size_t i, size_t j) const { return i * clock_count_ + j; }
+size_t DBM::offset(size_t i, size_t j) const {
+  return i * clock_count_ + j;
+}
 
 void DBM::check_index(size_t i, size_t j) const {
   if (i >= clock_count_ || j >= clock_count_) {
@@ -84,7 +86,8 @@ int DBM::get_constraint(size_t i, size_t j) const {
 }
 
 bool DBM::is_consistent() const {
-  if (clock_count_ == 0) return true;
+  if (clock_count_ == 0)
+    return true;
 
   for (size_t i = 0; i < clock_count_; ++i) {
     if (matrix_[offset(i, i)] < 0) {
@@ -107,16 +110,19 @@ bool DBM::is_consistent() const {
 void DBM::minimize() {
   g_dbm_minimize_calls.fetch_add(1, std::memory_order_relaxed);
 
-  if (clock_count_ == 0) return;
+  if (clock_count_ == 0)
+    return;
 
   for (size_t k = 0; k < clock_count_; ++k) {
     for (size_t i = 0; i < clock_count_; ++i) {
       const size_t ik = offset(i, k);
-      if (matrix_[ik] == INF_TIME) continue;
+      if (matrix_[ik] == INF_TIME)
+        continue;
 
       for (size_t j = 0; j < clock_count_; ++j) {
         const size_t kj = offset(k, j);
-        if (matrix_[kj] == INF_TIME) continue;
+        if (matrix_[kj] == INF_TIME)
+          continue;
 
         const int new_bound = safe_add_bound(matrix_[ik], matrix_[kj]);
         const size_t ij = offset(i, j);
@@ -135,7 +141,8 @@ size_t DBM::add_clock() {
 }
 
 void DBM::resize(size_t new_size) {
-  if (new_size == clock_count_) return;
+  if (new_size == clock_count_)
+    return;
 
   const size_t old_size = clock_count_;
   const std::vector<int> old_matrix = matrix_;
@@ -166,7 +173,8 @@ void DBM::resize(size_t new_size) {
 }
 
 void DBM::initialize_clock(size_t clock_idx) {
-  if (clock_idx >= clock_count_) return;
+  if (clock_idx >= clock_count_)
+    return;
 
   matrix_[offset(clock_idx, clock_idx)] = 0;
 
@@ -189,7 +197,8 @@ void DBM::initialize_clock(size_t clock_idx) {
 }
 
 void DBM::elapse_time(int delta) {
-  if (delta <= 0 || clock_count_ == 0) return;
+  if (delta <= 0 || clock_count_ == 0)
+    return;
 
   bool changed = false;
   for (size_t i = 1; i < clock_count_; ++i) {
@@ -346,9 +355,13 @@ DBM DBM::intersection(const DBM& other) const {
   return result;
 }
 
-bool DBM::is_empty() const { return !is_consistent(); }
+bool DBM::is_empty() const {
+  return !is_consistent();
+}
 
-void DBM::prune() { minimize(); }
+void DBM::prune() {
+  minimize();
+}
 
 bool DBM::contains(const DBM& other) const {
   if (clock_count_ != other.clock_count_) {
@@ -360,8 +373,7 @@ bool DBM::contains(const DBM& other) const {
       int this_bound = matrix_[offset(i, j)];
       int other_bound = other.matrix_[other.offset(i, j)];
 
-      if (other_bound != INF_TIME &&
-          (this_bound == INF_TIME || other_bound < this_bound)) {
+      if (other_bound != INF_TIME && (this_bound == INF_TIME || other_bound < this_bound)) {
         return false;
       }
     }
@@ -436,8 +448,10 @@ bool DBM::operator<(const DBM& other) const {
 
   for (size_t i = 0; i < matrix_.size(); ++i) {
     if (matrix_[i] != other.matrix_[i]) {
-      if (matrix_[i] == INF_TIME) return false;
-      if (other.matrix_[i] == INF_TIME) return true;
+      if (matrix_[i] == INF_TIME)
+        return false;
+      if (other.matrix_[i] == INF_TIME)
+        return true;
       return matrix_[i] < other.matrix_[i];
     }
   }
@@ -456,11 +470,13 @@ void DBM::remove_clock(size_t clock_idx) {
   std::vector<int> new_matrix(new_count * new_count, INF_TIME);
 
   for (size_t i = 0; i < clock_count_; ++i) {
-    if (i == clock_idx) continue;
+    if (i == clock_idx)
+      continue;
 
     size_t new_i = (i < clock_idx) ? i : i - 1;
     for (size_t j = 0; j < clock_count_; ++j) {
-      if (j == clock_idx) continue;
+      if (j == clock_idx)
+        continue;
 
       size_t new_j = (j < clock_idx) ? j : j - 1;
       new_matrix[new_i * new_count + new_j] = matrix_[offset(i, j)];
@@ -568,7 +584,9 @@ void DBM::freeze_clock(size_t clock_idx) {
   frozen_clocks_.insert(clock_idx);
 }
 
-void DBM::unfreeze_clock(size_t clock_idx) { frozen_clocks_.erase(clock_idx); }
+void DBM::unfreeze_clock(size_t clock_idx) {
+  frozen_clocks_.erase(clock_idx);
+}
 
 bool DBM::is_frozen(size_t clock_idx) const {
   return frozen_clocks_.find(clock_idx) != frozen_clocks_.end();

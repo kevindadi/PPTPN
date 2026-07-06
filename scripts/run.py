@@ -20,7 +20,7 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 EXAMPLE = ROOT / "example"
 DEFAULT_PTPN = ROOT / "build" / "ptpn"
 
@@ -68,8 +68,8 @@ PROFILES: dict[str, dict] = {
         "policy": None,
     },
     "romeo": {
-        "mode": "tdg_cts",
-        "policy": "fixed_prior_with_resume",
+        "mode": "export_cts",
+        "format": "scheduling-net",
     },
     "ptopner": {
         "mode": "export_ppn",
@@ -183,6 +183,36 @@ def run_case(
         missing = [p for p in (ptpn_dot, scg_dot) if not p.exists()]
         if missing:
             result.error = f"missing output: {', '.join(str(p) for p in missing)}"
+            return result
+
+    elif cfg["mode"] == "export_cts":
+        cts_file = out_dir / f"{case}.cts"
+        cmd = [
+            str(ptpn_bin),
+            "export",
+            "romeo",
+            "-f",
+            str(input_path),
+            "-o",
+            str(cts_file),
+            "--format",
+            cfg["format"],
+        ]
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        except OSError as exc:
+            result.error = str(exc)
+            return result
+
+        log = proc.stdout + proc.stderr
+        apply_parsed(result, log)
+        result.outputs = [str(cts_file)]
+
+        if proc.returncode != 0:
+            result.error = log.strip()[:500]
+            return result
+        if not cts_file.exists():
+            result.error = f"missing output: {cts_file}"
             return result
 
     elif cfg["mode"] == "tdg_cts":
@@ -359,9 +389,13 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if not args.dry_run and not args.ptpn.is_file():
-        print(f"error: ptpn not found: {args.ptpn}", file=sys.stderr)
-        print("build first: cmake -B build -G Ninja && cmake --build build", file=sys.stderr)
+    ptpn_bin = args.ptpn.expanduser()
+    if not ptpn_bin.is_absolute():
+        ptpn_bin = (ROOT / ptpn_bin).resolve()
+
+    if not args.dry_run and not ptpn_bin.is_file():
+        print(f"error: ptpn not found: {ptpn_bin}", file=sys.stderr)
+        print("build first: ./scripts/build.py", file=sys.stderr)
         return 1
 
     cases = discover_cases(args.suites)
@@ -386,7 +420,7 @@ def main() -> int:
 
             print(f"[*] {profile}/{suite}/{case} ...", flush=True)
             row = run_case(
-                args.ptpn,
+                ptpn_bin,
                 suite,
                 input_path,
                 profile,

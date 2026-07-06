@@ -1,10 +1,9 @@
 #include "analysis/ptpn_analysis.h"
 
-#include <spdlog/spdlog.h>
-
 #include <algorithm>
 #include <fstream>
 #include <iomanip>
+#include <spdlog/spdlog.h>
 #include <sstream>
 
 #include "analysis/clock_state.h"
@@ -89,16 +88,13 @@ std::string html_escape(const std::string& value) {
 
 }  // namespace
 
-StateClassReachabilityGraph::StateClassReachabilityGraph(const petri::PTPN& net)
-    : net_(net) {}
+StateClassReachabilityGraph::StateClassReachabilityGraph(const petri::PTPN& net) : net_(net) {}
 
-void StateClassReachabilityGraph::set_canonicalization_mode(
-    CanonicalizationMode mode) {
+void StateClassReachabilityGraph::set_canonicalization_mode(CanonicalizationMode mode) {
   mode_ = mode;
 }
 
-CanonicalizationMode StateClassReachabilityGraph::get_canonicalization_mode()
-    const {
+CanonicalizationMode StateClassReachabilityGraph::get_canonicalization_mode() const {
   return mode_;
 }
 
@@ -107,15 +103,13 @@ int StateClassReachabilityGraph::effective_earliest(size_t transition) const {
 }
 
 int StateClassReachabilityGraph::effective_latest(size_t transition) const {
-  const int latest =
-      net_.get_transition(transition).time_interval.effective_latest();
+  const int latest = net_.get_transition(transition).time_interval.effective_latest();
   return latest == petri::INF ? INF_TIME : latest;
 }
 
 void StateClassReachabilityGraph::recompute_sets(StateClass& state) const {
   state.struct_enabled = Scheduling::structural_enabled(net_, state.marking);
-  state.priority_enabled =
-      Scheduling::filter_priority_per_core(state.struct_enabled, net_);
+  state.priority_enabled = Scheduling::filter_priority_per_core(state.struct_enabled, net_);
 
   state.suspended.clear();
   for (size_t t : state.struct_enabled) {
@@ -170,8 +164,7 @@ StateClass StateClassReachabilityGraph::compute_initial_class() {
   return state;
 }
 
-StateClass StateClassReachabilityGraph::time_elapse(
-    const StateClass& state) const {
+StateClass StateClassReachabilityGraph::time_elapse(const StateClass& state) const {
   StateClass out = state;
   const size_t n = out.zone.size();
   if (n == 0) {
@@ -186,8 +179,7 @@ StateClass StateClassReachabilityGraph::time_elapse(
     const ClockVar& var = out.clock_vars[i];
     if (var.kind == ClockKind::Suspension) {
       running[i] = true;  // suspension clocks always advance
-    } else if (var.kind == ClockKind::Execution &&
-               out.priority_enabled.count(var.transition)) {
+    } else if (var.kind == ClockKind::Execution && out.priority_enabled.count(var.transition)) {
       running[i] = true;  // active execution clocks advance
     }
   }
@@ -227,24 +219,22 @@ StateClass StateClassReachabilityGraph::time_elapse(
   return out;
 }
 
-bool StateClassReachabilityGraph::is_firable(const StateClass& elapsed,
-                                             size_t t) const {
+bool StateClassReachabilityGraph::is_firable(const StateClass& elapsed, size_t t) const {
   if (!elapsed.priority_enabled.count(t) || !elapsed.has_exec_clock(t)) {
     return false;
   }
 
   const size_t idx = static_cast<size_t>(elapsed.exec_index(t));
-  const int max_h =
-      elapsed.zone.get_constraint(idx, 0);  // largest feasible h_t
+  const int max_h = elapsed.zone.get_constraint(idx, 0);  // largest feasible h_t
   if (max_h == INF_TIME) {
     return true;
   }
   return max_h >= effective_earliest(t);
 }
 
-void StateClassReachabilityGraph::build_successor_zone(
-    StateClass& successor, const DBM& fired, const StateClass& source,
-    size_t fired_transition) const {
+void StateClassReachabilityGraph::build_successor_zone(StateClass& successor, const DBM& fired,
+                                                       const StateClass& source,
+                                                       size_t fired_transition) const {
   const size_t n = successor.clock_vars.size();
   DBM zone(n);
 
@@ -277,10 +267,9 @@ void StateClassReachabilityGraph::build_successor_zone(
       if (source_index[j] < 0) {
         continue;
       }
-      zone.set_constraint(
-          i, j,
-          fired.get_constraint(static_cast<size_t>(source_index[i]),
-                               static_cast<size_t>(source_index[j])));
+      zone.set_constraint(i, j,
+                          fired.get_constraint(static_cast<size_t>(source_index[i]),
+                                               static_cast<size_t>(source_index[j])));
     }
   }
 
@@ -332,15 +321,13 @@ bool StateClassReachabilityGraph::fire(const StateClass& elapsed, size_t t,
   return true;
 }
 
-bool StateClassReachabilityGraph::find_match(const StateClass& state,
-                                             SCVertex& match) const {
+bool StateClassReachabilityGraph::find_match(const StateClass& state, SCVertex& match) const {
   auto it = vertices_by_marking_.find(state.marking);
   if (it == vertices_by_marking_.end()) {
     return false;
   }
   for (SCVertex candidate : it->second) {
-    const StateClass& existing =
-        boost::get(boost::vertex_name, graph_, candidate);
+    const StateClass& existing = boost::get(boost::vertex_name, graph_, candidate);
     if (can_merge_into(state, existing, mode_)) {
       match = candidate;
       return true;
@@ -462,8 +449,8 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
   return stats_.total_states;
 }
 
-std::string StateClassReachabilityGraph::format_marking(
-    const petri::PTPN& net, const std::vector<int>& marking) {
+std::string StateClassReachabilityGraph::format_marking(const petri::PTPN& net,
+                                                        const std::vector<int>& marking) {
   // Only list the marked places, referenced by name, so the dump stays
   // readable on large nets.
   std::string out = "[";
@@ -476,8 +463,7 @@ std::string StateClassReachabilityGraph::format_marking(
       out += ", ";
     }
     first = false;
-    out += i < net.num_places() ? net.get_place(i).name
-                                : ("P" + std::to_string(i));
+    out += i < net.num_places() ? net.get_place(i).name : ("P" + std::to_string(i));
     if (marking[i] != 1) {
       out += "(" + std::to_string(marking[i]) + ")";
     }
@@ -489,8 +475,7 @@ std::string StateClassReachabilityGraph::format_marking(
   return out;
 }
 
-std::string StateClassReachabilityGraph::format_transition_label(
-    size_t transition_id) const {
+std::string StateClassReachabilityGraph::format_transition_label(size_t transition_id) const {
   if (transition_id >= net_.num_transitions()) {
     return "T" + std::to_string(transition_id);
   }
@@ -522,8 +507,7 @@ std::string StateClassReachabilityGraph::format_transitions(
   return out;
 }
 
-std::string StateClassReachabilityGraph::format_named_dbm(
-    const StateClass& state) const {
+std::string StateClassReachabilityGraph::format_named_dbm(const StateClass& state) const {
   if (state.zone.size() == 0) {
     return "DBM(empty)";
   }
@@ -531,8 +515,7 @@ std::string StateClassReachabilityGraph::format_named_dbm(
   std::vector<std::string> labels(state.zone.size());
   labels[0] = "x0";
   size_t cell_width = 6;
-  for (size_t i = 1; i < state.zone.size() && i < state.clock_vars.size();
-       ++i) {
+  for (size_t i = 1; i < state.zone.size() && i < state.clock_vars.size(); ++i) {
     const ClockVar& var = state.clock_vars[i];
     const std::string prefix = var.kind == ClockKind::Suspension ? "w" : "h";
     labels[i] = prefix + "(T" + std::to_string(var.transition) + ")";
@@ -543,20 +526,16 @@ std::string StateClassReachabilityGraph::format_named_dbm(
   oss << "DBM(size=" << state.zone.size() << ")\n";
   oss << std::left << std::setw(static_cast<int>(cell_width)) << " " << "|";
   for (const auto& label : labels) {
-    oss << " " << std::left << std::setw(static_cast<int>(cell_width)) << label
-        << "|";
+    oss << " " << std::left << std::setw(static_cast<int>(cell_width)) << label << "|";
   }
   oss << "\n";
 
   for (size_t i = 0; i < state.zone.size(); ++i) {
-    oss << std::left << std::setw(static_cast<int>(cell_width)) << labels[i]
-        << "|";
+    oss << std::left << std::setw(static_cast<int>(cell_width)) << labels[i] << "|";
     for (size_t j = 0; j < state.zone.size(); ++j) {
       const int value = state.zone.get_constraint(i, j);
-      const std::string rendered =
-          value == INF_TIME ? std::string("inf") : std::to_string(value);
-      oss << " " << std::left << std::setw(static_cast<int>(cell_width))
-          << rendered << "|";
+      const std::string rendered = value == INF_TIME ? std::string("inf") : std::to_string(value);
+      oss << " " << std::left << std::setw(static_cast<int>(cell_width)) << rendered << "|";
     }
     oss << "\n";
   }
@@ -564,15 +543,13 @@ std::string StateClassReachabilityGraph::format_named_dbm(
   return oss.str();
 }
 
-std::string StateClassReachabilityGraph::format_state_dump(
-    const StateClass& state) const {
+std::string StateClassReachabilityGraph::format_state_dump(const StateClass& state) const {
   std::ostringstream oss;
   oss << "State " << state.id << "\n";
   oss << "  Elapsed time: " << state.elapsed_time << "\n";
   oss << "  Marking: " << format_marking(net_, state.marking) << "\n";
   oss << "  E_struct: " << format_transitions(state.struct_enabled) << "\n";
-  oss << "  E_pri (active): " << format_transitions(state.priority_enabled)
-      << "\n";
+  oss << "  E_pri (active): " << format_transitions(state.priority_enabled) << "\n";
   oss << "  Suspended: " << format_transitions(state.suspended) << "\n";
   oss << "  Zone:\n" << format_named_dbm(state);
   return oss.str();
@@ -592,8 +569,7 @@ std::vector<std::string> StateClassReachabilityGraph::format_zone_constraints(
 
   auto clock_name = [&](size_t i) {
     const ClockVar& var = state.clock_vars[i];
-    const std::string prefix =
-        var.kind == ClockKind::Suspension ? "w" : "h";
+    const std::string prefix = var.kind == ClockKind::Suspension ? "w" : "h";
     return prefix + "(T" + std::to_string(var.transition) + ")";
   };
 
@@ -601,8 +577,7 @@ std::vector<std::string> StateClassReachabilityGraph::format_zone_constraints(
   for (size_t i = 1; i < n && i < state.clock_vars.size(); ++i) {
     const int upper = state.zone.get_constraint(i, 0);
     const int lower_raw = state.zone.get_constraint(0, i);
-    const int lower =
-        lower_raw == INF_TIME ? 0 : std::max(0, -lower_raw);  // clocks are >= 0
+    const int lower = lower_raw == INF_TIME ? 0 : std::max(0, -lower_raw);  // clocks are >= 0
     const std::string name = clock_name(i);
     std::string body;
     if (upper != INF_TIME && upper == lower) {
@@ -610,8 +585,7 @@ std::vector<std::string> StateClassReachabilityGraph::format_zone_constraints(
     } else if (upper == INF_TIME) {
       body = name + " " + ge + " " + std::to_string(lower);
     } else {
-      body = std::to_string(lower) + " " + le + " " + name + " " + le + " " +
-             std::to_string(upper);
+      body = std::to_string(lower) + " " + le + " " + name + " " + le + " " + std::to_string(upper);
     }
     lines.push_back(body);
   }
@@ -629,59 +603,47 @@ std::vector<std::string> StateClassReachabilityGraph::format_zone_constraints(
       }
       const int upper_i = state.zone.get_constraint(i, 0);
       const int lower_j_raw = state.zone.get_constraint(0, j);
-      const int lower_j =
-          lower_j_raw == INF_TIME ? 0 : std::max(0, -lower_j_raw);
-      const int implied =
-          upper_i == INF_TIME ? INF_TIME : upper_i - lower_j;
+      const int lower_j = lower_j_raw == INF_TIME ? 0 : std::max(0, -lower_j_raw);
+      const int implied = upper_i == INF_TIME ? INF_TIME : upper_i - lower_j;
       if (implied != INF_TIME && dij >= implied) {
         continue;  // already implied by the individual bounds
       }
-      lines.push_back(clock_name(i) + " " + minus + " " + clock_name(j) + " " +
-                      le + " " + std::to_string(dij));
+      lines.push_back(clock_name(i) + " " + minus + " " + clock_name(j) + " " + le + " " +
+                      std::to_string(dij));
     }
   }
   return lines;
 }
 
-std::string StateClassReachabilityGraph::format_state_label_html(
-    const StateClass& state) const {
+std::string StateClassReachabilityGraph::format_state_label_html(const StateClass& state) const {
   // Colour palette (readable on white, print friendly).
-  constexpr const char* kIdentity = "#111111";  // state id / marking / enabled
+  constexpr const char* kIdentity = "#111111";   // state id / marking / enabled
   constexpr const char* kExecClock = "#1f6feb";  // h_t execution clocks (blue)
   constexpr const char* kSuspClock = "#e05d00";  // w_t suspension clocks (amber)
   constexpr const char* kDiff = "#6a737d";       // clock differences (grey)
 
-  auto row = [](const std::string& color, const std::string& body,
-                const char* align) {
-    return "<tr><td align=\"" + std::string(align) +
-           "\" balign=\"left\"><font color=\"" + color + "\">" + body +
-           "</font></td></tr>";
+  auto row = [](const std::string& color, const std::string& body, const char* align) {
+    return "<tr><td align=\"" + std::string(align) + "\" balign=\"left\"><font color=\"" + color +
+           "\">" + body + "</font></td></tr>";
   };
 
   std::string html =
       "<<table border=\"0\" cellborder=\"0\" cellspacing=\"0\" "
       "cellpadding=\"1\">";
 
-  html += row(kIdentity, "<b>State " + std::to_string(state.id) + "</b>",
-              "center");
-  html += row(kIdentity,
-              "M = " + html_escape(format_marking(net_, state.marking)), "left");
-  html += row(kIdentity,
-              "E_pri: " + html_escape(format_transitions(state.priority_enabled)),
-              "left");
+  html += row(kIdentity, "<b>State " + std::to_string(state.id) + "</b>", "center");
+  html += row(kIdentity, "M = " + html_escape(format_marking(net_, state.marking)), "left");
+  html +=
+      row(kIdentity, "E_pri: " + html_escape(format_transitions(state.priority_enabled)), "left");
   if (!state.suspended.empty()) {
-    html += row(kIdentity,
-                "susp: " + html_escape(format_transitions(state.suspended)),
-                "left");
+    html += row(kIdentity, "susp: " + html_escape(format_transitions(state.suspended)), "left");
   }
 
   // Separator before the symbolic clock zone.
-  html +=
-      "<hr/><tr><td align=\"center\"><font color=\"" + std::string(kIdentity) +
-      "\"><i>clock zone</i></font></td></tr>";
+  html += "<hr/><tr><td align=\"center\"><font color=\"" + std::string(kIdentity) +
+          "\"><i>clock zone</i></font></td></tr>";
 
-  const std::vector<std::string> constraints =
-      format_zone_constraints(state, /*html=*/true);
+  const std::vector<std::string> constraints = format_zone_constraints(state, /*html=*/true);
   if (constraints.empty()) {
     html += row(kDiff, "(no active clock)", "center");
   } else {
@@ -702,8 +664,7 @@ std::string StateClassReachabilityGraph::format_state_label_html(
   return html;
 }
 
-bool StateClassReachabilityGraph::save_to_dot(
-    const std::string& file_path) const {
+bool StateClassReachabilityGraph::save_to_dot(const std::string& file_path) const {
   std::ofstream out(file_path);
   if (!out.is_open()) {
     return false;
@@ -721,8 +682,8 @@ bool StateClassReachabilityGraph::save_to_dot(
   VIt vi, vi_end;
   for (std::tie(vi, vi_end) = boost::vertices(graph_); vi != vi_end; ++vi) {
     const StateClass& state = boost::get(boost::vertex_name, graph_, *vi);
-    out << "  s" << state.id << " [label=" << format_state_label_html(state)
-        << ", tooltip=\"" << escape_dot(format_state_dump(state)) << "\"];\n";
+    out << "  s" << state.id << " [label=" << format_state_label_html(state) << ", tooltip=\""
+        << escape_dot(format_state_dump(state)) << "\"];\n";
   }
 
   out << "\n";
@@ -737,26 +698,21 @@ bool StateClassReachabilityGraph::save_to_dot(
     const StateClass& tgt_state = boost::get(boost::vertex_name, graph_, tgt);
     const std::string window =
         "[" + std::to_string(edge.firing_min) + ", " +
-        (edge.firing_max == INF_TIME ? "inf"
-                                     : std::to_string(edge.firing_max)) +
-        "]";
+        (edge.firing_max == INF_TIME ? "inf" : std::to_string(edge.firing_max)) + "]";
     const std::string dwell =
         "[" + std::to_string(edge.dwell_min) + ", " +
-        (edge.dwell_max == INF_TIME ? "inf" : std::to_string(edge.dwell_max)) +
-        "]";
-    const std::string label =
-        format_transition_label(static_cast<size_t>(edge.transition_id)) +
-        "\\n@" + window + " dwell=" + dwell;
-    out << "  s" << src_state.id << " -> s" << tgt_state.id << " [label=\""
-        << escape_dot(label) << "\"];\n";
+        (edge.dwell_max == INF_TIME ? "inf" : std::to_string(edge.dwell_max)) + "]";
+    const std::string label = format_transition_label(static_cast<size_t>(edge.transition_id)) +
+                              "\\n@" + window + " dwell=" + dwell;
+    out << "  s" << src_state.id << " -> s" << tgt_state.id << " [label=\"" << escape_dot(label)
+        << "\"];\n";
   }
 
   out << "}\n";
   return true;
 }
 
-bool StateClassReachabilityGraph::save_to_json(
-    const std::string& file_path) const {
+bool StateClassReachabilityGraph::save_to_json(const std::string& file_path) const {
   std::ofstream out(file_path);
   if (!out.is_open()) {
     return false;
@@ -784,14 +740,12 @@ bool StateClassReachabilityGraph::save_to_json(
       out << state.marking[i];
     }
     out << "],\n";
-    out << "      \"active\": \""
-        << escape_json(format_transitions(state.priority_enabled)) << "\",\n";
-    out << "      \"suspended\": \""
-        << escape_json(format_transitions(state.suspended)) << "\",\n";
-    out << "      \"elapsed_time\": " << std::fixed << std::setprecision(2)
-        << state.elapsed_time << ",\n";
-    out << "      \"zone\": \"" << escape_json(format_named_dbm(state))
-        << "\"\n";
+    out << "      \"active\": \"" << escape_json(format_transitions(state.priority_enabled))
+        << "\",\n";
+    out << "      \"suspended\": \"" << escape_json(format_transitions(state.suspended)) << "\",\n";
+    out << "      \"elapsed_time\": " << std::fixed << std::setprecision(2) << state.elapsed_time
+        << ",\n";
+    out << "      \"zone\": \"" << escape_json(format_named_dbm(state)) << "\"\n";
     out << "    }";
   }
 
@@ -817,19 +771,13 @@ bool StateClassReachabilityGraph::save_to_json(
     out << "      \"target\": " << tgt_state.id << ",\n";
     out << "      \"transition_id\": " << edge.transition_id << ",\n";
     out << "      \"transition_label\": \""
-        << escape_json(
-               format_transition_label(static_cast<size_t>(edge.transition_id)))
-        << "\",\n";
+        << escape_json(format_transition_label(static_cast<size_t>(edge.transition_id))) << "\",\n";
     out << "      \"firing_min\": " << edge.firing_min << ",\n";
     out << "      \"firing_max\": "
-        << (edge.firing_max == INF_TIME ? "null"
-                                        : std::to_string(edge.firing_max))
-        << ",\n";
+        << (edge.firing_max == INF_TIME ? "null" : std::to_string(edge.firing_max)) << ",\n";
     out << "      \"dwell_min\": " << edge.dwell_min << ",\n";
     out << "      \"dwell_max\": "
-        << (edge.dwell_max == INF_TIME ? "null"
-                                       : std::to_string(edge.dwell_max))
-        << "\n";
+        << (edge.dwell_max == INF_TIME ? "null" : std::to_string(edge.dwell_max)) << "\n";
     out << "    }";
   }
 
@@ -837,8 +785,7 @@ bool StateClassReachabilityGraph::save_to_json(
   out << "    \"total_states\": " << stats_.total_states << ",\n";
   out << "    \"total_transitions\": " << stats_.total_transitions << ",\n";
   out << "    \"dedup_hits\": " << stats_.dedup_hits << ",\n";
-  out << "    \"truncated\": " << (stats_.truncated ? "true" : "false")
-      << "\n  }\n}\n";
+  out << "    \"truncated\": " << (stats_.truncated ? "true" : "false") << "\n  }\n}\n";
 
   return true;
 }

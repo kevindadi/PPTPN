@@ -14,8 +14,8 @@ namespace tdg {
 class TDG {
  public:
   TDG() = default;
-  TDG(int num_cpus, int cores_per_cpu)
-      : num_cpus(num_cpus), cores_per_cpu(cores_per_cpu) {}
+
+  TDG(int num_cpus, int cores_per_cpu) : num_cpus(num_cpus), cores_per_cpu(cores_per_cpu) {}
 
   int num_cpus = 1;
   int cores_per_cpu = 1;

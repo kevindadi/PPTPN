@@ -15,8 +15,7 @@ bool is_self_loop_edge(const std::string& source, const std::string& target) {
   return source == target;
 }
 
-void validate_point_intervals(const tdg::TDG& tdg,
-                              PtopnerValidationResult& result) {
+void validate_point_intervals(const tdg::TDG& tdg, PtopnerValidationResult& result) {
   for (const auto& [name, node_type] : tdg.nodes_type) {
     std::vector<std::pair<int, int>> times;
     if (std::holds_alternative<TaskNode>(node_type)) {
@@ -32,8 +31,8 @@ void validate_point_intervals(const tdg::TDG& tdg,
     for (size_t i = 0; i < times.size(); ++i) {
       if (times[i].first != times[i].second) {
         std::ostringstream oss;
-        oss << "任务 " << name << " 时间区间 [" << times[i].first << ", "
-            << times[i].second << "] 不是点区间,PToPNer 要求 min==max";
+        oss << "任务 " << name << " 时间区间 [" << times[i].first << ", " << times[i].second
+            << "] 不是点区间,PToPNer 要求 min==max";
         result.errors.push_back(oss.str());
         result.ok = false;
       }
@@ -81,8 +80,7 @@ void validate_warnings(const tdg::TDG& tdg, PtopnerValidationResult& result) {
   }
 
   if (!tdg.periodic_tasks.empty()) {
-    result.warnings.push_back(
-        "检测到 periodic 配置,将复用 tdg2pn 的 period release 建模");
+    result.warnings.push_back("检测到 periodic 配置,将复用 tdg2pn 的 period release 建模");
   }
 }
 
@@ -92,8 +90,7 @@ PtopnerValidationResult validate_for_ptopner(const tdg::TDG& tdg) {
   PtopnerValidationResult result;
 
   if (tdg.policy != SchedulePolicy::FIXED_PRIOR_WITH_RESTART) {
-    result.errors.push_back("不支持调度策略 \"" +
-                            schedule_policy_to_string(tdg.policy) +
+    result.errors.push_back("不支持调度策略 \"" + schedule_policy_to_string(tdg.policy) +
                             "\",PToPNer 路径要求 fixed_prior_with_restart");
     result.ok = false;
   }

@@ -14,6 +14,7 @@ add_executable(ptpn_test
   test_ptpn_parser.cpp
   test_analysis_semantics.cpp
   test_metrics.cpp
+  test_tdg2romeo.cpp
 )
 
 target_link_libraries(ptpn_test
@@ -26,4 +27,4 @@ target_include_directories(ptpn_test PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_compile_definitions(ptpn_test PRIVATE PTPN_ENABLE_TEST_ACCESS)
 
 include(GoogleTest)
-gtest_discover_tests(ptpn_test)
+gtest_discover_tests(ptpn_test PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

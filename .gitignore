@@ -3,12 +3,15 @@
 .vscode/settings.local.json
 .claude
 .cursor
+.clangd
 
 build
 
 compile_commands.json
 paper
 unconfirmed
+
+scripts/__pycache__/
 
 **.dot
 **.ppn

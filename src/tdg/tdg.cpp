@@ -1,9 +1,8 @@
 #include "tdg/tdg.h"
 
-#include <spdlog/spdlog.h>
-
 #include <algorithm>
 #include <fstream>
+#include <spdlog/spdlog.h>
 #include <sstream>
 #include <stdexcept>
 
@@ -14,10 +13,9 @@ namespace tdg {
 namespace {
 
 // Logs per-core task priority ordering for debugging and diagnostics.
-std::string format_core_priority_order(
-    int core_id, const std::vector<std::string>& tasks,
-    const std::unordered_map<std::string, int>& tasks_priority,
-    const std::string& prefix) {
+std::string format_core_priority_order(int core_id, const std::vector<std::string>& tasks,
+                                       const std::unordered_map<std::string, int>& tasks_priority,
+                                       const std::string& prefix) {
   std::ostringstream oss;
   oss << prefix << " Core " << core_id << " priority order: ";
 
@@ -55,8 +53,8 @@ void register_node(TDG& tdg, const NodeType& node_type, bool log_node) {
       }
 
       if (log_node) {
-        spdlog::info("[TDG] Node '{}' -> task (priority={}, core={})",
-                     node.name, node.priority, node.core);
+        spdlog::info("[TDG] Node '{}' -> task (priority={}, core={})", node.name, node.priority,
+                     node.core);
       }
       return;
     }
@@ -106,8 +104,7 @@ void load_from_parser(TDG& tdg, const parse::Parser& parser, bool log_nodes) {
   tdg.tdg_edges.reserve(parser.get_edges().size());
   for (const auto& edge : parser.get_edges()) {
     tdg.tdg_edges.push_back({edge.source, edge.target, edge.label, edge.style});
-    spdlog::debug("[TDG] Edge: {} -> {} (style={})", edge.source, edge.target,
-                  edge.style);
+    spdlog::debug("[TDG] Edge: {} -> {} (style={})", edge.source, edge.target, edge.style);
   }
 }
 
@@ -123,13 +120,13 @@ void TDG::parse_json(const std::string& json_file) {
     return;
   }
 
-  spdlog::info("[TDG] Configuration: {} CPUs, {} cores per CPU",
-               parser.get_num_cpus(), parser.get_cores_per_cpu());
+  spdlog::info("[TDG] Configuration: {} CPUs, {} cores per CPU", parser.get_num_cpus(),
+               parser.get_cores_per_cpu());
 
   load_from_parser(*this, parser, /*log_nodes=*/true);
 
-  spdlog::info("[TDG] JSON parsing completed: {} nodes, {} edges",
-               nodes_type.size(), tdg_edges.size());
+  spdlog::info("[TDG] JSON parsing completed: {} nodes, {} edges", nodes_type.size(),
+               tdg_edges.size());
 }
 
 void TDG::parse_json_string(const std::string& json_content) {
@@ -148,8 +145,7 @@ std::string TDG::to_dot_string() const {
   oss << "digraph G {\n";
 
   for (const auto& [name, node] : nodes_type) {
-    oss << "    " << name << " [label = \"" << parse::node_to_dot_label(node)
-        << "\";];\n";
+    oss << "    " << name << " [label = \"" << parse::node_to_dot_label(node) << "\";];\n";
   }
 
   for (const auto& edge : tdg_edges) {
@@ -185,8 +181,8 @@ void TDG::export_to_dot(const std::string& output_path) {
 
   file << to_dot_string();
 
-  spdlog::info("[DOT] Exported {} nodes, {} edges to {}", nodes_type.size(),
-               tdg_edges.size(), output_path);
+  spdlog::info("[DOT] Exported {} nodes, {} edges to {}", nodes_type.size(), tdg_edges.size(),
+               output_path);
 }
 
 std::unordered_map<int, std::vector<std::string>> TDG::classify_priority() {
@@ -194,23 +190,20 @@ std::unordered_map<int, std::vector<std::string>> TDG::classify_priority() {
 
   for (const auto& task : all_task) {
     if (const auto* task_node = as_task_node(task)) {
-      tasks_config.emplace(task_node->name,
-                           TaskConfig{task_node->core, task_node->priority,
-                                      task_node->time, task_node->lock});
+      tasks_config.emplace(task_node->name, TaskConfig{task_node->core, task_node->priority,
+                                                       task_node->time, task_node->lock});
       core_task[task_node->core].push_back(task_node->name);
     }
   }
 
   for (auto& [core_id, tasks] : core_task) {
-    std::sort(tasks.begin(), tasks.end(),
-              [&](const std::string& left, const std::string& right) {
-                return tasks_priority.at(left) > tasks_priority.at(right);
-              });
+    std::sort(tasks.begin(), tasks.end(), [&](const std::string& left, const std::string& right) {
+      return tasks_priority.at(left) > tasks_priority.at(right);
+    });
   }
 
   for (const auto& [core_id, tasks] : core_task) {
-    spdlog::info("{}", format_core_priority_order(core_id, tasks,
-                                                  tasks_priority, "[TDG]"));
+    spdlog::info("{}", format_core_priority_order(core_id, tasks, tasks_priority, "[TDG]"));
   }
 
   return core_task;

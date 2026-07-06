@@ -1,11 +1,10 @@
 #include "json/json.h"
 
-#include <spdlog/spdlog.h>
-
 #include <algorithm>
 #include <fstream>
 #include <optional>
 #include <set>
+#include <spdlog/spdlog.h>
 #include <sstream>
 #include <string_view>
 #include <unordered_map>
@@ -21,8 +20,8 @@ constexpr const char* kNodeTypeEmpty = "empty";
 
 // Joins values with a delimiter; returns fallback when the range is empty.
 template <typename Range, typename Formatter>
-std::string join(const Range& values, std::string_view delimiter,
-                 Formatter formatter, std::string_view fallback = "none") {
+std::string join(const Range& values, std::string_view delimiter, Formatter formatter,
+                 std::string_view fallback = "none") {
   if (values.empty()) {
     return std::string(fallback);
   }
@@ -40,12 +39,10 @@ std::string join(const Range& values, std::string_view delimiter,
 }
 
 std::string format_range(const std::pair<int, int>& range) {
-  return "[" + std::to_string(range.first) + ", " +
-         std::to_string(range.second) + "]";
+  return "[" + std::to_string(range.first) + ", " + std::to_string(range.second) + "]";
 }
 
-std::string format_time_ranges(
-    const std::vector<std::pair<int, int>>& time_ranges) {
+std::string format_time_ranges(const std::vector<std::pair<int, int>>& time_ranges) {
   return join(time_ranges, ", ", format_range);
 }
 
@@ -76,7 +73,9 @@ PeriodicBinding parse_periodic_binding(const json& binding_obj) {
   return binding;
 }
 
-bool is_task_type(const std::string& type) { return type == kNodeTypeTask; }
+bool is_task_type(const std::string& type) {
+  return type == kNodeTypeTask;
+}
 
 // Returns true when any edge matches the given predicate.
 template <typename Predicate>
@@ -84,22 +83,19 @@ bool any_edge(const parse::JsonGraph& graph, Predicate predicate) {
   return std::any_of(graph.edges.begin(), graph.edges.end(), predicate);
 }
 
-bool has_incoming_edge(const parse::JsonGraph& graph,
-                       const std::string& node_id) {
+bool has_incoming_edge(const parse::JsonGraph& graph, const std::string& node_id) {
   return any_edge(graph, [&](const parse::JsonEdge& edge) {
     return edge.target == node_id && edge.source != node_id;
   });
 }
 
-bool has_outgoing_edge(const parse::JsonGraph& graph,
-                       const std::string& node_id) {
+bool has_outgoing_edge(const parse::JsonGraph& graph, const std::string& node_id) {
   return any_edge(graph, [&](const parse::JsonEdge& edge) {
     return edge.source == node_id && edge.target != node_id;
   });
 }
 
-bool has_self_loop_edge(const parse::JsonGraph& graph,
-                        const std::string& node_id) {
+bool has_self_loop_edge(const parse::JsonGraph& graph, const std::string& node_id) {
   return any_edge(graph, [&](const parse::JsonEdge& edge) {
     return edge.source == node_id && edge.target == node_id;
   });
@@ -158,16 +154,16 @@ std::string format_locks_with_type(const std::vector<std::string>& locks) {
     return "none";
   }
 
-  return join(locks, " ", [&](const std::string& lock) {
-    return get_lock_type_short(lock) + lock;
-  });
+  return join(locks, " ",
+              [&](const std::string& lock) { return get_lock_type_short(lock) + lock; });
 }
 
 // Each lock adds a pre-CS, CS, and post-CS segment: total = 2 * locks + 1.
-int calculate_time_interval_count(int lock_count) { return 2 * lock_count + 1; }
+int calculate_time_interval_count(int lock_count) {
+  return 2 * lock_count + 1;
+}
 
-std::string get_time_interval_label(int index,
-                                    const std::vector<std::string>& locks) {
+std::string get_time_interval_label(int index, const std::vector<std::string>& locks) {
   const int lock_count = static_cast<int>(locks.size());
 
   if (lock_count == 0) {
@@ -190,8 +186,7 @@ std::string get_time_interval_label(int index,
   // Nested locking: lock1 -> lock2 -> ... -> lockN -> unlockN -> ... ->
   // unlock1.
   if (index < lock_count) {
-    return index == 0 ? "[Pre:" + locks[0] + "]"
-                      : "[CS:" + locks[index - 1] + "]";
+    return index == 0 ? "[Pre:" + locks[0] + "]" : "[CS:" + locks[index - 1] + "]";
   }
   if (index == lock_count) {
     return "[CS:" + locks[lock_count - 1] + "]";
@@ -219,8 +214,7 @@ ParseResult Parser::parse_file(const std::string& file_path) {
 }
 
 ParseResult Parser::parse_string(const std::string& json_content) {
-  spdlog::info("[JSON] Parsing JSON content ({} characters)",
-               json_content.size());
+  spdlog::info("[JSON] Parsing JSON content ({} characters)", json_content.size());
 
   graph_ = JsonGraph{};
   original_json_ = json_content;
@@ -243,10 +237,9 @@ ParseResult Parser::parse_string(const std::string& json_content) {
     }
 
     spdlog::info("[JSON] Graph name: {}", graph_.name);
-    spdlog::info("[JSON] Configuration: {} CPUs, {} cores per CPU",
-                 graph_.num_cpus, graph_.cores_per_cpu);
-    spdlog::info("[JSON] Parsed {} nodes, {} edges", graph_.nodes.size(),
-                 graph_.edges.size());
+    spdlog::info("[JSON] Configuration: {} CPUs, {} cores per CPU", graph_.num_cpus,
+                 graph_.cores_per_cpu);
+    spdlog::info("[JSON] Parsed {} nodes, {} edges", graph_.nodes.size(), graph_.edges.size());
     spdlog::info("[JSON] JSON parsing completed successfully");
     return {true, "", 0};
 
@@ -268,8 +261,7 @@ void Parser::parse_configuration_object(const json& config) {
   graph_.cores_per_cpu = config.value("cores_per_cpu", graph_.cores_per_cpu);
 
   if (config.contains("shared_locks")) {
-    graph_.shared_locks =
-        config["shared_locks"].get<std::vector<std::string>>();
+    graph_.shared_locks = config["shared_locks"].get<std::vector<std::string>>();
   }
   if (config.contains("policy")) {
     graph_.policy = parse_schedule_policy(config["policy"].get<std::string>());
@@ -335,10 +327,9 @@ JsonNode Parser::parse_node_object(const json& node_obj) {
 ValidationResult Parser::validate() const {
   ValidationResult result;
 
-  const std::set<std::string> valid_types = {kNodeTypeTask, kNodeTypeFork,
-                                             kNodeTypeJoin, kNodeTypeEmpty};
-  const std::set<std::string> defined_locks(graph_.shared_locks.begin(),
-                                            graph_.shared_locks.end());
+  const std::set<std::string> valid_types = {kNodeTypeTask, kNodeTypeFork, kNodeTypeJoin,
+                                             kNodeTypeEmpty};
+  const std::set<std::string> defined_locks(graph_.shared_locks.begin(), graph_.shared_locks.end());
   const int max_core = graph_.num_cpus * graph_.cores_per_cpu - 1;
 
   std::set<std::string> node_ids;
@@ -351,14 +342,13 @@ ValidationResult Parser::validate() const {
     node_types[node.id] = node.type;
 
     if (valid_types.count(node.type) == 0) {
-      result.add_error("Unknown node type: " + node.type + " for node " +
-                       node.id);
+      result.add_error("Unknown node type: " + node.type + " for node " + node.id);
     }
 
     if (node.type == kNodeTypeTask && (node.core < 0 || node.core > max_core)) {
       result.add_error("Invalid core number for node " + node.id + ": " +
-                       std::to_string(node.core) + " (valid range: 0-" +
-                       std::to_string(max_core) + ")");
+                       std::to_string(node.core) + " (valid range: 0-" + std::to_string(max_core) +
+                       ")");
     }
 
     for (const auto& lock : node.locks) {
@@ -366,21 +356,18 @@ ValidationResult Parser::validate() const {
         result.add_error("Node " + node.id + " uses undefined lock: " + lock);
       }
       if (get_lock_type(lock) == LockType::UNKNOWN) {
-        result.add_error("Node " + node.id + " uses invalid lock prefix '" +
-                         lock + "': must start with 'mutex' or 'spin'");
+        result.add_error("Node " + node.id + " uses invalid lock prefix '" + lock +
+                         "': must start with 'mutex' or 'spin'");
       }
     }
 
     if (node.type == kNodeTypeTask) {
-      const int expected_count =
-          calculate_time_interval_count(static_cast<int>(node.locks.size()));
+      const int expected_count = calculate_time_interval_count(static_cast<int>(node.locks.size()));
       const int actual_count = static_cast<int>(node.time.size());
       if (actual_count != expected_count) {
-        result.add_error("Node " + node.id + " has " +
-                         std::to_string(node.locks.size()) + " lock(s) but " +
-                         std::to_string(actual_count) +
-                         " time interval(s) (expected " +
-                         std::to_string(expected_count) + ")");
+        result.add_error("Node " + node.id + " has " + std::to_string(node.locks.size()) +
+                         " lock(s) but " + std::to_string(actual_count) +
+                         " time interval(s) (expected " + std::to_string(expected_count) + ")");
       }
     }
 
@@ -403,11 +390,9 @@ ValidationResult Parser::validate() const {
                            " with multiple time intervals; only the first is "
                            "used");
       }
-      if (node.has_core && node.core != -1 &&
-          (node.core < 0 || node.core > max_core)) {
-        result.add_error("Invalid core number for " + node.type + " node " +
-                         node.id + ": " + std::to_string(node.core) +
-                         " (valid: -1 for control core, or 0-" +
+      if (node.has_core && node.core != -1 && (node.core < 0 || node.core > max_core)) {
+        result.add_error("Invalid core number for " + node.type + " node " + node.id + ": " +
+                         std::to_string(node.core) + " (valid: -1 for control core, or 0-" +
                          std::to_string(max_core) + ")");
       }
     }
@@ -424,22 +409,18 @@ ValidationResult Parser::validate() const {
 
   for (const auto& start_task : graph_.start_tasks) {
     if (node_ids.count(start_task.task) == 0) {
-      result.add_error("Start task references unknown node: " +
-                       start_task.task);
+      result.add_error("Start task references unknown node: " + start_task.task);
       continue;
     }
     if (!is_task_type(node_types.at(start_task.task))) {
-      result.add_error("Start task must reference a task node: " +
-                       start_task.task);
+      result.add_error("Start task must reference a task node: " + start_task.task);
       continue;
     }
     if (start_task.tokens < 0) {
-      result.add_error("Start task token count must be non-negative: " +
-                       start_task.task);
+      result.add_error("Start task token count must be non-negative: " + start_task.task);
     }
     if (has_incoming_edge(graph_, start_task.task)) {
-      result.add_warning("Start task " + start_task.task +
-                         " has predecessor edges");
+      result.add_warning("Start task " + start_task.task + " has predecessor edges");
     }
   }
 
@@ -459,18 +440,15 @@ ValidationResult Parser::validate() const {
 
   for (const auto& periodic_task : graph_.periodic_tasks) {
     if (node_ids.count(periodic_task.task) == 0) {
-      result.add_error("Periodic task references unknown node: " +
-                       periodic_task.task);
+      result.add_error("Periodic task references unknown node: " + periodic_task.task);
       continue;
     }
     if (!is_task_type(node_types.at(periodic_task.task))) {
-      result.add_error("Periodic task must reference a task node: " +
-                       periodic_task.task);
+      result.add_error("Periodic task must reference a task node: " + periodic_task.task);
       continue;
     }
     if (periodic_task.period <= 0) {
-      result.add_error("Periodic task period must be positive: " +
-                       periodic_task.task);
+      result.add_error("Periodic task period must be positive: " + periodic_task.task);
     }
     if (has_self_loop_edge(graph_, periodic_task.task)) {
       result.add_warning("Periodic task " + periodic_task.task +
@@ -478,9 +456,9 @@ ValidationResult Parser::validate() const {
     }
   }
 
-  const bool has_task_nodes = std::any_of(
-      graph_.nodes.begin(), graph_.nodes.end(),
-      [](const JsonNode& node) { return node.type == kNodeTypeTask; });
+  const bool has_task_nodes =
+      std::any_of(graph_.nodes.begin(), graph_.nodes.end(),
+                  [](const JsonNode& node) { return node.type == kNodeTypeTask; });
   if (!has_task_nodes && !graph_.nodes.empty()) {
     result.add_warning("No task nodes found in graph");
   }
@@ -496,8 +474,7 @@ std::string Parser::to_dot_string() const {
   oss << "  node [shape=box];\n\n";
 
   for (const auto& node : graph_.nodes) {
-    oss << "  " << node.id << " [label=\"" << build_node_label(node)
-        << "\"];\n";
+    oss << "  " << node.id << " [label=\"" << build_node_label(node) << "\"];\n";
   }
 
   oss << "\n";
@@ -585,8 +562,8 @@ std::string node_to_dot_label(const NodeType& node) {
         if (i > 0) {
           oss << ", ";
         }
-        oss << get_time_interval_label(static_cast<int>(i), typed_node.lock)
-            << " " << format_range(typed_node.time[i]);
+        oss << get_time_interval_label(static_cast<int>(i), typed_node.lock) << " "
+            << format_range(typed_node.time[i]);
       }
 
       oss << "\\nlocks=" << format_locks_with_type(typed_node.lock);

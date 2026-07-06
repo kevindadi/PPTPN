@@ -8,8 +8,7 @@ namespace {
 
 bool ends_with(const std::string& value, const std::string& suffix) {
   return value.size() >= suffix.size() &&
-         value.compare(value.size() - suffix.size(), suffix.size(), suffix) ==
-             0;
+         value.compare(value.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
 bool contains(const std::string& value, const std::string& needle) {
@@ -67,8 +66,7 @@ PpnModel ptpn_to_ppn_model(const petri::PTPN& ptpn) {
 
     if (transition.time_interval.latest != transition.time_interval.earliest &&
         transition.time_interval.latest != petri::INF) {
-      throw std::runtime_error("Transition " + transition.name +
-                               " has non-point time interval");
+      throw std::runtime_error("Transition " + transition.name + " has non-point time interval");
     }
 
     for (size_t p = 0; p < pre.size(); ++p) {
@@ -84,8 +82,7 @@ PpnModel ptpn_to_ppn_model(const petri::PTPN& ptpn) {
 
     const TransitionRole role = classify_transition(transition.name);
     ppn_transition.prior = map_prior_to_float(transition.priority, role);
-    ppn_transition.is_suspend =
-        role == TransitionRole::EXEC && transition.suspendable;
+    ppn_transition.is_suspend = role == TransitionRole::EXEC && transition.suspendable;
 
     model.transitions.push_back(std::move(ppn_transition));
   }

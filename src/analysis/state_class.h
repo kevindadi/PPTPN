@@ -28,8 +28,10 @@ struct ClockVar {
   bool operator==(const ClockVar& other) const {
     return kind == other.kind && transition == other.transition;
   }
+
   bool operator<(const ClockVar& other) const {
-    if (kind != other.kind) return kind < other.kind;
+    if (kind != other.kind)
+      return kind < other.kind;
     return transition < other.transition;
   }
 };
@@ -51,8 +53,10 @@ struct FiringEdge {
   int dwell_max = 0;
 
   FiringEdge() = default;
+
   FiringEdge(int id, int window_min, int window_max)
       : transition_id(id), firing_min(window_min), firing_max(window_max) {}
+
   FiringEdge(int id, int window_min, int window_max, int stay_min, int stay_max)
       : transition_id(id),
         firing_min(window_min),
@@ -61,9 +65,9 @@ struct FiringEdge {
         dwell_max(stay_max) {}
 
   bool operator==(const FiringEdge& other) const {
-    return transition_id == other.transition_id &&
-           firing_min == other.firing_min && firing_max == other.firing_max &&
-           dwell_min == other.dwell_min && dwell_max == other.dwell_max;
+    return transition_id == other.transition_id && firing_min == other.firing_min &&
+           firing_max == other.firing_max && dwell_min == other.dwell_min &&
+           dwell_max == other.dwell_max;
   }
 
   [[nodiscard]] std::string to_string() const;
@@ -89,18 +93,17 @@ struct StateClass {
   size_t id = 0;              // assigned when inserted into the graph
 
   [[nodiscard]] int exec_index(size_t transition) const {
-    return transition < exec_clock_of_transition.size()
-               ? exec_clock_of_transition[transition]
-               : -1;
+    return transition < exec_clock_of_transition.size() ? exec_clock_of_transition[transition] : -1;
   }
+
   [[nodiscard]] int susp_index(size_t transition) const {
-    return transition < susp_clock_of_transition.size()
-               ? susp_clock_of_transition[transition]
-               : -1;
+    return transition < susp_clock_of_transition.size() ? susp_clock_of_transition[transition] : -1;
   }
+
   [[nodiscard]] bool has_exec_clock(size_t transition) const {
     return exec_index(transition) > 0;
   }
+
   [[nodiscard]] bool has_susp_clock(size_t transition) const {
     return susp_index(transition) > 0;
   }

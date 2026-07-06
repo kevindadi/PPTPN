@@ -1,10 +1,9 @@
 #include "petri/export_dot.h"
 
-#include <spdlog/spdlog.h>
-
 #include <boost/filesystem.hpp>
 #include <fstream>
 #include <limits>
+#include <spdlog/spdlog.h>
 #include <sstream>
 
 namespace petri::exporting {
@@ -20,8 +19,7 @@ bool is_immediate_transition(const ExportTransition& transition) {
 }
 
 bool should_show_scheduling_meta(const ExportTransition& transition) {
-  if (transition.priority == 0 &&
-      transition.core == petri::kControlTransitionCore) {
+  if (transition.priority == 0 && transition.core == petri::kControlTransitionCore) {
     return false;
   }
   if (is_helper_transition(transition)) {
@@ -62,8 +60,7 @@ std::string format_int_or_infinity(int value) {
 
 std::string format_place_label(const ExportPlace& place) {
   std::string label = place.name;
-  if (place.kind != PlaceKind::NORMAL || place.initial_tokens > 0 ||
-      place.capacity != 1) {
+  if (place.kind != PlaceKind::NORMAL || place.initial_tokens > 0 || place.capacity != 1) {
     label += "\nM=" + std::to_string(place.initial_tokens) +
              ", C=" + format_int_or_infinity(place.capacity);
   }
@@ -113,8 +110,7 @@ std::string transition_fillcolor(const ExportTransition& transition) {
   if (transition.suspendable) {
     return "#fce7f3";
   }
-  if (is_immediate_transition(transition) &&
-      should_show_scheduling_meta(transition)) {
+  if (is_immediate_transition(transition) && should_show_scheduling_meta(transition)) {
     return "#fde68a";
   }
   return "#e5e7eb";
@@ -124,8 +120,7 @@ std::string transition_color(const ExportTransition& transition) {
   if (transition.suspendable) {
     return "#be185d";
   }
-  if (is_immediate_transition(transition) &&
-      should_show_scheduling_meta(transition)) {
+  if (is_immediate_transition(transition) && should_show_scheduling_meta(transition)) {
     return "#d97706";
   }
   return "#6b7280";
@@ -151,36 +146,29 @@ std::string render_dot(const PetriExportModel& model) {
 
   for (const auto& place : model.places) {
     out << quote_dot_string(place.id) << " ["
-        << "label=" << quote_dot_string(format_place_label(place))
-        << ", shape=\"circle\""
+        << "label=" << quote_dot_string(format_place_label(place)) << ", shape=\"circle\""
         << ", style=\"filled,rounded\""
         << ", fillcolor=" << quote_dot_string(place_fillcolor(place))
-        << ", color=" << quote_dot_string(place_color(place))
-        << ", fontcolor=\"#111827\""
+        << ", color=" << quote_dot_string(place_color(place)) << ", fontcolor=\"#111827\""
         << ", penwidth=\"1.4\""
         << "];\n";
   }
 
   for (const auto& transition : model.transitions) {
     out << quote_dot_string(transition.id) << " ["
-        << "label=" << quote_dot_string(format_transition_label(transition))
-        << ", shape=\"box\""
+        << "label=" << quote_dot_string(format_transition_label(transition)) << ", shape=\"box\""
         << ", style=\"filled,rounded\""
         << ", fillcolor=" << quote_dot_string(transition_fillcolor(transition))
-        << ", color=" << quote_dot_string(transition_color(transition))
-        << ", fontcolor=\"#111827\""
-        << ", penwidth="
-        << quote_dot_string(transition.suspendable ? "2.2" : "1.4") << "];\n";
+        << ", color=" << quote_dot_string(transition_color(transition)) << ", fontcolor=\"#111827\""
+        << ", penwidth=" << quote_dot_string(transition.suspendable ? "2.2" : "1.4") << "];\n";
   }
 
   for (const auto& arc : model.arcs) {
     out << quote_dot_string(node_id(model, arc.source)) << " -> "
         << quote_dot_string(node_id(model, arc.target)) << " ["
-        << "label="
-        << quote_dot_string(arc.weight > 1 ? std::to_string(arc.weight) : "")
+        << "label=" << quote_dot_string(arc.weight > 1 ? std::to_string(arc.weight) : "")
         << ", color=\"#9ca3af\""
-        << ", penwidth=" << quote_dot_string(arc.weight > 1 ? "1.6" : "1.0")
-        << "];\n";
+        << ", penwidth=" << quote_dot_string(arc.weight > 1 ? "1.6" : "1.0") << "];\n";
   }
 
   out << "}\n";
@@ -197,8 +185,7 @@ bool save_to_dot(const PetriExportModel& model, const std::string& file_path) {
 
     std::ofstream ofs(dot_filename.string());
     if (!ofs) {
-      spdlog::error("[PETRI_EXPORT] Cannot open DOT file: {}",
-                    dot_filename.string());
+      spdlog::error("[PETRI_EXPORT] Cannot open DOT file: {}", dot_filename.string());
       return false;
     }
 
