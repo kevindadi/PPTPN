@@ -19,7 +19,7 @@ namespace state_class {
 // records which transition fired.
 typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS,
                               boost::property<boost::vertex_name_t, StateClass>,
-                              boost::property<boost::edge_name_t, FiringEdge> >
+                              boost::property<boost::edge_name_t, FiringEdge>>
     SCGraph;
 
 typedef boost::graph_traits<SCGraph>::vertex_descriptor SCVertex;
@@ -47,9 +47,17 @@ class StateClassReachabilityGraph {
   // Returns the number of state classes discovered.
   size_t build(size_t max_states = std::numeric_limits<size_t>::max());
 
-  [[nodiscard]] const SCGraph& get_graph() const { return graph_; }
-  [[nodiscard]] SCGraph& get_graph() { return graph_; }
-  [[nodiscard]] SCVertex get_initial_vertex() const { return initial_vertex_; }
+  [[nodiscard]] const SCGraph& get_graph() const {
+    return graph_;
+  }
+
+  [[nodiscard]] SCGraph& get_graph() {
+    return graph_;
+  }
+
+  [[nodiscard]] SCVertex get_initial_vertex() const {
+    return initial_vertex_;
+  }
 
   // The initial state class C0 = (M0, Omega0) with every clock pinned to zero.
   StateClass compute_initial_class();
@@ -73,7 +81,9 @@ class StateClassReachabilityGraph {
     bool truncated = false;
   };
 
-  [[nodiscard]] const Statistics& get_statistics() const { return stats_; }
+  [[nodiscard]] const Statistics& get_statistics() const {
+    return stats_;
+  }
 
   bool save_to_dot(const std::string& file_path) const;
   bool save_to_json(const std::string& file_path) const;
@@ -86,8 +96,7 @@ class StateClassReachabilityGraph {
   CanonicalizationMode mode_ = CanonicalizationMode::EQUALITY;
   size_t next_id_ = 0;
 
-  std::unordered_map<std::vector<int>, std::vector<SCVertex>, MarkingHash>
-      vertices_by_marking_;
+  std::unordered_map<std::vector<int>, std::vector<SCVertex>, MarkingHash> vertices_by_marking_;
 
   [[nodiscard]] int effective_earliest(size_t transition) const;
   [[nodiscard]] int effective_latest(size_t transition) const;
@@ -97,16 +106,14 @@ class StateClassReachabilityGraph {
   // Builds clock_vars and the per-transition index maps from the sets.
   void build_layout(StateClass& state) const;
   // Builds a successor zone by carrying surviving clocks over from `fired`.
-  void build_successor_zone(StateClass& successor, const DBM& fired,
-                            const StateClass& source,
+  void build_successor_zone(StateClass& successor, const DBM& fired, const StateClass& source,
                             size_t fired_transition) const;
 
   // Returns the vertex matching `state` under the current mode, or npos.
   [[nodiscard]] bool find_match(const StateClass& state, SCVertex& match) const;
   SCVertex add_state(StateClass state);
 
-  static std::string format_marking(const petri::PTPN& net,
-                                    const std::vector<int>& marking);
+  static std::string format_marking(const petri::PTPN& net, const std::vector<int>& marking);
   std::string format_transition_label(size_t transition_id) const;
   std::string format_transitions(const std::set<size_t>& transitions) const;
   std::string format_named_dbm(const StateClass& state) const;
@@ -114,8 +121,7 @@ class StateClassReachabilityGraph {
   // Human-readable local clock zone as a conjunction of DBM constraints (per
   // clock bounds plus non-trivial differences). No global timestamp: a state
   // class is a symbolic set, so only the symbolic clock domain is shown.
-  std::vector<std::string> format_zone_constraints(const StateClass& state,
-                                                   bool html) const;
+  std::vector<std::string> format_zone_constraints(const StateClass& state, bool html) const;
   // Graphviz HTML-like node label: black identity (state id / marking / enabled
   // sets) and the local clock zone with h-clocks and w-clocks colour-coded.
   std::string format_state_label_html(const StateClass& state) const;

@@ -1,13 +1,12 @@
 #include "petri/export_romeo.h"
 
-#include <spdlog/spdlog.h>
-
 #include <boost/filesystem.hpp>
 #include <cctype>
 #include <fstream>
 #include <limits>
 #include <map>
 #include <set>
+#include <spdlog/spdlog.h>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -21,8 +20,7 @@ struct TransitionArcs {
   std::map<size_t, int> outputs;
 };
 
-std::string sanitize_identifier(const std::string& raw,
-                                const std::string& fallback) {
+std::string sanitize_identifier(const std::string& raw, const std::string& fallback) {
   const std::string& source = raw.empty() ? fallback : raw;
   std::string result;
   result.reserve(source.size());
@@ -39,15 +37,13 @@ std::string sanitize_identifier(const std::string& raw,
   if (result.empty()) {
     result = fallback;
   }
-  if (!std::isalpha(static_cast<unsigned char>(result.front())) &&
-      result.front() != '_') {
+  if (!std::isalpha(static_cast<unsigned char>(result.front())) && result.front() != '_') {
     result = fallback + "_" + result;
   }
   return result;
 }
 
-std::string unique_identifier(const std::string& candidate,
-                              std::set<std::string>& used) {
+std::string unique_identifier(const std::string& candidate, std::set<std::string>& used) {
   std::string result = candidate;
   int suffix = 1;
   while (used.count(result) > 0) {
@@ -63,8 +59,7 @@ std::vector<std::string> place_identifiers(const PetriExportModel& model) {
   std::set<std::string> used;
   for (size_t i = 0; i < model.places.size(); ++i) {
     ids.push_back(unique_identifier(
-        sanitize_identifier(model.places[i].id, "P" + std::to_string(i + 1)),
-        used));
+        sanitize_identifier(model.places[i].id, "P" + std::to_string(i + 1)), used));
   }
   return ids;
 }
@@ -74,41 +69,32 @@ std::vector<std::string> transition_identifiers(const PetriExportModel& model) {
   ids.reserve(model.transitions.size());
   std::set<std::string> used;
   for (size_t i = 0; i < model.transitions.size(); ++i) {
-    ids.push_back(
-        unique_identifier(sanitize_identifier(model.transitions[i].id,
-                                              "T" + std::to_string(i + 1)),
-                          used));
+    ids.push_back(unique_identifier(
+        sanitize_identifier(model.transitions[i].id, "T" + std::to_string(i + 1)), used));
   }
   return ids;
 }
 
-std::vector<TransitionArcs> collect_transition_arcs(
-    const PetriExportModel& model) {
+std::vector<TransitionArcs> collect_transition_arcs(const PetriExportModel& model) {
   std::vector<TransitionArcs> transition_arcs(model.transitions.size());
   for (const auto& arc : model.arcs) {
-    if (arc.source.kind == NodeKind::PLACE &&
-        arc.target.kind == NodeKind::TRANSITION) {
-      transition_arcs.at(arc.target.index).inputs[arc.source.index] +=
-          arc.weight;
-    } else if (arc.source.kind == NodeKind::TRANSITION &&
-               arc.target.kind == NodeKind::PLACE) {
-      transition_arcs.at(arc.source.index).outputs[arc.target.index] +=
-          arc.weight;
+    if (arc.source.kind == NodeKind::PLACE && arc.target.kind == NodeKind::TRANSITION) {
+      transition_arcs.at(arc.target.index).inputs[arc.source.index] += arc.weight;
+    } else if (arc.source.kind == NodeKind::TRANSITION && arc.target.kind == NodeKind::PLACE) {
+      transition_arcs.at(arc.source.index).outputs[arc.target.index] += arc.weight;
     }
   }
   return transition_arcs;
 }
 
 std::string format_int_or_infinity(int value) {
-  return value == std::numeric_limits<int>::max() ? "inf"
-                                                  : std::to_string(value);
+  return value == std::numeric_limits<int>::max() ? "inf" : std::to_string(value);
 }
 
 std::string format_interval(const ExportTransition& transition) {
   return std::string(transition.left_open ? "(" : "[") +
          format_int_or_infinity(transition.earliest) + "," +
-         format_int_or_infinity(transition.latest) +
-         std::string(transition.right_open ? ")" : "]");
+         format_int_or_infinity(transition.latest) + std::string(transition.right_open ? ")" : "]");
 }
 
 bool has_explicit_priority(const ExportTransition& transition) {
@@ -155,8 +141,7 @@ std::string format_transition_options(const ExportTransition& transition,
   return out.str();
 }
 
-std::string format_guard(const TransitionArcs& arcs,
-                         const std::vector<std::string>& places) {
+std::string format_guard(const TransitionArcs& arcs, const std::vector<std::string>& places) {
   if (arcs.inputs.empty()) {
     return "true";
   }
@@ -173,8 +158,7 @@ std::string format_guard(const TransitionArcs& arcs,
   return guard.str();
 }
 
-std::string format_update(const TransitionArcs& arcs,
-                          const std::vector<std::string>& places) {
+std::string format_update(const TransitionArcs& arcs, const std::vector<std::string>& places) {
   std::set<size_t> touched_places;
   for (const auto& [place_index, weight] : arcs.inputs) {
     (void)weight;
@@ -197,8 +181,7 @@ std::string format_update(const TransitionArcs& arcs,
     }
 
     const auto& place = places.at(place_index);
-    const int input_weight =
-        arcs.inputs.count(place_index) > 0 ? arcs.inputs.at(place_index) : 0;
+    const int input_weight = arcs.inputs.count(place_index) > 0 ? arcs.inputs.at(place_index) : 0;
     const int output_weight =
         arcs.outputs.count(place_index) > 0 ? arcs.outputs.at(place_index) : 0;
 
@@ -237,8 +220,8 @@ std::string render_romeo_cts(const PetriExportModel& model) {
   for (size_t i = 0; i < model.transitions.size(); ++i) {
     const auto& transition = model.transitions[i];
     const auto& arcs = transition_arcs[i];
-    out << " transition" << format_transition_options(transition, arcs, places)
-        << "  " << transitions[i] << " " << format_interval(transition) << "\n";
+    out << " transition" << format_transition_options(transition, arcs, places) << "  "
+        << transitions[i] << " " << format_interval(transition) << "\n";
     out << "      when (" << format_guard(arcs, places) << ")\n";
     out << "      { ";
     const auto update = format_update(arcs, places);
@@ -252,8 +235,7 @@ std::string render_romeo_cts(const PetriExportModel& model) {
   return out.str();
 }
 
-bool save_to_romeo_cts(const PetriExportModel& model,
-                       const std::string& file_path) {
+bool save_to_romeo_cts(const PetriExportModel& model, const std::string& file_path) {
   try {
     boost::filesystem::path cts_filename(file_path);
     if (!cts_filename.parent_path().empty() &&
@@ -263,8 +245,7 @@ bool save_to_romeo_cts(const PetriExportModel& model,
 
     std::ofstream ofs(cts_filename.string());
     if (!ofs) {
-      spdlog::error("[PETRI_EXPORT] Cannot open Romeo CTS file: {}",
-                    cts_filename.string());
+      spdlog::error("[PETRI_EXPORT] Cannot open Romeo CTS file: {}", cts_filename.string());
       return false;
     }
 

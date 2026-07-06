@@ -28,19 +28,19 @@ struct TaskMetrics {
   int period = 0;
   int deadline = 0;
 
-  bool observed = false;       // at least one activation seen in the graph
-  int activations = 0;         // number of release events observed
+  bool observed = false;  // at least one activation seen in the graph
+  int activations = 0;    // number of release events observed
 
-  TimeValue wcrt;              // worst-case response time
-  TimeValue bcrt;              // best-case response time
-  TimeValue jitter;           // wcrt - bcrt
+  TimeValue wcrt;                // worst-case response time
+  TimeValue bcrt;                // best-case response time
+  TimeValue jitter;              // wcrt - bcrt
   TimeValue worst_interference;  // max time suspended by higher priority
   TimeValue worst_blocking;      // max time blocked by lower priority (inversion)
-  int max_preemptions = 0;     // max active->suspended transitions per activation
-  int max_in_flight = 0;       // max simultaneous tokens across this task's chain
+  int max_preemptions = 0;       // max active->suspended transitions per activation
+  int max_in_flight = 0;         // max simultaneous tokens across this task's chain
 
   bool has_deadline = false;
-  TimeValue slack;             // deadline - wcrt (only when has_deadline)
+  TimeValue slack;               // deadline - wcrt (only when has_deadline)
   bool deadline_missed = false;  // a `<task>timeout` place is reachable
   int jobs_per_hyperperiod = 0;  // hyperperiod / period (0 if aperiodic)
 };
@@ -48,9 +48,9 @@ struct TaskMetrics {
 // Per-lock contention metrics.
 struct LockMetrics {
   std::string name;
-  TimeValue worst_hold;   // longest single critical-section dwell
-  TimeValue total_hold;   // total time the lock is held (graph-wide upper bound)
-  TimeValue total_wait;   // total time some task waits for the held lock
+  TimeValue worst_hold;  // longest single critical-section dwell
+  TimeValue total_hold;  // total time the lock is held (graph-wide upper bound)
+  TimeValue total_wait;  // total time some task waits for the held lock
 };
 
 // Per-core utilisation. `graph_busy_fraction` is an approximate state-class
@@ -63,7 +63,7 @@ struct CoreMetrics {
 };
 
 struct MetricsReport {
-  bool exact = true;          // built under EQUALITY canonicalization
+  bool exact = true;  // built under EQUALITY canonicalization
   size_t states = 0;
   size_t transitions = 0;
   bool truncated = false;
@@ -72,8 +72,8 @@ struct MetricsReport {
   std::vector<int> max_tokens_per_place;     // index -> max tokens observed
   std::vector<std::string> overflow_places;  // places exceeding capacity
 
-  std::vector<size_t> deadlock_states;       // ids of illegitimate sinks
-  bool schedulable = true;                   // no deadline miss reachable
+  std::vector<size_t> deadlock_states;        // ids of illegitimate sinks
+  bool schedulable = true;                    // no deadline miss reachable
   std::vector<size_t> deadline_miss_witness;  // path v0..first timeout state
 
   std::vector<TaskMetrics> tasks;
@@ -82,7 +82,7 @@ struct MetricsReport {
 
   bool has_steady_cycle = false;
   size_t recurrent_scc_size = 0;
-  long long hyperperiod = 0;                 // lcm of task periods (0 if none)
+  long long hyperperiod = 0;  // lcm of task periods (0 if none)
 };
 
 // Computes performance metrics from an already-built state-class graph plus the
@@ -91,13 +91,11 @@ struct MetricsReport {
 // only.
 class MetricsAnalyzer {
  public:
-  MetricsAnalyzer(const SCGraph& graph, const petri::PTPN& net,
-                  SCVertex initial, bool exact);
+  MetricsAnalyzer(const SCGraph& graph, const petri::PTPN& net, SCVertex initial, bool exact);
 
   [[nodiscard]] MetricsReport analyze();
 
-  static bool save_to_json(const MetricsReport& report,
-                           const std::string& file_path);
+  static bool save_to_json(const MetricsReport& report, const std::string& file_path);
 
  private:
   // Flattened view of one task's static topology in the net.
@@ -129,12 +127,12 @@ class MetricsAnalyzer {
   bool exact_;
 
   size_t num_vertices_ = 0;
-  std::vector<std::vector<Edge>> out_edges_;          // per vertex
-  std::vector<const StateClass*> state_of_;           // per vertex
+  std::vector<std::vector<Edge>> out_edges_;  // per vertex
+  std::vector<const StateClass*> state_of_;   // per vertex
   std::vector<TaskTopology> tasks_;
-  std::vector<int> transition_task_;                  // transition -> task index
+  std::vector<int> transition_task_;  // transition -> task index
   std::vector<bool> transition_is_exec_;
-  std::vector<std::string> place_lock_;               // place -> lock name ("" none)
+  std::vector<std::string> place_lock_;  // place -> lock name ("" none)
 
   void flatten_graph();
   void build_topology();
@@ -144,8 +142,7 @@ class MetricsAnalyzer {
   [[nodiscard]] bool task_active(const TaskTopology& task, size_t v) const;
   [[nodiscard]] bool task_suspended(const TaskTopology& task, size_t v) const;
   [[nodiscard]] bool core_busy(int core, size_t v) const;
-  [[nodiscard]] bool task_blocked_by_lower(const TaskTopology& task,
-                                           size_t v) const;
+  [[nodiscard]] bool task_blocked_by_lower(const TaskTopology& task, size_t v) const;
 
   void compute_structural(MetricsReport& report);
   void compute_schedulability(MetricsReport& report);

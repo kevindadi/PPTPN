@@ -23,8 +23,7 @@ struct TimeInterval {
   bool left_open;
   bool right_open;
 
-  TimeInterval(int e = 0, int l = INF, bool left_open = false,
-               bool right_open = false)
+  TimeInterval(int e = 0, int l = INF, bool left_open = false, bool right_open = false)
       : earliest(e), latest(l), left_open(left_open), right_open(right_open) {
     if (earliest < 0) {
       throw std::invalid_argument("earliest time must be non-negative");
@@ -46,13 +45,11 @@ struct TimeInterval {
   }
 
   [[nodiscard]] bool has_non_empty_integer_domain() const {
-    return effective_latest() == INF ||
-           effective_earliest() <= effective_latest();
+    return effective_latest() == INF || effective_earliest() <= effective_latest();
   }
 
   [[nodiscard]] bool is_valid() const {
-    return earliest >= 0 && (latest == INF || latest >= earliest) &&
-           has_non_empty_integer_domain();
+    return earliest >= 0 && (latest == INF || latest >= earliest) && has_non_empty_integer_domain();
   }
 
   [[nodiscard]] bool contains(int time) const {
@@ -91,8 +88,8 @@ struct Transition {
   bool suspendable;
 
   Transition(const std::string& id = "", const std::string& name = "",
-             const TimeInterval& interval = TimeInterval(),
-             int priority = INT_MAX, int core = -1, bool suspendable = false)
+             const TimeInterval& interval = TimeInterval(), int priority = INT_MAX, int core = -1,
+             bool suspendable = false)
       : id(id),
         name(name),
         time_interval(interval),
@@ -131,12 +128,10 @@ class PTPN {
     return places.size() - 1;
   }
 
-  size_t add_transition(const std::string& name,
-                        const TimeInterval& interval = TimeInterval(),
-                        int priority = INT_MAX, int core = -1,
-                        bool suspendable = false) {
-    transitions.emplace_back(std::to_string(transitions.size()), name, interval,
-                             priority, core, suspendable);
+  size_t add_transition(const std::string& name, const TimeInterval& interval = TimeInterval(),
+                        int priority = INT_MAX, int core = -1, bool suspendable = false) {
+    transitions.emplace_back(std::to_string(transitions.size()), name, interval, priority, core,
+                             suspendable);
     for (auto& row : Pre) {
       row.push_back(0);
     }
@@ -179,8 +174,13 @@ class PTPN {
     M0[place_idx] = tokens;
   }
 
-  [[nodiscard]] size_t num_places() const { return places.size(); }
-  [[nodiscard]] size_t num_transitions() const { return transitions.size(); }
+  [[nodiscard]] size_t num_places() const {
+    return places.size();
+  }
+
+  [[nodiscard]] size_t num_transitions() const {
+    return transitions.size();
+  }
 
   [[nodiscard]] const Place& get_place(size_t idx) const {
     if (idx >= places.size()) {
@@ -196,10 +196,14 @@ class PTPN {
     return transitions[idx];
   }
 
-  [[nodiscard]] const Marking& get_marking() const { return M0; }
+  [[nodiscard]] const Marking& get_marking() const {
+    return M0;
+  }
+
   [[nodiscard]] const std::vector<std::vector<int>>& get_pre_matrix() const {
     return Pre;
   }
+
   [[nodiscard]] const std::vector<std::vector<int>>& get_post_matrix() const {
     return Post;
   }
@@ -219,8 +223,7 @@ class PTPN {
     }
 
     for (const auto& [place_idx, weight] : net.post_arcs[trans_idx]) {
-      const int consumed =
-          place_idx < net.Pre.size() ? net.Pre[place_idx][trans_idx] : 0;
+      const int consumed = place_idx < net.Pre.size() ? net.Pre[place_idx][trans_idx] : 0;
       const int produced = weight;
       const int resulting_tokens = M[place_idx] - consumed + produced;
       if (net.places[place_idx].capacity != INF &&
@@ -253,16 +256,17 @@ class PTPN {
     return new_marking;
   }
 
-  void fire_transition(size_t trans_idx) { M0 = fire(M0, *this, trans_idx); }
+  void fire_transition(size_t trans_idx) {
+    M0 = fire(M0, *this, trans_idx);
+  }
 
   [[nodiscard]] std::string to_string() const {
     std::ostringstream oss;
     oss << "=== PTPN ===\n";
     oss << "Places (" << places.size() << "):\n";
     for (size_t i = 0; i < places.size(); ++i) {
-      oss << "  P" << i << ": " << places[i].name << " [capacity="
-          << (places[i].capacity == INF ? "∞"
-                                        : std::to_string(places[i].capacity))
+      oss << "  P" << i << ": " << places[i].name
+          << " [capacity=" << (places[i].capacity == INF ? "∞" : std::to_string(places[i].capacity))
           << ", tokens=" << M0[i] << "]\n";
     }
 
@@ -270,14 +274,11 @@ class PTPN {
     for (size_t i = 0; i < transitions.size(); ++i) {
       oss << "  T" << i << ": " << transitions[i].name
           << " [time=" << transitions[i].time_interval.to_string()
-          << ", priority=" << transitions[i].priority
-          << ", core=" << transitions[i].core
-          << ", suspendable=" << (transitions[i].suspendable ? "yes" : "no")
-          << "]\n";
+          << ", priority=" << transitions[i].priority << ", core=" << transitions[i].core
+          << ", suspendable=" << (transitions[i].suspendable ? "yes" : "no") << "]\n";
     }
 
-    oss << "\nPre Matrix (" << Pre.size() << "x"
-        << (Pre.empty() ? 0 : Pre[0].size()) << "):\n";
+    oss << "\nPre Matrix (" << Pre.size() << "x" << (Pre.empty() ? 0 : Pre[0].size()) << "):\n";
     for (size_t p = 0; p < Pre.size(); ++p) {
       oss << "  P" << p << ": ";
       for (size_t t = 0; t < Pre[p].size(); ++t) {
@@ -286,8 +287,7 @@ class PTPN {
       oss << "\n";
     }
 
-    oss << "\nPost Matrix (" << Post.size() << "x"
-        << (Post.empty() ? 0 : Post[0].size()) << "):\n";
+    oss << "\nPost Matrix (" << Post.size() << "x" << (Post.empty() ? 0 : Post[0].size()) << "):\n";
     for (size_t t = 0; t < Post.size(); ++t) {
       oss << "  T" << t << ": ";
       for (size_t p = 0; p < Post[t].size(); ++p) {
@@ -403,8 +403,7 @@ class PTPN {
     return it == core_parallelism.end() ? 0 : it->second;
   }
 
-  [[nodiscard]] std::vector<size_t> get_enabled_transitions_by_core(
-      int core_id) const {
+  [[nodiscard]] std::vector<size_t> get_enabled_transitions_by_core(int core_id) const {
     std::vector<size_t> result;
     for (size_t t = 0; t < transitions.size(); ++t) {
       if (transitions[t].core == core_id && is_enabled(t)) {

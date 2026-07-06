@@ -12,7 +12,9 @@ namespace state_class {
 
 namespace {
 
-bool is_inf(int v) { return v == INF_TIME; }
+bool is_inf(int v) {
+  return v == INF_TIME;
+}
 
 long long lcm_ll(long long a, long long b) {
   if (a == 0 || b == 0) {
@@ -38,8 +40,10 @@ struct DPResult {
 };
 
 DPResult combine_max(const DPResult& a, const DPResult& b) {
-  if (!a.reachable) return b;
-  if (!b.reachable) return a;
+  if (!a.reachable)
+    return b;
+  if (!b.reachable)
+    return a;
   DPResult r;
   r.reachable = true;
   if (a.infinite || b.infinite) {
@@ -51,8 +55,10 @@ DPResult combine_max(const DPResult& a, const DPResult& b) {
 }
 
 DPResult combine_min(const DPResult& a, const DPResult& b) {
-  if (!a.reachable) return b;
-  if (!b.reachable) return a;
+  if (!a.reachable)
+    return b;
+  if (!b.reachable)
+    return a;
   DPResult r;
   r.reachable = true;
   if (a.infinite && b.infinite) {
@@ -76,8 +82,8 @@ TimeValue to_time(const DPResult& r) {
 
 }  // namespace
 
-MetricsAnalyzer::MetricsAnalyzer(const SCGraph& graph, const petri::PTPN& net,
-                                 SCVertex initial, bool exact)
+MetricsAnalyzer::MetricsAnalyzer(const SCGraph& graph, const petri::PTPN& net, SCVertex initial,
+                                 bool exact)
     : graph_(graph), net_(net), initial_(initial), exact_(exact) {
   flatten_graph();
   build_topology();
@@ -218,8 +224,7 @@ bool MetricsAnalyzer::core_busy(int core, size_t v) const {
   return false;
 }
 
-bool MetricsAnalyzer::task_blocked_by_lower(const TaskTopology& task,
-                                            size_t v) const {
+bool MetricsAnalyzer::task_blocked_by_lower(const TaskTopology& task, size_t v) const {
   if (task.core < 0) {
     return false;
   }
@@ -245,10 +250,8 @@ void MetricsAnalyzer::compute_structural(MetricsReport& report) {
   report.max_tokens_per_place.assign(net_.num_places(), 0);
   for (size_t v = 0; v < num_vertices_; ++v) {
     const std::vector<int>& m = state_of_[v]->marking;
-    for (size_t p = 0; p < m.size() && p < report.max_tokens_per_place.size();
-         ++p) {
-      report.max_tokens_per_place[p] =
-          std::max(report.max_tokens_per_place[p], m[p]);
+    for (size_t p = 0; p < m.size() && p < report.max_tokens_per_place.size(); ++p) {
+      report.max_tokens_per_place[p] = std::max(report.max_tokens_per_place[p], m[p]);
     }
   }
   report.bounded = true;
@@ -336,8 +339,7 @@ void MetricsAnalyzer::compute_task_timing(MetricsReport& report) {
   // completion edge (end-place token increase). `maximize` controls longest vs
   // shortest; a cycle makes the longest path infinite and is skipped for the
   // shortest.
-  auto run_dp = [&](const TaskTopology& task,
-                    const std::function<int(size_t, const Edge&)>& weight,
+  auto run_dp = [&](const TaskTopology& task, const std::function<int(size_t, const Edge&)>& weight,
                     bool maximize, const std::vector<size_t>& starts) {
     std::vector<DPResult> memo(num_vertices_);
     std::vector<char> color(num_vertices_, 0);  // 0 white, 1 gray, 2 black
@@ -358,9 +360,8 @@ void MetricsAnalyzer::compute_task_timing(MetricsReport& report) {
       DPResult best;
       for (const Edge& e : out_edges_[v]) {
         const int w = weight(v, e);
-        const bool completes =
-            task.has_end && state_of_[e.target]->marking[task.end_place] >
-                                state_of_[v]->marking[task.end_place];
+        const bool completes = task.has_end && state_of_[e.target]->marking[task.end_place] >
+                                                   state_of_[v]->marking[task.end_place];
         if (completes) {
           DPResult cand;
           cand.reachable = true;
@@ -457,12 +458,8 @@ void MetricsAnalyzer::compute_task_timing(MetricsReport& report) {
     }
 
     if (tm.observed) {
-      const auto w_dwell_max = [&](size_t, const Edge& e) {
-        return e.dwell_max;
-      };
-      const auto w_dwell_min = [&](size_t, const Edge& e) {
-        return e.dwell_min;
-      };
+      const auto w_dwell_max = [&](size_t, const Edge& e) { return e.dwell_max; };
+      const auto w_dwell_min = [&](size_t, const Edge& e) { return e.dwell_min; };
       const auto w_interf = [&](size_t v, const Edge& e) {
         return task_suspended(task, v) ? e.dwell_max : 0;
       };
@@ -485,12 +482,10 @@ void MetricsAnalyzer::compute_task_timing(MetricsReport& report) {
       if (!tm.wcrt.infinite && !tm.bcrt.infinite) {
         tm.jitter.value = std::max<long long>(0, tm.wcrt.value - tm.bcrt.value);
       }
-      tm.worst_interference =
-          to_time(run_dp(task, w_interf, true, release_states));
+      tm.worst_interference = to_time(run_dp(task, w_interf, true, release_states));
       tm.worst_blocking = to_time(run_dp(task, w_block, true, release_states));
       const DPResult preempt = run_dp(task, w_preempt, true, release_states);
-      tm.max_preemptions =
-          preempt.infinite ? -1 : static_cast<int>(preempt.value);
+      tm.max_preemptions = preempt.infinite ? -1 : static_cast<int>(preempt.value);
 
       if (tm.has_deadline) {
         tm.slack.infinite = tm.wcrt.infinite;
@@ -535,8 +530,7 @@ void MetricsAnalyzer::compute_locks(MetricsReport& report) {
         lm.worst_hold.infinite = true;
         hold_inf = true;
       } else {
-        lm.worst_hold.value =
-            std::max(lm.worst_hold.value, static_cast<long long>(state_dwell));
+        lm.worst_hold.value = std::max(lm.worst_hold.value, static_cast<long long>(state_dwell));
         total_hold += state_dwell;
       }
 
@@ -571,9 +565,7 @@ void MetricsAnalyzer::compute_locks(MetricsReport& report) {
     report.locks.push_back(std::move(lm));
   }
   std::sort(report.locks.begin(), report.locks.end(),
-            [](const LockMetrics& a, const LockMetrics& b) {
-              return a.name < b.name;
-            });
+            [](const LockMetrics& a, const LockMetrics& b) { return a.name < b.name; });
 }
 
 void MetricsAnalyzer::compute_utilisation(MetricsReport& report) {
@@ -657,8 +649,7 @@ void MetricsAnalyzer::compute_utilisation(MetricsReport& report) {
     }
   }
   report.has_steady_cycle = best_scc >= 0;
-  report.recurrent_scc_size =
-      best_scc >= 0 ? scc_size[static_cast<size_t>(best_scc)] : 0;
+  report.recurrent_scc_size = best_scc >= 0 ? scc_size[static_cast<size_t>(best_scc)] : 0;
 
   // Vertices used for the graph-averaged busy fraction.
   std::vector<size_t> region;
@@ -698,9 +689,8 @@ void MetricsAnalyzer::compute_utilisation(MetricsReport& report) {
     for (size_t v : region) {
       const bool busy_here = core_busy(core, v);
       for (const Edge& e : out_edges_[v]) {
-        const double mid = is_inf(e.dwell_max)
-                               ? static_cast<double>(e.dwell_min)
-                               : 0.5 * (e.dwell_min + e.dwell_max);
+        const double mid = is_inf(e.dwell_max) ? static_cast<double>(e.dwell_min)
+                                               : 0.5 * (e.dwell_min + e.dwell_max);
         total += mid;
         if (busy_here) {
           busy += mid;
@@ -711,9 +701,7 @@ void MetricsAnalyzer::compute_utilisation(MetricsReport& report) {
     report.cores.push_back(std::move(cm));
   }
   std::sort(report.cores.begin(), report.cores.end(),
-            [](const CoreMetrics& a, const CoreMetrics& b) {
-              return a.core < b.core;
-            });
+            [](const CoreMetrics& a, const CoreMetrics& b) { return a.core < b.core; });
 }
 
 MetricsReport MetricsAnalyzer::analyze() {
@@ -742,8 +730,7 @@ std::string time_json(const TimeValue& t) {
 
 }  // namespace
 
-bool MetricsAnalyzer::save_to_json(const MetricsReport& report,
-                                   const std::string& file_path) {
+bool MetricsAnalyzer::save_to_json(const MetricsReport& report, const std::string& file_path) {
   std::ofstream out(file_path);
   if (!out.is_open()) {
     return false;
@@ -754,23 +741,23 @@ bool MetricsAnalyzer::save_to_json(const MetricsReport& report,
   out << "  \"states\": " << report.states << ",\n";
   out << "  \"transitions\": " << report.transitions << ",\n";
   out << "  \"bounded\": " << (report.bounded ? "true" : "false") << ",\n";
-  out << "  \"schedulable\": " << (report.schedulable ? "true" : "false")
-      << ",\n";
-  out << "  \"has_steady_cycle\": "
-      << (report.has_steady_cycle ? "true" : "false") << ",\n";
+  out << "  \"schedulable\": " << (report.schedulable ? "true" : "false") << ",\n";
+  out << "  \"has_steady_cycle\": " << (report.has_steady_cycle ? "true" : "false") << ",\n";
   out << "  \"recurrent_scc_size\": " << report.recurrent_scc_size << ",\n";
   out << "  \"hyperperiod\": " << report.hyperperiod << ",\n";
 
   out << "  \"deadlock_states\": [";
   for (size_t i = 0; i < report.deadlock_states.size(); ++i) {
-    if (i) out << ", ";
+    if (i)
+      out << ", ";
     out << report.deadlock_states[i];
   }
   out << "],\n";
 
   out << "  \"deadline_miss_witness\": [";
   for (size_t i = 0; i < report.deadline_miss_witness.size(); ++i) {
-    if (i) out << ", ";
+    if (i)
+      out << ", ";
     out << report.deadline_miss_witness[i];
   }
   out << "],\n";
@@ -791,15 +778,13 @@ bool MetricsAnalyzer::save_to_json(const MetricsReport& report,
     out << "      \"wcrt\": " << time_json(t.wcrt) << ",\n";
     out << "      \"bcrt\": " << time_json(t.bcrt) << ",\n";
     out << "      \"jitter\": " << time_json(t.jitter) << ",\n";
-    out << "      \"worst_interference\": " << time_json(t.worst_interference)
-        << ",\n";
+    out << "      \"worst_interference\": " << time_json(t.worst_interference) << ",\n";
     out << "      \"worst_blocking\": " << time_json(t.worst_blocking) << ",\n";
     out << "      \"max_preemptions\": " << t.max_preemptions << ",\n";
     out << "      \"max_in_flight\": " << t.max_in_flight << ",\n";
-    out << "      \"slack\": "
-        << (t.has_deadline ? time_json(t.slack) : std::string("null")) << ",\n";
-    out << "      \"deadline_missed\": "
-        << (t.deadline_missed ? "true" : "false") << ",\n";
+    out << "      \"slack\": " << (t.has_deadline ? time_json(t.slack) : std::string("null"))
+        << ",\n";
+    out << "      \"deadline_missed\": " << (t.deadline_missed ? "true" : "false") << ",\n";
     out << "      \"jobs_per_hyperperiod\": " << t.jobs_per_hyperperiod << "\n";
     out << "    }" << (i + 1 < report.tasks.size() ? "," : "") << "\n";
   }

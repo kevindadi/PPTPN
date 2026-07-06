@@ -27,10 +27,10 @@ void write_transition_block(std::ostream& out, const PpnModel& model) {
   out << "transition  preset  postset  time  prior  is_suspend\n";
   for (size_t i = 0; i < model.transitions.size(); ++i) {
     const auto& transition = model.transitions[i];
-    out << transition.name << "          " << format_arc_list(transition.preset)
-        << "    " << format_arc_list(transition.postset) << "       "
-        << transition.time << "    " << std::fixed << std::setprecision(1)
-        << transition.prior << "      " << (transition.is_suspend ? 1 : 0);
+    out << transition.name << "          " << format_arc_list(transition.preset) << "    "
+        << format_arc_list(transition.postset) << "       " << transition.time << "    "
+        << std::fixed << std::setprecision(1) << transition.prior << "      "
+        << (transition.is_suspend ? 1 : 0);
     if (i + 1 == model.transitions.size()) {
       out << "  @";
     }

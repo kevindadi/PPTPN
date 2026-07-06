@@ -23,7 +23,9 @@ class DBM {
   DBM(DBM&& other) noexcept = default;
   DBM& operator=(DBM&& other) noexcept = default;
 
-  [[nodiscard]] size_t size() const { return clock_count_; }
+  [[nodiscard]] size_t size() const {
+    return clock_count_;
+  }
 
   void set_constraint(size_t i, size_t j, int bound);
   [[nodiscard]] int get_constraint(size_t i, size_t j) const;
@@ -39,8 +41,7 @@ class DBM {
   [[nodiscard]] DBM restrict_clock(size_t clock_idx, int alpha, int beta) const;
   void constrain_upper_bound(size_t clock_idx, int beta);
   void synchronize_clocks(const std::vector<size_t>& clock_indices);
-  [[nodiscard]] DBM restrict_for_firing(size_t transition_id, int alpha,
-                                        int beta) const;
+  [[nodiscard]] DBM restrict_for_firing(size_t transition_id, int alpha, int beta) const;
   void freeze_clock(size_t clock_idx);
   void unfreeze_clock(size_t clock_idx);
   [[nodiscard]] bool is_frozen(size_t clock_idx) const;
@@ -57,10 +58,15 @@ class DBM {
   // sound geometric inclusion test.
   [[nodiscard]] bool included_in(const DBM& other) const;
   [[nodiscard]] std::string to_string() const;
-  [[nodiscard]] const std::vector<int>& raw_matrix() const { return matrix_; }
+
+  [[nodiscard]] const std::vector<int>& raw_matrix() const {
+    return matrix_;
+  }
+
   [[nodiscard]] const std::set<size_t>& frozen_clocks() const {
     return frozen_clocks_;
   }
+
   bool operator==(const DBM& other) const;
   bool operator<(const DBM& other) const;
 

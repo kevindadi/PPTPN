@@ -16,12 +16,10 @@ struct Tdg2PtopnerResult {
 };
 
 // Exports an already-built PTPN to a PToPNer .ppn file.
-Tdg2PtopnerResult export_ptpn_to_ppn_file(const petri::PTPN& ptpn,
-                                          const std::string& output_path);
+Tdg2PtopnerResult export_ptpn_to_ppn_file(const petri::PTPN& ptpn, const std::string& output_path);
 
 // Validates TDG input, lowers to PTPN, and writes a .ppn file.
-Tdg2PtopnerResult transform_to_ppn_file(const tdg::TDG& tdg,
-                                        const std::string& output_path);
+Tdg2PtopnerResult transform_to_ppn_file(const tdg::TDG& tdg, const std::string& output_path);
 
 }  // namespace ptopner_export
 

@@ -2,7 +2,6 @@
 #define ANALYSIS_SCHEDULING_H
 
 #include <set>
-#include <vector>
 
 #include "petri/petri.h"
 
@@ -14,8 +13,7 @@ namespace state_class {
 class Scheduling {
  public:
   // E_struct(M): transitions whose input places hold enough tokens.
-  static std::set<size_t> structural_enabled(const petri::PTPN& net,
-                                             const petri::Marking& marking);
+  static std::set<size_t> structural_enabled(const petri::PTPN& net, const petri::Marking& marking);
 
   // E_pri(M): within every core group (identified by the transition's `core`
   // attribute) keep the highest-priority structurally enabled transitions.
@@ -24,8 +22,8 @@ class Scheduling {
   // transition index) so mutual exclusion / multi-core parallelism is enforced.
   // Unbounded groups (the control core -1, or nets without a parallelism model)
   // keep every transition sharing the maximal priority (ties allowed).
-  static std::set<size_t> filter_priority_per_core(
-      const std::set<size_t>& struct_enabled, const petri::PTPN& net);
+  static std::set<size_t> filter_priority_per_core(const std::set<size_t>& struct_enabled,
+                                                   const petri::PTPN& net);
 };
 
 }  // namespace state_class

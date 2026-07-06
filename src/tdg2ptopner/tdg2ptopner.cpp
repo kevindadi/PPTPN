@@ -8,8 +8,7 @@
 
 namespace ptopner_export {
 
-Tdg2PtopnerResult export_ptpn_to_ppn_file(const petri::PTPN& ptpn,
-                                          const std::string& output_path) {
+Tdg2PtopnerResult export_ptpn_to_ppn_file(const petri::PTPN& ptpn, const std::string& output_path) {
   Tdg2PtopnerResult result;
   try {
     const PpnModel model = ptpn_to_ppn_model(ptpn);
@@ -18,8 +17,8 @@ Tdg2PtopnerResult export_ptpn_to_ppn_file(const petri::PTPN& ptpn,
       return result;
     }
 
-    spdlog::info("[TDG2PTOPNER] Exported {} places, {} transitions to {}",
-                 model.places.size(), model.transitions.size(), output_path);
+    spdlog::info("[TDG2PTOPNER] Exported {} places, {} transitions to {}", model.places.size(),
+                 model.transitions.size(), output_path);
     result.success = true;
   } catch (const std::exception& e) {
     result.error_message = e.what();
@@ -27,8 +26,7 @@ Tdg2PtopnerResult export_ptpn_to_ppn_file(const petri::PTPN& ptpn,
   return result;
 }
 
-Tdg2PtopnerResult transform_to_ppn_file(const tdg::TDG& tdg,
-                                        const std::string& output_path) {
+Tdg2PtopnerResult transform_to_ppn_file(const tdg::TDG& tdg, const std::string& output_path) {
   Tdg2PtopnerResult result;
   result.validation = validate_for_ptopner(tdg);
   if (!result.validation.ok) {
@@ -43,8 +41,7 @@ Tdg2PtopnerResult transform_to_ppn_file(const tdg::TDG& tdg,
   try {
     petri::PTPN ptpn;
     converter::TDG2PN::transform(tdg, ptpn);
-    Tdg2PtopnerResult export_result =
-        export_ptpn_to_ppn_file(ptpn, output_path);
+    Tdg2PtopnerResult export_result = export_ptpn_to_ppn_file(ptpn, output_path);
     export_result.validation = result.validation;
     return export_result;
   } catch (const std::exception& e) {

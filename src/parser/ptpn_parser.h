@@ -50,8 +50,7 @@ class PTPNParser {
   static bool parse(const std::string& input, PTPNAST& ast, std::string& error);
 
   // Parse from file (syntax only)
-  static bool parse_file(const std::string& filepath, PTPNAST& ast,
-                         std::string& error);
+  static bool parse_file(const std::string& filepath, PTPNAST& ast, std::string& error);
 
   // Semantic validation on a parsed AST
   static bool validate(const PTPNAST& ast, std::string& error);
@@ -63,8 +62,13 @@ class PTPNBuilder {
   static petri::PTPN parse(const std::string& source);
   static petri::PTPN parse_file(const std::string& filepath);
 
-  static std::string error_message() { return error_msg_; }
-  static bool has_error() { return !error_msg_.empty(); }
+  static std::string error_message() {
+    return error_msg_;
+  }
+
+  static bool has_error() {
+    return !error_msg_.empty();
+  }
 
  private:
   static std::string error_msg_;

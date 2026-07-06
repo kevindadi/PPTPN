@@ -8,8 +8,7 @@
 namespace petri::exporting {
 
 std::string render_romeo_cts(const PetriExportModel& model);
-bool save_to_romeo_cts(const PetriExportModel& model,
-                       const std::string& file_path);
+bool save_to_romeo_cts(const PetriExportModel& model, const std::string& file_path);
 
 }  // namespace petri::exporting
 
