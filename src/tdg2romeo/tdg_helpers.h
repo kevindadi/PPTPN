@@ -8,7 +8,7 @@
 #include "../tdg/tdg.h"
 #include "romeo_model.h"
 
-namespace romeo_export {
+namespace romeo {
 
 constexpr int kControlPriority = 0;
 constexpr int kInfTime = std::numeric_limits<int>::max();
@@ -48,6 +48,6 @@ std::string guard_ge(const std::string& place, int weight = 1);
 
 std::string guard_and(const std::vector<std::string>& clauses);
 
-}  // namespace romeo_export
+}  // namespace romeo
 
 #endif  // TDG2ROMEO_TDG_HELPERS_H

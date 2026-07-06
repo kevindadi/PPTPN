@@ -4,7 +4,7 @@
 #include <spdlog/spdlog.h>
 #include <stdexcept>
 
-namespace romeo_export {
+namespace romeo {
 
 namespace {
 
@@ -340,4 +340,4 @@ void add_end_consumers(EncodeContext& ctx, const tdg::TDG& tdg) {
   }
 }
 
-}  // namespace romeo_export
+}  // namespace romeo

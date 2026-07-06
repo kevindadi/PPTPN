@@ -5,7 +5,7 @@
 #include <sstream>
 #include <spdlog/spdlog.h>
 
-namespace romeo_export {
+namespace romeo {
 
 namespace {
 
@@ -137,4 +137,4 @@ std::string guard_and(const std::vector<std::string>& clauses) {
   return out.str();
 }
 
-}  // namespace romeo_export
+}  // namespace romeo

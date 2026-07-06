@@ -6,7 +6,7 @@
 #include "../tdg/tdg.h"
 #include "romeo_model.h"
 
-namespace romeo_export {
+namespace romeo {
 
 enum class RomeoFormat { SchedulingNet, InhibitorArc };
 
@@ -25,6 +25,6 @@ RomeoExportResult export_tdg_to_romeo_cts(const tdg::TDG& tdg, const std::string
 
 RomeoModel build_romeo_model(const tdg::TDG& tdg, const RomeoExportOptions& opts);
 
-}  // namespace romeo_export
+}  // namespace romeo
 
 #endif  // TDG2ROMEO_H

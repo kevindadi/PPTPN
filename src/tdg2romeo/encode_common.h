@@ -8,7 +8,7 @@
 #include "romeo_model.h"
 #include "tdg_helpers.h"
 
-namespace romeo_export {
+namespace romeo {
 
 struct EncodeContext {
   RomeoModelBuilder builder;
@@ -35,6 +35,6 @@ void add_periodic_releases(EncodeContext& ctx, const tdg::TDG& tdg);
 
 void add_end_consumers(EncodeContext& ctx, const tdg::TDG& tdg);
 
-}  // namespace romeo_export
+}  // namespace romeo
 
 #endif  // TDG2ROMEO_ENCODE_COMMON_H

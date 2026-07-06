@@ -2,7 +2,7 @@
 
 #include "encode_common.h"
 
-namespace romeo_export {
+namespace romeo {
 
 RomeoModel build_inhibitor_arc_model(const tdg::TDG& tdg, const RomeoExportOptions& opts) {
   EncodeContext ctx;
@@ -27,4 +27,4 @@ RomeoModel build_inhibitor_arc_model(const tdg::TDG& tdg, const RomeoExportOptio
   return ctx.builder.build();
 }
 
-}  // namespace romeo_export
+}  // namespace romeo

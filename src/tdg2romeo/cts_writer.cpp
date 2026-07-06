@@ -8,7 +8,7 @@
 #include <set>
 #include <sstream>
 
-namespace romeo_export {
+namespace romeo {
 
 namespace {
 
@@ -158,4 +158,4 @@ std::string render_romeo_cts(const RomeoModel& model) {
   return out.str();
 }
 
-}  // namespace romeo_export
+}  // namespace romeo

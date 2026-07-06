@@ -168,19 +168,19 @@ SchedulePolicy parse_policy_option(const string& policy) {
   return parsed;
 }
 
-romeo_export::RomeoFormat parse_romeo_format(const string& format) {
+romeo::RomeoFormat parse_romeo_format(const string& format) {
   if (format == "inhibitor-arc" || format == "inhibitor_arc") {
-    return romeo_export::RomeoFormat::InhibitorArc;
+    return romeo::RomeoFormat::InhibitorArc;
   }
   if (format == "scheduling-net" || format == "scheduling_net") {
-    return romeo_export::RomeoFormat::SchedulingNet;
+    return romeo::RomeoFormat::SchedulingNet;
   }
   throw CLI::ValidationError(format, "Expected scheduling-net or inhibitor-arc");
 }
 
-romeo_export::RomeoExportOptions make_romeo_export_options(const string& format,
+romeo::RomeoExportOptions make_romeo_export_options(const string& format,
                                                            bool explicit_core_places) {
-  romeo_export::RomeoExportOptions opts;
+  romeo::RomeoExportOptions opts;
   opts.format = parse_romeo_format(format);
   opts.explicit_core_places = explicit_core_places;
   return opts;
@@ -238,8 +238,8 @@ int validate_ptopner_tdg(const tdg::TDG& tdg) {
 }
 
 int export_romeo_from_tdg(const tdg::TDG& tdg, const string& output_path,
-                          const romeo_export::RomeoExportOptions& opts) {
-  const auto result = romeo_export::export_tdg_to_romeo_cts(tdg, output_path, opts);
+                          const romeo::RomeoExportOptions& opts) {
+  const auto result = romeo::export_tdg_to_romeo_cts(tdg, output_path, opts);
   if (result.success) {
     spdlog::info("[OUTPUT] Romeo CTS exported to: {}", output_path);
     return 0;

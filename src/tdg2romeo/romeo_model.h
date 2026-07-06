@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace romeo_export {
+namespace romeo {
 
 struct RomeoTimeInterval {
   int earliest = 0;
@@ -62,6 +62,6 @@ class RomeoModelBuilder {
 
 std::string render_romeo_cts(const RomeoModel& model);
 
-}  // namespace romeo_export
+}  // namespace romeo
 
 #endif  // TDG2ROMEO_ROMEO_MODEL_H

@@ -7,7 +7,7 @@
 #include "inhibitor_arc.h"
 #include "scheduling_net.h"
 
-namespace romeo_export {
+namespace romeo {
 
 RomeoModel build_romeo_model(const tdg::TDG& tdg, const RomeoExportOptions& opts) {
   switch (opts.format) {
@@ -51,4 +51,4 @@ RomeoExportResult export_tdg_to_romeo_cts(const tdg::TDG& tdg, const std::string
   return result;
 }
 
-}  // namespace romeo_export
+}  // namespace romeo

@@ -21,19 +21,19 @@ tdg::TDG load_tdg(const std::string& path) {
   return tdg;
 }
 
-std::string render(const tdg::TDG& tdg, romeo_export::RomeoFormat format,
+std::string render(const tdg::TDG& tdg, romeo::RomeoFormat format,
                    bool explicit_core_places) {
-  romeo_export::RomeoExportOptions opts;
+  romeo::RomeoExportOptions opts;
   opts.format = format;
   opts.explicit_core_places = explicit_core_places;
-  return romeo_export::render_romeo_cts(romeo_export::build_romeo_model(tdg, opts));
+  return romeo::render_romeo_cts(romeo::build_romeo_model(tdg, opts));
 }
 
 }  // namespace
 
 TEST(Tdg2RomeoTest, SchedulingNetIncludesCorePlacesAndTaskIntervals) {
   const tdg::TDG tdg = load_tdg("example/p-bench/same-core.json");
-  const std::string cts = render(tdg, romeo_export::RomeoFormat::SchedulingNet, true);
+  const std::string cts = render(tdg, romeo::RomeoFormat::SchedulingNet, true);
 
   EXPECT_NE(cts.find("core0=1"), std::string::npos);
   EXPECT_NE(cts.find("Aexec [8,8]"), std::string::npos);
@@ -43,7 +43,7 @@ TEST(Tdg2RomeoTest, SchedulingNetIncludesCorePlacesAndTaskIntervals) {
 
 TEST(Tdg2RomeoTest, MultiCoreUsesSeparateCoreGuards) {
   const tdg::TDG tdg = load_tdg("example/p-bench/initial.json");
-  const std::string cts = render(tdg, romeo_export::RomeoFormat::SchedulingNet, true);
+  const std::string cts = render(tdg, romeo::RomeoFormat::SchedulingNet, true);
 
   EXPECT_NE(cts.find("core0=1"), std::string::npos);
   EXPECT_NE(cts.find("core1=1"), std::string::npos);
@@ -53,7 +53,7 @@ TEST(Tdg2RomeoTest, MultiCoreUsesSeparateCoreGuards) {
 
 TEST(Tdg2RomeoTest, InhibitorArcUsesSchedPriorityAndAllowWithoutExecPriority) {
   const tdg::TDG tdg = load_tdg("example/p-bench/same-core.json");
-  const std::string cts = render(tdg, romeo_export::RomeoFormat::InhibitorArc, true);
+  const std::string cts = render(tdg, romeo::RomeoFormat::InhibitorArc, true);
 
   EXPECT_NE(cts.find("Asched [0,0]"), std::string::npos);
   EXPECT_NE(cts.find("allow="), std::string::npos);
@@ -70,21 +70,21 @@ TEST(Tdg2RomeoTest, InhibitorArcUsesSchedPriorityAndAllowWithoutExecPriority) {
 
 TEST(Tdg2RomeoTest, EdgeIntervalFromLabel) {
   const tdg::TDG tdg = load_tdg("example/p-bench/no-period.json");
-  const std::string cts = render(tdg, romeo_export::RomeoFormat::SchedulingNet, true);
+  const std::string cts = render(tdg, romeo::RomeoFormat::SchedulingNet, true);
   EXPECT_NE(cts.find("A_to_B [0,0]"), std::string::npos);
 }
 
 TEST(Tdg2RomeoTest, ExportToFileSucceeds) {
   const tdg::TDG tdg = load_tdg("example/s-bench/a.json");
-  romeo_export::RomeoExportOptions opts;
-  opts.format = romeo_export::RomeoFormat::SchedulingNet;
-  const auto result = romeo_export::export_tdg_to_romeo_cts(tdg, "/tmp/ptpn_test_a.cts", opts);
+  romeo::RomeoExportOptions opts;
+  opts.format = romeo::RomeoFormat::SchedulingNet;
+  const auto result = romeo::export_tdg_to_romeo_cts(tdg, "/tmp/ptpn_test_a.cts", opts);
   EXPECT_TRUE(result.success) << result.error_message;
 }
 
 TEST(Tdg2RomeoTest, SBenchSchedulingNetMatchesGoldenStructure) {
   const tdg::TDG tdg = load_tdg("example/s-bench/a.json");
-  const std::string cts = render(tdg, romeo_export::RomeoFormat::SchedulingNet, true);
+  const std::string cts = render(tdg, romeo::RomeoFormat::SchedulingNet, true);
 
   EXPECT_NE(cts.find("Aexec [3,5]"), std::string::npos);
   EXPECT_NE(cts.find("Dexec [8,8]"), std::string::npos);
