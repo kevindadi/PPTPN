@@ -3,6 +3,7 @@
 .vscode/settings.local.json
 .claude
 .cursor
+.clangd
 
 build
 

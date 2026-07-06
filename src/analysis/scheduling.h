@@ -2,6 +2,7 @@
 #define ANALYSIS_SCHEDULING_H
 
 #include <set>
+#include <vector>
 
 #include "petri/petri.h"
 
