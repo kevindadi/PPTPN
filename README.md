@@ -215,8 +215,9 @@ JSON `configuration.policy` and `--policy` accept values such as:
 python3 scripts/generate_lbench.py --all
 python3 scripts/generate_lbench.py --validate --all   # structure + TDG DOT only
 
-# l-bench: run scaling experiments (tasks/cpus/locks/memory/SCG stats)
+# l-bench: run scaling experiments (tasks/cpus/locks/lanes/memory/SCG stats)
 python3 scripts/run_lbench.py --all -m 50000
+python3 scripts/run_lbench.py --reviewer-case -m 20000
 python3 scripts/run_lbench.py --all --validate-tdg-only
 ```
 
