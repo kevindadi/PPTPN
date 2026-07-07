@@ -1,7 +1,0 @@
-profile,suite,case,ok,places,transitions,scg_states,scg_edges,scg_dedup_hits,scg_truncated,ms_tdg2pn,ms_scg_build,ms_scg_dot,ms_total,ppn_exported,ppn_error,error
-ptopner,p-bench,initial,True,22,27,,,,False,,,,,True,,
-ptopner,p-bench,no-period,True,20,25,,,,False,,,,,True,,
-ptopner,p-bench,same-core,True,19,25,,,,False,,,,,True,,
-ptopner,p-bench,same-priority,True,22,21,,,,False,,,,,True,,
-ptopner,p-bench,single-core-diff-priority,True,18,27,,,,False,,,,,True,,
-ptopner,p-bench,single-core-same-priority,True,18,17,,,,False,,,,,True,,
