@@ -1,0 +1,282 @@
+{
+  "graph": {
+    "name": "EmbeddedPipeline10T2C1Locks"
+  },
+  "configuration": {
+    "num_cpus": 2,
+    "cores_per_cpu": 1,
+    "shared_locks": [
+      "mutex0"
+    ],
+    "policy": "fixed",
+    "start": [
+      {
+        "task": "T00",
+        "tokens": 1
+      }
+    ],
+    "end": [
+      "T09"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "T00",
+      "type": "task",
+      "priority": 40,
+      "core": 0,
+      "time": [
+        [
+          2,
+          5
+        ]
+      ],
+      "locks": []
+    },
+    {
+      "id": "T01",
+      "type": "task",
+      "priority": 41,
+      "core": 1,
+      "time": [
+        [
+          1,
+          3
+        ],
+        [
+          3,
+          7
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "locks": [
+        "mutex0"
+      ]
+    },
+    {
+      "id": "T02",
+      "type": "task",
+      "priority": 42,
+      "core": 0,
+      "time": [
+        [
+          3,
+          9
+        ]
+      ],
+      "locks": []
+    },
+    {
+      "id": "T03",
+      "type": "task",
+      "priority": 43,
+      "core": 1,
+      "time": [
+        [
+          3,
+          8
+        ]
+      ],
+      "locks": []
+    },
+    {
+      "id": "T04",
+      "type": "task",
+      "priority": 44,
+      "core": 0,
+      "time": [
+        [
+          1,
+          3
+        ],
+        [
+          3,
+          7
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "locks": [
+        "mutex0"
+      ]
+    },
+    {
+      "id": "T05",
+      "type": "task",
+      "priority": 45,
+      "core": 1,
+      "time": [
+        [
+          3,
+          9
+        ]
+      ],
+      "locks": []
+    },
+    {
+      "id": "T06",
+      "type": "task",
+      "priority": 46,
+      "core": 0,
+      "time": [
+        [
+          3,
+          8
+        ]
+      ],
+      "locks": []
+    },
+    {
+      "id": "T07",
+      "type": "task",
+      "priority": 47,
+      "core": 1,
+      "time": [
+        [
+          1,
+          3
+        ],
+        [
+          3,
+          7
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "locks": [
+        "mutex0"
+      ]
+    },
+    {
+      "id": "T08",
+      "type": "task",
+      "priority": 48,
+      "core": 0,
+      "time": [
+        [
+          3,
+          9
+        ]
+      ],
+      "locks": []
+    },
+    {
+      "id": "T09",
+      "type": "task",
+      "priority": 49,
+      "core": 1,
+      "time": [
+        [
+          3,
+          8
+        ]
+      ],
+      "locks": []
+    },
+    {
+      "id": "F_000",
+      "type": "fork"
+    },
+    {
+      "id": "J_000",
+      "type": "join"
+    },
+    {
+      "id": "F_001",
+      "type": "fork"
+    },
+    {
+      "id": "J_001",
+      "type": "join"
+    },
+    {
+      "id": "F_002",
+      "type": "fork"
+    },
+    {
+      "id": "J_002",
+      "type": "join"
+    }
+  ],
+  "edges": [
+    {
+      "source": "T00",
+      "target": "F_000"
+    },
+    {
+      "source": "F_000",
+      "target": "T01"
+    },
+    {
+      "source": "F_000",
+      "target": "T02"
+    },
+    {
+      "source": "T01",
+      "target": "J_000"
+    },
+    {
+      "source": "T02",
+      "target": "J_000"
+    },
+    {
+      "source": "J_000",
+      "target": "T03"
+    },
+    {
+      "source": "T03",
+      "target": "F_001"
+    },
+    {
+      "source": "F_001",
+      "target": "T04"
+    },
+    {
+      "source": "F_001",
+      "target": "T05"
+    },
+    {
+      "source": "T04",
+      "target": "J_001"
+    },
+    {
+      "source": "T05",
+      "target": "J_001"
+    },
+    {
+      "source": "J_001",
+      "target": "T06"
+    },
+    {
+      "source": "T06",
+      "target": "F_002"
+    },
+    {
+      "source": "F_002",
+      "target": "T07"
+    },
+    {
+      "source": "F_002",
+      "target": "T08"
+    },
+    {
+      "source": "T07",
+      "target": "J_002"
+    },
+    {
+      "source": "T08",
+      "target": "J_002"
+    },
+    {
+      "source": "J_002",
+      "target": "T09"
+    }
+  ]
+}
