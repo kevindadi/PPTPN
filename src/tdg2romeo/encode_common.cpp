@@ -9,10 +9,10 @@ namespace romeo {
 namespace {
 
 RomeoTransition make_transition(const std::string& name, const RomeoTimeInterval& interval,
-                              std::optional<int> priority, const std::string& when_guard,
-                              std::vector<RomeoAssignment> intermediate,
-                              std::vector<RomeoAssignment> updates,
-                              std::optional<std::string> allow = std::nullopt) {
+                                std::optional<int> priority, const std::string& when_guard,
+                                std::vector<RomeoAssignment> intermediate,
+                                std::vector<RomeoAssignment> updates,
+                                std::optional<std::string> allow = std::nullopt) {
   RomeoTransition transition;
   transition.name = name;
   transition.interval = interval;
@@ -28,10 +28,9 @@ void add_bridge_transition(EncodeContext& ctx, const std::string& source_exit,
                            const std::string& target_entry, const std::string& name,
                            const RomeoTimeInterval& interval) {
   std::vector<std::string> guard_clauses = {guard_ge(source_exit)};
-  ctx.builder.add_transition(make_transition(
-      name, interval, kControlPriority, guard_and(guard_clauses),
-      {{source_exit, -1}},
-      {{source_exit, -1}, {target_entry, +1}}));
+  ctx.builder.add_transition(make_transition(name, interval, kControlPriority,
+                                             guard_and(guard_clauses), {{source_exit, -1}},
+                                             {{source_exit, -1}, {target_entry, +1}}));
 }
 
 }  // namespace
@@ -69,9 +68,9 @@ void add_task_chain_scheduling_net(EncodeContext& ctx, const TaskNode& task) {
   }
 
   std::vector<RomeoAssignment> get_core_updates = {{entry, -1}, {ready, +1}};
-  ctx.builder.add_transition(make_transition(
-      task.name + "get_core", RomeoTimeInterval::immediate(), task.priority,
-      guard_and(get_core_guard), get_core_intermediate, get_core_updates));
+  ctx.builder.add_transition(make_transition(task.name + "get_core", RomeoTimeInterval::immediate(),
+                                             task.priority, guard_and(get_core_guard),
+                                             get_core_intermediate, get_core_updates));
 
   std::string current_place = ready;
   const size_t segment_count = task.time.size();
@@ -81,7 +80,8 @@ void add_task_chain_scheduling_net(EncodeContext& ctx, const TaskNode& task) {
                                       : task.name + "_exec_" + std::to_string(segment_index + 1);
     const bool is_last = segment_index + 1 == segment_count;
     const std::string next_place =
-        is_last ? exit : place_name(task.name, "_seg_" + std::to_string(segment_index + 1) + "_done");
+        is_last ? exit
+                : place_name(task.name, "_seg_" + std::to_string(segment_index + 1) + "_done");
 
     if (!is_last) {
       ctx.builder.place(next_place, 0);
@@ -112,8 +112,8 @@ void add_task_chain_scheduling_net(EncodeContext& ctx, const TaskNode& task) {
       std::vector<std::string> lock_guard = {guard_ge(current_place), guard_ge(lock_type)};
       ctx.builder.add_transition(make_transition(
           task.name + "_lock_" + std::to_string(segment_index + 1), RomeoTimeInterval::immediate(),
-          task.priority, guard_and(lock_guard),
-          {{current_place, -1}, {lock_type, -1}}, {{current_place, -1}, {hold, +1}}));
+          task.priority, guard_and(lock_guard), {{current_place, -1}, {lock_type, -1}},
+          {{current_place, -1}, {hold, +1}}));
 
       current_place = hold;
     }
@@ -157,9 +157,9 @@ void add_task_chain_inhibitor_arc(EncodeContext& ctx, const tdg::TDG& tdg, const
   const std::optional<std::string> allow_expr =
       allow_parts.empty() ? std::nullopt : std::optional<std::string>(guard_and(allow_parts));
 
-  ctx.builder.add_transition(make_transition(
-      task.name + "sched", RomeoTimeInterval::immediate(), task.priority, guard_and(sched_guard),
-      {{entry, -1}}, {{entry, -1}, {ready, +1}, {active, +1}}, allow_expr));
+  ctx.builder.add_transition(make_transition(task.name + "sched", RomeoTimeInterval::immediate(),
+                                             task.priority, guard_and(sched_guard), {{entry, -1}},
+                                             {{entry, -1}, {ready, +1}, {active, +1}}, allow_expr));
 
   std::string current_place = ready;
   const size_t segment_count = task.time.size();
@@ -169,7 +169,8 @@ void add_task_chain_inhibitor_arc(EncodeContext& ctx, const tdg::TDG& tdg, const
                                       ? task.name + "exec"
                                       : task.name + "_exec_" + std::to_string(segment_index + 1);
     const std::string next_place =
-        is_last ? exit : place_name(task.name, "_seg_" + std::to_string(segment_index + 1) + "_done");
+        is_last ? exit
+                : place_name(task.name, "_seg_" + std::to_string(segment_index + 1) + "_done");
 
     if (!is_last) {
       ctx.builder.place(next_place, 0);
@@ -226,17 +227,17 @@ void add_fork_join_nodes(EncodeContext& ctx, const tdg::TDG& tdg) {
       const auto& fork = std::get<ForkTask>(node_type);
       const std::string out_place = name + "_out";
       ctx.builder.place(out_place, 0);
-      ctx.builder.add_transition(make_transition(
-          name, RomeoTimeInterval::closed(fork.time.first, fork.time.second), fork.priority,
-          "true", {}, {{out_place, +1}}));
+      ctx.builder.add_transition(
+          make_transition(name, RomeoTimeInterval::closed(fork.time.first, fork.time.second),
+                          fork.priority, "true", {}, {{out_place, +1}}));
       ctx.nodes[name] = {out_place, out_place, true};
     } else if (std::holds_alternative<JoinTask>(node_type)) {
       const auto& join = std::get<JoinTask>(node_type);
       const std::string in_place = name + "_in";
       ctx.builder.place(in_place, 0);
-      ctx.builder.add_transition(make_transition(
-          name, RomeoTimeInterval::closed(join.time.first, join.time.second), join.priority,
-          guard_ge(in_place), {{in_place, -1}}, {{in_place, -1}}));
+      ctx.builder.add_transition(
+          make_transition(name, RomeoTimeInterval::closed(join.time.first, join.time.second),
+                          join.priority, guard_ge(in_place), {{in_place, -1}}, {{in_place, -1}}));
       ctx.nodes[name] = {in_place, in_place, true};
     }
   }
@@ -280,8 +281,7 @@ void wire_edges(EncodeContext& ctx, const tdg::TDG& tdg) {
       continue;
     }
 
-    const RomeoTimeInterval interval =
-        parse_edge_interval(edge.label, edge.source, edge.target);
+    const RomeoTimeInterval interval = parse_edge_interval(edge.label, edge.source, edge.target);
     add_bridge_transition(ctx, source_it->second.exit, target_it->second.entry,
                           edge.source + "_to_" + edge.target, interval);
   }
@@ -313,10 +313,10 @@ void add_periodic_releases(EncodeContext& ctx, const tdg::TDG& tdg) {
 
     const std::string period_place = periodic.task + "_period";
     ctx.builder.place(period_place, 1);
-    ctx.builder.add_transition(make_transition(
-        periodic.task + "_fire", RomeoTimeInterval::point(periodic.period), kControlPriority,
-        guard_ge(period_place), {{period_place, -1}},
-        {{node_it->second.entry, +1}, {period_place, +1}}));
+    ctx.builder.add_transition(
+        make_transition(periodic.task + "_fire", RomeoTimeInterval::point(periodic.period),
+                        kControlPriority, guard_ge(period_place), {{period_place, -1}},
+                        {{node_it->second.entry, +1}, {period_place, +1}}));
   }
 }
 
@@ -333,10 +333,10 @@ void add_end_consumers(EncodeContext& ctx, const tdg::TDG& tdg) {
     if (node_it == ctx.nodes.end()) {
       continue;
     }
-    ctx.builder.add_transition(make_transition(
-        task_name + "_consume", RomeoTimeInterval::immediate(), kControlPriority,
-        guard_ge(node_it->second.exit), {{node_it->second.exit, -1}},
-        {{node_it->second.exit, -1}}));
+    ctx.builder.add_transition(
+        make_transition(task_name + "_consume", RomeoTimeInterval::immediate(), kControlPriority,
+                        guard_ge(node_it->second.exit), {{node_it->second.exit, -1}},
+                        {{node_it->second.exit, -1}}));
   }
 }
 

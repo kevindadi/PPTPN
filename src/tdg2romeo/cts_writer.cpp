@@ -1,12 +1,11 @@
-#include "romeo_model.h"
-
-#include "tdg_helpers.h"
-
 #include <cctype>
 #include <limits>
 #include <map>
 #include <set>
 #include <sstream>
+
+#include "romeo_model.h"
+#include "tdg_helpers.h"
 
 namespace romeo {
 

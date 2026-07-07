@@ -179,7 +179,7 @@ romeo::RomeoFormat parse_romeo_format(const string& format) {
 }
 
 romeo::RomeoExportOptions make_romeo_export_options(const string& format,
-                                                           bool explicit_core_places) {
+                                                    bool explicit_core_places) {
   romeo::RomeoExportOptions opts;
   opts.format = parse_romeo_format(format);
   opts.explicit_core_places = explicit_core_places;
@@ -658,12 +658,13 @@ int main(int argc, char* argv[]) {
   auto* export_cmd = app.add_subcommand("export", "Export to Romeo or PToPNer formats");
   export_cmd->require_subcommand(1);
 
-  auto* export_romeo_cmd = export_cmd->add_subcommand(
-      "romeo", "Export Romeo CTS directly from TDG JSON (tdg2romeo)");
-  configure_export_subcommand(export_romeo_cmd, romeo_export_opts,
-                              "Examples:\n"
-                              "  ptpn export romeo -f example/p-bench/initial.json -o out.cts\n"
-                              "  ptpn export romeo -f input.json -o out.cts --format inhibitor-arc");
+  auto* export_romeo_cmd =
+      export_cmd->add_subcommand("romeo", "Export Romeo CTS directly from TDG JSON (tdg2romeo)");
+  configure_export_subcommand(
+      export_romeo_cmd, romeo_export_opts,
+      "Examples:\n"
+      "  ptpn export romeo -f example/p-bench/initial.json -o out.cts\n"
+      "  ptpn export romeo -f input.json -o out.cts --format inhibitor-arc");
   export_romeo_cmd
       ->add_option("--format", romeo_export_opts.romeo_format,
                    "Romeo format: scheduling-net or inhibitor-arc (default: scheduling-net)")

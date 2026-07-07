@@ -1,0 +1,117 @@
+{
+  "description": "Progressive embedded pipeline l-bench TDG benchmarks",
+  "policy": "fixed",
+  "periodic_tasks": 0,
+  "cases": [
+    {
+      "case_id": "10t-2c",
+      "filename": "pipeline-10t-2c.json",
+      "num_tasks": 10,
+      "num_cpus": 2,
+      "num_locks": 1,
+      "periodic": 0,
+      "fork_join_stages": 3,
+      "locked_tasks": 3
+    },
+    {
+      "case_id": "20t-4c",
+      "filename": "pipeline-20t-4c.json",
+      "num_tasks": 20,
+      "num_cpus": 4,
+      "num_locks": 1,
+      "periodic": 0,
+      "fork_join_stages": 6,
+      "locked_tasks": 7
+    },
+    {
+      "case_id": "30t-6c",
+      "filename": "pipeline-30t-6c.json",
+      "num_tasks": 30,
+      "num_cpus": 6,
+      "num_locks": 1,
+      "periodic": 0,
+      "fork_join_stages": 9,
+      "locked_tasks": 10
+    },
+    {
+      "case_id": "40t-8c-2l",
+      "filename": "pipeline-40t-8c.json",
+      "num_tasks": 40,
+      "num_cpus": 8,
+      "num_locks": 2,
+      "periodic": 0,
+      "fork_join_stages": 13,
+      "locked_tasks": 20
+    },
+    {
+      "case_id": "50t-10c-2l",
+      "filename": "pipeline-50t-10c.json",
+      "num_tasks": 50,
+      "num_cpus": 10,
+      "num_locks": 2,
+      "periodic": 0,
+      "fork_join_stages": 16,
+      "locked_tasks": 25
+    },
+    {
+      "case_id": "60t-12c-3l",
+      "filename": "pipeline-60t-12c.json",
+      "num_tasks": 60,
+      "num_cpus": 12,
+      "num_locks": 3,
+      "periodic": 0,
+      "fork_join_stages": 19,
+      "locked_tasks": 37
+    },
+    {
+      "case_id": "70t-14c-3l",
+      "filename": "pipeline-70t-14c.json",
+      "num_tasks": 70,
+      "num_cpus": 14,
+      "num_locks": 3,
+      "periodic": 0,
+      "fork_join_stages": 23,
+      "locked_tasks": 43
+    },
+    {
+      "case_id": "80t-16c-4l",
+      "filename": "pipeline-80t-16c.json",
+      "num_tasks": 80,
+      "num_cpus": 16,
+      "num_locks": 4,
+      "periodic": 0,
+      "fork_join_stages": 26,
+      "locked_tasks": 49
+    },
+    {
+      "case_id": "90t-18c-4l",
+      "filename": "pipeline-90t-18c.json",
+      "num_tasks": 90,
+      "num_cpus": 18,
+      "num_locks": 4,
+      "periodic": 0,
+      "fork_join_stages": 29,
+      "locked_tasks": 55
+    },
+    {
+      "case_id": "100t-20c-5l",
+      "filename": "pipeline-100t-20c.json",
+      "num_tasks": 100,
+      "num_cpus": 20,
+      "num_locks": 5,
+      "periodic": 0,
+      "fork_join_stages": 33,
+      "locked_tasks": 83
+    },
+    {
+      "case_id": "40t-8c-5l",
+      "filename": "pipeline-40t-8c-5l.json",
+      "num_tasks": 40,
+      "num_cpus": 8,
+      "num_locks": 5,
+      "periodic": 0,
+      "fork_join_stages": 13,
+      "locked_tasks": 33
+    }
+  ]
+}

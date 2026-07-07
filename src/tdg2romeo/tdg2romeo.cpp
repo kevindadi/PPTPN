@@ -27,8 +27,7 @@ RomeoExportResult export_tdg_to_romeo_cts(const tdg::TDG& tdg, const std::string
     const std::string cts_text = render_romeo_cts(model);
 
     boost::filesystem::path cts_path(output_path);
-    if (!cts_path.parent_path().empty() &&
-        !boost::filesystem::exists(cts_path.parent_path())) {
+    if (!cts_path.parent_path().empty() && !boost::filesystem::exists(cts_path.parent_path())) {
       boost::filesystem::create_directories(cts_path.parent_path());
     }
 

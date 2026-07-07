@@ -210,6 +210,14 @@ JSON `configuration.policy` and `--policy` accept values such as:
 ./build/ptpn export romeo -f example/p-bench/initial.json -o out.cts
 ./build/ptpn export ptopner -f example/p-bench/initial.json -o out.ppn \
   --policy fixed_prior_with_restart
+
+# l-bench: generate progressive pipeline TDG JSON (10–100 tasks)
+python3 scripts/generate_lbench.py --all
+python3 scripts/generate_lbench.py --validate --all   # structure + TDG DOT only
+
+# l-bench: run scaling experiments (tasks/cpus/locks/memory/SCG stats)
+python3 scripts/run_lbench.py --all -m 50000
+python3 scripts/run_lbench.py --all --validate-tdg-only
 ```
 
 ## Example Inputs
@@ -221,7 +229,7 @@ JSON `configuration.policy` and `--policy` accept values such as:
 | [example/p-bench/](example/p-bench/) | Priority / preemption benchmarks |
 | [example/s-bench/](example/s-bench/) | Small scheduling benchmarks |
 | [example/t-bench/](example/t-bench/) | Scalability benchmarks (`d-*.json`) |
-| [example/l-bench/](example/l-bench/) | Large graphs (100 tasks, 20 cores; simple + complex) |
+| [example/l-bench/](example/l-bench/) | Progressive pipeline benchmarks (`pipeline-*t-*c.json`, 10–100 tasks, fork/join, scaled shared mutexes; `pipeline-40t-8c-5l.json` for the 5-lock reviewer case); legacy `input.json` / `input-complex.json` |
 
 TDG JSON format: [docs/json_format.md](docs/json_format.md). PTPN language: [docs/ptpn-language-spec.md](docs/ptpn-language-spec.md).
 

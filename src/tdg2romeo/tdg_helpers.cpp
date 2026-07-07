@@ -2,8 +2,8 @@
 
 #include <algorithm>
 #include <cctype>
-#include <sstream>
 #include <spdlog/spdlog.h>
+#include <sstream>
 
 namespace romeo {
 
@@ -62,8 +62,8 @@ RomeoTimeInterval parse_edge_interval(const std::string& label, const std::strin
   }
 
   if (!ok || earliest == kInfTime || (latest != kInfTime && latest < earliest)) {
-    spdlog::warn("[TDG2ROMEO] Invalid edge label '{}' on {} -> {}; using [0,0]", label,
-                 source_name, target_name);
+    spdlog::warn("[TDG2ROMEO] Invalid edge label '{}' on {} -> {}; using [0,0]", label, source_name,
+                 target_name);
     return RomeoTimeInterval::immediate();
   }
   return RomeoTimeInterval::closed(earliest, latest);
@@ -98,7 +98,9 @@ std::unordered_map<int, std::vector<std::string>> group_tasks_by_core(const tdg:
   return by_core;
 }
 
-std::string core_place_name(int core_id) { return "core" + std::to_string(core_id); }
+std::string core_place_name(int core_id) {
+  return "core" + std::to_string(core_id);
+}
 
 std::string core_busy_place_name(int core_id) {
   return "core" + std::to_string(core_id) + "_busy";
