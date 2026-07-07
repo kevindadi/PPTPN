@@ -1,6 +1,6 @@
 {
   "graph": {
-    "name": "EmbeddedPipeline10T2C1Locks"
+    "name": "ParallelPipeline10T2C1Locks"
   },
   "configuration": {
     "num_cpus": 2,
@@ -9,26 +9,32 @@
       "mutex0"
     ],
     "policy": "fixed",
+    "end": [
+      "T09"
+    ],
     "start": [
       {
-        "task": "T00",
+        "task": "T05",
         "tokens": 1
       }
     ],
-    "end": [
-      "T09"
+    "periodic": [
+      {
+        "task": "T00",
+        "period": 70
+      }
     ]
   },
   "nodes": [
     {
       "id": "T00",
       "type": "task",
-      "priority": 40,
+      "priority": 35,
       "core": 0,
       "time": [
         [
           2,
-          5
+          6
         ]
       ],
       "locks": []
@@ -36,7 +42,7 @@
     {
       "id": "T01",
       "type": "task",
-      "priority": 41,
+      "priority": 36,
       "core": 1,
       "time": [
         [
@@ -59,8 +65,21 @@
     {
       "id": "T02",
       "type": "task",
-      "priority": 42,
+      "priority": 37,
       "core": 0,
+      "time": [
+        [
+          3,
+          10
+        ]
+      ],
+      "locks": []
+    },
+    {
+      "id": "T03",
+      "type": "task",
+      "priority": 38,
+      "core": 1,
       "time": [
         [
           3,
@@ -70,22 +89,9 @@
       "locks": []
     },
     {
-      "id": "T03",
-      "type": "task",
-      "priority": 43,
-      "core": 1,
-      "time": [
-        [
-          3,
-          8
-        ]
-      ],
-      "locks": []
-    },
-    {
       "id": "T04",
       "type": "task",
-      "priority": 44,
+      "priority": 39,
       "core": 0,
       "time": [
         [
@@ -108,12 +114,12 @@
     {
       "id": "T05",
       "type": "task",
-      "priority": 45,
+      "priority": 40,
       "core": 1,
       "time": [
         [
-          3,
-          9
+          2,
+          6
         ]
       ],
       "locks": []
@@ -121,21 +127,8 @@
     {
       "id": "T06",
       "type": "task",
-      "priority": 46,
+      "priority": 41,
       "core": 0,
-      "time": [
-        [
-          3,
-          8
-        ]
-      ],
-      "locks": []
-    },
-    {
-      "id": "T07",
-      "type": "task",
-      "priority": 47,
-      "core": 1,
       "time": [
         [
           1,
@@ -155,9 +148,22 @@
       ]
     },
     {
+      "id": "T07",
+      "type": "task",
+      "priority": 42,
+      "core": 1,
+      "time": [
+        [
+          3,
+          10
+        ]
+      ],
+      "locks": []
+    },
+    {
       "id": "T08",
       "type": "task",
-      "priority": 48,
+      "priority": 43,
       "core": 0,
       "time": [
         [
@@ -170,112 +176,100 @@
     {
       "id": "T09",
       "type": "task",
-      "priority": 49,
+      "priority": 90,
       "core": 1,
       "time": [
         [
-          3,
-          8
+          2,
+          5
         ]
       ],
       "locks": []
     },
     {
-      "id": "F_000",
+      "id": "F_L00",
       "type": "fork"
     },
     {
-      "id": "J_000",
+      "id": "F_L01",
+      "type": "fork"
+    },
+    {
+      "id": "J_L00",
       "type": "join"
     },
     {
-      "id": "F_001",
-      "type": "fork"
-    },
-    {
-      "id": "J_001",
+      "id": "J_L01",
       "type": "join"
     },
     {
-      "id": "F_002",
-      "type": "fork"
-    },
-    {
-      "id": "J_002",
+      "id": "J_GLOBAL",
       "type": "join"
     }
   ],
   "edges": [
     {
       "source": "T00",
-      "target": "F_000"
+      "target": "F_L00"
     },
     {
-      "source": "F_000",
+      "source": "F_L00",
       "target": "T01"
     },
     {
-      "source": "F_000",
+      "source": "F_L00",
       "target": "T02"
     },
     {
-      "source": "T01",
-      "target": "J_000"
-    },
-    {
       "source": "T02",
-      "target": "J_000"
-    },
-    {
-      "source": "J_000",
       "target": "T03"
     },
     {
-      "source": "T03",
-      "target": "F_001"
+      "source": "T01",
+      "target": "J_L00"
     },
     {
-      "source": "F_001",
+      "source": "T03",
+      "target": "J_L00"
+    },
+    {
+      "source": "J_L00",
       "target": "T04"
     },
     {
-      "source": "F_001",
-      "target": "T05"
-    },
-    {
-      "source": "T04",
-      "target": "J_001"
-    },
-    {
       "source": "T05",
-      "target": "J_001"
+      "target": "F_L01"
     },
     {
-      "source": "J_001",
+      "source": "F_L01",
       "target": "T06"
     },
     {
-      "source": "T06",
-      "target": "F_002"
-    },
-    {
-      "source": "F_002",
+      "source": "F_L01",
       "target": "T07"
     },
     {
-      "source": "F_002",
-      "target": "T08"
+      "source": "T06",
+      "target": "J_L01"
     },
     {
       "source": "T07",
-      "target": "J_002"
+      "target": "J_L01"
+    },
+    {
+      "source": "J_L01",
+      "target": "T08"
+    },
+    {
+      "source": "T04",
+      "target": "J_GLOBAL"
     },
     {
       "source": "T08",
-      "target": "J_002"
+      "target": "J_GLOBAL"
     },
     {
-      "source": "J_002",
+      "source": "J_GLOBAL",
       "target": "T09"
     }
   ]
