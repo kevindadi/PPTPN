@@ -1,5 +1,5 @@
 {
-  "tests": 59,
+  "tests": 64,
   "name": "AllTests",
   "testsuites": [
     {
@@ -273,6 +273,43 @@
           "name": "NamedDumpIncludesPlaceAndClockLabels",
           "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_analysis_semantics.cpp",
           "line": 401
+        }
+      ]
+    },
+    {
+      "name": "DbmExtrapolationTest",
+      "tests": 2,
+      "testsuite": [
+        {
+          "name": "RelaxesBoundsAboveKAndClampsBelowMinusK",
+          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_extrapolation.cpp",
+          "line": 70
+        },
+        {
+          "name": "FrozenClockRowsAndColumnsAreUntouched",
+          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_extrapolation.cpp",
+          "line": 95
+        }
+      ]
+    },
+    {
+      "name": "ExtrapolationSemanticsTest",
+      "tests": 3,
+      "testsuite": [
+        {
+          "name": "UnboundedIntervalNetBecomesFinite",
+          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_extrapolation.cpp",
+          "line": 120
+        },
+        {
+          "name": "PreemptionNetKeepsExactStateGraph",
+          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_extrapolation.cpp",
+          "line": 141
+        },
+        {
+          "name": "SBenchStyleFiniteNetIsUnchanged",
+          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_extrapolation.cpp",
+          "line": 159
         }
       ]
     },
