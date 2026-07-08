@@ -8,12 +8,6 @@
     "shared_locks": ["mutex0"],
     "policy": "fixed",
     "end": ["T29"],
-    "start": [
-      {
-        "task": "T20",
-        "tokens": 1
-      }
-    ],
     "periodic": [
       {
         "task": "T00",

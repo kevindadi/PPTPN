@@ -8,32 +8,32 @@
       "testsuite": [
         {
           "name": "ValidJsonParsing",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_json_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_json_parser.cpp",
           "line": 12
         },
         {
           "name": "ConfigurationStartEndPeriodicParsing",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_json_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_json_parser.cpp",
           "line": 39
         },
         {
           "name": "InvalidJsonErrorHandling",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_json_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_json_parser.cpp",
           "line": 74
         },
         {
           "name": "NodeTypeConversion",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_json_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_json_parser.cpp",
           "line": 84
         },
         {
           "name": "DotExport",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_json_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_json_parser.cpp",
           "line": 98
         },
         {
           "name": "ParseFileNotFound",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_json_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_json_parser.cpp",
           "line": 118
         }
       ]
@@ -44,142 +44,142 @@
       "testsuite": [
         {
           "name": "ParsePlaces",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 12
         },
         {
           "name": "ParsePlacesWithName",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 24
         },
         {
           "name": "ParsePlacesWithCapacity",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 37
         },
         {
           "name": "ParsePlacesWithNameAndCapacity",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 49
         },
         {
           "name": "ParseTransitions",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 64
         },
         {
           "name": "ParseTransitionsWithAttributes",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 76
         },
         {
           "name": "ParseTransitionsWithSuspendable",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 90
         },
         {
           "name": "ParseArcs",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 103
         },
         {
           "name": "ParseArcsWithWeight",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 117
         },
         {
           "name": "ParseInit",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 130
         },
         {
           "name": "ParseInitMultiple",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 141
         },
         {
           "name": "ParseCompletePTPN",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 154
         },
         {
           "name": "ParseWithComments",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 182
         },
         {
           "name": "BuildPTPNFromAST",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 202
         },
         {
           "name": "ParseEmptyInput",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 217
         },
         {
           "name": "ParseMultipleTransitions",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 225
         },
         {
           "name": "ParseTransitionWithName",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 245
         },
         {
           "name": "ParsePriorityShorthand",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 256
         },
         {
           "name": "ParseNegativeCore",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 266
         },
         {
           "name": "RejectDuplicatePlace",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 275
         },
         {
           "name": "RejectUnknownArcReference",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 284
         },
         {
           "name": "BuildArcsWithoutPPrefix",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 293
         },
         {
           "name": "ParseTransitionsWithStrictLeftEndpoint",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 308
         },
         {
           "name": "ParseTransitionsWithStrictRightEndpoint",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 320
         },
         {
           "name": "ParseTransitionsWithBothOpenEndpoints",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 330
         },
         {
           "name": "RejectEmptyStrictIntegerInterval",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 339
         },
         {
           "name": "StrictLeftEndpointInclusiveRightRegression",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 347
         },
         {
           "name": "BuilderPreservesStrictIntervalMetadata",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_ptpn_parser.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_ptpn_parser.cpp",
           "line": 359
         }
       ]
@@ -190,22 +190,22 @@
       "testsuite": [
         {
           "name": "FutureRemovesOnlyUnfrozenLowerBounds",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_analysis_semantics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_analysis_semantics.cpp",
           "line": 151
         },
         {
           "name": "ConstrainUpperBoundOnlyTightensFiniteBounds",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_analysis_semantics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_analysis_semantics.cpp",
           "line": 165
         },
         {
           "name": "SynchronizeClocksForcesPairwiseEquality",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_analysis_semantics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_analysis_semantics.cpp",
           "line": 177
         },
         {
           "name": "IncludedInDetectsZoneSubset",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_analysis_semantics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_analysis_semantics.cpp",
           "line": 190
         }
       ]
@@ -216,62 +216,62 @@
       "testsuite": [
         {
           "name": "InitialClassPinsEveryClockToZero",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_analysis_semantics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_analysis_semantics.cpp",
           "line": 207
         },
         {
           "name": "BranchesOverEveryFirableTransition",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_analysis_semantics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_analysis_semantics.cpp",
           "line": 218
         },
         {
           "name": "PriorityFilterFiresHighPriorityNotEarliest",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_analysis_semantics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_analysis_semantics.cpp",
           "line": 229
         },
         {
           "name": "ControlTransitionsAreAlsoPriorityFiltered",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_analysis_semantics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_analysis_semantics.cpp",
           "line": 249
         },
         {
           "name": "CoreCapacityOneEnforcesMutualExclusion",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_analysis_semantics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_analysis_semantics.cpp",
           "line": 293
         },
         {
           "name": "CoreCapacityTwoAllowsParallelExecution",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_analysis_semantics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_analysis_semantics.cpp",
           "line": 306
         },
         {
           "name": "SuspendedTransitionFreezesExecAndRunsSuspensionClock",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_analysis_semantics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_analysis_semantics.cpp",
           "line": 318
         },
         {
           "name": "PersistentTransitionKeepsAccumulatedClock",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_analysis_semantics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_analysis_semantics.cpp",
           "line": 340
         },
         {
           "name": "ResumedTransitionDropsSuspensionKeepsExec",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_analysis_semantics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_analysis_semantics.cpp",
           "line": 356
         },
         {
           "name": "NewlyEnabledTransitionsResetToZero",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_analysis_semantics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_analysis_semantics.cpp",
           "line": 374
         },
         {
           "name": "BuildTerminatesAndCountsStates",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_analysis_semantics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_analysis_semantics.cpp",
           "line": 391
         },
         {
           "name": "NamedDumpIncludesPlaceAndClockLabels",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_analysis_semantics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_analysis_semantics.cpp",
           "line": 401
         }
       ]
@@ -282,12 +282,12 @@
       "testsuite": [
         {
           "name": "RelaxesBoundsAboveKAndClampsBelowMinusK",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_extrapolation.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_extrapolation.cpp",
           "line": 70
         },
         {
           "name": "FrozenClockRowsAndColumnsAreUntouched",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_extrapolation.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_extrapolation.cpp",
           "line": 95
         }
       ]
@@ -298,17 +298,17 @@
       "testsuite": [
         {
           "name": "UnboundedIntervalNetBecomesFinite",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_extrapolation.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_extrapolation.cpp",
           "line": 120
         },
         {
           "name": "PreemptionNetKeepsExactStateGraph",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_extrapolation.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_extrapolation.cpp",
           "line": 141
         },
         {
           "name": "SBenchStyleFiniteNetIsUnchanged",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_extrapolation.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_extrapolation.cpp",
           "line": 159
         }
       ]
@@ -319,17 +319,17 @@
       "testsuite": [
         {
           "name": "SingleTaskResponseTimeMatchesExecutionWindow",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_metrics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_metrics.cpp",
           "line": 62
         },
         {
           "name": "StuckTaskIsReportedAsDeadlock",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_metrics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_metrics.cpp",
           "line": 84
         },
         {
           "name": "NetWithoutTaskInfoYieldsStructuralOnly",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_metrics.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_metrics.cpp",
           "line": 109
         }
       ]
@@ -340,32 +340,32 @@
       "testsuite": [
         {
           "name": "SchedulingNetIncludesCorePlacesAndTaskIntervals",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_tdg2romeo.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_tdg2romeo.cpp",
           "line": 34
         },
         {
           "name": "MultiCoreUsesSeparateCoreGuards",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_tdg2romeo.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_tdg2romeo.cpp",
           "line": 44
         },
         {
           "name": "InhibitorArcUsesSchedPriorityAndAllowWithoutExecPriority",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_tdg2romeo.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_tdg2romeo.cpp",
           "line": 54
         },
         {
           "name": "EdgeIntervalFromLabel",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_tdg2romeo.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_tdg2romeo.cpp",
           "line": 71
         },
         {
           "name": "ExportToFileSucceeds",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_tdg2romeo.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_tdg2romeo.cpp",
           "line": 77
         },
         {
           "name": "SBenchSchedulingNetMatchesGoldenStructure",
-          "file": "\/Users\/kevin\/local-repos\/PTPN\/test\/test_tdg2romeo.cpp",
+          "file": "\/home\/kevin\/PTPN\/test\/test_tdg2romeo.cpp",
           "line": 85
         }
       ]
