@@ -20,10 +20,9 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-EXAMPLE = ROOT / "example"
-DEFAULT_PTPN = ROOT / "build" / "ptpn"
+from project_paths import ROOT, default_ptpn_help, ensure_ptpn, resolve_ptpn_bin
 
+EXAMPLE = ROOT / "example"
 BENCH_SUITES = ("p-bench", "s-bench", "t-bench")
 SKIP_PTOPNER_SUITES = frozenset({"s-bench"})
 
@@ -358,8 +357,8 @@ def main() -> int:
     parser.add_argument(
         "--ptpn",
         type=Path,
-        default=DEFAULT_PTPN,
-        help=f"path to ptpn executable (default: {DEFAULT_PTPN})",
+        default=None,
+        help=f"path to ptpn executable (default: {default_ptpn_help()})",
     )
     parser.add_argument(
         "-m",
@@ -389,14 +388,10 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    ptpn_bin = args.ptpn.expanduser()
-    if not ptpn_bin.is_absolute():
-        ptpn_bin = (ROOT / ptpn_bin).resolve()
+    ptpn_bin = resolve_ptpn_bin(args.ptpn)
 
-    if not args.dry_run and not ptpn_bin.is_file():
-        print(f"error: ptpn not found: {ptpn_bin}", file=sys.stderr)
-        print("build first: ./scripts/build.py", file=sys.stderr)
-        return 1
+    if not args.dry_run:
+        ensure_ptpn(ptpn_bin)
 
     cases = discover_cases(args.suites)
     if not cases:

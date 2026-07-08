@@ -39,21 +39,47 @@ This document defines the JSON format used to describe a task dependency graph (
   "cores_per_cpu": 4,
   "shared_locks": ["mutex1", "spin1"],
   "policy": "fifo",
+  "task_place_capacity": 1,
   "start": [{"task": "A", "tokens": 1}],
   "end": ["C"],
   "periodic": [{"task": "A", "period": 100}]
 }
 ```
 
-| Field           | Type    | Required | Description                                                                         |
-| --------------- | ------- | -------- | ----------------------------------------------------------------------------------- |
-| `num_cpus`      | integer | yes      | Number of CPUs                                                                      |
-| `cores_per_cpu` | integer | yes      | Number of cores per CPU                                                             |
-| `shared_locks`  | array   | yes      | Global lock names used by task nodes                                                |
-| `policy`        | string  | no       | Scheduling policy, default is `fixed`                                               |
-| `start`         | array   | no       | Start task bindings; each item is either a task name or `{ "task", "tokens" }`      |
-| `end`           | array   | no       | End task names; a zero-time consume transition is added after task completion       |
-| `periodic`      | array   | no       | Configuration-driven periodic release bindings; each item is `{ "task", "period" }` |
+| Field                 | Type    | Required | Description                                                                         |
+| --------------------- | ------- | -------- | ----------------------------------------------------------------------------------- |
+| `num_cpus`            | integer | yes      | Number of CPUs                                                                      |
+| `cores_per_cpu`       | integer | yes      | Number of cores per CPU                                                             |
+| `shared_locks`        | array   | yes      | Global lock names used by task nodes                                                |
+| `policy`              | string  | no       | Scheduling policy, default is `fixed`                                               |
+| `task_place_capacity` | integer | no       | Capacity of every task-chain place (entry/ready/segment/hold/exit); default `1`. See below. |
+| `start`               | array   | no       | Start task bindings; each item is either a task name or `{ "task", "tokens" }`      |
+| `end`                 | array   | no       | End task names; a zero-time consume transition is added after task completion       |
+| `periodic`            | array   | no       | Configuration-driven periodic release bindings; each item is `{ "task", "period" }` |
+
+### `task_place_capacity` and saturating semantics
+
+Task-chain places produced by the TDG lowering (entry, ready, per-segment,
+lock-hold, and exit places) use **saturating** capacity semantics:
+
+- A transition producing into a full task-chain place is **not** disabled; it
+  fires normally and the place's token count is clamped at
+  `task_place_capacity` (the overflow is absorbed, not an error).
+- This matches single-server semantics: a periodic release that arrives while a
+  previous instance is still pending is merged with it instead of blocking the
+  release clock (`{task}_fire` keeps firing every `period` without drift).
+- With the default value `1`, at most one pending instance is tracked per
+  place; a value of `2` additionally tracks one queued release.
+- The value must be `>= 1`.
+
+Resource places are **not** saturating: core places (capacity =
+`cores_per_cpu`), lock places (capacity 1), and the periodic control place
+`{task}_period` keep the strict blocking semantics, since dropping a resource
+token would be unsound.
+
+Note: the saturation flag is an analysis-time semantic and is not carried by
+the Romeo CTS / PToPNer `.ppn` exports; those exports only see the plain
+capacity value.
 
 ### Scheduling policies
 

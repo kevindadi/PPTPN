@@ -1,9 +1,9 @@
 #ifndef ANALYSIS_STATE_CLASS_H
 #define ANALYSIS_STATE_CLASS_H
 
+#include <algorithm>
 #include <cstddef>
 #include <limits>
-#include <set>
 #include <string>
 #include <vector>
 
@@ -12,6 +12,15 @@
 namespace state_class {
 
 constexpr size_t NO_TRANSITION = std::numeric_limits<size_t>::max();
+
+// Sorted vector of transition ids used as a lightweight ordered set: far more
+// compact and copy-friendly than std::set for the small, read-mostly enabling
+// sets carried by every state class.
+using TransitionSet = std::vector<size_t>;
+
+inline bool contains(const TransitionSet& set, size_t value) {
+  return std::binary_search(set.begin(), set.end(), value);
+}
 
 // Every column/row of the joint DBM corresponds to one timed variable.
 enum class ClockKind {
@@ -85,9 +94,9 @@ struct StateClass {
   std::vector<int> exec_clock_of_transition;  // transition -> h_t index or -1
   std::vector<int> susp_clock_of_transition;  // transition -> w_t index or -1
 
-  std::set<size_t> struct_enabled;    // E_struct(M)
-  std::set<size_t> priority_enabled;  // E_pri(M): active transitions
-  std::set<size_t> suspended;         // (E_struct \ E_pri) intersect T2
+  TransitionSet struct_enabled;    // E_struct(M)
+  TransitionSet priority_enabled;  // E_pri(M): active transitions
+  TransitionSet suspended;         // (E_struct \ E_pri) intersect T2
 
   double elapsed_time = 0.0;  // auxiliary metadata, excluded from identity
   size_t id = 0;              // assigned when inserted into the graph
@@ -109,28 +118,15 @@ struct StateClass {
   }
 };
 
-// Exact-identity key used for fast deduplication in equality mode.
-struct StateClassKey {
-  std::vector<int> marking;
-  std::vector<ClockVar> clock_vars;
-  std::vector<int> zone_matrix;
-
-  bool operator==(const StateClassKey& other) const {
-    return marking == other.marking && clock_vars == other.clock_vars &&
-           zone_matrix == other.zone_matrix;
-  }
-};
-
-struct StateClassKeyHash {
-  size_t operator()(const StateClassKey& key) const;
-};
-
 // Hashes the marking alone so candidates that might merge land in one bucket.
 struct MarkingHash {
   size_t operator()(const std::vector<int>& marking) const;
 };
 
-StateClassKey make_state_class_key(const StateClass& state);
+// Exact-identity hash over (marking, clock_vars, zone matrix) used for O(1)
+// deduplication in equality mode. Collisions must be resolved with
+// check_equality() against the stored state.
+size_t hash_state_class(const StateClass& state);
 
 }  // namespace state_class
 

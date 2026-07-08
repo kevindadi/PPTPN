@@ -1,16 +1,19 @@
 {
   "description": "Multi-lane parallel pipeline l-bench TDG benchmarks",
-  "topology": "Independent per-lane dual-stream fork/join subgraphs converging at J_GLOBAL; sparse cross-lane edges",
+  "topology": "Per-lane source -> fork -> dual branches -> join -> serial chain; lanes converge at J_GLOBAL into one global sink task",
   "policy": "fixed",
+  "task_place_capacity": 1,
   "cases": [
     {
       "filename": "pipeline-10t-2c.json",
       "num_tasks": 10,
       "num_cpus": 2,
       "num_locks": 1,
-      "num_lanes": 2,
+      "num_lanes": 1,
       "periodic_tasks": 1,
-      "end": "T09"
+      "period": 60,
+      "end": "T09",
+      "reviewer_case": false
     },
     {
       "filename": "pipeline-20t-4c.json",
@@ -19,7 +22,9 @@
       "num_locks": 1,
       "num_lanes": 2,
       "periodic_tasks": 1,
-      "end": "T19"
+      "period": 60,
+      "end": "T19",
+      "reviewer_case": false
     },
     {
       "filename": "pipeline-30t-6c.json",
@@ -28,78 +33,95 @@
       "num_locks": 1,
       "num_lanes": 3,
       "periodic_tasks": 2,
-      "end": "T29"
+      "period": 60,
+      "end": "T29",
+      "reviewer_case": false
     },
     {
       "filename": "pipeline-40t-8c.json",
       "num_tasks": 40,
       "num_cpus": 8,
       "num_locks": 2,
-      "num_lanes": 3,
+      "num_lanes": 4,
       "periodic_tasks": 2,
-      "end": "T39"
+      "period": 60,
+      "end": "T39",
+      "reviewer_case": false
     },
     {
       "filename": "pipeline-50t-10c.json",
       "num_tasks": 50,
       "num_cpus": 10,
       "num_locks": 2,
-      "num_lanes": 3,
+      "num_lanes": 5,
       "periodic_tasks": 2,
-      "end": "T49"
+      "period": 60,
+      "end": "T49",
+      "reviewer_case": false
     },
     {
       "filename": "pipeline-60t-12c.json",
       "num_tasks": 60,
       "num_cpus": 12,
       "num_locks": 3,
-      "num_lanes": 3,
+      "num_lanes": 6,
       "periodic_tasks": 2,
-      "end": "T59"
+      "period": 60,
+      "end": "T59",
+      "reviewer_case": false
     },
     {
       "filename": "pipeline-70t-14c.json",
       "num_tasks": 70,
       "num_cpus": 14,
       "num_locks": 3,
-      "num_lanes": 4,
+      "num_lanes": 7,
       "periodic_tasks": 3,
-      "end": "T69"
+      "period": 60,
+      "end": "T69",
+      "reviewer_case": false
     },
     {
       "filename": "pipeline-80t-16c.json",
       "num_tasks": 80,
       "num_cpus": 16,
       "num_locks": 4,
-      "num_lanes": 4,
+      "num_lanes": 8,
       "periodic_tasks": 3,
-      "end": "T79"
+      "period": 60,
+      "end": "T79",
+      "reviewer_case": false
     },
     {
       "filename": "pipeline-90t-18c.json",
       "num_tasks": 90,
       "num_cpus": 18,
       "num_locks": 4,
-      "num_lanes": 4,
+      "num_lanes": 9,
       "periodic_tasks": 3,
-      "end": "T89"
+      "period": 60,
+      "end": "T89",
+      "reviewer_case": false
     },
     {
       "filename": "pipeline-100t-20c.json",
       "num_tasks": 100,
       "num_cpus": 20,
       "num_locks": 5,
-      "num_lanes": 4,
+      "num_lanes": 10,
       "periodic_tasks": 3,
-      "end": "T99"
+      "period": 60,
+      "end": "T99",
+      "reviewer_case": false
     },
     {
       "filename": "pipeline-40t-8c-5l.json",
       "num_tasks": 40,
       "num_cpus": 8,
       "num_locks": 5,
-      "num_lanes": 3,
+      "num_lanes": 4,
       "periodic_tasks": 2,
+      "period": 60,
       "end": "T39",
       "reviewer_case": true
     }

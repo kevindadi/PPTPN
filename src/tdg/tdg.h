@@ -19,6 +19,9 @@ class TDG {
 
   int num_cpus = 1;
   int cores_per_cpu = 1;
+  // Capacity of every task-chain place; overflow saturates instead of
+  // disabling the producing transition (see docs/json_format.md).
+  int task_place_capacity = 1;
   SchedulePolicy policy = SchedulePolicy::FIXED;
 
   std::vector<NodeType> all_task;

@@ -6,8 +6,10 @@
 .clangd
 
 build
+.ptpn-build-dir
 
 compile_commands.json
+*.json
 paper
 unconfirmed
 

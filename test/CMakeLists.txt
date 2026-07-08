@@ -13,7 +13,9 @@ add_executable(ptpn_test
   test_json_parser.cpp
   test_ptpn_parser.cpp
   test_analysis_semantics.cpp
+  test_extrapolation.cpp
   test_metrics.cpp
+  test_saturation.cpp
   test_tdg2romeo.cpp
 )
 

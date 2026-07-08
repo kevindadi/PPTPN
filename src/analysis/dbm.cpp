@@ -1,5 +1,6 @@
 #include "analysis/dbm.h"
 
+#include <algorithm>
 #include <atomic>
 #include <iomanip>
 #include <limits>
@@ -132,6 +133,62 @@ void DBM::minimize() {
       }
     }
   }
+}
+
+bool DBM::minimize_and_check() {
+  minimize();
+  for (size_t i = 0; i < clock_count_; ++i) {
+    if (matrix_[offset(i, i)] < 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool DBM::tighten(size_t i, size_t j, int bound) {
+  check_index(i, j);
+
+  const size_t ij = offset(i, j);
+  if (matrix_[ij] != INF_TIME && matrix_[ij] <= bound) {
+    return true;
+  }
+  matrix_[ij] = bound;
+
+  const int ji = matrix_[offset(j, i)];
+  if (ji != INF_TIME && safe_add_bound(bound, ji) < 0) {
+    matrix_[offset(i, i)] = safe_add_bound(bound, ji);
+    return false;
+  }
+
+  // Re-close: any pair (a, b) can only improve via a -> i -> j -> b.
+  for (size_t a = 0; a < clock_count_; ++a) {
+    const int ai = matrix_[offset(a, i)];
+    if (ai == INF_TIME) {
+      continue;
+    }
+    const int a_via = safe_add_bound(ai, bound);
+    if (a_via == INF_TIME) {
+      continue;
+    }
+    for (size_t b = 0; b < clock_count_; ++b) {
+      const int jb = matrix_[offset(j, b)];
+      if (jb == INF_TIME) {
+        continue;
+      }
+      const int candidate = safe_add_bound(a_via, jb);
+      const size_t ab = offset(a, b);
+      if (matrix_[ab] == INF_TIME || candidate < matrix_[ab]) {
+        matrix_[ab] = candidate;
+      }
+    }
+  }
+
+  for (size_t a = 0; a < clock_count_; ++a) {
+    if (matrix_[offset(a, a)] < 0) {
+      return false;
+    }
+  }
+  return true;
 }
 
 size_t DBM::add_clock() {
@@ -320,7 +377,7 @@ void DBM::forget_clock(size_t clock_idx) {
     changed = true;
   }
 
-  frozen_clocks_.erase(clock_idx);
+  unfreeze_clock(clock_idx);
 
   if (changed) {
     minimize();
@@ -353,6 +410,40 @@ DBM DBM::intersection(const DBM& other) const {
   result.minimize();
 
   return result;
+}
+
+void DBM::extrapolate(int k) {
+  if (clock_count_ == 0 || k < 0) {
+    return;
+  }
+
+  bool changed = false;
+  for (size_t i = 0; i < clock_count_; ++i) {
+    if (is_frozen(i)) {
+      continue;
+    }
+    for (size_t j = 0; j < clock_count_; ++j) {
+      if (i == j || is_frozen(j)) {
+        continue;
+      }
+      const size_t ij = offset(i, j);
+      const int bound = matrix_[ij];
+      if (bound == INF_TIME) {
+        continue;
+      }
+      if (bound > k) {
+        matrix_[ij] = INF_TIME;
+        changed = true;
+      } else if (bound < -k) {
+        matrix_[ij] = -k;
+        changed = true;
+      }
+    }
+  }
+
+  if (changed) {
+    minimize();
+  }
 }
 
 bool DBM::is_empty() const {
@@ -464,7 +555,7 @@ void DBM::remove_clock(size_t clock_idx) {
     return;
   }
 
-  frozen_clocks_.erase(clock_idx);
+  unfreeze_clock(clock_idx);
 
   const size_t new_count = clock_count_ - 1;
   std::vector<int> new_matrix(new_count * new_count, INF_TIME);
@@ -486,12 +577,15 @@ void DBM::remove_clock(size_t clock_idx) {
   matrix_ = std::move(new_matrix);
   clock_count_ = new_count;
 
-  std::set<size_t> new_frozen;
+  // Remap indices above the removed clock; iterating the sorted vector in
+  // order keeps the result sorted.
+  std::vector<size_t> new_frozen;
+  new_frozen.reserve(frozen_clocks_.size());
   for (size_t idx : frozen_clocks_) {
     if (idx < clock_idx) {
-      new_frozen.insert(idx);
+      new_frozen.push_back(idx);
     } else if (idx > clock_idx) {
-      new_frozen.insert(idx - 1);
+      new_frozen.push_back(idx - 1);
     }
   }
   frozen_clocks_ = std::move(new_frozen);
@@ -581,15 +675,21 @@ void DBM::freeze_clock(size_t clock_idx) {
     return;
   }
 
-  frozen_clocks_.insert(clock_idx);
+  const auto it = std::lower_bound(frozen_clocks_.begin(), frozen_clocks_.end(), clock_idx);
+  if (it == frozen_clocks_.end() || *it != clock_idx) {
+    frozen_clocks_.insert(it, clock_idx);
+  }
 }
 
 void DBM::unfreeze_clock(size_t clock_idx) {
-  frozen_clocks_.erase(clock_idx);
+  const auto it = std::lower_bound(frozen_clocks_.begin(), frozen_clocks_.end(), clock_idx);
+  if (it != frozen_clocks_.end() && *it == clock_idx) {
+    frozen_clocks_.erase(it);
+  }
 }
 
 bool DBM::is_frozen(size_t clock_idx) const {
-  return frozen_clocks_.find(clock_idx) != frozen_clocks_.end();
+  return std::binary_search(frozen_clocks_.begin(), frozen_clocks_.end(), clock_idx);
 }
 
 void DBM::copy_clock_constraints(size_t clock_idx, DBM& target) const {

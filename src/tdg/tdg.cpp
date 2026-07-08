@@ -91,6 +91,7 @@ void register_node(TDG& tdg, const NodeType& node_type, bool log_node) {
 void load_from_parser(TDG& tdg, const parse::Parser& parser, bool log_nodes) {
   tdg.num_cpus = parser.get_num_cpus();
   tdg.cores_per_cpu = parser.get_cores_per_cpu();
+  tdg.task_place_capacity = parser.get_task_place_capacity();
   tdg.policy = parser.get_policy();
   tdg.start_tasks = parser.get_start_tasks();
   tdg.end_tasks = parser.get_end_tasks();
