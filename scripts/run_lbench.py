@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Run l-bench pipeline TDG benchmarks and collect scaling metrics.
 
-Metrics per case: tasks, cpus, locks, places, transitions, SCG states,
-memory (KB), and phase timings (ms).
+Targets the multi-lane parallel pipeline JSON under example/l-bench/
+(manifest.json lists cases, lanes, locks, and periodic release counts).
+
+Metrics per case: tasks, cpus, locks, lanes, periodic_tasks, fork/join nodes,
+TDG nodes/edges (when exported), places, transitions, SCG states, memory (KB),
+and phase timings (ms).
 
 Summary: example/l-bench/bench-summary.json and bench-summary.csv
 
@@ -38,6 +42,7 @@ RE_STATS_TOTAL = re.compile(
 RE_STATS_PTPN_TOTAL = re.compile(
     r"\[STATS\] PTPN pipeline \(total\):\s*(\d+)\s*ms(?: \((\d+) KB\))?"
 )
+RE_TDG_DOT = re.compile(r"\[DOT\] Exported (\d+) nodes, (\d+) edges")
 RE_MEMORY_KB = re.compile(r"\((\d+) KB\)")
 
 
@@ -48,8 +53,15 @@ class BenchRow:
     tasks: int
     cpus: int
     locks: int
+    lanes: int = 0
+    periodic_tasks: int = 0
+    fork_nodes: int = 0
+    join_nodes: int = 0
+    reviewer_case: bool = False
     ok: bool = False
     error: str = ""
+    tdg_nodes: int | None = None
+    tdg_edges: int | None = None
     places: int | None = None
     transitions: int | None = None
     scg_states: int | None = None
@@ -64,34 +76,82 @@ class BenchRow:
     outputs: list[str] = field(default_factory=list)
 
 
-def discover_cases(lbench_dir: Path, case_filter: list[str] | None) -> list[Path]:
-    paths = sorted(lbench_dir.glob(PIPELINE_GLOB))
+def load_manifest(lbench_dir: Path) -> dict:
+    manifest_path = lbench_dir / "manifest.json"
+    if not manifest_path.is_file():
+        return {}
+    return json.loads(manifest_path.read_text(encoding="utf-8"))
+
+
+def manifest_case_map(manifest: dict) -> dict[str, dict]:
+    return {c["filename"]: c for c in manifest.get("cases", [])}
+
+
+def case_sort_key(path: Path, case_meta: dict[str, dict]) -> tuple:
+    meta = case_meta.get(path.name, {})
+    return (
+        meta.get("num_tasks", 9999),
+        meta.get("reviewer_case", False),
+        path.name,
+    )
+
+
+def discover_cases(
+    lbench_dir: Path,
+    case_filter: list[str] | None,
+    *,
+    use_manifest: bool,
+) -> list[Path]:
+    case_meta = manifest_case_map(load_manifest(lbench_dir))
+    all_paths = {p.name: p for p in lbench_dir.glob(PIPELINE_GLOB)}
+
+    if use_manifest and case_meta:
+        ordered = [all_paths[name] for name in case_meta if name in all_paths]
+    else:
+        ordered = sorted(all_paths.values(), key=lambda p: case_sort_key(p, case_meta))
+
     if not case_filter:
-        return paths
+        return ordered
+
     wanted = set(case_filter)
     out: list[Path] = []
-    for path in paths:
+    for path in ordered:
         stem = path.stem
-        if stem in wanted or stem.removeprefix("pipeline-") in wanted:
+        short = stem.removeprefix("pipeline-")
+        if stem in wanted or short in wanted or path.name in wanted:
             out.append(path)
     return out
 
 
-def load_manifest_meta(lbench_dir: Path) -> dict[str, dict]:
-    manifest_path = lbench_dir / "manifest.json"
-    if not manifest_path.is_file():
-        return {}
-    data = json.loads(manifest_path.read_text(encoding="utf-8"))
-    return {c["filename"]: c for c in data.get("cases", [])}
-
-
-def count_from_json(path: Path) -> tuple[int, int, int]:
+def analyze_json(path: Path) -> dict:
     doc = json.loads(path.read_text(encoding="utf-8"))
     cfg = doc.get("configuration", {})
-    tasks = sum(1 for n in doc.get("nodes", []) if n.get("type") == "task")
-    cpus = cfg.get("num_cpus", 0)
-    locks = len(cfg.get("shared_locks", []))
-    return tasks, cpus, locks
+    nodes = doc.get("nodes", [])
+    edges = doc.get("edges", [])
+
+    tasks = sum(1 for n in nodes if n.get("type") == "task")
+    forks = sum(1 for n in nodes if n.get("type") == "fork")
+    joins = sum(1 for n in nodes if n.get("type") == "join")
+
+    return {
+        "tasks": tasks,
+        "cpus": cfg.get("num_cpus", 0),
+        "locks": len(cfg.get("shared_locks", [])),
+        "periodic_tasks": len(cfg.get("periodic", [])),
+        "fork_nodes": forks,
+        "join_nodes": joins,
+        "tdg_nodes": len(nodes),
+        "tdg_edges": len(edges),
+    }
+
+
+def apply_manifest_meta(row: BenchRow, meta: dict | None) -> None:
+    if not meta:
+        return
+    row.lanes = meta.get("num_lanes", row.lanes)
+    if "periodic_tasks" in meta:
+        row.periodic_tasks = meta["periodic_tasks"]
+    row.reviewer_case = bool(meta.get("reviewer_case", False))
 
 
 def parse_log(text: str) -> dict:
@@ -108,6 +168,9 @@ def parse_log(text: str) -> dict:
         stats["scg_states"] = int(m.group(2))
         stats["scg_edges"] = int(m.group(3))
         stats["scg_dedup_hits"] = int(m.group(4))
+    if m := RE_TDG_DOT.search(text):
+        stats["tdg_nodes"] = int(m.group(1))
+        stats["tdg_edges"] = int(m.group(2))
     for pattern in (RE_STATS_TOTAL, RE_STATS_PTPN_TOTAL):
         if m := pattern.search(text):
             stats["ms_total"] = int(m.group(1))
@@ -121,23 +184,43 @@ def parse_log(text: str) -> dict:
     return stats
 
 
+def recommended_max_states(tasks: int, periodic_tasks: int) -> int:
+    base = 10_000
+    if tasks >= 100:
+        base = 50_000
+    elif tasks >= 60:
+        base = 30_000
+    elif tasks >= 40:
+        base = 20_000
+    if periodic_tasks >= 2:
+        base = int(base * 1.5)
+    return base
+
+
 def run_case(
     ptpn_bin: Path,
     input_path: Path,
     max_states: int,
     validate_tdg_only: bool,
     out_dir: Path,
+    case_meta: dict | None,
 ) -> BenchRow:
     case = input_path.stem
-    tasks, cpus, locks = count_from_json(input_path)
+    parsed_json = analyze_json(input_path)
     row = BenchRow(
         case=case,
         file=input_path.name,
-        tasks=tasks,
-        cpus=cpus,
-        locks=locks,
+        tasks=parsed_json["tasks"],
+        cpus=parsed_json["cpus"],
+        locks=parsed_json["locks"],
+        periodic_tasks=parsed_json["periodic_tasks"],
+        fork_nodes=parsed_json["fork_nodes"],
+        join_nodes=parsed_json["join_nodes"],
+        tdg_nodes=parsed_json["tdg_nodes"],
+        tdg_edges=parsed_json["tdg_edges"],
         validate_tdg_only=validate_tdg_only,
     )
+    apply_manifest_meta(row, case_meta)
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -175,8 +258,7 @@ def run_case(
         return row
 
     log = proc.stdout + proc.stderr
-    parsed = parse_log(log)
-    for key, value in parsed.items():
+    for key, value in parse_log(log).items():
         setattr(row, key, value)
 
     if validate_tdg_only:
@@ -197,9 +279,16 @@ def run_case(
     return row
 
 
-def write_summary(rows: list[BenchRow], json_path: Path, csv_path: Path) -> None:
+def write_summary(
+    rows: list[BenchRow],
+    json_path: Path,
+    csv_path: Path,
+    manifest: dict,
+) -> None:
     payload = {
         "suite": "l-bench",
+        "topology": manifest.get("topology"),
+        "description": manifest.get("description"),
         "runs": [asdict(r) for r in rows],
     }
     json_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -210,7 +299,14 @@ def write_summary(rows: list[BenchRow], json_path: Path, csv_path: Path) -> None
         "tasks",
         "cpus",
         "locks",
+        "lanes",
+        "periodic_tasks",
+        "fork_nodes",
+        "join_nodes",
+        "reviewer_case",
         "ok",
+        "tdg_nodes",
+        "tdg_edges",
         "places",
         "transitions",
         "scg_states",
@@ -233,13 +329,14 @@ def write_summary(rows: list[BenchRow], json_path: Path, csv_path: Path) -> None
 
 def print_table(rows: list[BenchRow]) -> None:
     header = (
-        f"{'case':<28} {'ok':<4} {'T/C/L':<12} {'P/T':<12} "
-        f"{'SCG states':<12} {'mem KB':<10} {'ms tot':<10}"
+        f"{'case':<26} {'ok':<4} {'T/C/L':<10} {'lane/p':<8} "
+        f"{'P/T':<11} {'SCG':<8} {'mem':<8} {'ms':<8}"
     )
     print(header)
     print("-" * len(header))
     for r in rows:
         tcl = f"{r.tasks}/{r.cpus}/{r.locks}"
+        lp = f"{r.lanes}/{r.periodic_tasks}"
         pt = (
             f"{r.places}/{r.transitions}"
             if r.places is not None and r.transitions is not None
@@ -249,7 +346,31 @@ def print_table(rows: list[BenchRow]) -> None:
         mem = str(r.memory_kb) if r.memory_kb is not None else "-"
         ms = str(r.ms_total) if r.ms_total is not None else "-"
         ok = "yes" if r.ok else "no"
-        print(f"{r.case:<28} {ok:<4} {tcl:<12} {pt:<12} {scg:<12} {mem:<10} {ms:<10}")
+        print(f"{r.case:<26} {ok:<4} {tcl:<10} {lp:<8} {pt:<11} {scg:<8} {mem:<8} {ms:<8}")
+
+
+def print_state_hints(
+    cases: list[Path],
+    case_meta: dict[str, dict],
+    max_states: int,
+    *,
+    validate_tdg_only: bool,
+) -> None:
+    if validate_tdg_only:
+        return
+    for path in cases:
+        meta = case_meta.get(path.name, {})
+        tasks = meta.get("num_tasks")
+        periodic = meta.get("periodic_tasks", 0)
+        if tasks is None:
+            continue
+        suggested = recommended_max_states(tasks, periodic)
+        if max_states < suggested:
+            print(
+                f"note: {path.name} (tasks={tasks}, periodic={periodic}) "
+                f"may need -m {suggested} or higher",
+                file=sys.stderr,
+            )
 
 
 def main() -> int:
@@ -271,7 +392,7 @@ def main() -> int:
         "--max-states",
         type=int,
         default=10_000,
-        help="SCG state cap for full runs (default: 10000; use 50000+ for 100t)",
+        help="SCG state cap for full runs (default: 10000)",
     )
     parser.add_argument(
         "--cases",
@@ -281,7 +402,12 @@ def main() -> int:
     parser.add_argument(
         "--all",
         action="store_true",
-        help="run all pipeline-*.json cases",
+        help="run all cases listed in manifest.json (fallback: pipeline-*.json)",
+    )
+    parser.add_argument(
+        "--reviewer-case",
+        action="store_true",
+        help="run only manifest reviewer_case (pipeline-40t-8c-5l.json)",
     )
     parser.add_argument(
         "--validate-tdg-only",
@@ -301,35 +427,54 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if not args.all and not args.cases:
-        parser.error("specify --all or --cases")
+    if not args.all and not args.cases and not args.reviewer_case:
+        parser.error("specify --all, --reviewer-case, or --cases")
 
     lbench_dir = args.lbench_dir.expanduser()
     if not lbench_dir.is_absolute():
         lbench_dir = (ROOT / lbench_dir).resolve()
 
-    ptpn_bin = args.ptpn.expanduser()
-    if not ptpn_bin.is_absolute():
-        ptpn_bin = (ROOT / ptpn_bin).resolve()
+    manifest = load_manifest(lbench_dir)
+    case_meta = manifest_case_map(manifest)
 
-    cases = discover_cases(lbench_dir, args.cases if not args.all else None)
+    if args.reviewer_case:
+        reviewer_files = [
+            name for name, meta in case_meta.items() if meta.get("reviewer_case")
+        ]
+        if not reviewer_files:
+            print("error: no reviewer_case in manifest.json", file=sys.stderr)
+            return 1
+        case_filter = reviewer_files
+        use_manifest = True
+    else:
+        case_filter = args.cases if not args.all else None
+        use_manifest = bool(args.all and case_meta)
+
+    cases = discover_cases(lbench_dir, case_filter, use_manifest=use_manifest)
     if not cases:
         print("error: no pipeline JSON files found", file=sys.stderr)
         return 1
 
-    if not args.validate_tdg_only and any(
-        "100t" in p.stem for p in cases
-    ):
-        print(
-            "note: 100-task cases may need -m 50000 or higher to avoid SCG truncation",
-            file=sys.stderr,
-        )
-
     if args.dry_run:
         mode = "tdg-dot-only" if args.validate_tdg_only else f"full scg -m {args.max_states}"
         for path in cases:
-            print(f"[dry-run] {path.name} ({mode})")
+            meta = case_meta.get(path.name, {})
+            lanes = meta.get("num_lanes", "?")
+            periodic = meta.get("periodic_tasks", "?")
+            print(f"[dry-run] {path.name} lanes={lanes} periodic={periodic} ({mode})")
         return 0
+
+    if not args.validate_tdg_only:
+        print_state_hints(
+            cases,
+            case_meta,
+            args.max_states,
+            validate_tdg_only=args.validate_tdg_only,
+        )
+
+    ptpn_bin = args.ptpn.expanduser()
+    if not ptpn_bin.is_absolute():
+        ptpn_bin = (ROOT / ptpn_bin).resolve()
 
     if not ptpn_bin.is_file():
         print(f"error: ptpn not found: {ptpn_bin}", file=sys.stderr)
@@ -349,13 +494,14 @@ def main() -> int:
             args.max_states,
             args.validate_tdg_only,
             out_dir,
+            case_meta.get(path.name),
         )
         rows.append(row)
         print(f"    {'ok' if row.ok else 'FAILED: ' + row.error}")
 
     summary_json = lbench_dir / "bench-summary.json"
     summary_csv = lbench_dir / "bench-summary.csv"
-    write_summary(rows, summary_json, summary_csv)
+    write_summary(rows, summary_json, summary_csv, manifest)
 
     print()
     print_table(rows)
