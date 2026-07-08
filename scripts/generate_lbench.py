@@ -1,5 +1,21 @@
 #!/usr/bin/env python3
-"""Generate progressive l-bench TDG JSON benchmarks (fork/join pipelines).
+"""Generate multi-lane l-bench TDG JSON benchmarks (analyzable at scale).
+
+Topology per case:
+
+  lane i (2 cores, ~10 tasks):
+    source -> F_i -> (branchA, branchB) -> J_i -> chain ... -> J_GLOBAL
+  J_GLOBAL -> global sink task
+
+Design rules that keep the state-class graph tractable:
+  * globally unique task priorities (no same-priority branching),
+  * mostly deterministic execution times ([c, c]); only 2-3 designated tasks
+    per case carry narrow intervals (width <= 2),
+  * per-lane duration offsets desynchronise lanes after the common release,
+  * all periodic sources share one harmonic period sized above the worst lane
+    makespan, relying on saturating task places (task_place_capacity) so busy
+    releases merge instead of blocking the release clock,
+  * every mutex is shared by exactly two tasks (cross-lane where possible).
 
 Writes files under example/l-bench/ and a manifest.json with case metadata.
 Use --validate for structural checks and optional TDG DOT export via ptpn.
@@ -19,11 +35,12 @@ ROOT = Path(__file__).resolve().parent.parent
 LBENCH_DIR = ROOT / "example" / "l-bench"
 DEFAULT_PTPN = ROOT / "build" / "ptpn"
 
-# Dense scale: 10..100 step 10, cores = tasks / 5
-STANDARD_CASES: list[tuple[int, int]] = [
-    (tasks, tasks // 5) for tasks in range(10, 101, 10)
-]
-LOCK_CASE = (40, 8, 5)  # tasks, cpus, lock_count
+# Dense scale: 10..100 tasks step 10, cores = tasks / 5, lanes = cores / 2.
+STANDARD_CASES: list[tuple[int, int]] = [(tasks, tasks // 5) for tasks in range(10, 101, 10)]
+LOCK_CASE = (40, 8, 5)  # tasks, cpus, lock_count (reviewer scenario)
+
+RELEASE_PERIOD = 60
+TASK_PLACE_CAPACITY = 1
 
 
 @dataclass
@@ -32,18 +49,19 @@ class CaseSpec:
     filename: str
     num_tasks: int
     num_cpus: int
-    num_locks: int = 0
-    periodic: int = 0
+    num_locks: int
+    num_lanes: int
+    periodic_tasks: int
+    period: int = RELEASE_PERIOD
+    reviewer_case: bool = False
 
     @property
     def graph_name(self) -> str:
-        if self.num_locks:
-            return f"EmbeddedPipeline{self.num_tasks}T{self.num_cpus}C{self.num_locks}Locks"
-        return f"EmbeddedPipeline{self.num_tasks}T{self.num_cpus}C"
+        return f"MultiLanePipeline{self.num_tasks}T{self.num_cpus}C{self.num_locks}L"
 
 
-def case_filename(num_tasks: int, num_cpus: int, num_locks: int = 0) -> str:
-    if num_locks:
+def case_filename(num_tasks: int, num_cpus: int, num_locks: int, *, reviewer: bool) -> str:
+    if reviewer:
         return f"pipeline-{num_tasks}t-{num_cpus}c-{num_locks}l.json"
     return f"pipeline-{num_tasks}t-{num_cpus}c.json"
 
@@ -52,140 +70,177 @@ def task_name(index: int) -> str:
     return f"T{index:02d}"
 
 
-LOCK_CASE = (40, 8, 5)  # tasks, cpus, lock_count (reviewer scenario)
-
-
 def default_lock_count(num_tasks: int) -> int:
-    """Scale shared mutex count with pipeline size (1..5), no periodic overhead."""
-    return min(5, max(1, (num_tasks + 9) // 20))
+    return min(5, max(1, num_tasks // 20))
 
 
-def task_role(index: int) -> str:
-    if index == 0:
-        return "entry"
-    rem = index % 3
-    if rem == 0:
-        return "fuse"
-    if rem == 1:
-        return "branch_a"
-    return "branch_b"
+def periodic_lane_count(num_tasks: int, num_lanes: int) -> int:
+    if num_tasks < 30:
+        wanted = 1
+    elif num_tasks < 70:
+        wanted = 2
+    else:
+        wanted = 3
+    return min(wanted, num_lanes)
 
 
-def task_locks(index: int, num_locks: int, *, heavy: bool = False) -> list[str]:
-    if num_locks <= 0:
-        return []
+@dataclass
+class LaneLayout:
+    lane: int
+    source: int          # global task index of the lane source
+    branch_a: int
+    branch_b: int
+    chain: list[int]     # serial chain after the join (may be empty)
 
-    role = task_role(index)
-
-    if heavy:
-        # Reviewer 40t/8c/5locks: both parallel branches contend, occasional fuse CS.
-        if role in ("branch_a", "branch_b"):
-            return [f"mutex{index % num_locks}"]
-        if role == "fuse" and index > 0 and (index // 3) % 2 == 1:
-            return [f"mutex{(index // 3) % num_locks}"]
-        return []
-
-    if role == "branch_a":
-        return [f"mutex{index % num_locks}"]
-    if role == "branch_b" and num_locks >= 2 and (index // 3) % 2 == 0:
-        return [f"mutex{(index + 1) % num_locks}"]
-    if role == "fuse" and num_locks >= 3 and index > 0 and (index // 3) % 3 == 1:
-        return [f"mutex{(index // 3) % num_locks}"]
-    return []
+    @property
+    def all_tasks(self) -> list[int]:
+        return [self.source, self.branch_a, self.branch_b, *self.chain]
 
 
-def task_time(index: int, locks: list[str]) -> list[list[int]]:
-    role = task_role(index)
-    if locks:
-        if role == "branch_a":
-            return [[1, 3], [3, 7], [1, 2]]
-        if role == "branch_b":
-            return [[2, 4], [2, 6], [1, 3]]
-        if role == "fuse":
-            return [[1, 2], [2, 5], [2, 4]]
-        return [[1, 2], [2, 4], [1, 2]]
-
-    if role == "entry":
-        return [[2, 5]]
-    if role == "fuse":
-        return [[3, 8]]
-    if role == "branch_a":
-        return [[4, 10]]
-    return [[3, 9]]
+def split_lane_sizes(lane_task_total: int, num_lanes: int) -> list[int]:
+    base = lane_task_total // num_lanes
+    remainder = lane_task_total % num_lanes
+    return [base + (1 if lane < remainder else 0) for lane in range(num_lanes)]
 
 
-def count_locked_tasks(num_tasks: int, num_locks: int, *, heavy: bool = False) -> int:
-    return sum(1 for i in range(num_tasks) if task_locks(i, num_locks, heavy=heavy))
+def build_lanes(num_tasks: int, num_lanes: int) -> list[LaneLayout]:
+    # One task is reserved for the global sink.
+    sizes = split_lane_sizes(num_tasks - 1, num_lanes)
+    lanes: list[LaneLayout] = []
+    next_index = 0
+    for lane, size in enumerate(sizes):
+        if size < 4:
+            raise ValueError(f"lane {lane} needs >= 4 tasks, got {size}")
+        source = next_index
+        branch_a = next_index + 1
+        branch_b = next_index + 2
+        chain = list(range(next_index + 3, next_index + size))
+        lanes.append(LaneLayout(lane, source, branch_a, branch_b, chain))
+        next_index += size
+    return lanes
 
 
-def build_pipeline(
-    num_tasks: int, num_cpus: int, num_locks: int = 0, *, heavy_locks: bool = False
-) -> dict[str, Any]:
-    if num_tasks < 1:
-        raise ValueError("num_tasks must be >= 1")
+def deterministic_duration(lane: int, position: int) -> int:
+    """Small deterministic duration; the lane offset desynchronises lanes."""
+    return 2 + (lane + position) % 3
+
+
+def assign_locks(lanes: list[LaneLayout], num_locks: int) -> dict[int, str]:
+    """Give each mutex exactly two holder tasks (cross-lane where possible)."""
+    candidates: list[int] = []
+    for offset in (0, 1, 2):  # branch_a first, then early chain tasks
+        for lane in lanes:
+            if offset == 0:
+                candidates.append(lane.branch_a)
+            elif offset - 1 < len(lane.chain):
+                candidates.append(lane.chain[offset - 1])
+    if len(candidates) < 2 * num_locks:
+        raise ValueError("not enough lock-holder candidates")
+
+    lock_of: dict[int, str] = {}
+    for lock_index in range(num_locks):
+        for holder in (candidates[2 * lock_index], candidates[2 * lock_index + 1]):
+            lock_of[holder] = f"mutex{lock_index}"
+    return lock_of
+
+
+def interval_tasks(lanes: list[LaneLayout]) -> dict[int, list[list[int]]]:
+    """2-3 designated tasks with narrow intervals (width <= 2)."""
+    chosen: dict[int, list[list[int]]] = {lanes[0].branch_b: [[3, 4]]}
+    if len(lanes) >= 2 and lanes[1].chain:
+        chosen[lanes[1].chain[0]] = [[2, 4]]
+    if len(lanes) >= 3 and len(lanes[2].chain) >= 2:
+        chosen[lanes[2].chain[1]] = [[3, 4]]
+    return chosen
+
+
+def build_case(spec: CaseSpec) -> dict[str, Any]:
+    lanes = build_lanes(spec.num_tasks, spec.num_lanes)
+    lock_of = assign_locks(lanes, spec.num_locks)
+    intervals = interval_tasks(lanes)
+    sink_index = spec.num_tasks - 1
+
+    def core_of(lane: LaneLayout, task_index: int) -> int:
+        # source / branch_a / even chain positions on the lane's first core,
+        # branch_b / odd chain positions on the second core.
+        first = 2 * lane.lane
+        second = 2 * lane.lane + 1
+        if task_index == lane.source or task_index == lane.branch_a:
+            return first
+        if task_index == lane.branch_b:
+            return second
+        position = lane.chain.index(task_index)
+        return second if position % 2 == 0 else first
+
+    def time_of(lane: LaneLayout, task_index: int, position: int) -> list[list[int]]:
+        if task_index in lock_of:
+            return [[1, 1], [2, 2], [1, 1]]
+        if task_index in intervals:
+            return intervals[task_index]
+        return [[deterministic_duration(lane.lane, position)] * 2]
 
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, str]] = []
 
-    for i in range(num_tasks):
-        locks = task_locks(i, num_locks, heavy=heavy_locks)
-        nodes.append(
-            {
-                "id": task_name(i),
-                "type": "task",
-                "priority": 40 + (i % 20),
-                "core": i % num_cpus,
-                "time": task_time(i, locks),
-                "locks": locks,
-            }
-        )
+    for lane in lanes:
+        for position, task_index in enumerate(lane.all_tasks):
+            locks = [lock_of[task_index]] if task_index in lock_of else []
+            nodes.append(
+                {
+                    "id": task_name(task_index),
+                    "type": "task",
+                    "priority": 10 + task_index,  # globally unique
+                    "core": core_of(lane, task_index),
+                    "time": time_of(lane, task_index, position),
+                    "locks": locks,
+                }
+            )
 
-    current = 0
-    stage = 0
-    task_count = 1
-
-    while task_count + 3 <= num_tasks:
-        fork_id = f"F_{stage:03d}"
-        join_id = f"J_{stage:03d}"
+        fork_id = f"F_L{lane.lane:02d}"
+        join_id = f"J_L{lane.lane:02d}"
         nodes.append({"id": fork_id, "type": "fork"})
         nodes.append({"id": join_id, "type": "join"})
 
-        ta = task_count
-        tb = task_count + 1
-        t_next = task_count + 2
+        edges.append({"source": task_name(lane.source), "target": fork_id})
+        edges.append({"source": fork_id, "target": task_name(lane.branch_a)})
+        edges.append({"source": fork_id, "target": task_name(lane.branch_b)})
+        edges.append({"source": task_name(lane.branch_a), "target": join_id})
+        edges.append({"source": task_name(lane.branch_b), "target": join_id})
 
-        edges.append({"source": task_name(current), "target": fork_id})
-        edges.append({"source": fork_id, "target": task_name(ta)})
-        edges.append({"source": fork_id, "target": task_name(tb)})
-        edges.append({"source": task_name(ta), "target": join_id})
-        edges.append({"source": task_name(tb), "target": join_id})
-        edges.append({"source": join_id, "target": task_name(t_next)})
+        previous = join_id
+        for task_index in lane.chain:
+            edges.append({"source": previous, "target": task_name(task_index)})
+            previous = task_name(task_index)
+        edges.append({"source": previous, "target": "J_GLOBAL"})
 
-        current = t_next
-        task_count += 3
-        stage += 1
-
-    while task_count < num_tasks:
-        edges.append({"source": task_name(current), "target": task_name(task_count)})
-        current = task_count
-        task_count += 1
-
-    shared_locks = [f"mutex{i}" for i in range(num_locks)]
-
-    name = (
-        f"EmbeddedPipeline{num_tasks}T{num_cpus}C{num_locks}Locks"
-        if num_locks
-        else f"EmbeddedPipeline{num_tasks}T{num_cpus}C"
+    nodes.append({"id": "J_GLOBAL", "type": "join"})
+    nodes.append(
+        {
+            "id": task_name(sink_index),
+            "type": "task",
+            "priority": 10 + sink_index,
+            "core": spec.num_cpus - 1,
+            "time": [[2, 2]],
+            "locks": [],
+        }
     )
+    edges.append({"source": "J_GLOBAL", "target": task_name(sink_index)})
+
+    periodic_lanes = lanes[: spec.periodic_tasks]
     return {
-        "graph": {"name": name},
+        "graph": {"name": spec.graph_name},
         "configuration": {
-            "num_cpus": num_cpus,
+            "num_cpus": spec.num_cpus,
             "cores_per_cpu": 1,
-            "shared_locks": shared_locks,
+            "shared_locks": [f"mutex{i}" for i in range(spec.num_locks)],
             "policy": "fixed",
-            "start": [{"task": task_name(0), "tokens": 1}],
-            "end": [task_name(num_tasks - 1)],
+            "task_place_capacity": TASK_PLACE_CAPACITY,
+            "start": [{"task": task_name(lane.source), "tokens": 1} for lane in lanes],
+            "end": [task_name(sink_index)],
+            "periodic": [
+                {"task": task_name(lane.source), "period": spec.period}
+                for lane in periodic_lanes
+            ],
         },
         "nodes": nodes,
         "edges": edges,
@@ -195,32 +250,34 @@ def build_pipeline(
 def all_case_specs() -> list[CaseSpec]:
     specs: list[CaseSpec] = []
     for tasks, cpus in STANDARD_CASES:
+        lanes = cpus // 2
         locks = default_lock_count(tasks)
-        cid = f"{tasks}t-{cpus}c" if locks <= 1 else f"{tasks}t-{cpus}c-{locks}l"
         specs.append(
             CaseSpec(
-                case_id=cid,
-                filename=case_filename(tasks, cpus),
+                case_id=f"{tasks}t-{cpus}c",
+                filename=case_filename(tasks, cpus, locks, reviewer=False),
                 num_tasks=tasks,
                 num_cpus=cpus,
                 num_locks=locks,
+                num_lanes=lanes,
+                periodic_tasks=periodic_lane_count(tasks, lanes),
             )
         )
-    t, c, locks = LOCK_CASE
+    tasks, cpus, locks = LOCK_CASE
+    lanes = cpus // 2
     specs.append(
         CaseSpec(
-            case_id=f"{t}t-{c}c-{locks}l",
-            filename=case_filename(t, c, locks),
-            num_tasks=t,
-            num_cpus=c,
+            case_id=f"{tasks}t-{cpus}c-{locks}l",
+            filename=case_filename(tasks, cpus, locks, reviewer=True),
+            num_tasks=tasks,
+            num_cpus=cpus,
             num_locks=locks,
+            num_lanes=lanes,
+            periodic_tasks=periodic_lane_count(tasks, lanes),
+            reviewer_case=True,
         )
     )
     return specs
-
-
-def is_heavy_lock_case(spec: CaseSpec) -> bool:
-    return spec.case_id.endswith("-5l") and spec.num_locks == 5
 
 
 def validate_structure(doc: dict[str, Any], spec: CaseSpec) -> list[str]:
@@ -235,12 +292,21 @@ def validate_structure(doc: dict[str, Any], spec: CaseSpec) -> list[str]:
 
     if len(tasks) != spec.num_tasks:
         errors.append(f"expected {spec.num_tasks} tasks, got {len(tasks)}")
+    if len(forks) != spec.num_lanes:
+        errors.append(f"expected {spec.num_lanes} fork nodes, got {len(forks)}")
+    if len(joins) != spec.num_lanes + 1:
+        errors.append(f"expected {spec.num_lanes + 1} join nodes, got {len(joins)}")
 
-    num_cpus = cfg.get("num_cpus")
-    if num_cpus != spec.num_cpus:
-        errors.append(f"expected num_cpus={spec.num_cpus}, got {num_cpus}")
+    if cfg.get("num_cpus") != spec.num_cpus:
+        errors.append(f"expected num_cpus={spec.num_cpus}, got {cfg.get('num_cpus')}")
+    if cfg.get("task_place_capacity", 1) < 1:
+        errors.append("task_place_capacity must be >= 1")
 
-    max_core = num_cpus * cfg.get("cores_per_cpu", 1) - 1
+    priorities = [t["priority"] for t in tasks]
+    if len(set(priorities)) != len(priorities):
+        errors.append("task priorities are not globally unique")
+
+    max_core = spec.num_cpus * cfg.get("cores_per_cpu", 1) - 1
     for t in tasks:
         core = t.get("core")
         if core is None or core < 0 or core > max_core:
@@ -251,6 +317,8 @@ def validate_structure(doc: dict[str, Any], spec: CaseSpec) -> list[str]:
         errors.append(f"expected {spec.num_locks} shared locks, got {len(shared)}")
 
     defined_locks = set(shared)
+    holders_per_lock: dict[str, int] = {}
+    wide_interval_tasks = 0
     for t in tasks:
         locks = t.get("locks", [])
         expected_segments = 2 * len(locks) + 1
@@ -263,71 +331,75 @@ def validate_structure(doc: dict[str, Any], spec: CaseSpec) -> list[str]:
         for lock in locks:
             if lock not in defined_locks:
                 errors.append(f"task {t.get('id')} uses undefined lock {lock}")
-            if not (lock.startswith("mutex") or lock.startswith("spin")):
-                errors.append(f"task {t.get('id')} has invalid lock prefix: {lock}")
+            holders_per_lock[lock] = holders_per_lock.get(lock, 0) + 1
+        for lo, hi in time_segs:
+            if hi < lo:
+                errors.append(f"task {t.get('id')} has invalid interval [{lo}, {hi}]")
+            if hi - lo > 2:
+                errors.append(f"task {t.get('id')} interval [{lo}, {hi}] wider than 2")
+            if hi > lo:
+                wide_interval_tasks += 1
+
+    for lock, holders in holders_per_lock.items():
+        if holders != 2:
+            errors.append(f"lock {lock} must have exactly 2 holders, got {holders}")
+    if wide_interval_tasks > 3:
+        errors.append(f"more than 3 nondeterministic tasks: {wide_interval_tasks}")
 
     node_ids = {n["id"] for n in nodes}
+    in_degree: dict[str, int] = {}
+    out_degree: dict[str, int] = {}
+    adj: dict[str, list[str]] = {nid: [] for nid in node_ids}
     for e in edges:
         if e["source"] not in node_ids:
             errors.append(f"edge source missing node: {e['source']}")
+            continue
         if e["target"] not in node_ids:
             errors.append(f"edge target missing node: {e['target']}")
-
-    end_tasks = cfg.get("end", [])
-    if end_tasks != [task_name(spec.num_tasks - 1)]:
-        errors.append(f"unexpected end tasks: {end_tasks}")
-
-    if cfg.get("periodic"):
-        errors.append("periodic bindings should be empty for pipeline benchmarks")
-
-    out_degree: dict[str, int] = {}
-    in_degree: dict[str, int] = {}
-    adj: dict[str, list[str]] = {nid: [] for nid in node_ids}
-    for e in edges:
+            continue
         out_degree[e["source"]] = out_degree.get(e["source"], 0) + 1
         in_degree[e["target"]] = in_degree.get(e["target"], 0) + 1
         adj[e["source"]].append(e["target"])
 
     for f in forks:
-        fid = f["id"]
-        out = [e for e in edges if e["source"] == fid]
-        if len(out) != 2:
-            errors.append(f"fork {fid} must have 2 outgoing task edges, got {len(out)}")
-
+        if out_degree.get(f["id"], 0) != 2:
+            errors.append(f"fork {f['id']} must have 2 outgoing edges")
     for j in joins:
-        jid = j["id"]
-        inc = [e for e in edges if e["target"] == jid]
-        if len(inc) != 2:
-            errors.append(f"join {jid} must have 2 incoming task edges, got {len(inc)}")
+        expected_in = spec.num_lanes if j["id"] == "J_GLOBAL" else 2
+        if in_degree.get(j["id"], 0) != expected_in:
+            errors.append(f"join {j['id']} must have {expected_in} incoming edges")
 
-    # Reachability from T00 to end
-    start = task_name(0)
-    end = task_name(spec.num_tasks - 1)
-    seen = {start}
-    stack = [start]
-    while stack:
-        u = stack.pop()
-        for v in adj.get(u, []):
-            if v not in seen:
-                seen.add(v)
-                stack.append(v)
-    if end not in seen:
-        errors.append(f"end task {end} not reachable from {start}")
+    periodic = cfg.get("periodic", [])
+    if len(periodic) != spec.periodic_tasks:
+        errors.append(f"expected {spec.periodic_tasks} periodic bindings, got {len(periodic)}")
+    for binding in periodic:
+        if binding.get("period") != spec.period:
+            errors.append(f"periodic task {binding.get('task')} period != {spec.period}")
 
-    if len(forks) != len(joins):
-        errors.append(f"fork/join count mismatch: {len(forks)} vs {len(joins)}")
+    end_tasks = cfg.get("end", [])
+    if end_tasks != [task_name(spec.num_tasks - 1)]:
+        errors.append(f"unexpected end tasks: {end_tasks}")
+
+    # Every lane source must reach the global sink.
+    sink = task_name(spec.num_tasks - 1)
+    for binding in cfg.get("start", []):
+        start = binding["task"] if isinstance(binding, dict) else binding
+        seen = {start}
+        stack = [start]
+        while stack:
+            u = stack.pop()
+            for v in adj.get(u, []):
+                if v not in seen:
+                    seen.add(v)
+                    stack.append(v)
+        if sink not in seen:
+            errors.append(f"sink {sink} not reachable from start task {start}")
 
     return errors
 
 
 def write_case(spec: CaseSpec, out_dir: Path) -> Path:
-    doc = build_pipeline(
-        spec.num_tasks,
-        spec.num_cpus,
-        spec.num_locks,
-        heavy_locks=is_heavy_lock_case(spec),
-    )
-    doc["graph"]["name"] = spec.graph_name
+    doc = build_case(spec)
     path = out_dir / spec.filename
     path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
     return path
@@ -335,16 +407,24 @@ def write_case(spec: CaseSpec, out_dir: Path) -> Path:
 
 def write_manifest(specs: list[CaseSpec], out_dir: Path) -> Path:
     manifest = {
-        "description": "Progressive embedded pipeline l-bench TDG benchmarks",
+        "description": "Multi-lane parallel pipeline l-bench TDG benchmarks",
+        "topology": (
+            "Per-lane source -> fork -> dual branches -> join -> serial chain; "
+            "lanes converge at J_GLOBAL into one global sink task"
+        ),
         "policy": "fixed",
-        "periodic_tasks": 0,
+        "task_place_capacity": TASK_PLACE_CAPACITY,
         "cases": [
             {
-                **asdict(s),
-                "fork_join_stages": (s.num_tasks - 1) // 3,
-                "locked_tasks": count_locked_tasks(
-                    s.num_tasks, s.num_locks, heavy=is_heavy_lock_case(s)
-                ),
+                "filename": s.filename,
+                "num_tasks": s.num_tasks,
+                "num_cpus": s.num_cpus,
+                "num_locks": s.num_locks,
+                "num_lanes": s.num_lanes,
+                "periodic_tasks": s.periodic_tasks,
+                "period": s.period,
+                "end": task_name(s.num_tasks - 1),
+                "reviewer_case": s.reviewer_case,
             }
             for s in specs
         ],
