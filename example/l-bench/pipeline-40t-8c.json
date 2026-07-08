@@ -5,14 +5,9 @@
   "configuration": {
     "num_cpus": 8,
     "cores_per_cpu": 1,
-    "shared_locks": [
-      "mutex0",
-      "mutex1"
-    ],
+    "shared_locks": ["mutex0", "mutex1"],
     "policy": "fixed",
-    "end": [
-      "T39"
-    ],
+    "end": ["T39"],
     "start": [
       {
         "task": "T26",
@@ -22,11 +17,11 @@
     "periodic": [
       {
         "task": "T00",
-        "period": 100
+        "period": 500
       },
       {
         "task": "T13",
-        "period": 130
+        "period": 1000
       }
     ]
   },
@@ -36,12 +31,7 @@
       "type": "task",
       "priority": 35,
       "core": 0,
-      "time": [
-        [
-          2,
-          6
-        ]
-      ],
+      "time": [[2, 6]],
       "locks": []
     },
     {
@@ -50,22 +40,11 @@
       "priority": 36,
       "core": 1,
       "time": [
-        [
-          1,
-          3
-        ],
-        [
-          3,
-          7
-        ],
-        [
-          1,
-          2
-        ]
+        [1, 3],
+        [3, 7],
+        [1, 2]
       ],
-      "locks": [
-        "mutex1"
-      ]
+      "locks": ["mutex1"]
     },
     {
       "id": "T02",
@@ -73,34 +52,18 @@
       "priority": 37,
       "core": 2,
       "time": [
-        [
-          2,
-          4
-        ],
-        [
-          2,
-          6
-        ],
-        [
-          1,
-          3
-        ]
+        [2, 4],
+        [2, 6],
+        [1, 3]
       ],
-      "locks": [
-        "mutex1"
-      ]
+      "locks": ["mutex1"]
     },
     {
       "id": "T03",
       "type": "task",
       "priority": 38,
       "core": 3,
-      "time": [
-        [
-          3,
-          9
-        ]
-      ],
+      "time": [[3, 9]],
       "locks": []
     },
     {
@@ -109,34 +72,18 @@
       "priority": 39,
       "core": 4,
       "time": [
-        [
-          1,
-          3
-        ],
-        [
-          3,
-          7
-        ],
-        [
-          1,
-          2
-        ]
+        [1, 3],
+        [3, 7],
+        [1, 2]
       ],
-      "locks": [
-        "mutex0"
-      ]
+      "locks": ["mutex0"]
     },
     {
       "id": "T05",
       "type": "task",
       "priority": 40,
       "core": 5,
-      "time": [
-        [
-          3,
-          10
-        ]
-      ],
+      "time": [[3, 10]],
       "locks": []
     },
     {
@@ -144,12 +91,7 @@
       "type": "task",
       "priority": 41,
       "core": 6,
-      "time": [
-        [
-          3,
-          9
-        ]
-      ],
+      "time": [[3, 9]],
       "locks": []
     },
     {
@@ -158,22 +100,11 @@
       "priority": 42,
       "core": 7,
       "time": [
-        [
-          1,
-          3
-        ],
-        [
-          3,
-          7
-        ],
-        [
-          1,
-          2
-        ]
+        [1, 3],
+        [3, 7],
+        [1, 2]
       ],
-      "locks": [
-        "mutex1"
-      ]
+      "locks": ["mutex1"]
     },
     {
       "id": "T08",
@@ -181,34 +112,18 @@
       "priority": 43,
       "core": 0,
       "time": [
-        [
-          2,
-          4
-        ],
-        [
-          2,
-          6
-        ],
-        [
-          1,
-          3
-        ]
+        [2, 4],
+        [2, 6],
+        [1, 3]
       ],
-      "locks": [
-        "mutex1"
-      ]
+      "locks": ["mutex1"]
     },
     {
       "id": "T09",
       "type": "task",
       "priority": 44,
       "core": 1,
-      "time": [
-        [
-          3,
-          9
-        ]
-      ],
+      "time": [[3, 9]],
       "locks": []
     },
     {
@@ -217,34 +132,18 @@
       "priority": 45,
       "core": 2,
       "time": [
-        [
-          1,
-          3
-        ],
-        [
-          3,
-          7
-        ],
-        [
-          1,
-          2
-        ]
+        [1, 3],
+        [3, 7],
+        [1, 2]
       ],
-      "locks": [
-        "mutex0"
-      ]
+      "locks": ["mutex0"]
     },
     {
       "id": "T11",
       "type": "task",
       "priority": 46,
       "core": 3,
-      "time": [
-        [
-          3,
-          10
-        ]
-      ],
+      "time": [[3, 10]],
       "locks": []
     },
     {
@@ -252,12 +151,7 @@
       "type": "task",
       "priority": 47,
       "core": 4,
-      "time": [
-        [
-          3,
-          9
-        ]
-      ],
+      "time": [[3, 9]],
       "locks": []
     },
     {
@@ -265,12 +159,7 @@
       "type": "task",
       "priority": 48,
       "core": 5,
-      "time": [
-        [
-          2,
-          6
-        ]
-      ],
+      "time": [[2, 6]],
       "locks": []
     },
     {
@@ -279,22 +168,11 @@
       "priority": 49,
       "core": 6,
       "time": [
-        [
-          1,
-          3
-        ],
-        [
-          3,
-          7
-        ],
-        [
-          1,
-          2
-        ]
+        [1, 3],
+        [3, 7],
+        [1, 2]
       ],
-      "locks": [
-        "mutex0"
-      ]
+      "locks": ["mutex0"]
     },
     {
       "id": "T15",
@@ -302,34 +180,18 @@
       "priority": 50,
       "core": 7,
       "time": [
-        [
-          2,
-          4
-        ],
-        [
-          2,
-          6
-        ],
-        [
-          1,
-          3
-        ]
+        [2, 4],
+        [2, 6],
+        [1, 3]
       ],
-      "locks": [
-        "mutex0"
-      ]
+      "locks": ["mutex0"]
     },
     {
       "id": "T16",
       "type": "task",
       "priority": 51,
       "core": 0,
-      "time": [
-        [
-          3,
-          9
-        ]
-      ],
+      "time": [[3, 9]],
       "locks": []
     },
     {
@@ -338,34 +200,18 @@
       "priority": 52,
       "core": 1,
       "time": [
-        [
-          1,
-          3
-        ],
-        [
-          3,
-          7
-        ],
-        [
-          1,
-          2
-        ]
+        [1, 3],
+        [3, 7],
+        [1, 2]
       ],
-      "locks": [
-        "mutex1"
-      ]
+      "locks": ["mutex1"]
     },
     {
       "id": "T18",
       "type": "task",
       "priority": 53,
       "core": 2,
-      "time": [
-        [
-          3,
-          10
-        ]
-      ],
+      "time": [[3, 10]],
       "locks": []
     },
     {
@@ -373,12 +219,7 @@
       "type": "task",
       "priority": 54,
       "core": 3,
-      "time": [
-        [
-          3,
-          9
-        ]
-      ],
+      "time": [[3, 9]],
       "locks": []
     },
     {
@@ -387,22 +228,11 @@
       "priority": 55,
       "core": 4,
       "time": [
-        [
-          1,
-          3
-        ],
-        [
-          3,
-          7
-        ],
-        [
-          1,
-          2
-        ]
+        [1, 3],
+        [3, 7],
+        [1, 2]
       ],
-      "locks": [
-        "mutex0"
-      ]
+      "locks": ["mutex0"]
     },
     {
       "id": "T21",
@@ -410,34 +240,18 @@
       "priority": 56,
       "core": 5,
       "time": [
-        [
-          2,
-          4
-        ],
-        [
-          2,
-          6
-        ],
-        [
-          1,
-          3
-        ]
+        [2, 4],
+        [2, 6],
+        [1, 3]
       ],
-      "locks": [
-        "mutex0"
-      ]
+      "locks": ["mutex0"]
     },
     {
       "id": "T22",
       "type": "task",
       "priority": 57,
       "core": 6,
-      "time": [
-        [
-          3,
-          9
-        ]
-      ],
+      "time": [[3, 9]],
       "locks": []
     },
     {
@@ -446,34 +260,18 @@
       "priority": 58,
       "core": 7,
       "time": [
-        [
-          1,
-          3
-        ],
-        [
-          3,
-          7
-        ],
-        [
-          1,
-          2
-        ]
+        [1, 3],
+        [3, 7],
+        [1, 2]
       ],
-      "locks": [
-        "mutex1"
-      ]
+      "locks": ["mutex1"]
     },
     {
       "id": "T24",
       "type": "task",
       "priority": 59,
       "core": 0,
-      "time": [
-        [
-          3,
-          10
-        ]
-      ],
+      "time": [[3, 10]],
       "locks": []
     },
     {
@@ -481,12 +279,7 @@
       "type": "task",
       "priority": 35,
       "core": 1,
-      "time": [
-        [
-          3,
-          9
-        ]
-      ],
+      "time": [[3, 9]],
       "locks": []
     },
     {
@@ -494,12 +287,7 @@
       "type": "task",
       "priority": 36,
       "core": 2,
-      "time": [
-        [
-          2,
-          6
-        ]
-      ],
+      "time": [[2, 6]],
       "locks": []
     },
     {
@@ -508,22 +296,11 @@
       "priority": 37,
       "core": 3,
       "time": [
-        [
-          1,
-          3
-        ],
-        [
-          3,
-          7
-        ],
-        [
-          1,
-          2
-        ]
+        [1, 3],
+        [3, 7],
+        [1, 2]
       ],
-      "locks": [
-        "mutex1"
-      ]
+      "locks": ["mutex1"]
     },
     {
       "id": "T28",
@@ -531,34 +308,18 @@
       "priority": 38,
       "core": 4,
       "time": [
-        [
-          2,
-          4
-        ],
-        [
-          2,
-          6
-        ],
-        [
-          1,
-          3
-        ]
+        [2, 4],
+        [2, 6],
+        [1, 3]
       ],
-      "locks": [
-        "mutex1"
-      ]
+      "locks": ["mutex1"]
     },
     {
       "id": "T29",
       "type": "task",
       "priority": 39,
       "core": 5,
-      "time": [
-        [
-          3,
-          9
-        ]
-      ],
+      "time": [[3, 9]],
       "locks": []
     },
     {
@@ -567,34 +328,18 @@
       "priority": 40,
       "core": 6,
       "time": [
-        [
-          1,
-          3
-        ],
-        [
-          3,
-          7
-        ],
-        [
-          1,
-          2
-        ]
+        [1, 3],
+        [3, 7],
+        [1, 2]
       ],
-      "locks": [
-        "mutex0"
-      ]
+      "locks": ["mutex0"]
     },
     {
       "id": "T31",
       "type": "task",
       "priority": 41,
       "core": 7,
-      "time": [
-        [
-          3,
-          10
-        ]
-      ],
+      "time": [[3, 10]],
       "locks": []
     },
     {
@@ -602,12 +347,7 @@
       "type": "task",
       "priority": 42,
       "core": 0,
-      "time": [
-        [
-          3,
-          9
-        ]
-      ],
+      "time": [[3, 9]],
       "locks": []
     },
     {
@@ -616,22 +356,11 @@
       "priority": 43,
       "core": 1,
       "time": [
-        [
-          1,
-          3
-        ],
-        [
-          3,
-          7
-        ],
-        [
-          1,
-          2
-        ]
+        [1, 3],
+        [3, 7],
+        [1, 2]
       ],
-      "locks": [
-        "mutex1"
-      ]
+      "locks": ["mutex1"]
     },
     {
       "id": "T34",
@@ -639,34 +368,18 @@
       "priority": 44,
       "core": 2,
       "time": [
-        [
-          2,
-          4
-        ],
-        [
-          2,
-          6
-        ],
-        [
-          1,
-          3
-        ]
+        [2, 4],
+        [2, 6],
+        [1, 3]
       ],
-      "locks": [
-        "mutex1"
-      ]
+      "locks": ["mutex1"]
     },
     {
       "id": "T35",
       "type": "task",
       "priority": 45,
       "core": 3,
-      "time": [
-        [
-          3,
-          9
-        ]
-      ],
+      "time": [[3, 9]],
       "locks": []
     },
     {
@@ -675,34 +388,18 @@
       "priority": 46,
       "core": 4,
       "time": [
-        [
-          1,
-          3
-        ],
-        [
-          3,
-          7
-        ],
-        [
-          1,
-          2
-        ]
+        [1, 3],
+        [3, 7],
+        [1, 2]
       ],
-      "locks": [
-        "mutex0"
-      ]
+      "locks": ["mutex0"]
     },
     {
       "id": "T37",
       "type": "task",
       "priority": 47,
       "core": 5,
-      "time": [
-        [
-          3,
-          10
-        ]
-      ],
+      "time": [[3, 10]],
       "locks": []
     },
     {
@@ -710,12 +407,7 @@
       "type": "task",
       "priority": 48,
       "core": 6,
-      "time": [
-        [
-          3,
-          9
-        ]
-      ],
+      "time": [[3, 9]],
       "locks": []
     },
     {
@@ -723,12 +415,7 @@
       "type": "task",
       "priority": 90,
       "core": 7,
-      "time": [
-        [
-          2,
-          5
-        ]
-      ],
+      "time": [[2, 5]],
       "locks": []
     },
     {

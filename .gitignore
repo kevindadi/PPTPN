@@ -8,6 +8,7 @@
 build
 
 compile_commands.json
+*.json
 paper
 unconfirmed
 

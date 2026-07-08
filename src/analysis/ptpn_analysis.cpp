@@ -94,6 +94,24 @@ void StateClassReachabilityGraph::set_canonicalization_mode(CanonicalizationMode
   mode_ = mode;
 }
 
+void StateClassReachabilityGraph::set_extrapolation(bool enabled) {
+  extrapolation_enabled_ = enabled;
+  if (!enabled) {
+    return;
+  }
+  // Uniform bound k: the largest finite endpoint of any static interval. Any
+  // clock value beyond k can never influence a future firing decision.
+  int k = 0;
+  for (size_t t = 0; t < net_.num_transitions(); ++t) {
+    k = std::max(k, effective_earliest(t));
+    const int latest = effective_latest(t);
+    if (latest != INF_TIME) {
+      k = std::max(k, latest);
+    }
+  }
+  extrapolation_k_ = k;
+}
+
 CanonicalizationMode StateClassReachabilityGraph::get_canonicalization_mode() const {
   return mode_;
 }
@@ -112,12 +130,13 @@ void StateClassReachabilityGraph::recompute_sets(StateClass& state) const {
   state.priority_enabled = Scheduling::filter_priority_per_core(state.struct_enabled, net_);
 
   state.suspended.clear();
+  // struct_enabled is sorted, so suspended stays sorted too.
   for (size_t t : state.struct_enabled) {
-    if (state.priority_enabled.count(t)) {
+    if (contains(state.priority_enabled, t)) {
       continue;
     }
     if (net_.get_transition(t).suspendable) {
-      state.suspended.insert(t);
+      state.suspended.push_back(t);
     }
   }
 }
@@ -135,7 +154,7 @@ void StateClassReachabilityGraph::build_layout(StateClass& state) const {
     state.clock_vars.push_back({ClockKind::Execution, t});
     state.exec_clock_of_transition[t] = exec_idx;
 
-    if (state.suspended.count(t)) {
+    if (contains(state.suspended, t)) {
       const int susp_idx = static_cast<int>(state.clock_vars.size());
       state.clock_vars.push_back({ClockKind::Suspension, t});
       state.susp_clock_of_transition[t] = susp_idx;
@@ -179,7 +198,7 @@ StateClass StateClassReachabilityGraph::time_elapse(const StateClass& state) con
     const ClockVar& var = out.clock_vars[i];
     if (var.kind == ClockKind::Suspension) {
       running[i] = true;  // suspension clocks always advance
-    } else if (var.kind == ClockKind::Execution && out.priority_enabled.count(var.transition)) {
+    } else if (var.kind == ClockKind::Execution && contains(out.priority_enabled, var.transition)) {
       running[i] = true;  // active execution clocks advance
     }
   }
@@ -220,7 +239,7 @@ StateClass StateClassReachabilityGraph::time_elapse(const StateClass& state) con
 }
 
 bool StateClassReachabilityGraph::is_firable(const StateClass& elapsed, size_t t) const {
-  if (!elapsed.priority_enabled.count(t) || !elapsed.has_exec_clock(t)) {
+  if (!contains(elapsed.priority_enabled, t) || !elapsed.has_exec_clock(t)) {
     return false;
   }
 
@@ -291,16 +310,13 @@ bool StateClassReachabilityGraph::fire(const StateClass& elapsed, size_t t,
     return false;
   }
 
-  // Step 1: intersect the firing-domain constraint h_t >= downSI(t).
+  // Step 1: intersect the firing-domain constraint h_t >= downSI(t). The
+  // elapsed zone is already canonical, so a single-constraint incremental
+  // tightening (O(n^2)) replaces the full closure.
   DBM fired = elapsed.zone;
   const size_t idx = static_cast<size_t>(elapsed.exec_index(t));
   const int lower = effective_earliest(t);
-  const int current_lower_bound = fired.get_constraint(0, idx);
-  if (current_lower_bound == INF_TIME || -lower < current_lower_bound) {
-    fired.set_constraint(0, idx, -lower);
-  }
-  fired.minimize();
-  if (!fired.is_consistent()) {
+  if (!fired.tighten(0, idx, -lower)) {
     return false;
   }
 
@@ -322,6 +338,21 @@ bool StateClassReachabilityGraph::fire(const StateClass& elapsed, size_t t,
 }
 
 bool StateClassReachabilityGraph::find_match(const StateClass& state, SCVertex& match) const {
+  if (mode_ == CanonicalizationMode::EQUALITY) {
+    auto it = vertices_by_hash_.find(hash_state_class(state));
+    if (it == vertices_by_hash_.end()) {
+      return false;
+    }
+    for (SCVertex candidate : it->second) {
+      const StateClass& existing = boost::get(boost::vertex_name, graph_, candidate);
+      if (check_equality(state, existing)) {
+        match = candidate;
+        return true;
+      }
+    }
+    return false;
+  }
+
   auto it = vertices_by_marking_.find(state.marking);
   if (it == vertices_by_marking_.end()) {
     return false;
@@ -338,6 +369,12 @@ bool StateClassReachabilityGraph::find_match(const StateClass& state, SCVertex& 
 
 SCVertex StateClassReachabilityGraph::add_state(StateClass state) {
   state.id = next_id_++;
+  if (mode_ == CanonicalizationMode::EQUALITY) {
+    const size_t hash = hash_state_class(state);
+    SCVertex v = boost::add_vertex(std::move(state), graph_);
+    vertices_by_hash_[hash].push_back(v);
+    return v;
+  }
   const std::vector<int> marking = state.marking;
   SCVertex v = boost::add_vertex(std::move(state), graph_);
   vertices_by_marking_[marking].push_back(v);
@@ -347,10 +384,15 @@ SCVertex StateClassReachabilityGraph::add_state(StateClass state) {
 size_t StateClassReachabilityGraph::build(size_t max_states) {
   graph_.clear();
   vertices_by_marking_.clear();
+  vertices_by_hash_.clear();
   stats_ = Statistics();
   next_id_ = 0;
+  reset_dbm_instrumentation();
 
   StateClass initial = compute_initial_class();
+  if (extrapolation_enabled_) {
+    initial.zone.extrapolate(extrapolation_k_);
+  }
   initial_vertex_ = add_state(std::move(initial));
   stats_.total_states = 1;
 
@@ -365,10 +407,37 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
         break;
       }
 
-      const StateClass current = boost::get(boost::vertex_name, graph_, u);
-      const StateClass elapsed = time_elapse(current);
+      // Extract everything needed from the source state up front instead of
+      // deep-copying the whole StateClass: with vecS vertex storage, the
+      // reference returned by boost::get is invalidated by add_vertex, so no
+      // reference into the graph may be held across add_state below.
+      struct EntryBounds {
+        bool has_clock = false;
+        int low = 0;
+        int high = 0;
+      };
+      std::vector<size_t> enabled;
+      std::vector<EntryBounds> entry_bounds;
+      StateClass elapsed;
+      {
+        const StateClass& current = boost::get(boost::vertex_name, graph_, u);
+        elapsed = time_elapse(current);
+        enabled.assign(current.priority_enabled.begin(), current.priority_enabled.end());
+        entry_bounds.resize(enabled.size());
+        // The entry range of h_t comes from the pre-elapse zone (same layout,
+        // same index as the elapsed zone).
+        for (size_t k = 0; k < enabled.size(); ++k) {
+          const int hcidx = current.exec_index(enabled[k]);
+          if (hcidx > 0) {
+            const size_t cidx = static_cast<size_t>(hcidx);
+            entry_bounds[k] = {true, -current.zone.get_constraint(0, cidx),
+                               current.zone.get_constraint(cidx, 0)};
+          }
+        }
+      }
 
-      for (size_t t : current.priority_enabled) {
+      for (size_t k = 0; k < enabled.size(); ++k) {
+        const size_t t = enabled[k];
         if (!is_firable(elapsed, t)) {
           continue;
         }
@@ -376,6 +445,9 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
         StateClass successor;
         if (!fire(elapsed, t, successor)) {
           continue;
+        }
+        if (extrapolation_enabled_) {
+          successor.zone.extrapolate(extrapolation_k_);
         }
 
         // The real firing window of h_t: intersect its feasible range in the
@@ -391,15 +463,12 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
         }
 
         // Global dwell in the source class before this firing. h_t advances at
-        // rate 1 during the dwell, so dwell = fire_value - h_t(entry). The entry
-        // range of h_t comes from the pre-elapse zone (same layout, same index).
-        const int hcidx = current.exec_index(t);
+        // rate 1 during the dwell, so dwell = fire_value - h_t(entry).
         int dwell_min = fire_min;
         int dwell_max = fire_max;
-        if (hcidx > 0) {
-          const size_t cidx = static_cast<size_t>(hcidx);
-          const int entry_low = -current.zone.get_constraint(0, cidx);
-          const int entry_high = current.zone.get_constraint(cidx, 0);
+        if (entry_bounds[k].has_clock) {
+          const int entry_low = entry_bounds[k].low;
+          const int entry_high = entry_bounds[k].high;
           dwell_min = std::max(0, fire_min - entry_high);
           dwell_max = (fire_max == INF_TIME || entry_low == INF_TIME)
                           ? INF_TIME
@@ -442,9 +511,9 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
 
   spdlog::info(
       "[SCG] build complete: states={}, transitions={}, dedup_hits={}, "
-      "truncated={}",
+      "truncated={}, dbm_minimize_calls={}",
       stats_.total_states, stats_.total_transitions, stats_.dedup_hits,
-      stats_.truncated ? "true" : "false");
+      stats_.truncated ? "true" : "false", get_dbm_instrumentation().minimize_calls);
 
   return stats_.total_states;
 }
@@ -491,7 +560,7 @@ std::string StateClassReachabilityGraph::format_transition_label(size_t transiti
 }
 
 std::string StateClassReachabilityGraph::format_transitions(
-    const std::set<size_t>& transitions) const {
+    const TransitionSet& transitions) const {
   if (transitions.empty()) {
     return "(none)";
   }

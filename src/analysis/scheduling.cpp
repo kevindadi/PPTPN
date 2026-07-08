@@ -6,20 +6,20 @@
 
 namespace state_class {
 
-std::set<size_t> Scheduling::structural_enabled(const petri::PTPN& net,
-                                                const petri::Marking& marking) {
-  std::set<size_t> enabled;
+TransitionSet Scheduling::structural_enabled(const petri::PTPN& net,
+                                             const petri::Marking& marking) {
+  TransitionSet enabled;
   const size_t num_transitions = net.num_transitions();
   for (size_t t = 0; t < num_transitions; ++t) {
     if (petri::PTPN::is_enabled(marking, net, t)) {
-      enabled.insert(t);
+      enabled.push_back(t);
     }
   }
   return enabled;
 }
 
-std::set<size_t> Scheduling::filter_priority_per_core(const std::set<size_t>& struct_enabled,
-                                                      const petri::PTPN& net) {
+TransitionSet Scheduling::filter_priority_per_core(const TransitionSet& struct_enabled,
+                                                   const petri::PTPN& net) {
   // Every transition competes within its core group, identified by the `core`
   // attribute. The control core (-1) is treated like any other group, so
   // control transitions are filtered by priority too (e.g. a resume transition
@@ -29,7 +29,7 @@ std::set<size_t> Scheduling::filter_priority_per_core(const std::set<size_t>& st
     per_core[net.get_transition(t).core].push_back(t);
   }
 
-  std::set<size_t> active;
+  TransitionSet active;
   for (auto& [core, group] : per_core) {
     const int capacity = net.parallelism_of_core(core);
 
@@ -42,7 +42,7 @@ std::set<size_t> Scheduling::filter_priority_per_core(const std::set<size_t>& st
       }
       for (size_t t : group) {
         if (net.get_transition(t).priority == max_priority) {
-          active.insert(t);
+          active.push_back(t);
         }
       }
       continue;
@@ -62,10 +62,11 @@ std::set<size_t> Scheduling::filter_priority_per_core(const std::set<size_t>& st
     });
     const size_t keep = std::min(static_cast<size_t>(capacity), group.size());
     for (size_t i = 0; i < keep; ++i) {
-      active.insert(group[i]);
+      active.push_back(group[i]);
     }
   }
 
+  std::sort(active.begin(), active.end());
   return active;
 }
 
