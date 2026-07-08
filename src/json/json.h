@@ -54,6 +54,9 @@ struct JsonGraph {
   std::string name = "G";
   int num_cpus = 1;
   int cores_per_cpu = 1;
+  // Capacity of every task-chain place (entry/ready/segment/...). Overflowing
+  // tokens saturate at this bound instead of disabling the producing transition.
+  int task_place_capacity = 1;
   std::vector<std::string> shared_locks;
   SchedulePolicy policy = SchedulePolicy::FIXED;  // 调度策略
   std::vector<StartBinding> start_tasks;
@@ -80,6 +83,10 @@ class Parser {
 
   int get_cores_per_cpu() const {
     return graph_.cores_per_cpu;
+  }
+
+  int get_task_place_capacity() const {
+    return graph_.task_place_capacity;
   }
 
   SchedulePolicy get_policy() const {

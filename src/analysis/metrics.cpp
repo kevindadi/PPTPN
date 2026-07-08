@@ -192,9 +192,9 @@ bool MetricsAnalyzer::task_in_flight(const TaskTopology& task, size_t v) const {
 }
 
 bool MetricsAnalyzer::task_active(const TaskTopology& task, size_t v) const {
-  const std::set<size_t>& active = state_of_[v]->priority_enabled;
+  const TransitionSet& active = state_of_[v]->priority_enabled;
   for (size_t t : task.chain_transitions) {
-    if (active.count(t)) {
+    if (contains(active, t)) {
       return true;
     }
   }
@@ -202,9 +202,9 @@ bool MetricsAnalyzer::task_active(const TaskTopology& task, size_t v) const {
 }
 
 bool MetricsAnalyzer::task_suspended(const TaskTopology& task, size_t v) const {
-  const std::set<size_t>& susp = state_of_[v]->suspended;
+  const TransitionSet& susp = state_of_[v]->suspended;
   for (size_t t : task.exec_transitions) {
-    if (susp.count(t)) {
+    if (contains(susp, t)) {
       return true;
     }
   }

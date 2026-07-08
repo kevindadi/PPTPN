@@ -237,8 +237,8 @@ TEST(PtpnAnalysisTest, PriorityFilterFiresHighPriorityNotEarliest) {
   const StateClass initial =
       boost::get(boost::vertex_name, graph.get_graph(),
                  graph.get_initial_vertex());
-  EXPECT_EQ(initial.priority_enabled, (std::set<size_t>{1}));
-  EXPECT_EQ(initial.suspended, (std::set<size_t>{0}));
+  EXPECT_EQ(initial.priority_enabled, (state_class::TransitionSet{1}));
+  EXPECT_EQ(initial.suspended, (state_class::TransitionSet{0}));
 
   const auto transitions =
       out_edge_transitions(graph.get_graph(), graph.get_initial_vertex());
@@ -268,7 +268,7 @@ TEST(PtpnAnalysisTest, ControlTransitionsAreAlsoPriorityFiltered) {
 
   StateClassReachabilityGraph graph(ptpn);
   const StateClass initial = graph.compute_initial_class();
-  EXPECT_EQ(initial.priority_enabled, (std::set<size_t>{1}));
+  EXPECT_EQ(initial.priority_enabled, (state_class::TransitionSet{1}));
 }
 
 // Builds two equal-priority execution transitions on the same real core (0).
@@ -299,8 +299,8 @@ TEST(PtpnAnalysisTest, CoreCapacityOneEnforcesMutualExclusion) {
 
   StateClassReachabilityGraph graph(ptpn);
   const StateClass initial = graph.compute_initial_class();
-  EXPECT_EQ(initial.priority_enabled, (std::set<size_t>{0}));
-  EXPECT_EQ(initial.suspended, (std::set<size_t>{1}));
+  EXPECT_EQ(initial.priority_enabled, (state_class::TransitionSet{0}));
+  EXPECT_EQ(initial.suspended, (state_class::TransitionSet{1}));
 }
 
 TEST(PtpnAnalysisTest, CoreCapacityTwoAllowsParallelExecution) {
@@ -311,7 +311,7 @@ TEST(PtpnAnalysisTest, CoreCapacityTwoAllowsParallelExecution) {
 
   StateClassReachabilityGraph graph(ptpn);
   const StateClass initial = graph.compute_initial_class();
-  EXPECT_EQ(initial.priority_enabled, (std::set<size_t>{0, 1}));
+  EXPECT_EQ(initial.priority_enabled, (state_class::TransitionSet{0, 1}));
   EXPECT_TRUE(initial.suspended.empty());
 }
 
@@ -346,7 +346,7 @@ TEST(PtpnAnalysisTest, PersistentTransitionKeepsAccumulatedClock) {
   StateClass successor;
   ASSERT_TRUE(graph.fire(elapsed, 0, successor));  // fire the trigger at t=2
 
-  ASSERT_TRUE(successor.struct_enabled.count(1));  // survivor still enabled
+  ASSERT_TRUE(state_class::contains(successor.struct_enabled, 1));  // survivor still enabled
   ASSERT_TRUE(successor.has_exec_clock(1));
   const size_t survivor = static_cast<size_t>(successor.exec_index(1));
   // The survivor's elapsed time (2) is preserved, not reset to 0.
@@ -358,14 +358,14 @@ TEST(PtpnAnalysisTest, ResumedTransitionDropsSuspensionKeepsExec) {
   StateClassReachabilityGraph graph(ptpn);
   const StateClass initial = graph.compute_initial_class();
 
-  ASSERT_EQ(initial.priority_enabled, (std::set<size_t>{1}));  // high active
-  ASSERT_EQ(initial.suspended, (std::set<size_t>{0}));         // low suspended
+  ASSERT_EQ(initial.priority_enabled, (state_class::TransitionSet{1}));  // high active
+  ASSERT_EQ(initial.suspended, (state_class::TransitionSet{0}));         // low suspended
 
   const StateClass elapsed = graph.time_elapse(initial);
   StateClass successor;
   ASSERT_TRUE(graph.fire(elapsed, 1, successor));  // high fires and leaves
 
-  EXPECT_EQ(successor.priority_enabled, (std::set<size_t>{0}));  // low resumed
+  EXPECT_EQ(successor.priority_enabled, (state_class::TransitionSet{0}));  // low resumed
   EXPECT_TRUE(successor.suspended.empty());
   EXPECT_TRUE(successor.has_exec_clock(0));
   EXPECT_FALSE(successor.has_susp_clock(0));  // suspension clock dropped

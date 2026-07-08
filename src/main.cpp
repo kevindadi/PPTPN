@@ -71,6 +71,7 @@ struct PipelineOptions {
   size_t max_states = 10000;
   bool debug_mode = false;
   string canonicalization_mode = "equality";
+  bool extrapolation = false;
   bool skip_analysis = false;
   optional<SchedulePolicy> policy_override;
   string romeo_format = "scheduling-net";
@@ -216,6 +217,10 @@ void add_common_pipeline_options(CLI::App* cmd, PipelineOptions& opts) {
                   "Canonicalization mode: equality, max-lower, or intersection "
                   "(default: equality)")
       ->check(CLI::IsMember({"equality", "max-lower", "intersection"}));
+  cmd->add_flag("--extrapolation", opts.extrapolation,
+                "Enable k-extrapolation of clock zones: merges behaviorally "
+                "equivalent state classes, preserving the reachable marking "
+                "set (default: off)");
   add_export_target_options(cmd, opts.exports);
 }
 
@@ -330,6 +335,11 @@ int run_ptpn_postprocess(const petri::PTPN& ptpn, const string& input_label,
     state_class::StateClassReachabilityGraph reachability_graph(ptpn);
     reachability_graph.set_canonicalization_mode(canonicalization);
     spdlog::info("[SCG] Canonicalization mode: {}", opts.canonicalization_mode);
+    if (opts.extrapolation) {
+      reachability_graph.set_extrapolation(true);
+      spdlog::info("[SCG] k-extrapolation enabled (k={})",
+                   reachability_graph.extrapolation_bound());
+    }
     const auto scg_start = PipelineClock::now();
     const size_t state_count = reachability_graph.build(opts.max_states);
     const auto& reachability_stats = reachability_graph.get_statistics();

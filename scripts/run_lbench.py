@@ -24,9 +24,9 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from project_paths import ROOT, default_ptpn_help, ensure_ptpn, resolve_ptpn_bin
+
 LBENCH_DIR = ROOT / "example" / "l-bench"
-DEFAULT_PTPN = ROOT / "build" / "ptpn"
 PIPELINE_GLOB = "pipeline-*.json"
 
 RE_PLACES = re.compile(r"Places:\s*(\d+)")
@@ -34,8 +34,9 @@ RE_TRANSITIONS = re.compile(r"Transitions:\s*(\d+)")
 RE_STATS_TDG2PN = re.compile(r"\[STATS\] TDG2PN lowering:\s*(\d+)\s*ms")
 RE_STATS_SCG = re.compile(
     r"\[STATS\] SCG build:\s*(\d+)\s*ms "
-    r"\(states=(\d+), edges=(\d+), dedup_hits=(\d+)(?:, truncated)?\)"
+    r"\(states=(\d+), edges=(\d+), dedup_hits=(\d+)(, truncated)?\)"
 )
+RE_BUILD_TRUNCATED = re.compile(r"build complete:.*truncated=(true|false)")
 RE_STATS_TOTAL = re.compile(
     r"\[STATS\] TDG pipeline \(total\):\s*(\d+)\s*ms(?: \((\d+) KB\))?"
 )
@@ -58,6 +59,9 @@ class BenchRow:
     fork_nodes: int = 0
     join_nodes: int = 0
     reviewer_case: bool = False
+    max_states: int = 0
+    canonicalization: str = "equality"
+    extrapolation: bool = False
     ok: bool = False
     error: str = ""
     tdg_nodes: int | None = None
@@ -155,7 +159,11 @@ def apply_manifest_meta(row: BenchRow, meta: dict | None) -> None:
 
 
 def parse_log(text: str) -> dict:
-    stats: dict = {"scg_truncated": ", truncated" in text}
+    stats: dict = {"scg_truncated": False}
+    if m := RE_BUILD_TRUNCATED.search(text):
+        stats["scg_truncated"] = m.group(1) == "true"
+    elif "Reachability graph truncated" in text:
+        stats["scg_truncated"] = True
 
     if m := RE_PLACES.search(text):
         stats["places"] = int(m.group(1))
@@ -204,6 +212,8 @@ def run_case(
     validate_tdg_only: bool,
     out_dir: Path,
     case_meta: dict | None,
+    canonicalization: str = "equality",
+    extrapolation: bool = False,
 ) -> BenchRow:
     case = input_path.stem
     parsed_json = analyze_json(input_path)
@@ -218,6 +228,9 @@ def run_case(
         join_nodes=parsed_json["join_nodes"],
         tdg_nodes=parsed_json["tdg_nodes"],
         tdg_edges=parsed_json["tdg_edges"],
+        max_states=max_states,
+        canonicalization=canonicalization,
+        extrapolation=extrapolation,
         validate_tdg_only=validate_tdg_only,
     )
     apply_manifest_meta(row, case_meta)
@@ -245,11 +258,15 @@ def run_case(
             str(input_path),
             "-m",
             str(max_states),
+            "--canonicalization",
+            canonicalization,
             "--export-ptpn",
             str(ptpn_dot),
             "--export-scg",
             str(scg_dot),
         ]
+        if extrapolation:
+            cmd.append("--extrapolation")
 
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
@@ -289,6 +306,7 @@ def write_summary(
         "suite": "l-bench",
         "topology": manifest.get("topology"),
         "description": manifest.get("description"),
+        "task_place_capacity": manifest.get("task_place_capacity"),
         "runs": [asdict(r) for r in rows],
     }
     json_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -304,6 +322,9 @@ def write_summary(
         "fork_nodes",
         "join_nodes",
         "reviewer_case",
+        "max_states",
+        "canonicalization",
+        "extrapolation",
         "ok",
         "tdg_nodes",
         "tdg_edges",
@@ -378,8 +399,8 @@ def main() -> int:
     parser.add_argument(
         "--ptpn",
         type=Path,
-        default=DEFAULT_PTPN,
-        help=f"path to ptpn executable (default: {DEFAULT_PTPN})",
+        default=None,
+        help=f"path to ptpn executable (default: {default_ptpn_help()})",
     )
     parser.add_argument(
         "--lbench-dir",
@@ -408,6 +429,17 @@ def main() -> int:
         "--reviewer-case",
         action="store_true",
         help="run only manifest reviewer_case (pipeline-40t-8c-5l.json)",
+    )
+    parser.add_argument(
+        "--canonicalization",
+        choices=["equality", "max-lower", "intersection"],
+        default="equality",
+        help="state-class canonicalization mode passed to ptpn (default: equality)",
+    )
+    parser.add_argument(
+        "--extrapolation",
+        action="store_true",
+        help="enable k-extrapolation of clock zones (passed to ptpn)",
     )
     parser.add_argument(
         "--validate-tdg-only",
@@ -472,14 +504,8 @@ def main() -> int:
             validate_tdg_only=args.validate_tdg_only,
         )
 
-    ptpn_bin = args.ptpn.expanduser()
-    if not ptpn_bin.is_absolute():
-        ptpn_bin = (ROOT / ptpn_bin).resolve()
-
-    if not ptpn_bin.is_file():
-        print(f"error: ptpn not found: {ptpn_bin}", file=sys.stderr)
-        print("build first: cmake --build build", file=sys.stderr)
-        return 1
+    ptpn_bin = resolve_ptpn_bin(args.ptpn)
+    ensure_ptpn(ptpn_bin)
 
     out_dir = args.out_dir.expanduser()
     if not out_dir.is_absolute():
@@ -495,6 +521,8 @@ def main() -> int:
             args.validate_tdg_only,
             out_dir,
             case_meta.get(path.name),
+            canonicalization=args.canonicalization,
+            extrapolation=args.extrapolation,
         )
         rows.append(row)
         print(f"    {'ok' if row.ok else 'FAILED: ' + row.error}")

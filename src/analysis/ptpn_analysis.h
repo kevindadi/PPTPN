@@ -43,6 +43,19 @@ class StateClassReachabilityGraph {
   void set_canonicalization_mode(CanonicalizationMode mode);
   [[nodiscard]] CanonicalizationMode get_canonicalization_mode() const;
 
+  // Enables k-extrapolation of successor zones (opt-in). The bound k is the
+  // largest finite constant of any transition's static interval; zone bounds
+  // beyond k are relaxed, which merges behaviorally equivalent state classes
+  // and keeps the zone space finite. Preserves the reachable marking set.
+  void set_extrapolation(bool enabled);
+  [[nodiscard]] bool get_extrapolation() const {
+    return extrapolation_enabled_;
+  }
+
+  [[nodiscard]] int extrapolation_bound() const {
+    return extrapolation_k_;
+  }
+
   // Explores the reachability graph, stopping once `max_states` classes exist.
   // Returns the number of state classes discovered.
   size_t build(size_t max_states = std::numeric_limits<size_t>::max());
@@ -94,9 +107,15 @@ class StateClassReachabilityGraph {
   SCVertex initial_vertex_ = 0;
   Statistics stats_;
   CanonicalizationMode mode_ = CanonicalizationMode::EQUALITY;
+  bool extrapolation_enabled_ = false;
+  int extrapolation_k_ = -1;  // computed lazily from the net's static intervals
   size_t next_id_ = 0;
 
   std::unordered_map<std::vector<int>, std::vector<SCVertex>, MarkingHash> vertices_by_marking_;
+  // Equality mode only: exact-identity hash -> candidate vertices. Collisions
+  // are resolved with check_equality, so lookup is O(1) expected instead of a
+  // linear scan over every zone variant of the same marking.
+  std::unordered_map<size_t, std::vector<SCVertex>> vertices_by_hash_;
 
   [[nodiscard]] int effective_earliest(size_t transition) const;
   [[nodiscard]] int effective_latest(size_t transition) const;
@@ -115,7 +134,7 @@ class StateClassReachabilityGraph {
 
   static std::string format_marking(const petri::PTPN& net, const std::vector<int>& marking);
   std::string format_transition_label(size_t transition_id) const;
-  std::string format_transitions(const std::set<size_t>& transitions) const;
+  std::string format_transitions(const TransitionSet& transitions) const;
   std::string format_named_dbm(const StateClass& state) const;
   std::string format_state_dump(const StateClass& state) const;
   // Human-readable local clock zone as a conjunction of DBM constraints (per

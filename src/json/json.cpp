@@ -259,6 +259,7 @@ void Parser::parse_graph_object(const json& graph_obj) {
 void Parser::parse_configuration_object(const json& config) {
   graph_.num_cpus = config.value("num_cpus", graph_.num_cpus);
   graph_.cores_per_cpu = config.value("cores_per_cpu", graph_.cores_per_cpu);
+  graph_.task_place_capacity = config.value("task_place_capacity", graph_.task_place_capacity);
 
   if (config.contains("shared_locks")) {
     graph_.shared_locks = config["shared_locks"].get<std::vector<std::string>>();
@@ -326,6 +327,11 @@ JsonNode Parser::parse_node_object(const json& node_obj) {
 
 ValidationResult Parser::validate() const {
   ValidationResult result;
+
+  if (graph_.task_place_capacity < 1) {
+    result.add_error("task_place_capacity must be >= 1, got " +
+                     std::to_string(graph_.task_place_capacity));
+  }
 
   const std::set<std::string> valid_types = {kNodeTypeTask, kNodeTypeFork, kNodeTypeJoin,
                                              kNodeTypeEmpty};

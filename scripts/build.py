@@ -21,9 +21,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from project_paths import DEFAULT_BUILD_DIR, ROOT, write_build_dir_marker
+
 DEFAULT_VCPKG_ROOT = Path.home() / "vcpkg"
-DEFAULT_BUILD_DIR = ROOT / "build"
 VCPKG_REPO = "https://github.com/microsoft/vcpkg.git"
 
 
@@ -284,10 +284,15 @@ def main() -> int:
             )
 
         if args.configure_only:
+            write_build_dir_marker(build_dir)
+            log(f"recorded build directory in {ROOT / '.ptpn-build-dir'}")
             log("configure-only; done")
             return 0
 
         build_project(build_dir, args.jobs)
+
+        write_build_dir_marker(build_dir)
+        log(f"recorded build directory in {ROOT / '.ptpn-build-dir'}")
 
         ptpn_bin = build_dir / ("ptpn.exe" if os.name == "nt" else "ptpn")
         if ptpn_bin.is_file():
