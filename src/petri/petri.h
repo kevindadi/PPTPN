@@ -74,9 +74,15 @@ struct Place {
   std::string id;
   std::string name;
   int capacity;
+  // Saturating places absorb overflow: transitions producing into a full
+  // saturating place stay enabled, and the token count is clamped at capacity
+  // on firing (used for task places under single-server semantics, so periodic
+  // releases are merged instead of blocking the release clock).
+  bool saturate;
 
-  Place(const std::string& id = "", const std::string& name = "", int cap = 1)
-      : id(id), name(name), capacity(cap) {}
+  Place(const std::string& id = "", const std::string& name = "", int cap = 1,
+        bool saturate = false)
+      : id(id), name(name), capacity(cap), saturate(saturate) {}
 };
 
 struct Transition {
@@ -118,8 +124,8 @@ class PTPN {
  public:
   PTPN() = default;
 
-  size_t add_place(const std::string& name, int capacity = 1) {
-    places.emplace_back(std::to_string(places.size()), name, capacity);
+  size_t add_place(const std::string& name, int capacity = 1, bool saturate = false) {
+    places.emplace_back(std::to_string(places.size()), name, capacity, saturate);
     Pre.emplace_back(std::vector<int>(transitions.size(), 0));
     M0.push_back(0);
     for (auto& row : Post) {
@@ -223,6 +229,9 @@ class PTPN {
     }
 
     for (const auto& [place_idx, weight] : net.post_arcs[trans_idx]) {
+      if (net.places[place_idx].saturate) {
+        continue;  // overflow is absorbed on firing, never disables the transition
+      }
       const int consumed = place_idx < net.Pre.size() ? net.Pre[place_idx][trans_idx] : 0;
       const int produced = weight;
       const int resulting_tokens = M[place_idx] - consumed + produced;
@@ -251,6 +260,10 @@ class PTPN {
 
     for (const auto& [place_idx, weight] : net.post_arcs[trans_idx]) {
       new_marking[place_idx] += weight;
+      const auto& place = net.places[place_idx];
+      if (place.saturate && place.capacity != INF && new_marking[place_idx] > place.capacity) {
+        new_marking[place_idx] = place.capacity;
+      }
     }
 
     return new_marking;

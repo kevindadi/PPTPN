@@ -28,13 +28,14 @@ class TDG2PN {
   static void transform_vertices(petri::PTPN& ptpn, const tdg::TDG& tdg);
   static void transform_edges(petri::PTPN& ptpn, const tdg::TDG& tdg);
   static std::pair<size_t, size_t> add_node_matrix(petri::PTPN& ptpn, const NodeType& node_type,
-                                                   bool resume_mode);
+                                                   bool resume_mode, int task_place_capacity);
   static std::pair<size_t, size_t> add_task_node_matrix(petri::PTPN& ptpn, const TaskNode& task,
-                                                        bool resume_mode);
+                                                        bool resume_mode, int task_place_capacity);
   static std::vector<size_t> add_execution_chain(petri::PTPN& ptpn, const std::string& task_name,
                                                  const std::vector<std::pair<int, int>>& times,
                                                  const std::vector<std::string>& locks,
-                                                 int priority, int core, bool resume_mode);
+                                                 int priority, int core, bool resume_mode,
+                                                 int task_place_capacity);
   static void add_monitor_matrix(petri::PTPN& ptpn, const std::string& task_name,
                                  int task_period_time, size_t start, size_t end);
   static void add_start_bindings(petri::PTPN& ptpn, const tdg::TDG& tdg);

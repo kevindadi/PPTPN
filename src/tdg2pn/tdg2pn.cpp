@@ -439,7 +439,8 @@ void TDG2PN::transform_vertices(petri::PTPN& ptpn, const tdg::TDG& tdg) {
     spdlog::debug("[TDG2PN] Processing vertex: {}", vertex_name);
 
     try {
-      const auto [start_idx, end_idx] = add_node_matrix(ptpn, node_type, resume_mode);
+      const auto [start_idx, end_idx] =
+          add_node_matrix(ptpn, node_type, resume_mode, tdg.task_place_capacity);
       ptpn.node_start_end_map[vertex_name] = {start_idx, end_idx};
 
       const bool is_leaf =
@@ -707,12 +708,12 @@ void TDG2PN::bind_task_locks_matrix(
 }
 
 std::pair<size_t, size_t> TDG2PN::add_node_matrix(petri::PTPN& ptpn, const NodeType& node_type,
-                                                  bool resume_mode) {
+                                                  bool resume_mode, int task_place_capacity) {
   return visit_node(node_type, [&](const auto& node) -> std::pair<size_t, size_t> {
     using Node = std::decay_t<decltype(node)>;
 
     if constexpr (std::is_same_v<Node, TaskNode>) {
-      return add_task_node_matrix(ptpn, node, resume_mode);
+      return add_task_node_matrix(ptpn, node, resume_mode, task_place_capacity);
     }
 
     if constexpr (std::is_same_v<Node, JoinTask>) {
@@ -739,20 +740,27 @@ std::pair<size_t, size_t> TDG2PN::add_node_matrix(petri::PTPN& ptpn, const NodeT
 std::vector<size_t> TDG2PN::add_execution_chain(petri::PTPN& ptpn, const std::string& task_name,
                                                 const std::vector<std::pair<int, int>>& times,
                                                 const std::vector<std::string>& locks, int priority,
-                                                int core, bool resume_mode) {
+                                                int core, bool resume_mode,
+                                                int task_place_capacity) {
   if (times.empty()) {
     throw std::runtime_error("Task has no execution segments: " + task_name);
   }
 
+  // Task-chain places saturate: producing into a full place never disables the
+  // producer, tokens are merged at the capacity bound (single-server semantics,
+  // e.g. periodic releases arriving while a previous instance is still queued).
+  const int capacity = task_place_capacity;
+  const bool saturate = true;
+
   std::vector<size_t> chain;
   chain.reserve(times.size() * 4 + locks.size() * 2 + 3);
 
-  const size_t entry = ptpn.add_place(task_name + "entry", 1);
+  const size_t entry = ptpn.add_place(task_name + "entry", capacity, saturate);
   const int encoded_priority = encode_task_execution_priority(priority);
   const size_t get_core =
       ptpn.add_transition(task_name + "get_core", immediate_interval(), encoded_priority, core,
                           /*suspendable=*/false);
-  const size_t ready = ptpn.add_place(task_name + "ready", 1);
+  const size_t ready = ptpn.add_place(task_name + "ready", capacity, saturate);
 
   ptpn.set_pre_arc(entry, get_core, 1);
   ptpn.set_post_arc(get_core, ready, 1);
@@ -778,7 +786,7 @@ std::vector<size_t> TDG2PN::add_execution_chain(petri::PTPN& ptpn, const std::st
     const std::string next_place_name =
         is_last_segment ? task_name + "exit"
                         : task_name + "_seg_" + std::to_string(segment_index + 1) + "_done";
-    const size_t next_place = ptpn.add_place(next_place_name, 1);
+    const size_t next_place = ptpn.add_place(next_place_name, capacity, saturate);
 
     ptpn.set_pre_arc(current_place, exec, 1);
     ptpn.set_post_arc(exec, next_place, 1);
@@ -791,7 +799,8 @@ std::vector<size_t> TDG2PN::add_execution_chain(petri::PTPN& ptpn, const std::st
           ptpn.add_transition(lock_name, immediate_interval(), encoded_priority, core,
                               /*suspendable=*/false);
       const size_t hold_place =
-          ptpn.add_place(task_name + "_hold_" + std::to_string(segment_index + 1), 1);
+          ptpn.add_place(task_name + "_hold_" + std::to_string(segment_index + 1), capacity,
+                         saturate);
 
       ptpn.set_pre_arc(current_place, lock_transition, 1);
       ptpn.set_post_arc(lock_transition, hold_place, 1);
@@ -804,9 +813,10 @@ std::vector<size_t> TDG2PN::add_execution_chain(petri::PTPN& ptpn, const std::st
 }
 
 std::pair<size_t, size_t> TDG2PN::add_task_node_matrix(petri::PTPN& ptpn, const TaskNode& task,
-                                                       bool resume_mode) {
-  std::vector<size_t> chain = add_execution_chain(ptpn, task.name, task.time, task.lock,
-                                                  task.priority, task.core, resume_mode);
+                                                       bool resume_mode, int task_place_capacity) {
+  std::vector<size_t> chain =
+      add_execution_chain(ptpn, task.name, task.time, task.lock, task.priority, task.core,
+                          resume_mode, task_place_capacity);
   ptpn.node_pn_map[task.name] = chain;
   return {chain.front(), chain.back()};
 }
