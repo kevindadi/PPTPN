@@ -24,9 +24,9 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+from project_paths import ROOT, default_ptpn_help, ensure_ptpn, resolve_ptpn_bin
+
 LBENCH_DIR = ROOT / "example" / "l-bench"
-DEFAULT_PTPN = ROOT / "build" / "ptpn"
 PIPELINE_GLOB = "pipeline-*.json"
 
 RE_PLACES = re.compile(r"Places:\s*(\d+)")
@@ -399,8 +399,8 @@ def main() -> int:
     parser.add_argument(
         "--ptpn",
         type=Path,
-        default=DEFAULT_PTPN,
-        help=f"path to ptpn executable (default: {DEFAULT_PTPN})",
+        default=None,
+        help=f"path to ptpn executable (default: {default_ptpn_help()})",
     )
     parser.add_argument(
         "--lbench-dir",
@@ -504,14 +504,8 @@ def main() -> int:
             validate_tdg_only=args.validate_tdg_only,
         )
 
-    ptpn_bin = args.ptpn.expanduser()
-    if not ptpn_bin.is_absolute():
-        ptpn_bin = (ROOT / ptpn_bin).resolve()
-
-    if not ptpn_bin.is_file():
-        print(f"error: ptpn not found: {ptpn_bin}", file=sys.stderr)
-        print("build first: cmake --build build", file=sys.stderr)
-        return 1
+    ptpn_bin = resolve_ptpn_bin(args.ptpn)
+    ensure_ptpn(ptpn_bin)
 
     out_dir = args.out_dir.expanduser()
     if not out_dir.is_absolute():

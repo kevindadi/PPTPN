@@ -31,9 +31,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parent.parent
+from project_paths import ROOT, default_ptpn_help, resolve_ptpn_bin
+
 LBENCH_DIR = ROOT / "example" / "l-bench"
-DEFAULT_PTPN = ROOT / "build" / "ptpn"
 
 # Dense scale: 10..100 tasks step 10, cores = tasks / 5, lanes = cores / 2.
 STANDARD_CASES: list[tuple[int, int]] = [(tasks, tasks // 5) for tasks in range(10, 101, 10)]
@@ -478,8 +478,8 @@ def main() -> int:
     parser.add_argument(
         "--ptpn",
         type=Path,
-        default=DEFAULT_PTPN,
-        help=f"path to ptpn binary for TDG DOT validation (default: {DEFAULT_PTPN})",
+        default=None,
+        help=f"path to ptpn binary for TDG DOT validation (default: {default_ptpn_help()})",
     )
     parser.add_argument(
         "--skip-tdg-dot",
@@ -520,9 +520,7 @@ def main() -> int:
 
     if args.validate:
         validate_targets = specs if args.all else selected
-        ptpn_bin = args.ptpn.expanduser()
-        if not ptpn_bin.is_absolute():
-            ptpn_bin = (ROOT / ptpn_bin).resolve()
+        ptpn_bin = resolve_ptpn_bin(args.ptpn)
         use_ptpn = ptpn_bin.is_file() and not args.skip_tdg_dot
 
         failed = 0
