@@ -7,6 +7,7 @@
 
 build
 .ptpn-build-dir
+tools.zip
 
 compile_commands.json
 *.json
