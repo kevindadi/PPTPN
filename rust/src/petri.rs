@@ -1,5 +1,6 @@
 //! PTPN (Priority Timed Petri Net) core data structures.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -8,6 +9,22 @@ pub const INF: i32 = i32::MAX;
 
 /// Core group for control transitions (the "control core").
 pub const CONTROL_TRANSITION_CORE: i32 = -1;
+
+/// Overflow recording: `fire` clamps every overflowing place to capacity, but a
+/// NON-saturating place being clamped is an invalid behavior and is recorded so
+/// the metrics layer can report it. Reset at the start of each build.
+thread_local! {
+    static OVERFLOW: RefCell<std::collections::BTreeSet<usize>> =
+        RefCell::new(std::collections::BTreeSet::new());
+}
+
+pub fn reset_overflow_recording() {
+    OVERFLOW.with(|o| o.borrow_mut().clear());
+}
+
+pub fn overflowed_places() -> Vec<usize> {
+    OVERFLOW.with(|o| o.borrow().iter().copied().collect())
+}
 
 /// A time interval with optional open endpoints.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -276,31 +293,15 @@ impl PTPN {
         PTPN::is_enabled(marking, self, trans_idx)
     }
 
-    /// Structural enabling: every input place holds enough tokens, and no
-    /// non-saturating output place overflows its capacity.
+    /// Structural enabling: input-driven only (classic TPN semantics). A
+    /// successor place never gates the transition; overflow on non-saturating
+    /// places is clamped on firing and reported by the metrics layer.
     pub fn is_enabled(marking: &Marking, net: &PTPN, trans_idx: usize) -> bool {
         assert!(trans_idx < net.transitions.len(), "Invalid transition index");
         assert!(marking.len() == net.places.len(), "Marking size mismatch");
 
         for &(place_idx, weight) in &net.pre_arcs[trans_idx] {
             if marking[place_idx] < weight {
-                return false;
-            }
-        }
-
-        for &(place_idx, weight) in &net.post_arcs[trans_idx] {
-            if net.places[place_idx].saturate {
-                continue; // overflow absorbed on firing
-            }
-            let consumed = if place_idx < net.pre.len() {
-                net.pre[place_idx][trans_idx]
-            } else {
-                0
-            };
-            let resulting_tokens = marking[place_idx] - consumed + weight;
-            if net.places[place_idx].capacity != INF
-                && resulting_tokens > net.places[place_idx].capacity
-            {
                 return false;
             }
         }
@@ -323,7 +324,13 @@ impl PTPN {
         for &(place_idx, weight) in &net.post_arcs[trans_idx] {
             new_marking[place_idx] += weight;
             let place = &net.places[place_idx];
-            if place.saturate && place.capacity != INF && new_marking[place_idx] > place.capacity {
+            if place.capacity != INF && new_marking[place_idx] > place.capacity {
+                // Firing always happens (enabling is input-driven). Overflow is
+                // clamped to capacity; a non-saturating place being clamped is
+                // recorded as an invalid behavior by the metrics layer.
+                if !place.saturate {
+                    OVERFLOW.with(|o| o.borrow_mut().insert(place_idx));
+                }
                 new_marking[place_idx] = place.capacity;
             }
         }

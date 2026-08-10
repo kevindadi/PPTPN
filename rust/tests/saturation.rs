@@ -18,9 +18,18 @@ fn make_producer_net(saturating_dst: bool) -> PTPN {
 }
 
 #[test]
-fn non_saturating_full_place_disables_producer() {
+fn non_saturating_full_place_keeps_producer_enabled_and_clamps_tokens() {
+    // Enabling is input-driven: a full successor place never disables the
+    // producer. Firing proceeds and the overflow is clamped to capacity.
     let ptpn = make_producer_net(false);
-    assert!(!PTPN::is_enabled(ptpn.get_marking(), &ptpn, 0));
+    assert!(PTPN::is_enabled(ptpn.get_marking(), &ptpn, 0));
+
+    ptpn::petri::reset_overflow_recording();
+    let after = PTPN::fire(ptpn.get_marking(), &ptpn, 0);
+    assert_eq!(after[0], 1); // src consumed one token
+    assert_eq!(after[1], 1); // dst clamped at capacity
+    // The clamp on a non-saturating place is an invalid behavior and is recorded.
+    assert_eq!(ptpn::petri::overflowed_places(), vec![1]);
 }
 
 #[test]
@@ -28,9 +37,12 @@ fn saturating_full_place_keeps_producer_enabled_and_clamps_tokens() {
     let ptpn = make_producer_net(true);
     assert!(PTPN::is_enabled(ptpn.get_marking(), &ptpn, 0));
 
+    ptpn::petri::reset_overflow_recording();
     let after = PTPN::fire(ptpn.get_marking(), &ptpn, 0);
     assert_eq!(after[0], 1);
     assert_eq!(after[1], 1);
+    // Saturating places clamp silently; no invalid-behavior record.
+    assert!(ptpn::petri::overflowed_places().is_empty());
 }
 
 #[test]

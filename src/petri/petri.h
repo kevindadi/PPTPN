@@ -17,6 +17,14 @@ namespace petri {
 constexpr int INF = std::numeric_limits<int>::max();
 constexpr int kControlTransitionCore = -1;
 
+// Overflow recording: `fire` clamps every overflowing place to capacity, but a
+// NON-saturating place being clamped is an invalid behavior and is recorded so
+// the metrics layer can report it. Saturating places clamp silently (expected
+// single-server merges). Reset at the start of each reachability build.
+void reset_overflow_recording();
+void record_overflow(size_t place_idx);
+[[nodiscard]] const std::vector<size_t>& overflowed_places();
+
 struct TimeInterval {
   int earliest;
   int latest;
@@ -228,18 +236,9 @@ class PTPN {
       }
     }
 
-    for (const auto& [place_idx, weight] : net.post_arcs[trans_idx]) {
-      if (net.places[place_idx].saturate) {
-        continue;  // overflow is absorbed on firing, never disables the transition
-      }
-      const int consumed = place_idx < net.Pre.size() ? net.Pre[place_idx][trans_idx] : 0;
-      const int produced = weight;
-      const int resulting_tokens = M[place_idx] - consumed + produced;
-      if (net.places[place_idx].capacity != INF &&
-          resulting_tokens > net.places[place_idx].capacity) {
-        return false;
-      }
-    }
+    // NOTE: enabling is input-driven only (classic TPN semantics). Successor
+    // places never gate the transition; overflow on non-saturating places is
+    // reported by the metrics layer, not by disabling the producer.
     return true;
   }
 
@@ -261,7 +260,13 @@ class PTPN {
     for (const auto& [place_idx, weight] : net.post_arcs[trans_idx]) {
       new_marking[place_idx] += weight;
       const auto& place = net.places[place_idx];
-      if (place.saturate && place.capacity != INF && new_marking[place_idx] > place.capacity) {
+      if (place.capacity != INF && new_marking[place_idx] > place.capacity) {
+        // Firing always happens (enabling is input-driven). Overflow is clamped
+        // to capacity; a NON-saturating place being clamped is recorded as an
+        // invalid behavior by the metrics layer.
+        if (!place.saturate) {
+          record_overflow(place_idx);
+        }
         new_marking[place_idx] = place.capacity;
       }
     }

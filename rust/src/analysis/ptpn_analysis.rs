@@ -10,7 +10,7 @@ use crate::analysis::scheduling::Scheduling;
 use crate::analysis::state_class::{
     contains, hash_state_class, ClockKind, ClockVar, FiringEdge, StateClass, TransitionSet,
 };
-use crate::petri::{PTPN, INF};
+use crate::petri::{reset_overflow_recording, PTPN, INF};
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::visit::EdgeRef;
 use petgraph::Direction;
@@ -388,6 +388,7 @@ impl<'a> StateClassReachabilityGraph<'a> {
         self.stats = Statistics::default();
         self.next_id = 0;
         reset_dbm_instrumentation();
+        reset_overflow_recording();
 
         let mut initial = self.compute_initial_class();
         if self.extrapolation_enabled {

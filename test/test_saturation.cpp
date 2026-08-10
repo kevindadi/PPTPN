@@ -22,18 +22,30 @@ petri::PTPN make_producer_net(bool saturating_dst) {
   return ptpn;
 }
 
-TEST(SaturationTest, NonSaturatingFullPlaceDisablesProducer) {
+TEST(SaturationTest, NonSaturatingFullPlaceKeepsProducerEnabledAndClampsTokens) {
+  // Enabling is input-driven: a full successor place never disables the
+  // producer. Firing proceeds and the overflow is clamped to capacity.
   const petri::PTPN ptpn = make_producer_net(/*saturating_dst=*/false);
-  EXPECT_FALSE(petri::PTPN::is_enabled(ptpn.get_marking(), ptpn, 0));
+  ASSERT_TRUE(petri::PTPN::is_enabled(ptpn.get_marking(), ptpn, 0));
+
+  petri::reset_overflow_recording();
+  const petri::Marking after = petri::PTPN::fire(ptpn.get_marking(), ptpn, 0);
+  EXPECT_EQ(after[0], 1);  // src consumed one token
+  EXPECT_EQ(after[1], 1);  // dst clamped at capacity
+  // The clamp on a non-saturating place is an invalid behavior and is recorded.
+  EXPECT_EQ(petri::overflowed_places(), (std::vector<size_t>{1}));
 }
 
 TEST(SaturationTest, SaturatingFullPlaceKeepsProducerEnabledAndClampsTokens) {
   const petri::PTPN ptpn = make_producer_net(/*saturating_dst=*/true);
   ASSERT_TRUE(petri::PTPN::is_enabled(ptpn.get_marking(), ptpn, 0));
 
+  petri::reset_overflow_recording();
   const petri::Marking after = petri::PTPN::fire(ptpn.get_marking(), ptpn, 0);
   EXPECT_EQ(after[0], 1);  // src consumed one token
   EXPECT_EQ(after[1], 1);  // dst clamped at capacity, overflow absorbed
+  // Saturating places clamp silently; no invalid-behavior record.
+  EXPECT_TRUE(petri::overflowed_places().empty());
 }
 
 TEST(SaturationTest, SaturatingPlaceBelowCapacityAccumulatesNormally) {

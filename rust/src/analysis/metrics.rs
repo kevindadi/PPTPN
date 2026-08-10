@@ -367,11 +367,10 @@ impl<'a> MetricsAnalyzer<'a> {
         }
 
         report.bounded = true;
-        for (p, place) in self.net.places.iter().enumerate() {
-            let cap = place.capacity;
-            if cap != INF && report.max_tokens_per_place[p] > cap {
+        for p in crate::petri::overflowed_places() {
+            if p < self.net.num_places() {
                 report.bounded = false;
-                report.overflow_places.push(place.name.clone());
+                report.overflow_places.push(self.net.get_place(p).name.clone());
             }
         }
 

@@ -388,6 +388,7 @@ size_t StateClassReachabilityGraph::build(size_t max_states) {
   stats_ = Statistics();
   next_id_ = 0;
   reset_dbm_instrumentation();
+  petri::reset_overflow_recording();
 
   StateClass initial = compute_initial_class();
   if (extrapolation_enabled_) {

@@ -4,6 +4,22 @@
 
 namespace petri {
 
+namespace {
+std::vector<size_t> g_overflow_places;
+}
+
+void reset_overflow_recording() {
+  g_overflow_places.clear();
+}
+
+void record_overflow(size_t place_idx) {
+  g_overflow_places.push_back(place_idx);
+}
+
+const std::vector<size_t>& overflowed_places() {
+  return g_overflow_places;
+}
+
 bool PTPN::verify_structure() const {
   bool is_valid = true;
 

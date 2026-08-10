@@ -217,7 +217,7 @@ void TDG2PN::add_periodic_release_bindings(petri::PTPN& ptpn, const tdg::TDG& td
       continue;
     }
 
-    const size_t period_place = ptpn.add_place(periodic_task.task + "_period", 1);
+    const size_t period_place = ptpn.add_place(periodic_task.task + "_period", 1, /*saturate=*/true);
     const size_t fire =
         add_control_transition(ptpn, periodic_task.task + "_fire",
                                petri::TimeInterval(periodic_task.period, periodic_task.period));
