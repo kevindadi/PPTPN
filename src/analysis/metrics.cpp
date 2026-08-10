@@ -255,9 +255,8 @@ void MetricsAnalyzer::compute_structural(MetricsReport& report) {
     }
   }
   report.bounded = true;
-  for (size_t p = 0; p < net_.num_places(); ++p) {
-    const int cap = net_.get_place(p).capacity;
-    if (cap != petri::INF && report.max_tokens_per_place[p] > cap) {
+  for (size_t p : petri::overflowed_places()) {
+    if (p < net_.num_places()) {
       report.bounded = false;
       report.overflow_places.push_back(net_.get_place(p).name);
     }
