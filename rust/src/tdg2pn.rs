@@ -7,7 +7,7 @@
 //!   [4] scheduling preemption model (resume: engine-level filter; restart: structural)
 //!   [5] resources + metadata: core/lock resource places, task_info
 
-use crate::petri::{PTPN, TimeInterval, CONTROL_TRANSITION_CORE, INF};
+use crate::petri::{CONTROL_TRANSITION_CORE, INF, PTPN, TimeInterval};
 use crate::tdg::TDG;
 use crate::types::{NodeType, SchedulePolicy, TaskConfig, TdgEdge};
 
@@ -101,11 +101,7 @@ fn parse_edge_interval(label: &str, source_name: &str, target_name: &str) -> Tim
     };
 
     match (earliest, latest) {
-        (Some(e), Some(l))
-            if e != INF && (l == INF || l >= e) =>
-        {
-            TimeInterval::closed(e, l)
-        }
+        (Some(e), Some(l)) if e != INF && (l == INF || l >= e) => TimeInterval::closed(e, l),
         _ => {
             // Invalid label -> immediate with warning (logged by caller).
             let _ = (source_name, target_name);
@@ -134,9 +130,9 @@ impl TDG2PN {
     }
 
     pub fn has_self_loop_release(tdg: &TDG, task_name: &str) -> bool {
-        tdg.tdg_edges.iter().any(|edge| {
-            edge.source == task_name && edge.is_self_loop()
-        })
+        tdg.tdg_edges
+            .iter()
+            .any(|edge| edge.source == task_name && edge.is_self_loop())
     }
 
     fn add_consume_transition(ptpn: &mut PTPN, task_name: &str, end_idx: usize) {
@@ -197,11 +193,7 @@ impl TDG2PN {
                 continue;
             }
 
-            let period_place = ptpn.add_place(
-                &format!("{}_period", periodic_task.task),
-                1,
-                false,
-            );
+            let period_place = ptpn.add_place(&format!("{}_period", periodic_task.task), 1, false);
             let fire = add_control_transition(
                 ptpn,
                 &format!("{}_fire", periodic_task.task),
@@ -307,7 +299,10 @@ impl TDG2PN {
 
         for node in &tdg.all_task {
             if let Some(task) = node.as_task() {
-                core_task.entry(task.core).or_default().push(task.name.clone());
+                core_task
+                    .entry(task.core)
+                    .or_default()
+                    .push(task.name.clone());
             }
         }
 
@@ -350,7 +345,8 @@ impl TDG2PN {
             let node_type = &tdg.nodes_type[vertex_name];
             let (start_idx, end_idx) =
                 Self::add_node_matrix(ptpn, node_type, resume_mode, tdg.task_place_capacity);
-            ptpn.node_start_end_map.insert(vertex_name.clone(), (start_idx, end_idx));
+            ptpn.node_start_end_map
+                .insert(vertex_name.clone(), (start_idx, end_idx));
         }
     }
 
@@ -527,7 +523,10 @@ impl TDG2PN {
             if acquire_chain_index >= task_pt_chain.len()
                 || release_chain_index >= task_pt_chain.len()
             {
-                panic!("Task chain layout does not match lock structure for: {}", task_name);
+                panic!(
+                    "Task chain layout does not match lock structure for: {}",
+                    task_name
+                );
             }
 
             let acquire_transition = task_pt_chain[acquire_chain_index];
@@ -594,7 +593,11 @@ impl TDG2PN {
         resume_mode: bool,
         task_place_capacity: i32,
     ) -> Vec<usize> {
-        assert!(!times.is_empty(), "Task has no execution segments: {}", task_name);
+        assert!(
+            !times.is_empty(),
+            "Task has no execution segments: {}",
+            task_name
+        );
 
         let capacity = task_place_capacity;
         let saturate = true;
@@ -624,8 +627,8 @@ impl TDG2PN {
             } else {
                 format!("{}_exec_{}", task_name, segment_index + 1)
             };
-            let segment_holds_spin_lock = segment_index < locks.len()
-                && locks[segment_index].contains("spin");
+            let segment_holds_spin_lock =
+                segment_index < locks.len() && locks[segment_index].contains("spin");
             let exec_suspendable = resume_mode && !segment_holds_spin_lock;
             let exec = ptpn.add_transition(
                 &exec_name,
@@ -710,17 +713,15 @@ impl TDG2PN {
             &format!("{}timed", task_name),
             TimeInterval::closed(task_period_time, task_period_time),
         );
-        let ending = add_control_transition(ptpn, &format!("{}ending", task_name), immediate_interval());
+        let ending =
+            add_control_transition(ptpn, &format!("{}ending", task_name), immediate_interval());
         let complete = add_control_transition(
             ptpn,
             &format!("{}complete", task_name),
             immediate_interval(),
         );
-        let timeout_transition = add_control_transition(
-            ptpn,
-            &format!("{}out", task_name),
-            immediate_interval(),
-        );
+        let timeout_transition =
+            add_control_transition(ptpn, &format!("{}out", task_name), immediate_interval());
 
         ptpn.set_post_arc(ending, end_place, 1);
         ptpn.set_pre_arc(end_place, complete, 1);
@@ -729,10 +730,10 @@ impl TDG2PN {
         ptpn.set_pre_arc(deadline, timeout_transition, 1);
         ptpn.set_post_arc(timeout_transition, timeout, 1);
 
-        if end < ptpn.places.len() {
+        if end < ptpn.net.places.len() {
             ptpn.set_pre_arc(end, ending, 1);
         }
-        if start < ptpn.places.len() {
+        if start < ptpn.net.places.len() {
             ptpn.set_pre_arc(start, timed, 1);
             ptpn.set_post_arc(timed, deadline, 1);
         }
@@ -750,8 +751,7 @@ impl TDG2PN {
                 let Some(h_tc) = tc.get(h_t_name) else {
                     continue;
                 };
-                let preempt_priorities =
-                    Self::build_preempt_priorities(tasks, tc, h_tc.priority);
+                let preempt_priorities = Self::build_preempt_priorities(tasks, tc, h_tc.priority);
 
                 for l_t_name in tasks.iter().skip(i + 1) {
                     let Some(l_tc) = tc.get(l_t_name) else {
@@ -778,8 +778,8 @@ impl TDG2PN {
                     }
 
                     let l_exec = l_t_pn[3];
-                    if l_exec < ptpn.transitions.len() {
-                        ptpn.transitions[l_exec].suspendable = true;
+                    if l_exec < ptpn.net.transitions.len() {
+                        ptpn.net.transitions[l_exec].kind.suspendable = true;
                     }
 
                     let l_entry = l_t_pn[0];
@@ -816,8 +816,8 @@ impl TDG2PN {
                                 break;
                             }
                             let idx = l_t_pn.len() - 2 - 2 * (i + 1);
-                            if idx < ptpn.transitions.len() {
-                                ptpn.transitions[idx].suspendable = true;
+                            if idx < ptpn.net.transitions.len() {
+                                ptpn.net.transitions[idx].kind.suspendable = true;
                             }
 
                             let lock_preempt_place = l_t_pn[idx - 1];

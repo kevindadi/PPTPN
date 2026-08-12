@@ -5,17 +5,20 @@
 //!   ptpn ptpn -f <model.ptpn>   `.ptpn` source -> PTPN -> state-class analysis
 
 use clap::{Parser as ClapParser, Subcommand};
-use ptpn::analysis::canonicalization::CanonicalizationMode;
 use ptpn::analysis::metrics::MetricsAnalyzer;
-use ptpn::analysis::ptpn_analysis::StateClassReachabilityGraph;
+use ptpn::analysis::{CanonicalizationMode, StateClassReachabilityGraph, TimedReachabilityConfig};
 use ptpn::json::Parser as JsonParser;
 use ptpn::petri::PTPN;
 use ptpn::tdg::TDG;
 use ptpn::tdg2pn::TDG2PN;
-use std::path::Path;
+use unipn::net::ArcDir;
 
 #[derive(ClapParser)]
-#[command(name = "ptpn", version = "1.0.0", about = "PTPN - Priority Timed Petri Net Analyzer")]
+#[command(
+    name = "ptpn",
+    version = "1.0.0",
+    about = "PTPN - Priority Timed Petri Net Analyzer"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -77,39 +80,54 @@ fn parse_canonicalization(mode: &str) -> CanonicalizationMode {
 
 fn export_ptpn_dot(ptpn: &PTPN, path: &str) -> bool {
     let mut out = String::from("digraph PTPN {\n  rankdir=LR;\n");
-    for (i, place) in ptpn.places.iter().enumerate() {
+    for (i, place) in ptpn.net.places.iter().enumerate() {
+        let cap = match place.kind.capacity {
+            None => "inf".to_string(),
+            Some(c) => c.to_string(),
+        };
         out.push_str(&format!(
             "  p{} [label=\"{}\\n[{}]\"];\n",
-            i,
-            place.name,
-            if place.capacity == ptpn::petri::INF {
-                "inf".to_string()
-            } else {
-                place.capacity.to_string()
-            }
+            i, place.name, cap
         ));
     }
-    for (i, trans) in ptpn.transitions.iter().enumerate() {
-        out.push_str(&format!(
-            "  t{} [label=\"T{}\\n{}\"];\n",
-            i, i, trans.name
-        ));
+    for (i, trans) in ptpn.net.transitions.iter().enumerate() {
+        out.push_str(&format!("  t{} [label=\"T{}\\n{}\"];\n", i, i, trans.name));
     }
-    for t in 0..ptpn.num_transitions() {
-        for &(p, w) in &ptpn.pre_arcs[t] {
-            let _ = w;
-            out.push_str(&format!("  p{} -> t{};\n", p, t));
-        }
-        for &(p, w) in &ptpn.post_arcs[t] {
-            let _ = w;
-            out.push_str(&format!("  t{} -> p{};\n", t, p));
+    for arc in &ptpn.net.arcs {
+        match arc.direction {
+            ArcDir::Input => out.push_str(&format!(
+                "  p{} -> t{};\n",
+                arc.place.index(),
+                arc.transition.index()
+            )),
+            ArcDir::Output => out.push_str(&format!(
+                "  t{} -> p{};\n",
+                arc.transition.index(),
+                arc.place.index()
+            )),
+            _ => {}
         }
     }
     out.push_str("}\n");
-    match std::fs::write(path, out) {
-        Ok(_) => true,
-        Err(_) => false,
+    std::fs::write(path, out).is_ok()
+}
+
+fn export_scg_dot(graph: &unipn::analysis::timed::StateClassGraph, path: &str) -> bool {
+    let mut out = String::from("digraph StateClassGraph {\n  rankdir=LR;\n");
+    for (i, state) in graph.states.iter().enumerate() {
+        out.push_str(&format!(
+            "  s{} [label=\"s{}\\n{}\"];\n",
+            state.id, i, state.id
+        ));
     }
+    for &(src, tgt, ref fe) in &graph.edges {
+        out.push_str(&format!(
+            "  s{} -> s{} [label=\"T{}@{}\"];\n",
+            src, tgt, fe.transition_id, fe.firing_min
+        ));
+    }
+    out.push_str("}\n");
+    std::fs::write(path, out).is_ok()
 }
 
 fn write_wcet_json(tdg: &TDG, path: &str) -> bool {
@@ -134,10 +152,7 @@ fn write_wcet_json(tdg: &TDG, path: &str) -> bool {
         task_id += 1;
     }
     out.push_str("\n  ]\n}\n");
-    match std::fs::write(path, out) {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+    std::fs::write(path, out).is_ok()
 }
 
 fn run_analysis(
@@ -146,44 +161,35 @@ fn run_analysis(
     canonicalization: CanonicalizationMode,
     extrapolation: bool,
     scg_dot: Option<&str>,
-    scg_json: Option<&str>,
     metrics_json: Option<&str>,
 ) {
-    let mut graph = StateClassReachabilityGraph::new(ptpn);
-    graph.set_canonicalization_mode(canonicalization);
-    if extrapolation {
-        graph.set_extrapolation(true);
-    }
+    let config = TimedReachabilityConfig {
+        canonicalization,
+        extrapolation,
+        core_parallelism: ptpn.core_parallelism.clone(),
+    };
+    let mut graph = StateClassReachabilityGraph::with_config(&ptpn.net, ptpn.m0.clone(), config);
     let state_count = graph.build(max_states);
-    let stats = graph.get_statistics().clone();
+    let stats = graph.get_graph().stats.clone();
 
     println!("[SCG] Reachability graph built with {} states", state_count);
     println!(
         "[SCG] transitions={}, dedup_hits={}, truncated={}",
-        stats.total_transitions, stats.dedup_hits, if stats.truncated { "true" } else { "false" }
+        stats.total_transitions,
+        stats.dedup_hits,
+        if stats.truncated { "true" } else { "false" }
     );
 
-    if let Some(path) = scg_dot {
-        if graph.save_to_dot(path) {
-            println!("[OUTPUT] State class graph exported to: {}", path);
-        } else {
-            eprintln!("[OUTPUT] Failed to export state class graph to {}", path);
-        }
-    }
-    if let Some(path) = scg_json {
-        if graph.save_to_json(path) {
-            println!("[OUTPUT] State class graph JSON exported to: {}", path);
-        }
+    if let Some(path) = scg_dot
+        && export_scg_dot(graph.get_graph(), path)
+    {
+        println!("[OUTPUT] State class graph exported to: {}", path);
     }
 
     if let Some(path) = metrics_json {
         let exact = canonicalization == CanonicalizationMode::Equality;
-        let analyzer = MetricsAnalyzer::new(
-            graph.get_graph(),
-            ptpn,
-            graph.get_initial_vertex(),
-            exact,
-        );
+        let analyzer =
+            MetricsAnalyzer::new(graph.get_graph(), ptpn, graph.get_graph().initial, exact);
         let report = analyzer.analyze();
         if MetricsAnalyzer::save_to_json(&report, path) {
             println!("[OUTPUT] Metrics exported to: {}", path);
@@ -215,7 +221,10 @@ fn main() {
             let mut parser = JsonParser::new();
             let parse_result = parser.parse_file(file);
             if !parse_result.success {
-                eprintln!("ERROR: Failed to parse JSON file: {}", parse_result.error_message);
+                eprintln!(
+                    "ERROR: Failed to parse JSON file: {}",
+                    parse_result.error_message
+                );
                 std::process::exit(1);
             }
             let validation = parser.validate();
@@ -234,15 +243,15 @@ fn main() {
             let mut tdg = TDG::new(parser.get_num_cpus(), parser.get_cores_per_cpu());
             tdg.load_from_parser(&parser, false);
 
-            if let Some(path) = export_tdg {
-                if tdg.export_to_dot(path) {
-                    println!("[OUTPUT] TDG DOT exported to: {}", path);
-                }
+            if let Some(path) = export_tdg
+                && tdg.export_to_dot(path)
+            {
+                println!("[OUTPUT] TDG DOT exported to: {}", path);
             }
-            if let Some(path) = export_wcet {
-                if write_wcet_json(&tdg, path) {
-                    println!("[OUTPUT] WCET JSON exported to: {}", path);
-                }
+            if let Some(path) = export_wcet
+                && write_wcet_json(&tdg, path)
+            {
+                println!("[OUTPUT] WCET JSON exported to: {}", path);
             }
 
             let mut ptpn = PTPN::new();
@@ -253,10 +262,10 @@ fn main() {
                 ptpn.num_transitions()
             );
 
-            if let Some(path) = export_ptpn {
-                if export_ptpn_dot(&ptpn, path) {
-                    println!("[OUTPUT] PTPN DOT exported to: {}", path);
-                }
+            if let Some(path) = export_ptpn
+                && export_ptpn_dot(&ptpn, path)
+            {
+                println!("[OUTPUT] PTPN DOT exported to: {}", path);
             }
 
             if *no_analysis {
@@ -271,7 +280,6 @@ fn main() {
                 mode,
                 *extrapolation,
                 export_scg.as_deref(),
-                None,
                 export_metrics.as_deref(),
             );
         }
@@ -303,10 +311,10 @@ fn main() {
                 return;
             }
 
-            if let Some(path) = export_ptpn {
-                if export_ptpn_dot(&ptpn, path) {
-                    println!("[OUTPUT] PTPN DOT exported to: {}", path);
-                }
+            if let Some(path) = export_ptpn
+                && export_ptpn_dot(&ptpn, path)
+            {
+                println!("[OUTPUT] PTPN DOT exported to: {}", path);
             }
 
             let mode = parse_canonicalization(canonicalization);
@@ -316,15 +324,8 @@ fn main() {
                 mode,
                 *extrapolation,
                 export_scg.as_deref(),
-                None,
                 export_metrics.as_deref(),
             );
         }
     }
-}
-
-// Ensures the `Path` import is used (kept for future extension).
-#[allow(dead_code)]
-fn _path_placeholder(p: &Path) -> String {
-    p.display().to_string()
 }

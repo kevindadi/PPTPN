@@ -1,13 +1,11 @@
 //! Performance metrics derived from the reachability graph (port of
 //! `src/analysis/metrics.cpp`).
 
-use crate::analysis::dbm::INF_TIME;
-use crate::analysis::ptpn_analysis::{ScGraph, ScVertex};
-use crate::analysis::state_class::contains;
-use crate::petri::{PTPN, INF};
-use petgraph::graph::NodeIndex;
-use petgraph::visit::EdgeRef;
+use crate::petri::PTPN;
 use std::collections::{BTreeSet, HashMap};
+use unipn::analysis::timed::INF_TIME;
+use unipn::analysis::timed::StateClassGraph;
+use unipn::analysis::timed::contains;
 
 /// A possibly-unbounded non-negative time value.
 #[derive(Debug, Clone, Default)]
@@ -74,7 +72,7 @@ pub struct MetricsReport {
     pub transitions: usize,
     pub truncated: bool,
     pub bounded: bool,
-    pub max_tokens_per_place: Vec<i32>,
+    pub max_tokens_per_place: Vec<usize>,
     pub overflow_places: Vec<String>,
     pub deadlock_states: Vec<usize>,
     pub schedulable: bool,
@@ -181,15 +179,15 @@ struct TaskTopology {
 struct Edge {
     target: usize,
     #[allow(dead_code)]
-    transition_id: i32,
+    transition_id: usize,
     dwell_min: i32,
     dwell_max: i32,
 }
 
 pub struct MetricsAnalyzer<'a> {
-    graph: &'a ScGraph,
+    graph: &'a StateClassGraph,
     net: &'a PTPN,
-    initial: ScVertex,
+    initial: usize,
     exact: bool,
     num_vertices: usize,
     out_edges: Vec<Vec<Edge>>,
@@ -201,7 +199,7 @@ pub struct MetricsAnalyzer<'a> {
 }
 
 impl<'a> MetricsAnalyzer<'a> {
-    pub fn new(graph: &'a ScGraph, net: &'a PTPN, initial: ScVertex, exact: bool) -> Self {
+    pub fn new(graph: &'a StateClassGraph, net: &'a PTPN, initial: usize, exact: bool) -> Self {
         let mut analyzer = MetricsAnalyzer {
             graph,
             net,
@@ -221,17 +219,16 @@ impl<'a> MetricsAnalyzer<'a> {
     }
 
     fn flatten_graph(&mut self) {
-        self.num_vertices = self.graph.node_count();
+        self.num_vertices = self.graph.states.len();
         self.out_edges = vec![Vec::new(); self.num_vertices];
         self.state_of = Vec::with_capacity(self.num_vertices);
         for idx in 0..self.num_vertices {
-            self.state_of.push(self.graph[NodeIndex::new(idx)].id);
+            self.state_of.push(self.graph.states[idx].id);
         }
 
-        for edge in self.graph.edge_references() {
-            let sid = self.graph[edge.source()].id;
-            let tid = self.graph[edge.target()].id;
-            let fe = edge.weight();
+        for &(source, target, ref fe) in &self.graph.edges {
+            let sid = self.graph.states[source].id;
+            let tid = self.graph.states[target].id;
             self.out_edges[sid].push(Edge {
                 target: tid,
                 transition_id: fe.transition_id,
@@ -252,7 +249,7 @@ impl<'a> MetricsAnalyzer<'a> {
         }
 
         let mut place_by_name: HashMap<String, usize> = HashMap::new();
-        for (p, place) in self.net.places.iter().enumerate() {
+        for (p, place) in self.net.net.places.iter().enumerate() {
             place_by_name.insert(place.name.clone(), p);
         }
 
@@ -313,17 +310,17 @@ impl<'a> MetricsAnalyzer<'a> {
     }
 
     fn task_in_flight(&self, task: &TaskTopology, v: usize) -> bool {
-        let m = &self.graph[NodeIndex::new(v)].marking;
+        let m = &self.graph.states[v].marking;
         task.chain_places.iter().any(|&p| p < m.len() && m[p] > 0)
     }
 
     fn task_active(&self, task: &TaskTopology, v: usize) -> bool {
-        let active = &self.graph[NodeIndex::new(v)].priority_enabled;
+        let active = &self.graph.states[v].priority_enabled;
         task.chain_transitions.iter().any(|&t| contains(active, t))
     }
 
     fn task_suspended(&self, task: &TaskTopology, v: usize) -> bool {
-        let susp = &self.graph[NodeIndex::new(v)].suspended;
+        let susp = &self.graph.states[v].suspended;
         task.exec_transitions.iter().any(|&t| contains(susp, t))
     }
 
@@ -331,11 +328,11 @@ impl<'a> MetricsAnalyzer<'a> {
         if core < 0 {
             return false;
         }
-        let state = &self.graph[NodeIndex::new(v)];
+        let state = &self.graph.states[v];
         state.priority_enabled.iter().any(|&t| {
             t < self.transition_is_exec.len()
                 && self.transition_is_exec[t]
-                && self.net.get_transition(t).core == core
+                && self.net.get_transition(t).kind.core == core
         })
     }
 
@@ -346,20 +343,20 @@ impl<'a> MetricsAnalyzer<'a> {
         if !self.task_in_flight(task, v) || self.task_active(task, v) {
             return false;
         }
-        let state = &self.graph[NodeIndex::new(v)];
+        let state = &self.graph.states[v];
         state.priority_enabled.iter().any(|&t| {
             t < self.transition_is_exec.len()
                 && self.transition_is_exec[t]
-                && self.net.get_transition(t).core == task.core
-                && self.net.get_transition(t).priority < task.priority
+                && self.net.get_transition(t).kind.core == task.core
+                && self.net.get_transition(t).kind.priority < task.priority
         })
     }
 
     fn compute_structural(&self, report: &mut MetricsReport) {
         report.max_tokens_per_place = vec![0; self.net.num_places()];
         for v in 0..self.num_vertices {
-            let m = &self.graph[NodeIndex::new(v)].marking;
-            for (p, &tokens) in m.iter().enumerate() {
+            let m = &self.graph.states[v].marking;
+            for (p, &tokens) in m.0.iter().enumerate() {
                 if p < report.max_tokens_per_place.len() {
                     report.max_tokens_per_place[p] = report.max_tokens_per_place[p].max(tokens);
                 }
@@ -370,7 +367,9 @@ impl<'a> MetricsAnalyzer<'a> {
         for p in crate::petri::overflowed_places() {
             if p < self.net.num_places() {
                 report.bounded = false;
-                report.overflow_places.push(self.net.get_place(p).name.clone());
+                report
+                    .overflow_places
+                    .push(self.net.get_place(p).name.clone());
             }
         }
 
@@ -385,9 +384,7 @@ impl<'a> MetricsAnalyzer<'a> {
                     work_remaining = true;
                     break;
                 }
-                if task.has_timeout
-                    && self.graph[NodeIndex::new(v)].marking[task.timeout_place] > 0
-                {
+                if task.has_timeout && self.graph.states[v].marking[task.timeout_place] > 0 {
                     work_remaining = true;
                     break;
                 }
@@ -408,7 +405,7 @@ impl<'a> MetricsAnalyzer<'a> {
 
         let is_miss = |v: usize| -> bool {
             self.tasks.iter().any(|task| {
-                task.has_timeout && self.graph[NodeIndex::new(v)].marking[task.timeout_place] > 0
+                task.has_timeout && self.graph.states[v].marking[task.timeout_place] > 0
             })
         };
 
@@ -460,7 +457,7 @@ impl<'a> MetricsAnalyzer<'a> {
                 v: usize,
                 task: &TaskTopology,
                 out_edges: &[Vec<Edge>],
-                state_of: &ScGraph,
+                state_of: &StateClassGraph,
                 color: &mut [u8],
                 memo: &mut [DPResult],
                 weight: &dyn Fn(usize, &Edge) -> i32,
@@ -482,8 +479,8 @@ impl<'a> MetricsAnalyzer<'a> {
                 for e in &out_edges[v] {
                     let w = weight(v, e);
                     let completes = task.has_end
-                        && state_of[NodeIndex::new(e.target)].marking[task.end_place]
-                            > state_of[NodeIndex::new(v)].marking[task.end_place];
+                        && state_of.states[e.target].marking[task.end_place]
+                            > state_of.states[v].marking[task.end_place];
                     if completes {
                         let mut cand = DPResult::default();
                         cand.reachable = true;
@@ -499,14 +496,7 @@ impl<'a> MetricsAnalyzer<'a> {
                         };
                     } else if task_in_flight_of(task, &state_of, e.target) {
                         let sub = dfs(
-                            e.target,
-                            task,
-                            out_edges,
-                            state_of,
-                            color,
-                            memo,
-                            weight,
-                            maximize,
+                            e.target, task, out_edges, state_of, color, memo, weight, maximize,
                         );
                         if !sub.reachable {
                             continue;
@@ -571,14 +561,14 @@ impl<'a> MetricsAnalyzer<'a> {
 
             // Release states: edges that deposit a token into the entry place.
             let mut uniq: BTreeSet<usize> = BTreeSet::new();
-            if self.graph[NodeIndex::new(self.initial)].marking[task.entry_place] > 0 {
+            if self.graph.states[self.initial].marking[task.entry_place] > 0 {
                 uniq.insert(self.initial);
                 tm.activations += 1;
             }
             for v in 0..self.num_vertices {
                 for e in &self.out_edges[v] {
-                    if self.graph[NodeIndex::new(e.target)].marking[task.entry_place]
-                        > self.graph[NodeIndex::new(v)].marking[task.entry_place]
+                    if self.graph.states[e.target].marking[task.entry_place]
+                        > self.graph.states[v].marking[task.entry_place]
                     {
                         uniq.insert(e.target);
                         tm.activations += 1;
@@ -589,14 +579,14 @@ impl<'a> MetricsAnalyzer<'a> {
             tm.observed = !release_states.is_empty();
 
             for v in 0..self.num_vertices {
-                let m = &self.graph[NodeIndex::new(v)].marking;
-                let sum: i32 = task.chain_places.iter().map(|&p| m[p]).sum();
+                let m = &self.graph.states[v].marking;
+                let sum: i32 = task.chain_places.iter().map(|&p| m[p] as i32).sum();
                 tm.max_in_flight = tm.max_in_flight.max(sum);
             }
 
             if task.has_timeout {
                 for v in 0..self.num_vertices {
-                    if self.graph[NodeIndex::new(v)].marking[task.timeout_place] > 0 {
+                    if self.graph.states[v].marking[task.timeout_place] > 0 {
                         tm.deadline_missed = true;
                         break;
                     }
@@ -673,10 +663,10 @@ impl<'a> MetricsAnalyzer<'a> {
             let mut wait_inf = false;
 
             for v in 0..self.num_vertices {
-                if lock_place >= self.graph[NodeIndex::new(v)].marking.len() {
+                if lock_place >= self.graph.states[v].marking.len() {
                     continue;
                 }
-                let held = self.graph[NodeIndex::new(v)].marking[lock_place] == 0;
+                let held = self.graph.states[v].marking[lock_place] == 0;
                 if !held {
                     continue;
                 }
@@ -907,17 +897,27 @@ impl<'a> MetricsAnalyzer<'a> {
 
         let mut out = String::new();
         out.push_str("{\n");
-        out.push_str(&format!("  \"exact\": {},\n", if report.exact { "true" } else { "false" }));
+        out.push_str(&format!(
+            "  \"exact\": {},\n",
+            if report.exact { "true" } else { "false" }
+        ));
         out.push_str(&format!("  \"states\": {},\n", report.states));
         out.push_str(&format!("  \"transitions\": {},\n", report.transitions));
-        out.push_str(&format!("  \"bounded\": {},\n", if report.bounded { "true" } else { "false" }));
+        out.push_str(&format!(
+            "  \"bounded\": {},\n",
+            if report.bounded { "true" } else { "false" }
+        ));
         out.push_str(&format!(
             "  \"schedulable\": {},\n",
             if report.schedulable { "true" } else { "false" }
         ));
         out.push_str(&format!(
             "  \"has_steady_cycle\": {},\n",
-            if report.has_steady_cycle { "true" } else { "false" }
+            if report.has_steady_cycle {
+                "true"
+            } else {
+                "false"
+            }
         ));
         out.push_str(&format!(
             "  \"recurrent_scc_size\": {},\n",
@@ -953,7 +953,10 @@ impl<'a> MetricsAnalyzer<'a> {
             out.push_str(&format!("      \"bcet\": {},\n", t.bcet));
             out.push_str(&format!("      \"period\": {},\n", t.period));
             out.push_str(&format!("      \"deadline\": {},\n", t.deadline));
-            out.push_str(&format!("      \"observed\": {},\n", if t.observed { "true" } else { "false" }));
+            out.push_str(&format!(
+                "      \"observed\": {},\n",
+                if t.observed { "true" } else { "false" }
+            ));
             out.push_str(&format!("      \"activations\": {},\n", t.activations));
             out.push_str(&format!("      \"wcrt\": {},\n", time_json(&t.wcrt)));
             out.push_str(&format!("      \"bcrt\": {},\n", time_json(&t.bcrt)));
@@ -966,7 +969,10 @@ impl<'a> MetricsAnalyzer<'a> {
                 "      \"worst_blocking\": {},\n",
                 time_json(&t.worst_blocking)
             ));
-            out.push_str(&format!("      \"max_preemptions\": {},\n", t.max_preemptions));
+            out.push_str(&format!(
+                "      \"max_preemptions\": {},\n",
+                t.max_preemptions
+            ));
             out.push_str(&format!("      \"max_in_flight\": {},\n", t.max_in_flight));
             out.push_str(&format!(
                 "      \"slack\": {},\n",
@@ -980,7 +986,10 @@ impl<'a> MetricsAnalyzer<'a> {
                 "      \"deadline_missed\": {},\n",
                 if t.deadline_missed { "true" } else { "false" }
             ));
-            out.push_str(&format!("      \"jobs_per_hyperperiod\": {}\n", t.jobs_per_hyperperiod));
+            out.push_str(&format!(
+                "      \"jobs_per_hyperperiod\": {}\n",
+                t.jobs_per_hyperperiod
+            ));
             out.push_str("    }");
             if i + 1 < report.tasks.len() {
                 out.push(',');
@@ -993,9 +1002,18 @@ impl<'a> MetricsAnalyzer<'a> {
         for (i, l) in report.locks.iter().enumerate() {
             out.push_str("    {\n");
             out.push_str(&format!("      \"name\": \"{}\",\n", l.name));
-            out.push_str(&format!("      \"worst_hold\": {},\n", time_json(&l.worst_hold)));
-            out.push_str(&format!("      \"total_hold\": {},\n", time_json(&l.total_hold)));
-            out.push_str(&format!("      \"total_wait\": {}\n", time_json(&l.total_wait)));
+            out.push_str(&format!(
+                "      \"worst_hold\": {},\n",
+                time_json(&l.worst_hold)
+            ));
+            out.push_str(&format!(
+                "      \"total_hold\": {},\n",
+                time_json(&l.total_hold)
+            ));
+            out.push_str(&format!(
+                "      \"total_wait\": {}\n",
+                time_json(&l.total_wait)
+            ));
             out.push_str("    }");
             if i + 1 < report.locks.len() {
                 out.push(',');
@@ -1010,7 +1028,10 @@ impl<'a> MetricsAnalyzer<'a> {
             out.push_str(&format!("      \"core\": {},\n", c.core));
             out.push_str(&format!("      \"util_min\": {},\n", c.util_min));
             out.push_str(&format!("      \"util_max\": {},\n", c.util_max));
-            out.push_str(&format!("      \"graph_busy_fraction\": {}\n", c.graph_busy_fraction));
+            out.push_str(&format!(
+                "      \"graph_busy_fraction\": {}\n",
+                c.graph_busy_fraction
+            ));
             out.push_str("    }");
             if i + 1 < report.cores.len() {
                 out.push(',');
@@ -1028,7 +1049,7 @@ impl<'a> MetricsAnalyzer<'a> {
 }
 
 // Free helper so the nested `dfs` closure can reference it without borrowing self.
-fn task_in_flight_of(task: &TaskTopology, graph: &ScGraph, v: usize) -> bool {
-    let m = &graph[NodeIndex::new(v)].marking;
+fn task_in_flight_of(task: &TaskTopology, graph: &StateClassGraph, v: usize) -> bool {
+    let m = &graph.states[v].marking;
     task.chain_places.iter().any(|&p| p < m.len() && m[p] > 0)
 }

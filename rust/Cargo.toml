@@ -15,7 +15,7 @@ path = "src/main.rs"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 serde_json = "1"
-unipn = { path = "../../.." }
+unipn = { git = "https://github.com/kevindadi/UniPN", branch = "main" }
 
 [profile.release]
 lto = true
