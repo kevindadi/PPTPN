@@ -1,9 +1,14 @@
-//! State-class analysis: DBM clock zones, state classes, canonicalization,
-//! scheduling, reachability graph construction, and metrics.
+//! Scheduling metrics derived from the state-class reachability graph.
+//!
+//! The state-class (DBM) analysis lives in UniPN; this module is the
+//! real-time-scheduling metrics layer on top of it (WCET/deadline/utilisation).
 
-pub mod canonicalization;
-pub mod dbm;
 pub mod metrics;
-pub mod ptpn_analysis;
-pub mod scheduling;
-pub mod state_class;
+
+pub use metrics::{MetricsAnalyzer, MetricsReport};
+
+// Re-export the core timed-net analysis so PTPN consumers have one import path.
+pub use unipn::analysis::timed::{
+    CanonicalizationMode, StateClassGraph, StateClassReachabilityGraph, Statistics,
+    TimedReachabilityConfig,
+};

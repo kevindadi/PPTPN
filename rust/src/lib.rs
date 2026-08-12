@@ -4,12 +4,9 @@
 //!   1. TDG mode:  Task Dependency Graph JSON -> TDG -> PTPN -> state-class analysis
 //!   2. Direct mode: `.ptpn` domain language -> PTPN -> state-class analysis
 //!
-//! The analysis builds a state-class reachability graph over DBM (Difference
-//! Bound Matrix) clock zones with configurable canonicalization.
-
-// The port keeps the C++ index-computation style (`0 * n + i`) verbatim for
-// auditable parity; these clippy lints are stylistic only.
-#![allow(clippy::identity_op, clippy::erasing_op)]
+//! The timed-net **model** (`TimedNet`) and its **analysis** (DBM/state-class
+//! reachability) live in UniPN; this crate keeps the TDG lowering, the `.ptpn`
+//! parser, the CLI, and the scheduling metrics.
 
 pub mod analysis;
 pub mod json;
@@ -18,3 +15,5 @@ pub mod petri;
 pub mod tdg;
 pub mod tdg2pn;
 pub mod types;
+
+pub use petri::{PTPN, TaskInfo};
