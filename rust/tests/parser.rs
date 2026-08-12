@@ -262,8 +262,8 @@ fn builder_preserves_strict_interval_metadata() {
     let ptpn = ptpn::parser::PTPNBuilder::parse("transitions T0 (1, 5] ").unwrap();
     assert_eq!(ptpn.num_transitions(), 1);
     let transition = ptpn.get_transition(0);
-    assert!(transition.time_interval.left_open);
-    assert!(!transition.time_interval.right_open);
+    assert!(transition.kind.interval.left_open);
+    assert!(!transition.kind.interval.right_open);
     assert_eq!(transition.time_interval.effective_earliest(), 2);
     assert_eq!(transition.time_interval.effective_latest(), 5);
 }

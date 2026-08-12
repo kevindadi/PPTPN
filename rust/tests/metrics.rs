@@ -1,7 +1,7 @@
 //! Ported from `test/test_metrics.cpp`.
 
 use ptpn::analysis::metrics::{MetricsAnalyzer, MetricsReport};
-use ptpn::analysis::ptpn_analysis::StateClassReachabilityGraph;
+use ptpn::analysis::StateClassReachabilityGraph;
 use ptpn::petri::{PTPN, TaskInfo, TimeInterval};
 
 fn make_single_task_net(with_consume: bool) -> PTPN {
@@ -42,9 +42,9 @@ fn make_single_task_net(with_consume: bool) -> PTPN {
 }
 
 fn analyze(net: &PTPN) -> MetricsReport {
-    let mut graph = StateClassReachabilityGraph::new(net);
+    let mut graph = StateClassReachabilityGraph::new(&net.net, net.m0.clone());
     graph.build(256);
-    let analyzer = MetricsAnalyzer::new(graph.get_graph(), net, graph.get_initial_vertex(), true);
+    let analyzer = MetricsAnalyzer::new(graph.get_graph(), net, graph.get_graph().initial, true);
     analyzer.analyze()
 }
 
