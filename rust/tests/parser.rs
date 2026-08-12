@@ -244,7 +244,11 @@ fn parse_transitions_with_both_open_endpoints() {
 fn reject_empty_strict_integer_interval() {
     let mut ast = PTPNAST::default();
     let mut error = String::new();
-    assert!(!PTPNParser::parse("transitions T0 (1, 2)", &mut ast, &mut error));
+    assert!(!PTPNParser::parse(
+        "transitions T0 (1, 2)",
+        &mut ast,
+        &mut error
+    ));
     assert!(error.contains("empty integer time range"));
 }
 
@@ -264,6 +268,6 @@ fn builder_preserves_strict_interval_metadata() {
     let transition = ptpn.get_transition(0);
     assert!(transition.kind.interval.left_open);
     assert!(!transition.kind.interval.right_open);
-    assert_eq!(transition.time_interval.effective_earliest(), 2);
-    assert_eq!(transition.time_interval.effective_latest(), 5);
+    assert_eq!(transition.kind.interval.effective_earliest(), 2);
+    assert_eq!(transition.kind.interval.effective_latest(), 5);
 }

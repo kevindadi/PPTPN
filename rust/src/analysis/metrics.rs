@@ -1,11 +1,11 @@
 //! Performance metrics derived from the reachability graph (port of
 //! `src/analysis/metrics.cpp`).
 
+use crate::petri::PTPN;
+use std::collections::{BTreeSet, HashMap};
 use unipn::analysis::timed::INF_TIME;
 use unipn::analysis::timed::StateClassGraph;
 use unipn::analysis::timed::contains;
-use crate::petri::PTPN;
-use std::collections::{BTreeSet, HashMap};
 
 /// A possibly-unbounded non-negative time value.
 #[derive(Debug, Clone, Default)]
@@ -367,7 +367,9 @@ impl<'a> MetricsAnalyzer<'a> {
         for p in crate::petri::overflowed_places() {
             if p < self.net.num_places() {
                 report.bounded = false;
-                report.overflow_places.push(self.net.get_place(p).name.clone());
+                report
+                    .overflow_places
+                    .push(self.net.get_place(p).name.clone());
             }
         }
 
@@ -382,9 +384,7 @@ impl<'a> MetricsAnalyzer<'a> {
                     work_remaining = true;
                     break;
                 }
-                if task.has_timeout
-                    && self.graph.states[v].marking[task.timeout_place] > 0
-                {
+                if task.has_timeout && self.graph.states[v].marking[task.timeout_place] > 0 {
                     work_remaining = true;
                     break;
                 }
@@ -496,14 +496,7 @@ impl<'a> MetricsAnalyzer<'a> {
                         };
                     } else if task_in_flight_of(task, &state_of, e.target) {
                         let sub = dfs(
-                            e.target,
-                            task,
-                            out_edges,
-                            state_of,
-                            color,
-                            memo,
-                            weight,
-                            maximize,
+                            e.target, task, out_edges, state_of, color, memo, weight, maximize,
                         );
                         if !sub.reachable {
                             continue;
@@ -904,17 +897,27 @@ impl<'a> MetricsAnalyzer<'a> {
 
         let mut out = String::new();
         out.push_str("{\n");
-        out.push_str(&format!("  \"exact\": {},\n", if report.exact { "true" } else { "false" }));
+        out.push_str(&format!(
+            "  \"exact\": {},\n",
+            if report.exact { "true" } else { "false" }
+        ));
         out.push_str(&format!("  \"states\": {},\n", report.states));
         out.push_str(&format!("  \"transitions\": {},\n", report.transitions));
-        out.push_str(&format!("  \"bounded\": {},\n", if report.bounded { "true" } else { "false" }));
+        out.push_str(&format!(
+            "  \"bounded\": {},\n",
+            if report.bounded { "true" } else { "false" }
+        ));
         out.push_str(&format!(
             "  \"schedulable\": {},\n",
             if report.schedulable { "true" } else { "false" }
         ));
         out.push_str(&format!(
             "  \"has_steady_cycle\": {},\n",
-            if report.has_steady_cycle { "true" } else { "false" }
+            if report.has_steady_cycle {
+                "true"
+            } else {
+                "false"
+            }
         ));
         out.push_str(&format!(
             "  \"recurrent_scc_size\": {},\n",
@@ -950,7 +953,10 @@ impl<'a> MetricsAnalyzer<'a> {
             out.push_str(&format!("      \"bcet\": {},\n", t.bcet));
             out.push_str(&format!("      \"period\": {},\n", t.period));
             out.push_str(&format!("      \"deadline\": {},\n", t.deadline));
-            out.push_str(&format!("      \"observed\": {},\n", if t.observed { "true" } else { "false" }));
+            out.push_str(&format!(
+                "      \"observed\": {},\n",
+                if t.observed { "true" } else { "false" }
+            ));
             out.push_str(&format!("      \"activations\": {},\n", t.activations));
             out.push_str(&format!("      \"wcrt\": {},\n", time_json(&t.wcrt)));
             out.push_str(&format!("      \"bcrt\": {},\n", time_json(&t.bcrt)));
@@ -963,7 +969,10 @@ impl<'a> MetricsAnalyzer<'a> {
                 "      \"worst_blocking\": {},\n",
                 time_json(&t.worst_blocking)
             ));
-            out.push_str(&format!("      \"max_preemptions\": {},\n", t.max_preemptions));
+            out.push_str(&format!(
+                "      \"max_preemptions\": {},\n",
+                t.max_preemptions
+            ));
             out.push_str(&format!("      \"max_in_flight\": {},\n", t.max_in_flight));
             out.push_str(&format!(
                 "      \"slack\": {},\n",
@@ -977,7 +986,10 @@ impl<'a> MetricsAnalyzer<'a> {
                 "      \"deadline_missed\": {},\n",
                 if t.deadline_missed { "true" } else { "false" }
             ));
-            out.push_str(&format!("      \"jobs_per_hyperperiod\": {}\n", t.jobs_per_hyperperiod));
+            out.push_str(&format!(
+                "      \"jobs_per_hyperperiod\": {}\n",
+                t.jobs_per_hyperperiod
+            ));
             out.push_str("    }");
             if i + 1 < report.tasks.len() {
                 out.push(',');
@@ -990,9 +1002,18 @@ impl<'a> MetricsAnalyzer<'a> {
         for (i, l) in report.locks.iter().enumerate() {
             out.push_str("    {\n");
             out.push_str(&format!("      \"name\": \"{}\",\n", l.name));
-            out.push_str(&format!("      \"worst_hold\": {},\n", time_json(&l.worst_hold)));
-            out.push_str(&format!("      \"total_hold\": {},\n", time_json(&l.total_hold)));
-            out.push_str(&format!("      \"total_wait\": {}\n", time_json(&l.total_wait)));
+            out.push_str(&format!(
+                "      \"worst_hold\": {},\n",
+                time_json(&l.worst_hold)
+            ));
+            out.push_str(&format!(
+                "      \"total_hold\": {},\n",
+                time_json(&l.total_hold)
+            ));
+            out.push_str(&format!(
+                "      \"total_wait\": {}\n",
+                time_json(&l.total_wait)
+            ));
             out.push_str("    }");
             if i + 1 < report.locks.len() {
                 out.push(',');
@@ -1007,7 +1028,10 @@ impl<'a> MetricsAnalyzer<'a> {
             out.push_str(&format!("      \"core\": {},\n", c.core));
             out.push_str(&format!("      \"util_min\": {},\n", c.util_min));
             out.push_str(&format!("      \"util_max\": {},\n", c.util_max));
-            out.push_str(&format!("      \"graph_busy_fraction\": {}\n", c.graph_busy_fraction));
+            out.push_str(&format!(
+                "      \"graph_busy_fraction\": {}\n",
+                c.graph_busy_fraction
+            ));
             out.push_str("    }");
             if i + 1 < report.cores.len() {
                 out.push(',');

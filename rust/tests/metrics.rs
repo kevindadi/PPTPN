@@ -1,7 +1,7 @@
 //! Ported from `test/test_metrics.cpp`.
 
-use ptpn::analysis::metrics::{MetricsAnalyzer, MetricsReport};
 use ptpn::analysis::StateClassReachabilityGraph;
+use ptpn::analysis::metrics::{MetricsAnalyzer, MetricsReport};
 use ptpn::petri::{PTPN, TaskInfo, TimeInterval};
 
 fn make_single_task_net(with_consume: bool) -> PTPN {
@@ -25,8 +25,10 @@ fn make_single_task_net(with_consume: bool) -> PTPN {
         ptpn.set_post_arc(consume, done, 1);
     }
 
-    ptpn.node_pn_map.insert("T".to_string(), vec![entry, get_core, ready, exec, exit]);
-    ptpn.node_start_end_map.insert("T".to_string(), (entry, exit));
+    ptpn.node_pn_map
+        .insert("T".to_string(), vec![entry, get_core, ready, exec, exit]);
+    ptpn.node_start_end_map
+        .insert("T".to_string(), (entry, exit));
 
     let info = TaskInfo {
         core: 0,
@@ -84,8 +86,10 @@ fn stuck_task_is_reported_as_deadlock() {
     net.set_pre_arc(cpu, get_core, 1);
     net.set_post_arc(get_core, ready, 1);
 
-    net.node_pn_map.insert("U".to_string(), vec![entry, get_core, ready]);
-    net.node_start_end_map.insert("U".to_string(), (entry, ready));
+    net.node_pn_map
+        .insert("U".to_string(), vec![entry, get_core, ready]);
+    net.node_start_end_map
+        .insert("U".to_string(), (entry, ready));
     let info = TaskInfo {
         core: 0,
         ..Default::default()

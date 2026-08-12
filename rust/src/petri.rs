@@ -6,12 +6,12 @@
 
 use std::collections::HashMap;
 
-use unipn::net::ArcDir;
 use unipn::ids::{PlaceId, TransitionId};
+use unipn::net::ArcDir;
 
 pub use unipn::{
-    reset_overflow_recording, overflowed_places, CONTROL_TRANSITION_CORE, INF, Marking,
-    TimeInterval, TimedNet, TimedPlaceKind, TimedTransitionKind,
+    CONTROL_TRANSITION_CORE, INF, Marking, TimeInterval, TimedNet, TimedPlaceKind,
+    TimedTransitionKind, overflowed_places, reset_overflow_recording,
 };
 
 /// Per-task scheduling metadata attached to the lowered net so the metrics
@@ -62,7 +62,7 @@ impl PTPN {
                 saturate,
             },
         );
-        self.m0.set(id, 0);
+        self.m0.0.push(0);
         id.index()
     }
 
@@ -87,8 +87,13 @@ impl PTPN {
     }
 
     pub fn set_pre_arc(&mut self, place_idx: usize, trans_idx: usize, weight: i32) {
-        self.net
-            .add_arc(PlaceId(place_idx), TransitionId(trans_idx), ArcDir::Input, weight as usize, ());
+        self.net.add_arc(
+            PlaceId(place_idx),
+            TransitionId(trans_idx),
+            ArcDir::Input,
+            weight as usize,
+            (),
+        );
     }
 
     pub fn set_post_arc(&mut self, trans_idx: usize, place_idx: usize, weight: i32) {
